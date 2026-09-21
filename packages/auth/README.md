@@ -1,6 +1,11 @@
 # @jcurve/auth
 
-리워드 앱 세 개(**당근캐시 · 꿀꿀캐시 · 꼬꼬농장**)가 같이 쓰는 **소셜 로그인**.
+리워드 앱들이 같이 쓰는 **소셜 로그인 + 가입 퍼널 기록**.
+
+**2.0**(2026-09-21) — 꼬꼬농장이 실기기에서 쌓은 장치를 얹었다: SDK 가 안 되면 서버 웹 로그인으로,
+늦게 오는 복귀 주소, 게스트 농장 잇기, 어드민이 켠 로그인만, 로그인 중 재시작 막기, 티켓 밀어 넣기(로그인 CSRF)
+막기, 가입 퍼널을 앱마다 같은 이름으로. **전부 선택**이라 1.0 처럼 셋(키·서버·기록)만 줘도 그대로 돈다.
+각 장치가 왜 있는지는 `src/index.ts` 머리말 ①~⑭ 가 원본이다.
 
 로그인은 앱마다 다시 만들 자리가 아니다. 겉보기에는 「카카오 버튼을 누르면 토큰을 받아
 서버에 준다」가 전부인데, 실제로는 **기기에서만 드러나는 함정**이 줄줄이 있다. 아래는 전부
@@ -32,28 +37,19 @@ lateinit property hosts has not been initialized
 
 ## 설치
 
-```bash
-npm i "git+https://github.com/jxamen/jc-auth.git#<커밋 sha>"
+`package.json` 에 릴리스 파일 주소를 적는다(공개 저장소라 토큰이 필요 없다).
+
+```json
+"@jcurve/auth": "https://github.com/jxamen/jcurve-packages/releases/download/auth-v2.0.0/jcurve-auth-2.0.0.tgz"
 ```
 
-**주소 형식을 지켜라.** `github:jxamen/jc-auth` 로 적으면 npm 이 lockfile 에 `git+ssh://` 로
-적어 넣고, 그러면 **GitHub SSH 키가 없는 기계에서는 받지도 못한다** — 맥 빌드 기계와
-**EAS 클라우드 빌드**가 거기 걸린다(2026-09-18 앱빌드 세션 제보).
+**앱에 다음 JS 패키지가 모두 있어야 한다.** 패키지는 네이티브 모듈을 지연 `require` 로 집어서 **실행 때는**
+모듈이 없어도 넘어가지만, **Metro 는 `require('…')` 를 빌드 때 찾는다**(`allowOptionalDependencies` 기본 꺼짐) —
+하나라도 없으면 번들이 깨진다:
 
-**저장소가 비공개라 받는 기계에 GitHub 인증이 있어야 한다.** 그리고 npm 은 GitHub 주소를
-lockfile 의 `resolved` 에 **`git+ssh://` 로 적는다** — `git+https://` 로 써 넣어도 그렇다.
-SSH 키가 없는 기계(맥 빌드 기계·EAS 클라우드)는 거기서 막힌다. 한 줄로 푼다:
-
-```bash
-git config --global url."https://github.com/".insteadOf ssh://git@github.com/
-```
-
-기계마다 한 번만 하면 된다(GitHub HTTPS 자격증명은 `gh auth login` 이 넣어 준다).
-이게 번거로워지면 **저장소를 공개로 돌리는 것**도 방법이다 — 이 패키지에는 키도 서버 주소도
-없다. 다만 주석에 이탈률·앱 이름 같은 내부 내용이 있어 **오너가 정할 일**이다.
-
-**커밋 sha 로 고정하라.** 브랜치로 두면 기계마다 다른 코드를 받아, 「내 기계에서는 되는데」가
-난다. 올릴 때마다 sha 를 바꾸고 세 앱의 lockfile 을 같이 올린다.
+`@react-native-kakao/core` · `@react-native-kakao/user` · `@react-native-google-signin/google-signin` ·
+`expo-apple-authentication` · `expo-web-browser` · `@react-native-firebase/analytics` ·
+`expo-application` · `expo-modules-core` · `expo-updates`
 
 `dist/` 를 저장소에 함께 두므로 **설치할 때 빌드하지 않는다.** Metro 설정도 필요 없고,
 받는 기계에 타입 패키지가 없어도 된다 — 전에 `prepare` 로 `tsc` 를 돌리게 두었다가
@@ -88,6 +84,50 @@ export type { Provider } from '@jcurve/auth';
 `signIn(provider)` 이 돌려주는 것은 **서버 호출이 돌려준 그대로**다(`createAuth<AuthResult>`).
 앱마다 세션 모양이 달라도 패키지가 건드리지 않는다.
 
+### 2.0 — 웹 로그인·게스트·퍼널까지 (선택)
+
+```ts
+import { AuthError, createAuth, createFunnel, createTrack } from '@jcurve/auth';
+
+const funnel = createFunnel({ base: API, appToken: APP_TOKEN, storage: AsyncStorage });
+export const track = createTrack({ funnel });          // GA4 + 서버 퍼널에 같은 이름으로
+
+export const auth = createAuth<AuthResult>({
+  keys: { kakaoNative: KAKAO_NATIVE_APP_KEY, googleWeb: GOOGLE_WEB_CLIENT_ID, googleIos: GOOGLE_IOS_CLIENT_ID },
+  server: { kakao: loginKakao, google: loginGoogle, apple: loginApple },
+  track,
+  web: {
+    // nonce 는 시작 주소와 교환 본문 **둘 다**에 싣는다 — 한쪽만 실으면 서버가 모든 교환을 거절한다
+    start: (p, link, nonce) => `${API}/auth/start?provider=${p}&nonce=${nonce}` + (link ? `&link=${link}` : ''),
+    returnUrl: 'myapp://auth',
+    exchange: (ticket, nonce) => api.post('auth/exchange', { ticket, nonce }),
+    // 서버가 만든 nonce — 기기에서 만들면 짐작될 수 있다(RN 기본엔 보안 난수가 없다)
+    nonce: async () => (await api.post('auth/nonce')).nonce,
+  },
+  providers: () => serverProviders,                    // GET /auth/providers — 비어 있으면 막지 않는다
+  guest: { active: () => !!guestToken, link: () => guestLinkCode(guestToken) },
+});
+
+funnel.appOpen();                                      // 앱 실행마다 한 번
+auth.onLateReturn((p) => auth.signIn(p));             // 창 밖으로 늦게 온 복귀 — 받은 제공자로
+try {
+  const session = await auth.signIn('kakao');
+} catch (e) {
+  // 취소·busy(다른 로그인이 도는 중)는 오류창을 띄우지 않는다. 실패는 e.tag 에 어디서 끊겼는지가 있다
+  if (e instanceof AuthError && (e.code === 'cancelled' || e.code === 'busy')) return;
+  showError(e instanceof AuthError ? e.tag : '');
+}
+```
+
+**OTA 로 스스로 재시작할 때는 `auth.hasTriedAuth()`·`auth.isAuthorizing()` 을 본다** — 로그인 창을 다녀오는 중에
+재시작하면 돌아올 곳이 사라진다(꼬꼬농장 신규 설치 134대 중 57대).
+
+**이미 퍼널을 쓰던 앱은 저장 키를 그대로 준다**(`createFunnel({ keys: { device: '쓰던_키' } })`) — 바뀌면
+하루에 전 사용자가 「첫 실행」으로 찍힌다.
+
+**1.0 에서 올릴 때 달라지는 것** — 폴백 사유를 `why` 가 아니라 `code` 로 싣는다. 취소는 SDK 오류 대신
+`AuthError`(`code: 'cancelled'`, 메시지 `user_cancel`)로 온다 — `isCancel(e.message)` 는 그대로 참이다.
+
 ## 꼭 지킬 것
 
 **화면이 뜨는 순간 도는 자리에서 카카오 네이티브를 부르지 마라.**
@@ -110,7 +150,7 @@ const talk = await kakaoTalkAvailable();
 
 사유는 갈래마다 다르다 — 이것이 ④ 를 막는 장치다.
 
-| `why` | 뜻 |
+| `code` (1.0 은 `why`) | 뜻 |
 |---|---|
 | `no_talk` | 카카오톡이 없거나 로그인 안 돼 있음 |
 | `sdk_…` | 카카오톡은 있는데 SDK 가 실패(키 해시·서명 문제가 여기 잡힌다) |
@@ -123,9 +163,8 @@ const talk = await kakaoTalkAvailable();
 
 ## 웹 폴백을 직접 만들 때 (안드로이드)
 
-이 패키지는 **웹 창을 직접 열지 않는다.** 카카오는 SDK 의 `useKakaoAccountLogin` 이,
-구글은 구글 SDK 가 알아서 한다. 그런데 앱에서 `openAuthSessionAsync` 같은 것으로
-**직접 브라우저를 여는 자리를 만든다면**, 안드로이드에서는 열기 전에 먼저 붙여야 한다.
+2.0 의 `web` 을 주면 **패키지가 창을 열고 아래도 한다.** 앱에서 `openAuthSessionAsync` 같은 것으로
+**따로 브라우저를 여는 자리를 만든다면**, 안드로이드에서는 열기 전에 먼저 붙여야 한다.
 
 ```ts
 if (Platform.OS === 'android') await WebBrowser.warmUpAsync();
@@ -138,12 +177,14 @@ if (Platform.OS === 'android') await WebBrowser.warmUpAsync();
 ## 이 패키지가 **안 하는** 것
 
 - **화면** — 버튼 배치·문구는 앱마다 다르다
-- **게스트 로그인** — 서버 계약이 앱마다 다르다. 꼬꼬농장은 **게스트 → SNS 승격**
-  (`guestLinkCode` 로 같은 회원 번호를 잇는 것)까지 있어서, 옮길 때 그 계약을 먼저 맞춰야 한다
+- **게스트 시작** — 서버 계약이 앱마다 다르다. 가입할 때 게스트로 키운 것을 **잇는 것**(`guest`)은 2.0 이 한다
 - **`busy` 관리** — 로그인 중 앱 밖에 나갔다 **아이콘으로** 돌아오면 커스텀 탭이 닫혀
   약속이 영영 안 끝난다. 그 상태로 `if (busy) return` 을 두면 **모든 로그인 버튼이 먹통**이
   된다(당근캐시 2026-09-18 실기기). 앱 store 에서 `AppState` 가 active 가 될 때
-  **2.5초 기다렸다가** 안 끝났으면 풀어라 — 바로 풀면 정상 로그인에 오탐이 난다
+  **2.5초 기다렸다가** 안 끝났으면 풀어라 — 바로 풀면 정상 로그인에 오탐이 난다.
+  2.0 은 패키지 안에서도 도는 로그인을 하나로 묶으므로(두 번 눌러도 창 하나), 풀 때
+  **`auth.abandon()` 도 같이 부른다** — 안 부르면 화면은 풀려도 패키지가 옛 약속을 붙잡고 있어
+  같은 버튼은 그 약속을 또 받고 다른 버튼은 `busy` 가 된다
 
 ## 고칠 때
 
@@ -159,5 +200,5 @@ npm test          # 동작 + 소스 규칙 + **dist 가 소스와 같은지**
 테스트가 **소스 글자까지** 본다. `@react-native-kakao/*` 는 테스트 환경에서 못 불러와
 동작으로 막을 수 없는데, ③ 은 어기면 앱이 죽는 종류라 무른 방식으로라도 지킨다.
 
-고친 뒤에는 **세 앱 모두** `npm update @jcurve/auth` 를 해야 한다. 한 곳만 올리면
+고친 뒤에는 새 판을 릴리스하고 **쓰는 앱 모두** 릴리스 주소를 올린다. 한 곳만 올리면
 같은 버그를 한 앱만 갖게 된다 — 이 패키지를 만든 이유가 그것이다.

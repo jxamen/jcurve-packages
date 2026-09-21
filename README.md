@@ -21,7 +21,7 @@ import { createPhone, format, looksValid, message } from '@jcurve/phone';
 
 | 이름 | 무엇 | 화면 |
 |---|---|---|
-| `@jcurve/auth` | 소셜 로그인 — 카카오·구글·애플 (SDK 방식) | 없음 |
+| `@jcurve/auth` | 소셜 로그인 + 가입 퍼널 기록 — 카카오·구글·애플 SDK, 안 되면 서버 웹 로그인 (2.0) | 없음 |
 | `@jcurve/apphub` | 앱 모아보기 — 계열 앱 목록 시트 | 시트만 공용, 입구 버튼은 앱마다 |
 | `@jcurve/phone` | 휴대폰 번호 인증 — 서버 호출·번호 검증·오류 문구 | 없음 |
 | `@jcurve/updates` | OTA — 언제 받고 언제 적용할지 | 없음 (띠는 앱마다) |

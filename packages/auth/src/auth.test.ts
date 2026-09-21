@@ -146,15 +146,20 @@ describe('카카오 폴백은 사유를 남긴다', () => {
    | `login()` 한 줄이면 조용히 웹으로 떨어져 **사유가 아무 데도 안 남는다.**
    | 카카오 가입이 0 명이어도 왜인지 알 수 없다 — 꼬꼬농장이 실제로 그랬다.
    */
+  /*
+   | 사유는 `code` 로 싣는다 — 서버 퍼널(`propOf`)이 `code`·`reason` 만 읽는다.
+   | 1.0 은 `why` 로 실어 **서버 퍼널에서 사유가 비어 있었다**(2.0 에서 고침).
+   */
   it('갈래마다 다른 사유를 남긴다', () => {
-    for (const why of ['no_sdk', 'cannot_tell', 'no_talk', 'server_reject']) {
-      expect(SRC, why).toContain("why: '" + why + "'");
+    for (const code of ['no_sdk', 'cannot_tell', 'no_talk', 'server_reject', 'server_off']) {
+      expect(SRC, code).toContain("code: '" + code + "'");
     }
-    expect(SRC).toContain("why: 'sdk_'");
+    expect(SRC).toContain("code: 'sdk_'");
+    expect(SRC, '서버 퍼널이 못 읽는 이름으로 되돌아갔다').not.toMatch(/why:/);
   });
 
   /* 그만둔 사람에게 웹 창을 또 띄우면 놀란다 */
   it('사용자가 그만두면 웹으로 떨어지지 않는다', () => {
-    expect(SRC).toContain('if (isCancel(code)) throw e;');
+    expect(SRC).toContain("if (isCancel(errText(e))) throw new AuthError('cancelled', 'kakao');");
   });
 });

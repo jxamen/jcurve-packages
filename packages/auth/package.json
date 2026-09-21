@@ -1,7 +1,7 @@
 {
   "name": "@jcurve/auth",
-  "version": "1.0.0",
-  "description": "리워드 앱 공용 소셜 로그인 — 카카오·구글·애플",
+  "version": "2.0.0",
+  "description": "리워드 앱 공용 소셜 로그인 + 가입 퍼널 기록 — 카카오·구글·애플·네이버(웹)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -14,7 +14,12 @@
     "test": "vitest run"
   },
   "peerDependencies": {
-    "react-native": ">=0.74"
+    "react-native": ">=0.74",
+    "expo-web-browser": "*",
+    "@react-native-firebase/analytics": "*",
+    "expo-application": "*",
+    "expo-modules-core": "*",
+    "expo-updates": "*"
   },
   "devDependencies": {
     "typescript": "~5.9.2",
@@ -25,6 +30,21 @@
   "private": false,
   "peerDependenciesMeta": {
     "react-native": {
+      "optional": true
+    },
+    "expo-web-browser": {
+      "optional": true
+    },
+    "@react-native-firebase/analytics": {
+      "optional": true
+    },
+    "expo-application": {
+      "optional": true
+    },
+    "expo-modules-core": {
+      "optional": true
+    },
+    "expo-updates": {
       "optional": true
     }
   },
