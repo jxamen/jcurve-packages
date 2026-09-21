@@ -1,0 +1,19 @@
+{
+  "name": "@jcurve/phone",
+  "version": "1.0.0",
+  "description": "리워드 앱 공용 휴대폰 번호 인증 — 문자 6자리",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist", "src", "README.md"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.2",
+    "vitest": "^3.2.4",
+    "@types/node": "^22.10.2"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}
