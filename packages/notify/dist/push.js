@@ -18,19 +18,33 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createPush = createPush;
-const req = (name) => {
+/*
+ | **`require` 안의 이름은 반드시 글자 그대로 쓴다.** Metro 는 require 를 빌드 때 찾는데, `require(name)` 처럼
+ | 변수로 주면 찾지 못하고 그 자리를 「실행하면 던지는 코드」로 바꾼다. try/catch 가 그걸 삼키면 모듈이
+ | **늘 없는 것처럼** 돈다 — 1.1.0 이 그랬다: 등록도, 알림을 눌렀을 때 열람 보고·링크 열기도 조용히 안 됐다
+ | (꼬꼬농장 2026-09-22 OTA, 번들에서 "Dynamic require … not supported by Metro" 로 확인).
+ */
+const notificationsModule = () => {
     try {
-        return require(name);
+        return require('expo-notifications');
+    }
+    catch {
+        return null;
+    }
+};
+const reactNative = () => {
+    try {
+        return require('react-native');
     }
     catch {
         return null;
     }
 };
 const defaultEnv = () => ({
-    notifications: () => req('expo-notifications'),
-    platform: () => String(req('react-native')?.Platform?.OS ?? ''),
+    notifications: notificationsModule,
+    platform: () => String(reactNative()?.Platform?.OS ?? ''),
     fetch: (url, init) => fetch(url, init),
-    openUrl: (url) => { void req('react-native')?.Linking?.openURL(url)?.catch?.(() => undefined); },
+    openUrl: (url) => { void reactNative()?.Linking?.openURL(url)?.catch?.(() => undefined); },
 });
 function createPush(deps, env = defaultEnv()) {
     let registered = ''; // 이번 실행에서 올린 토큰 — 같은 값을 반복 등록하지 않는다

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { createPush, type PushDeps, type PushEnv } from './push';
 
@@ -145,5 +146,17 @@ describe('알림을 눌렀을 때', () => {
     tap(null);
     expect(calls).toHaveLength(0);
     expect(opened).toHaveLength(0);
+  });
+});
+
+describe('Metro 가 빌드 때 찾을 수 있게', () => {
+  it('require 안의 이름은 글자 그대로다 — 변수로 주면 실행 때 던지고, 모듈이 늘 없는 것처럼 돈다(1.1.0)', () => {
+    for (const f of ['push.ts', 'notify.ts']) {
+      // 주석은 빼고 본다 — 설명에 적은 `require(name)` 같은 글자까지 잡지 않게
+      const src = readFileSync(new URL('./' + f, import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+      const calls = [...src.matchAll(/require\(\s*([^)]*)\)/g)].map((m) => m[1].trim());
+      expect(calls.length, f + ' 에 require 가 있어야 검사가 의미 있다').toBeGreaterThan(0);
+      for (const c of calls) expect(c, f).toMatch(/^['"][^'"]+['"]$/);
+    }
   });
 });
