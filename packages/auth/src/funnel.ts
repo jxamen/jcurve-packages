@@ -26,6 +26,9 @@ export const FUNNEL_EVENTS: readonly string[] = [
   'signup_start', 'signup_terms_view', 'signup_terms_done', 'signup_done', 'signup_abort', 'signup_fail',
   'install_ref',
   'guest_tap', 'guest_start', 'guest_signup_view',
+  // 가입 관문 밖의 기능 계측(2.1) — 초대·앱 모아보기. 서버가 받게 되어(jcurve-api c002595) GA4 와 함께 서버에도 남긴다
+  'invite_lock', 'invite_join', 'invite_share',
+  'apphub_open', 'apphub_tap',
 ];
 
 /**

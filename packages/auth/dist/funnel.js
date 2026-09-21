@@ -31,6 +31,9 @@ exports.FUNNEL_EVENTS = [
     'signup_start', 'signup_terms_view', 'signup_terms_done', 'signup_done', 'signup_abort', 'signup_fail',
     'install_ref',
     'guest_tap', 'guest_start', 'guest_signup_view',
+    // 가입 관문 밖의 기능 계측(2.1) — 초대·앱 모아보기. 서버가 받게 되어(jcurve-api c002595) GA4 와 함께 서버에도 남긴다
+    'invite_lock', 'invite_join', 'invite_share',
+    'apphub_open', 'apphub_tap',
 ];
 /**
  * 개인정보처럼 보이는 값인가 — 이메일(@) 이나 숫자가 7개 넘게 이어진 것(전화번호·회원번호).
