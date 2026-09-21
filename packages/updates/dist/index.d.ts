@@ -51,8 +51,10 @@
  * SplashScreen.hideAsync();
  * ```
  *
- * **`busy` 에 로그인 화면·가입 화면을 빠뜨리지 마라.** 로그인 창을 다녀오는 중(`isAuthorizing`)만
- * 넣으면, 창을 열기 직전·가입 동의 화면에서 적용돼 같은 사고가 난다.
+ * **`busy` 에 가입 화면·소개 화면·로그인 창을 다녀오는 중(`isAuthorizing`)을 넣는다.** 로그인 **첫 화면을 보고만 있을 때**는
+ * 넣지 않아도 된다(2.3, 당근캐시·꼬꼬농장) — 버튼을 누르기 전 재시작은 같은 로그인 화면으로 돌아올 뿐이고, 넣으면 새로 깐
+ * 사람이 옛 판으로 가입한다. 대신 로그인·게스트 버튼은 **`isRestarting()` 이 참이면 탭을 무시**한다(재시작 1초 남짓의 틈).
+ * 게스트 시작처럼 서버에 무언가를 만드는 버튼도 누른 뒤에는 `triedAuth` 로 친다.
  *
  * `bundleLabel()` 은 지금 돌고 있는 판 이름이다(설정 화면에 두면 「적용됐나?」를 눈으로 본다).
  *
@@ -76,5 +78,5 @@
  * 1.0 은 「스스로 다시 시작하지 않고, 띠를 눌러야 적용」이었다. 적용이 사람 손에 달려 새 버전이 퍼지지
  * 않았고, 쓰는 앱도 없었다. 2.0 은 꼬꼬농장이 실제로 쓰며 다듬은 방식을 **모든 앱이 그대로** 쓴다.
  */
-export { __reset, applyUpdate, autoApply, bundleLabel, canApplyNow, hasWaiting, onUpdateReady, startupSettled } from './updates';
+export { __reset, applyUpdate, autoApply, bundleLabel, canApplyNow, hasWaiting, isRestarting, onUpdateReady, startupSettled } from './updates';
 export type { AutoApplyDeps } from './updates';

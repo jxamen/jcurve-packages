@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { __reset, applyUpdate, autoApply, bundleLabel, canApplyNow, hasWaiting, onUpdateReady, startupSettled, type AutoApplyDeps } from './updates';
+import { __reset, applyUpdate, autoApply, bundleLabel, canApplyNow, hasWaiting, isRestarting, onUpdateReady, startupSettled, type AutoApplyDeps } from './updates';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -338,5 +338,32 @@ describe('2.2 — 「새 버전 알려 주기」 토글', () => {
     autoApply(app({ notice: true }).deps);
     expect([hasWaiting(), canApplyNow(), applyUpdate()]).toEqual([false, false, false]);
     expect(U.reloads).toBe(0);
+  });
+});
+
+describe('2.3 — 재시작 중 표시', () => {
+  it('재시작을 정하면 참 — 버튼이 그 틈의 탭을 무시할 수 있게', () => {
+    expect(isRestarting()).toBe(false);
+    autoApply(app().deps);
+    U.emit({ isUpdatePending: true });
+    expect(U.reloads).toBe(1);
+    expect(isRestarting()).toBe(true);
+  });
+
+  it('띠를 눌러 적용할 때도 참', () => {
+    const { deps } = app({ notice: true, signedIn: true });
+    autoApply(deps);
+    U.emit({ isUpdatePending: true });
+    expect(isRestarting()).toBe(false);
+    applyUpdate();
+    expect(isRestarting()).toBe(true);
+  });
+
+  it('다시 시작하지 못하면 풀린다 — 버튼이 계속 안 먹으면 안 된다', async () => {
+    U.reloadAsync = async () => { throw new Error('reload failed'); };
+    autoApply(app().deps);
+    U.emit({ isUpdatePending: true });
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    expect(isRestarting()).toBe(false);
   });
 });

@@ -7,7 +7,7 @@
  * 죽이고, OTA 로 옛 런타임에 같은 JS 가 내려가므로 더 그렇다.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.hasWaiting = void 0;
+exports.hasWaiting = exports.isRestarting = void 0;
 exports.__reset = __reset;
 exports.onUpdateReady = onUpdateReady;
 exports.canApplyNow = canApplyNow;
@@ -32,6 +32,7 @@ let env = defaultEnv();
 function __reset(fake) {
     env = { ...defaultEnv(), ...fake };
     waiting = false;
+    restarting = false;
     current = null;
     readyFns.clear();
 }
@@ -49,7 +50,17 @@ const updates = () => {
  | autoApply 는 앱이 켜질 때 한 번만 부르므로 하나면 된다.
  */
 let waiting = false;
+let restarting = false;
 let current = null;
+/**
+ * 지금 새 판으로 다시 시작하는 중인가(2.3) — **로그인·게스트 버튼은 이게 참이면 탭을 무시한다.**
+ *
+ * 재시작을 정한 순간부터 실제로 다시 뜨기까지 1초 남짓 걸린다. 그 사이 로그인 버튼을 누르면 로그인이 시작되자마자
+ * 끊긴다 — 로그인 화면에서도 새 판을 적용하게 하면서(버튼 누르기 전) 남는 유일한 틈이다. 버튼이 무시하면 로그인은
+ * 시작조차 안 되고, 잠시 뒤 새 판의 같은 화면이 뜬다.
+ */
+const isRestarting = () => restarting;
+exports.isRestarting = isRestarting;
 const readyFns = new Set();
 /** 받아 둔 새 판이 있는가 */
 const hasWaiting = () => waiting;
@@ -105,10 +116,14 @@ function autoApply(deps, opts = {}) {
     let sub;
     const busy = () => deps.busy() || !env.active();
     const reload = () => {
+        restarting = true;
+        // 다시 시작하지 못했으면 표시를 풀어 버튼이 다시 먹게 한다 — 다음 실행에 저절로 적용된다
         try {
-            void Promise.resolve(U.reloadAsync()).catch(() => undefined);
+            void Promise.resolve(U.reloadAsync()).catch(() => { restarting = false; });
         }
-        catch { /* 다음 실행에 적용된다 */ }
+        catch {
+            restarting = false;
+        }
     };
     const noticeOn = () => { try {
         return !!deps.notice?.();

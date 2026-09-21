@@ -60,6 +60,7 @@ let env: Env = defaultEnv();
 export function __reset(fake?: Partial<Env>): void {
   env = { ...defaultEnv(), ...fake };
   waiting = false;
+  restarting = false;
   current = null;
   readyFns.clear();
 }
@@ -100,7 +101,17 @@ export type AutoApplyDeps = {
  | autoApply 는 앱이 켜질 때 한 번만 부르므로 하나면 된다.
  */
 let waiting = false;
+let restarting = false;
 let current: { deps: AutoApplyDeps; reload: () => void } | null = null;
+
+/**
+ * 지금 새 판으로 다시 시작하는 중인가(2.3) — **로그인·게스트 버튼은 이게 참이면 탭을 무시한다.**
+ *
+ * 재시작을 정한 순간부터 실제로 다시 뜨기까지 1초 남짓 걸린다. 그 사이 로그인 버튼을 누르면 로그인이 시작되자마자
+ * 끊긴다 — 로그인 화면에서도 새 판을 적용하게 하면서(버튼 누르기 전) 남는 유일한 틈이다. 버튼이 무시하면 로그인은
+ * 시작조차 안 되고, 잠시 뒤 새 판의 같은 화면이 뜬다.
+ */
+export const isRestarting = (): boolean => restarting;
 const readyFns = new Set<() => void>();
 
 /** 받아 둔 새 판이 있는가 */
@@ -156,7 +167,9 @@ export function autoApply(deps: AutoApplyDeps, opts: { quickMs?: number; everyMs
 
   const busy = (): boolean => deps.busy() || !env.active();
   const reload = (): void => {
-    try { void Promise.resolve(U.reloadAsync()).catch(() => undefined); } catch { /* 다음 실행에 적용된다 */ }
+    restarting = true;
+    // 다시 시작하지 못했으면 표시를 풀어 버튼이 다시 먹게 한다 — 다음 실행에 저절로 적용된다
+    try { void Promise.resolve(U.reloadAsync()).catch(() => { restarting = false; }); } catch { restarting = false; }
   };
   const noticeOn = (): boolean => { try { return !!deps.notice?.(); } catch { return false; } };
   current = { deps, reload };

@@ -66,6 +66,14 @@ export type AutoApplyDeps = {
      */
     notice?: () => boolean;
 };
+/**
+ * 지금 새 판으로 다시 시작하는 중인가(2.3) — **로그인·게스트 버튼은 이게 참이면 탭을 무시한다.**
+ *
+ * 재시작을 정한 순간부터 실제로 다시 뜨기까지 1초 남짓 걸린다. 그 사이 로그인 버튼을 누르면 로그인이 시작되자마자
+ * 끊긴다 — 로그인 화면에서도 새 판을 적용하게 하면서(버튼 누르기 전) 남는 유일한 틈이다. 버튼이 무시하면 로그인은
+ * 시작조차 안 되고, 잠시 뒤 새 판의 같은 화면이 뜬다.
+ */
+export declare const isRestarting: () => boolean;
 /** 받아 둔 새 판이 있는가 */
 export declare const hasWaiting: () => boolean;
 /**
