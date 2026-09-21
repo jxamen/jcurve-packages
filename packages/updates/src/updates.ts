@@ -256,6 +256,11 @@ export function autoApply(
     offActive = env.onActive(() => {
       const c = U.latestContext;
       if (waiting || c?.isUpdatePending || c?.isStartupProcedureRunning || c?.isDownloading) return;
+      /*
+       | **로그인 중이면 받지 않는다**(2.4.1, 머니트리 지적). 카카오 로그인에서 돌아오는 바로 그 복귀에 받기(수 MB)가
+       | 시작되면 로그인 요청과 겹친다 — 이 패키지가 생긴 까닭이 로그인과 겹치지 않는 것이다. 다음 복귀·다음 실행에 받는다.
+       */
+      try { if (deps.busy()) return; } catch { return; }
       if (Date.now() - lastCheck < gap) return;
       void fetchNow();
     });

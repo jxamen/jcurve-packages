@@ -405,7 +405,7 @@ describe('2.4 — 앱이 다시 앞으로 올 때도 받는다(resumeCheckMs, �
 
   it('이미 받아 둔 것이 있거나 네이티브가 켤 때 확인 중이면 묻지 않는다', async () => {
     U.latestContext.isStartupProcedureRunning = true;
-    const { deps } = app({ signedIn: true, triedAuth: true, busy: true });
+    const { deps } = app({ signedIn: true, triedAuth: true, busy: false });   // 로그인 중이 아니어도 — 그 조건만 본다
     autoApply(deps, { resumeCheckMs: 1000 });
     vi.advanceTimersByTime(5000);
     await comeBack();
@@ -414,6 +414,17 @@ describe('2.4 — 앱이 다시 앞으로 올 때도 받는다(resumeCheckMs, �
     vi.advanceTimersByTime(5000);
     await comeBack();
     expect(U.checks).toBe(0);
+  });
+
+  it('로그인 중(busy)이면 묻지 않는다 — 카카오에서 돌아오는 그 복귀에 받기가 로그인과 겹치지 않게(2.4.1)', async () => {
+    const { s, deps } = app({ signedIn: false, triedAuth: true, busy: true });
+    autoApply(deps, { resumeCheckMs: 60_000 });
+    vi.advanceTimersByTime(61_000);
+    await comeBack();
+    expect(U.checks).toBe(0);
+    s.busy = false;             // 로그인이 끝났다 — 다음 복귀에 묻는다
+    await comeBack();
+    expect(U.checks).toBe(1);
   });
 
   it('주지 않으면 하지 않는다 — 기존 앱은 그대로(앞으로 올 때를 듣지도 않는다)', async () => {
