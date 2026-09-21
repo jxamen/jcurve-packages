@@ -1,7 +1,7 @@
 {
   "name": "@jcurve/notify",
-  "version": "1.0.0",
-  "description": "리워드 앱 공용 로컬 알림 — 기기가 스스로 띄우는 예약 알림(문구는 어드민이 정한다)",
+  "version": "1.1.0",
+  "description": "리워드 앱 공용 알림 — 로컬 예약 알림(문구는 어드민) + 원격 푸시 기기 토큰 등록·열람 보고(서버가 FCM·APNs 로 직접 발송)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": ["dist", "src", "README.md"],

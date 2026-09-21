@@ -28,7 +28,7 @@ import { createPhone, format, looksValid, message } from '@jcurve/phone';
 | `@jcurve/ocr` | 영수증 사진 → 읽은 값. 어드민에서 켠 앱만 | 없음 |
 | `@jcurve/money` | 현금 인출 검증 — 금액·계좌·예금주·번호 | 없음 |
 | `@jcurve/identity` | 간편인증(KICA) 본인확인 — CI 로 1인 1계정 | 없음 |
-| `@jcurve/notify` | 로컬 알림 — 기기가 때 되면 스스로 띄운다(문구는 어드민) | 없음 |
+| `@jcurve/notify` | 로컬 알림(문구는 어드민) + 원격 푸시 받기 — 기기 토큰 등록·열람 보고(서버가 FCM·APNs 로 직접 발송, 1.1) | 없음 |
 
 ## 새 판 내기
 

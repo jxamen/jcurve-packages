@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.planItems = exports.fillVars = exports.createNotify = exports.clampQuiet = void 0;
+exports.createPush = exports.planItems = exports.fillVars = exports.createNotify = exports.clampQuiet = void 0;
 /**
  * `@jcurve/notify` — 리워드 앱 공용 **로컬 알림**(기기가 스스로 띄우는 예약 알림).
  *
@@ -76,9 +76,21 @@ exports.planItems = exports.fillVars = exports.createNotify = exports.clampQuiet
  * 통합 어드민 → **환경설정 → 알림**. 항목의 `key` 는 **앱 코드와 맞춘 이름**이다 —
  * 어드민에서 키를 바꾸면 그 항목은 시각을 못 받아 **조용히 안 뜬다**(오류가 아니다).
  *
+ * ## 1.1 — 원격 푸시 받기(`createPush`)
+ *
+ * 서버가 보내는 푸시를 **받는 쪽**만 한다 — 기기 토큰 등록·끄기, 알림을 눌렀을 때 열람 보고·링크 열기.
+ * 토큰은 **기기 토큰**(안드로이드 FCM · 아이폰 APNs)이다. 서버가 Expo 중계 없이 직접 보낸다(2026-09-22 오너 결정).
+ * **서버에 그 앱의 FCM 키가 먼저 있어야 한다** — 없는 채로 내면 안드로이드 푸시가 끊긴다(`push.ts` 머리말).
+ *
+ * ```ts
+ * export const push = createPush({ base: API, appToken: APP_TOKEN, session: () => serverSessionToken(), consent: () => agreed });
+ * push.init();                      // 앱 시작에 한 번
+ * onSession(() => { void push.register(); push.flushOpen(); });
+ * ```
+ *
  * ## 이 패키지가 **안 하는** 것
  *
- *  - **원격 푸시** — 서버가 보내는 것은 `POST {app}/admin/push/send` 다
+ *  - **푸시 보내기** — 서버가 한다(`PushSender` — 토큰 종류로 FCM·APNs 로 가른다)
  *  - **알림 설정 화면** — 생김새는 앱마다 다르다. 이 패키지는 `prefs` 를 **읽기만** 한다
  *  - **언제 다시 걸지** — `AppState` 리스너는 앱이 건다(게임형이 아닌 앱은 다르다)
  *  - **권한 안내 화면** — `ask()` 를 어디서 부를지는 앱의 가입 흐름이 정한다
@@ -88,3 +100,5 @@ Object.defineProperty(exports, "clampQuiet", { enumerable: true, get: function (
 Object.defineProperty(exports, "createNotify", { enumerable: true, get: function () { return notify_1.createNotify; } });
 Object.defineProperty(exports, "fillVars", { enumerable: true, get: function () { return notify_1.fillVars; } });
 Object.defineProperty(exports, "planItems", { enumerable: true, get: function () { return notify_1.planItems; } });
+var push_1 = require("./push");
+Object.defineProperty(exports, "createPush", { enumerable: true, get: function () { return push_1.createPush; } });
