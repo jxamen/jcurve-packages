@@ -21,6 +21,10 @@ describe('useTestAdUnit', () => {
   it('스토어 production 만 실광고', () => {
     expect(useTestAdUnit(undefined, 'production')).toBe(false);
   });
+  it('테스트 기기를 등록했으면 채널과 무관하게 실단위(구글이 그 기기엔 테스트 광고를 준다) — 환경변수 1 은 그래도 테스트', () => {
+    expect(useTestAdUnit(undefined, 'testflight', true)).toBe(false);
+    expect(useTestAdUnit('1', 'production', true)).toBe(true);
+  });
   it('TestFlight·프리뷰·개발·채널 미확인은 테스트 광고 (실광고 no-fill 방지)', () => {
     expect(useTestAdUnit(undefined, 'testflight')).toBe(true);
     expect(useTestAdUnit(undefined, 'preview')).toBe(true);

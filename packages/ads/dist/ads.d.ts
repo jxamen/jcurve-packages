@@ -11,10 +11,16 @@ export type AdsOptions = {
         rewardedInterstitial?: AdUnits;
     };
     /**
-     * 구글 테스트 광고를 쓸까 — 보통 `isTestAds(process.env.EXPO_PUBLIC_ADMOB_TEST)`.
+     * 구글 테스트 광고를 쓸까 — 보통 `isTestAds(process.env.EXPO_PUBLIC_ADMOB_TEST, testDevices.length > 0)`.
      * 개발 실행(`__DEV__`)은 이 값과 무관하게 테스트 광고다.
      */
     test: boolean;
+    /**
+     * 애드몹 테스트 기기 ID(1.1, 당근캐시). 여기 적힌 기기는 **실제 광고 단위로도 테스트 광고**를 받는다 —
+     * 검수 기기에 실광고가 뜨면 정책 위반이고, 실단위라야 SSV 가 와서 보상 흐름을 끝까지 시험할 수 있다.
+     * ID 는 그 기기에서 광고를 한 번 요청하면 로그에 찍힌다(`testDeviceIdentifiers = @[ @"…" ]`). 서명 키마다 다르다.
+     */
+    testDevices?: string[];
 };
 export type ShowOptions = {
     /** 서버 보상 확인(SSV)에 실을 회원 번호 — 둘러보기면 비운다 */
@@ -25,8 +31,14 @@ export type ShowOptions = {
     interstitial?: boolean;
     /** 끝까지 봤다 — 광고가 아직 전체화면일 때 온다(연출은 onClosed 뒤에) */
     onEarned: () => void;
-    /** 못 봤다 — 보상을 주지 말고 남은 횟수도 깎지 않는다 */
-    onFail: (msg: string) => void;
+    /**
+     * 못 봤다 — 보상을 주지 말고 남은 횟수도 깎지 않는다.
+     *
+     * `noAd` 는 **광고가 열리지도 않았다**(재고 없음·로드 실패·시간 초과)는 뜻이다(1.1, 당근캐시). 중간에 닫은 것
+     * (`noAd: false`)과 가를 자리가 있다 — 이미 번 것을 꺼내는 동작은 광고를 못 띄웠다는 이유로 잠그면 안 되고,
+     * 중간에 닫은 것은 멈춰야 한다. 인자 하나만 받는 함수를 줘도 된다.
+     */
+    onFail: (msg: string, noAd: boolean) => void;
     onClosed?: () => void;
     onOpened?: () => void;
 };

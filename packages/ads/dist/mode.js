@@ -19,9 +19,12 @@ function readUpdateChannel(mod) {
  * ⚠ OTA 를 `--environment production` 으로 만들면 `EXPO_PUBLIC_ADMOB_TEST` 가 빠지고, 채널은 Metro interop 때문에
  * `default` 아래에 있을 수 있다 — 둘 다 놓치면 실광고로 뒤집혀 광고가 안 뜬다(꼬꼬농장 2026-08-24·08-26 실사고).
  */
-function useTestAdUnit(envFlag, channel) {
+function useTestAdUnit(envFlag, channel, testDevice = false) {
     if (envFlag === '1')
         return true;
+    // 테스트 기기를 등록했으면 실단위 — 그 기기에는 구글이 테스트 광고를 주고, SSV 도 온다(1.1, 당근캐시)
+    if (testDevice)
+        return false;
     if (channel === 'production')
         return false;
     return true;
@@ -31,13 +34,13 @@ function useTestAdUnit(envFlag, channel) {
  *
  * 환경변수는 **앱이** 넘긴다 — `process.env.EXPO_PUBLIC_*` 를 빌드 때 채워 넣는 것은 앱 코드에서만 확실하다.
  */
-function isTestAds(envFlag) {
+function isTestAds(envFlag, testDevice = false) {
     let ch = '';
     try {
         ch = readUpdateChannel(require('expo-updates'));
     }
     catch { /* 모듈 없음 — 채널 미확인은 테스트 광고 */ }
-    return useTestAdUnit(envFlag, ch);
+    return useTestAdUnit(envFlag, ch, testDevice);
 }
 /**
  * SSV(서버 보상 확인)에 실을 값 — **실광고 + 로그인한 사람만.**

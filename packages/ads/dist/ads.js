@@ -65,8 +65,15 @@ function createRewarded(opts, env = defaultEnv()) {
     const ensureInit = () => {
         if (!nativeReady)
             return Promise.resolve(null);
-        if (!initDone)
-            initDone = Promise.resolve().then(() => mod.default().initialize()).catch(() => null);
+        if (!initDone) {
+            initDone = (async () => {
+                // 등록된 테스트 기기 — 초기화 **전에** 알려야 첫 광고부터 테스트 광고가 나온다
+                if (opts.testDevices && opts.testDevices.length > 0) {
+                    await Promise.resolve(mod.default().setRequestConfiguration({ testDeviceIdentifiers: opts.testDevices })).catch(() => null);
+                }
+                return mod.default().initialize();
+            })().catch(() => null);
+        }
         return withTimeout(initDone, 5000);
     };
     let trackingP = null;
@@ -170,7 +177,7 @@ function createRewarded(opts, env = defaultEnv()) {
     };
     async function show({ userId, customData, interstitial = false, onEarned, onFail, onClosed, onOpened }) {
         if (!nativeReady) {
-            onFail('이 빌드에서는 광고를 재생할 수 없어요');
+            onFail('이 빌드에서는 광고를 재생할 수 없어요', true);
             return false;
         }
         const appState = env.appState();
@@ -222,8 +229,8 @@ function createRewarded(opts, env = defaultEnv()) {
             timers.length = 0;
         };
         abortCurrent = () => { finished = true; cleanup(); };
-        const safe = (f, arg) => { try {
-            f?.(arg);
+        const safe = (f, ...args) => { try {
+            f?.(...args);
         }
         catch { /* noop */ } };
         /*
@@ -244,7 +251,7 @@ function createRewarded(opts, env = defaultEnv()) {
                 const got = earned;
                 cleanup();
                 if (!got)
-                    safe(onFail, '광고를 끝까지 보지 않았어요');
+                    safe(onFail, '광고를 끝까지 보지 않았어요', false); // 열렸다가 중간에 닫았다
             }, 1200));
         };
         const fail = (msg) => {
@@ -256,7 +263,7 @@ function createRewarded(opts, env = defaultEnv()) {
             if (!interstitial)
                 noteAdFail();
             cleanup();
-            safe(onFail, msg);
+            safe(onFail, msg, !opened); // 열리기 전에 실패했으면 noAd
         };
         const present = () => {
             stage = 'show';

@@ -35,7 +35,8 @@
  *     rewarded: { android: 'ca-app-pub-…/…', ios: 'ca-app-pub-…/…' },
  *     rewardedInterstitial: { android: 'ca-app-pub-…/…', ios: 'ca-app-pub-…/…' },   // 없으면 빼도 된다
  *   },
- *   test: isTestAds(process.env.EXPO_PUBLIC_ADMOB_TEST),   // 환경변수는 앱이 넘긴다(빌드 때 채워지는 곳이 앱 코드)
+ *   test: isTestAds(process.env.EXPO_PUBLIC_ADMOB_TEST, TEST_DEVICES.length > 0),   // 환경변수는 앱이 넘긴다
+ *   testDevices: TEST_DEVICES,   // (1.1, 선택) 검수 기기 — 실단위로 테스트 광고를 받고 SSV 도 온다
  * });
  *
  * // 안내 팝업이 뜰 때 — 확인을 누르면 바로 열리게
@@ -45,7 +46,7 @@
  *   userId: memberId, customData: JSON.stringify({ kind: 'feed' }),
  *   onEarned: () => { earned = true; },          // 광고가 아직 전체화면일 때 온다
  *   onClosed: () => { if (earned) celebrate(); },  // 연출은 닫힌 뒤에
- *   onFail: (msg) => toast(msg),                   // 보상을 주지 말고 횟수도 깎지 않는다
+ *   onFail: (msg, noAd) => toast(msg),             // 보상을 주지 말고 횟수도 깎지 않는다. noAd(1.1) = 열리지도 않았다
  * });
  * ```
  *

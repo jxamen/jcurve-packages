@@ -25,9 +25,10 @@ class FakeAd {
   show() { this.shows++; return Promise.resolve(); }
 }
 
-function setup(o: { os?: string; test?: boolean; noSdk?: boolean; units?: AdsOptions['units'] } = {}) {
+function setup(o: { os?: string; test?: boolean; noSdk?: boolean; units?: AdsOptions['units']; testDevices?: string[] } = {}) {
   const made: FakeAd[] = [];
   let inits = 0;
+  const order: string[] = [];
   const appListeners = new Set<(s: string) => void>();
   const app = {
     currentState: 'active',
@@ -35,7 +36,10 @@ function setup(o: { os?: string; test?: boolean; noSdk?: boolean; units?: AdsOpt
   };
   const att = { asked: 0, getTrackingPermissionsAsync: async () => ({ status: 'undetermined' }), requestTrackingPermissionsAsync: async () => { att.asked++; return { status: 'granted' }; } };
   const sdk = {
-    default: () => ({ initialize: async () => { inits++; } }),
+    default: () => ({
+      initialize: async () => { inits++; order.push('initialize'); },
+      setRequestConfiguration: async (c: any) => { order.push('config:' + (c?.testDeviceIdentifiers ?? []).join(',')); },
+    }),
     RewardedAd: { createForAdRequest: (u: string, r: any) => { const a = new FakeAd('r', u, r); made.push(a); return a; } },
     RewardedInterstitialAd: { createForAdRequest: (u: string, r: any) => { const a = new FakeAd('ri', u, r); made.push(a); return a; } },
     TestIds: { REWARDED: 'TEST_R', REWARDED_INTERSTITIAL: 'TEST_RI' },
@@ -52,18 +56,19 @@ function setup(o: { os?: string; test?: boolean; noSdk?: boolean; units?: AdsOpt
   const ads = createRewarded({
     units: o.units ?? { rewarded: { android: 'AND_R', ios: 'IOS_R' }, rewardedInterstitial: { android: 'AND_RI', ios: 'IOS_RI' } },
     test: o.test ?? false,
+    testDevices: o.testDevices,
   }, env);
-  const calls = { earned: 0, closed: 0, opened: 0, fail: [] as string[] };
+  const calls = { earned: 0, closed: 0, opened: 0, fail: [] as string[], noAd: [] as boolean[] };
   const cb = {
     onEarned: () => { calls.earned++; },
     onClosed: () => { calls.closed++; },
     onOpened: () => { calls.opened++; },
-    onFail: (m: string) => { calls.fail.push(m); },
+    onFail: (m: string, noAd: boolean) => { calls.fail.push(m); calls.noAd.push(noAd); },
   };
   const toBg = () => { app.currentState = 'background'; appListeners.forEach((f) => f('background')); };
   const toFg = () => { app.currentState = 'active'; appListeners.forEach((f) => f('active')); };
 
-  return { ads, made, calls, cb, att, inits: () => inits, toBg, toFg };
+  return { ads, made, calls, cb, att, inits: () => inits, order, toBg, toFg };
 }
 
 /** 대기 중인 약속(초기화 등)을 다 흘려보낸다 */
@@ -238,5 +243,37 @@ describe('Metro 가 빌드 때 찾을 수 있게', () => {
       expect(calls.length, f).toBeGreaterThan(0);
       for (const c of calls) expect(c, f).toMatch(/^['"][^'"]+['"]$/);
     }
+  });
+});
+
+describe('1.1 — 당근캐시가 쓰던 것', () => {
+  it('noAd: 안 열렸으면 참(재고 없음·시간 초과·SDK 없음), 열렸다가 닫았으면 거짓', async () => {
+    const a = setup();
+    void a.ads.show({ ...a.cb });
+    await flush();
+    a.made[0].emit(EV.ERROR, { code: 'no-fill' });
+    const b = setup();
+    void b.ads.show({ ...b.cb });
+    await flush();
+    vi.advanceTimersByTime(15_000);
+    const c = setup();
+    void c.ads.show({ ...c.cb });
+    await flush();
+    c.made[0].emit(EV.LOADED); c.made[0].emit(EV.OPENED); c.made[0].emit(EV.CLOSED);
+    vi.advanceTimersByTime(1200);
+    const d = setup({ noSdk: true });
+    await d.ads.show({ ...d.cb });
+    expect([a.calls.noAd, b.calls.noAd, c.calls.noAd, d.calls.noAd]).toEqual([[true], [true], [false], [true]]);
+  });
+
+  it('테스트 기기는 초기화 **전에** 알린다 — 없으면 알리지 않는다', async () => {
+    const s = setup({ testDevices: ['75AF01'] });
+    void s.ads.show({ ...s.cb });
+    await flush();
+    expect(s.order).toEqual(['config:75AF01', 'initialize']);
+    const n = setup();
+    void n.ads.show({ ...n.cb });
+    await flush();
+    expect(n.order).toEqual(['initialize']);
   });
 });

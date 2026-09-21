@@ -10,13 +10,13 @@ export declare function readUpdateChannel(mod: unknown): string;
  * ⚠ OTA 를 `--environment production` 으로 만들면 `EXPO_PUBLIC_ADMOB_TEST` 가 빠지고, 채널은 Metro interop 때문에
  * `default` 아래에 있을 수 있다 — 둘 다 놓치면 실광고로 뒤집혀 광고가 안 뜬다(꼬꼬농장 2026-08-24·08-26 실사고).
  */
-export declare function useTestAdUnit(envFlag: string | undefined, channel: string): boolean;
+export declare function useTestAdUnit(envFlag: string | undefined, channel: string, testDevice?: boolean): boolean;
 /**
  * 테스트 광고를 쓸지 — 앱이 `EXPO_PUBLIC_ADMOB_TEST` 를 넘기면 채널은 여기서 읽는다.
  *
  * 환경변수는 **앱이** 넘긴다 — `process.env.EXPO_PUBLIC_*` 를 빌드 때 채워 넣는 것은 앱 코드에서만 확실하다.
  */
-export declare function isTestAds(envFlag?: string): boolean;
+export declare function isTestAds(envFlag?: string, testDevice?: boolean): boolean;
 /**
  * SSV(서버 보상 확인)에 실을 값 — **실광고 + 로그인한 사람만.**
  *
