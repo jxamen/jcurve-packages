@@ -367,3 +367,66 @@ describe('2.3 — 재시작 중 표시', () => {
     expect(isRestarting()).toBe(false);
   });
 });
+
+describe('2.4 — 앱이 다시 앞으로 올 때도 받는다(resumeCheckMs, 선택)', () => {
+  let resume: Array<() => void> = [];
+  const comeBack = async (): Promise<void> => { resume.forEach((f) => f()); await vi.advanceTimersByTimeAsync(0); };
+  beforeEach(() => {
+    resume = [];
+    __reset({
+      updates: () => U as any, active: () => active, dev: () => false,
+      onActive: (fn) => { resume.push(fn); return () => { resume = resume.filter((f) => f !== fn); }; },
+    });
+  });
+
+  it('마지막 확인에서 간격이 지났으면 묻고 받는다 — 받으면 평소 규칙대로 메인에서 적용', async () => {
+    const { deps } = app({ signedIn: true, atHome: true });
+    autoApply(deps, { resumeCheckMs: 60_000 });
+    vi.advanceTimersByTime(61_000);
+    await comeBack();
+    expect(U.checks).toBe(1);
+    expect(U.fetches).toBe(1);
+    vi.advanceTimersByTime(3000);
+    expect(U.reloads).toBe(1);
+  });
+
+  it('간격 안이면 묻지 않는다 — 앞뒤로 자주 오가도 서버를 두드리지 않는다', async () => {
+    const { deps } = app({ signedIn: true, atHome: true });
+    autoApply(deps, { resumeCheckMs: 60_000 });
+    vi.advanceTimersByTime(30_000);
+    await comeBack();
+    expect(U.checks).toBe(0);
+    vi.advanceTimersByTime(31_000);
+    await comeBack();
+    expect(U.checks).toBe(1);
+    await comeBack();
+    expect(U.checks).toBe(1);   // 방금 물었다
+  });
+
+  it('이미 받아 둔 것이 있거나 네이티브가 켤 때 확인 중이면 묻지 않는다', async () => {
+    U.latestContext.isStartupProcedureRunning = true;
+    const { deps } = app({ signedIn: true, triedAuth: true, busy: true });
+    autoApply(deps, { resumeCheckMs: 1000 });
+    vi.advanceTimersByTime(5000);
+    await comeBack();
+    expect(U.checks).toBe(0);
+    U.emit({ isStartupProcedureRunning: false, isUpdatePending: true });
+    vi.advanceTimersByTime(5000);
+    await comeBack();
+    expect(U.checks).toBe(0);
+  });
+
+  it('주지 않으면 하지 않는다 — 기존 앱은 그대로(앞으로 올 때를 듣지도 않는다)', async () => {
+    const { deps } = app({ signedIn: true, atHome: true });
+    autoApply(deps);
+    expect(resume).toHaveLength(0);
+  });
+
+  it('멈추면 앞으로 올 때 구독도 푼다', () => {
+    const { deps } = app({ signedIn: true, atHome: true });
+    const stop = autoApply(deps, { resumeCheckMs: 1000 });
+    expect(resume).toHaveLength(1);
+    stop();
+    expect(resume).toHaveLength(0);
+  });
+});

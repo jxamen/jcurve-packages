@@ -40,6 +40,8 @@ type Env = {
   /** 앱이 화면에 떠 있는가 — 뒤로 넘어간 사이(로그인 창·미션 매체)에는 적용하지 않는다 */
   active: () => boolean;
   dev: () => boolean;
+  /** 앱이 다시 앞으로 올 때마다 부른다(2.4) — 돌려주는 함수로 끊는다 */
+  onActive: (fn: () => void) => () => void;
 };
 
 const defaultEnv = (): Env => ({
@@ -52,6 +54,17 @@ const defaultEnv = (): Env => ({
     }
   },
   dev: () => typeof __DEV__ !== 'undefined' && !!__DEV__,
+  onActive: (fn) => {
+    try {
+      const sub = (require('react-native') as {
+        AppState: { addEventListener: (e: string, f: (s: string) => void) => { remove?: () => void } };
+      }).AppState.addEventListener('change', (st) => { if (st === 'active') fn(); });
+
+      return () => { try { sub?.remove?.(); } catch { /* 이미 끊겼다 */ } };
+    } catch {
+      return () => undefined;
+    }
+  },
 });
 
 let env: Env = defaultEnv();
@@ -154,7 +167,10 @@ export function applyUpdate(): boolean {
  *  3. 그 밖 — 3초마다 보다가, 로그인 전이면 「아직 안 눌렀을 때」, 로그인했으면 「메인에 있을 때」
  * 어느 경우든 **로그인·가입 중이거나 앱이 뒤로 가 있으면 하지 않는다** — 끝내 기회가 없으면 다음 실행에 저절로 적용된다.
  */
-export function autoApply(deps: AutoApplyDeps, opts: { quickMs?: number; everyMs?: number; fetchDelayMs?: number } = {}): () => void {
+export function autoApply(
+  deps: AutoApplyDeps,
+  opts: { quickMs?: number; everyMs?: number; fetchDelayMs?: number; resumeCheckMs?: number } = {},
+): () => void {
   const U = updates();
   if (!U) return () => undefined;
   const quickMs = opts.quickMs ?? 6000;
@@ -164,6 +180,8 @@ export function autoApply(deps: AutoApplyDeps, opts: { quickMs?: number; everyMs
   let timer: ReturnType<typeof setInterval> | null = null;
   let fetchTimer: ReturnType<typeof setTimeout> | null = null;
   let sub: { remove: () => void } | undefined;
+  let offActive: (() => void) | null = null;
+  let lastCheck = launchedAt;   // 켤 때 네이티브(또는 아래 2.1)가 한 번 본다
 
   const busy = (): boolean => deps.busy() || !env.active();
   const reload = (): void => {
@@ -172,6 +190,14 @@ export function autoApply(deps: AutoApplyDeps, opts: { quickMs?: number; everyMs
     try { void Promise.resolve(U.reloadAsync()).catch(() => { restarting = false; }); } catch { restarting = false; }
   };
   const noticeOn = (): boolean => { try { return !!deps.notice?.(); } catch { return false; } };
+  /** 새 판이 있나 묻고 있으면 받는다 — 적용은 받은 뒤 네이티브 상태 구독이 정한다 */
+  const fetchNow = async (): Promise<void> => {
+    lastCheck = Date.now();
+    try {
+      const found = await U.checkForUpdateAsync!();
+      if (found?.isAvailable) await U.fetchUpdateAsync!();
+    } catch { /* 못 받아도 지금 판은 멀쩡하다 */ }
+  };
   current = { deps, reload };
 
   const onPending = (): void => {
@@ -215,17 +241,30 @@ export function autoApply(deps: AutoApplyDeps, opts: { quickMs?: number; everyMs
     fetchTimer = setTimeout(() => {
       fetchTimer = null;
       if (!env.active()) return;   // 뒤로 넘어간 앱이 굳이 받을 이유가 없다
-      void (async () => {
-        try {
-          const found = await U.checkForUpdateAsync!();
-          if (found?.isAvailable) await U.fetchUpdateAsync!();
-        } catch { /* 못 받아도 지금 판은 멀쩡하다 */ }
-      })();
+      void fetchNow();
     }, opts.fetchDelayMs ?? 2000);   // 첫 화면이 쓸 네트워크를 같이 먹지 않게 잠깐 텀을 둔다
+  }
+
+  /*
+   | **앱이 다시 앞으로 올 때도 받는다**(2.4, 선택 — `resumeCheckMs`). 켤 때만 받으면 뒤에 둔 채 몇 시간씩 쓰는
+   | 폰은 옛 판에 머문다(머니트리 2026-09-19 「ota 안 되는데?」 — 백그라운드에 둔 아이폰이 몇 시간째 옛 판).
+   | 마지막 확인에서 이만큼 지났고, 받아 둔 것이 없고, 네이티브가 켤 때 확인·받는 중이 아닐 때만 묻는다.
+   | 다 받으면 네이티브 상태가 바뀌어 위 구독이 부르고, 적용은 위 규칙 그대로다. 주지 않으면 하지 않는다.
+   */
+  const gap = opts.resumeCheckMs ?? 0;
+  if (gap > 0 && U.checkForUpdateAsync && U.fetchUpdateAsync) {
+    offActive = env.onActive(() => {
+      const c = U.latestContext;
+      if (waiting || c?.isUpdatePending || c?.isStartupProcedureRunning || c?.isDownloading) return;
+      if (Date.now() - lastCheck < gap) return;
+      void fetchNow();
+    });
   }
 
   return () => {
     sub?.remove();
+    offActive?.();
+    offActive = null;
     if (timer) clearInterval(timer);
     timer = null;
     if (fetchTimer) clearTimeout(fetchTimer);

@@ -26,6 +26,19 @@ const defaultEnv = () => ({
         }
     },
     dev: () => typeof __DEV__ !== 'undefined' && !!__DEV__,
+    onActive: (fn) => {
+        try {
+            const sub = require('react-native').AppState.addEventListener('change', (st) => { if (st === 'active')
+                fn(); });
+            return () => { try {
+                sub?.remove?.();
+            }
+            catch { /* 이미 끊겼다 */ } };
+        }
+        catch {
+            return () => undefined;
+        }
+    },
 });
 let env = defaultEnv();
 /** 시험에서만 쓴다 — 기기 대신 흉내 낸 것을 쓴다. 인자 없이 부르면 원래대로 */
@@ -114,6 +127,8 @@ function autoApply(deps, opts = {}) {
     let timer = null;
     let fetchTimer = null;
     let sub;
+    let offActive = null;
+    let lastCheck = launchedAt; // 켤 때 네이티브(또는 아래 2.1)가 한 번 본다
     const busy = () => deps.busy() || !env.active();
     const reload = () => {
         restarting = true;
@@ -131,6 +146,16 @@ function autoApply(deps, opts = {}) {
     catch {
         return false;
     } };
+    /** 새 판이 있나 묻고 있으면 받는다 — 적용은 받은 뒤 네이티브 상태 구독이 정한다 */
+    const fetchNow = async () => {
+        lastCheck = Date.now();
+        try {
+            const found = await U.checkForUpdateAsync();
+            if (found?.isAvailable)
+                await U.fetchUpdateAsync();
+        }
+        catch { /* 못 받아도 지금 판은 멀쩡하다 */ }
+    };
     current = { deps, reload };
     const onPending = () => {
         if (armed)
@@ -195,18 +220,30 @@ function autoApply(deps, opts = {}) {
             fetchTimer = null;
             if (!env.active())
                 return; // 뒤로 넘어간 앱이 굳이 받을 이유가 없다
-            void (async () => {
-                try {
-                    const found = await U.checkForUpdateAsync();
-                    if (found?.isAvailable)
-                        await U.fetchUpdateAsync();
-                }
-                catch { /* 못 받아도 지금 판은 멀쩡하다 */ }
-            })();
+            void fetchNow();
         }, opts.fetchDelayMs ?? 2000); // 첫 화면이 쓸 네트워크를 같이 먹지 않게 잠깐 텀을 둔다
+    }
+    /*
+     | **앱이 다시 앞으로 올 때도 받는다**(2.4, 선택 — `resumeCheckMs`). 켤 때만 받으면 뒤에 둔 채 몇 시간씩 쓰는
+     | 폰은 옛 판에 머문다(머니트리 2026-09-19 「ota 안 되는데?」 — 백그라운드에 둔 아이폰이 몇 시간째 옛 판).
+     | 마지막 확인에서 이만큼 지났고, 받아 둔 것이 없고, 네이티브가 켤 때 확인·받는 중이 아닐 때만 묻는다.
+     | 다 받으면 네이티브 상태가 바뀌어 위 구독이 부르고, 적용은 위 규칙 그대로다. 주지 않으면 하지 않는다.
+     */
+    const gap = opts.resumeCheckMs ?? 0;
+    if (gap > 0 && U.checkForUpdateAsync && U.fetchUpdateAsync) {
+        offActive = env.onActive(() => {
+            const c = U.latestContext;
+            if (waiting || c?.isUpdatePending || c?.isStartupProcedureRunning || c?.isDownloading)
+                return;
+            if (Date.now() - lastCheck < gap)
+                return;
+            void fetchNow();
+        });
     }
     return () => {
         sub?.remove();
+        offActive?.();
+        offActive = null;
         if (timer)
             clearInterval(timer);
         timer = null;

@@ -43,6 +43,8 @@ type Env = {
     /** 앱이 화면에 떠 있는가 — 뒤로 넘어간 사이(로그인 창·미션 매체)에는 적용하지 않는다 */
     active: () => boolean;
     dev: () => boolean;
+    /** 앱이 다시 앞으로 올 때마다 부른다(2.4) — 돌려주는 함수로 끊는다 */
+    onActive: (fn: () => void) => () => void;
 };
 /** 시험에서만 쓴다 — 기기 대신 흉내 낸 것을 쓴다. 인자 없이 부르면 원래대로 */
 export declare function __reset(fake?: Partial<Env>): void;
@@ -102,6 +104,7 @@ export declare function autoApply(deps: AutoApplyDeps, opts?: {
     quickMs?: number;
     everyMs?: number;
     fetchDelayMs?: number;
+    resumeCheckMs?: number;
 }): () => void;
 /**
  * 로그인 전 사람의 시작 화면을 **네이티브의 시작 확인이 끝날 때까지**(최대 `maxMs`) 붙잡는다.
