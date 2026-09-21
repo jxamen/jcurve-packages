@@ -1,0 +1,23 @@
+{
+  "name": "@jcurve/ads",
+  "version": "1.0.0",
+  "description": "리워드 앱 공용 AdMob 보상형 광고 — 안전하게 띄우고 끝까지 봤는지 알려 준다(꼬꼬농장 방식, 화면 없음)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist", "src", "README.md"],
+  "scripts": { "build": "tsc -p tsconfig.json", "test": "vitest run" },
+  "peerDependencies": {
+    "react-native-google-mobile-ads": ">=16",
+    "expo-tracking-transparency": "*",
+    "expo-updates": "*",
+    "react-native": ">=0.74"
+  },
+  "peerDependenciesMeta": {
+    "react-native-google-mobile-ads": { "optional": true },
+    "expo-tracking-transparency": { "optional": true },
+    "expo-updates": { "optional": true },
+    "react-native": { "optional": true }
+  },
+  "repository": { "type": "git", "url": "https://github.com/jxamen/jcurve-packages", "directory": "packages/ads" },
+  "license": "UNLICENSED"
+}
