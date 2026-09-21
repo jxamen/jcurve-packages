@@ -1,0 +1,11 @@
+{
+  "name": "@jcurve/money",
+  "version": "1.0.0",
+  "description": "리워드 앱 공용 현금 인출 검증",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist", "src", "README.md"],
+  "scripts": { "build": "tsc -p tsconfig.json", "test": "vitest run" },
+  "repository": { "type": "git", "url": "https://github.com/jxamen/jcurve-packages", "directory": "packages/money" },
+  "license": "UNLICENSED"
+}

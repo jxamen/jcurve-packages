@@ -26,6 +26,8 @@ import { createPhone, format, looksValid, message } from '@jcurve/phone';
 | `@jcurve/phone` | 휴대폰 번호 인증 — 서버 호출·번호 검증·오류 문구 | 없음 |
 | `@jcurve/updates` | OTA — 언제 받고 언제 적용할지 | 없음 (띠는 앱마다) |
 | `@jcurve/ocr` | 영수증 사진 → 읽은 값. 어드민에서 켠 앱만 | 없음 |
+| `@jcurve/money` | 현금 인출 검증 — 금액·계좌·예금주·번호 | 없음 |
+| `@jcurve/identity` | 간편인증(KICA) 본인확인 — CI 로 1인 1계정 | 없음 |
 
 ## 새 판 내기
 

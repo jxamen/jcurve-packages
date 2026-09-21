@@ -1,0 +1,13 @@
+{
+  "name": "@jcurve/identity",
+  "version": "1.0.0",
+  "description": "리워드 앱 공용 간편인증(KICA) 본인확인",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist", "src", "README.md"],
+  "scripts": { "build": "tsc -p tsconfig.json", "test": "vitest run" },
+  "peerDependencies": { "expo-web-browser": "*" },
+  "peerDependenciesMeta": { "expo-web-browser": { "optional": true } },
+  "repository": { "type": "git", "url": "https://github.com/jxamen/jcurve-packages", "directory": "packages/identity" },
+  "license": "UNLICENSED"
+}
