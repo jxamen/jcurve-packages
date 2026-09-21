@@ -7,7 +7,7 @@
 /** 인증번호 자릿수 — 서버가 정한 값이다. 화면의 `maxLength` 도 이것을 쓴다 */
 export declare const CODE_LEN = 6;
 /** 서버가 돌려주는 오류 코드 — 여기 없는 값은 `unknown` 으로 다룬다 */
-export type PhoneError = 'phone_taken' | 'signup_required' | 'sms_off' | 'bad_phone' | 'too_soon' | 'too_many' | 'daily_max' | 'expired' | 'not_sent' | 'wrong' | 'network' | 'unknown';
+export type PhoneError = 'phone_taken' | 'same_phone' | 'signup_required' | 'sms_off' | 'bad_phone' | 'too_soon' | 'too_many' | 'daily_max' | 'expired' | 'not_sent' | 'wrong' | 'network' | 'unknown';
 export type PhoneStatus = {
     /** 확인이 끝난 번호. 없으면 빈 문자열 */
     phone: string;
@@ -72,6 +72,10 @@ export type PhoneDeps = {
     /**
      * 요청마다 헤더를 만든다 — 세션 토큰이 바뀌므로 **값이 아니라 함수로 받는다.**
      * 로그인 전이라 보낼 수 없으면 `null` 을 주면 된다(그때는 부르지 않는다).
+     *
+     * `Accept` · `Content-Type`(본문이 있을 때)은 **패키지가 붙인다**(1.1). 빠지면 서버가 본문을 못 읽어
+     * 번호가 빈칸이 되고, 어떤 번호든 `bad_phone` 이 난다(2026-09-22 당근캐시 실기기). 여기서 같은
+     * 이름을 주면 그 값이 이긴다.
      */
     headers: () => Record<string, string> | null;
     /** 밀리초. 기본 8초 */

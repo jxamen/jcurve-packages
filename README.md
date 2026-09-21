@@ -7,7 +7,7 @@
 `package.json` 에 릴리스 파일 주소를 적는다.
 
 ```json
-"@jcurve/phone": "https://github.com/jxamen/jcurve-packages/releases/download/phone-v1.0.0/jcurve-phone-1.0.0.tgz"
+"@jcurve/phone": "https://github.com/jxamen/jcurve-packages/releases/download/phone-v1.1.0/jcurve-phone-1.1.0.tgz"
 ```
 
 ```ts
@@ -23,7 +23,7 @@ import { createPhone, format, looksValid, message } from '@jcurve/phone';
 |---|---|---|
 | `@jcurve/auth` | 소셜 로그인 + 가입 퍼널 기록 — 카카오·구글·애플 SDK, 안 되면 서버 웹 로그인 (2.0) | 없음 |
 | `@jcurve/apphub` | 앱 모아보기 — 계열 앱 목록 시트 | 시트만 공용, 입구 버튼은 앱마다 |
-| `@jcurve/phone` | 휴대폰 번호 인증 — 서버 호출·번호 검증·오류 문구 | 없음 |
+| `@jcurve/phone` | 휴대폰 번호 인증 — 서버 호출·번호 검증·오류 문구 (1.1) | 없음 |
 | `@jcurve/updates` | OTA — 받은 새 버전을 로그인과 겹치지 않는 순간에 적용 (꼬꼬농장 방식, 2.0) | 없음 |
 | `@jcurve/ocr` | 영수증 사진 → 읽은 값. 어드민에서 켠 앱만 | 없음 |
 | `@jcurve/money` | 현금 인출 검증 — 금액·계좌·예금주·번호 | 없음 |

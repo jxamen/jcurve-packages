@@ -10,7 +10,7 @@ export const CODE_LEN = 6;
 
 /** 서버가 돌려주는 오류 코드 — 여기 없는 값은 `unknown` 으로 다룬다 */
 export type PhoneError =
-  | 'phone_taken' | 'signup_required' | 'sms_off' | 'bad_phone'
+  | 'phone_taken' | 'same_phone' | 'signup_required' | 'sms_off' | 'bad_phone'
   | 'too_soon' | 'too_many' | 'daily_max'
   | 'expired' | 'not_sent' | 'wrong'
   | 'network' | 'unknown';
@@ -67,6 +67,8 @@ export const codeLooksValid = (v: string): boolean => digits(v).length === CODE_
 export function message(error: PhoneError | string, extra?: { waitMs?: number; left?: number }): string {
   switch (error) {
     case 'phone_taken': return '이미 다른 계정에서 쓰고 있는 번호예요.';
+    // 확인해 둔 내 번호로 다시 받기(서버 409, jcurve-api 209e8ba) — 문자를 보내지 않는다
+    case 'same_phone': return '지금 확인된 번호와 같아요. 다른 번호를 넣어 주세요.';
     case 'signup_required': return '가입한 뒤에 번호를 인증할 수 있어요.';
     case 'sms_off': return '문자 인증을 준비하고 있어요. 조금만 기다려 주세요.';
     case 'bad_phone': return '휴대폰 번호를 다시 확인해 주세요.';
@@ -99,6 +101,10 @@ export type PhoneDeps = {
   /**
    * 요청마다 헤더를 만든다 — 세션 토큰이 바뀌므로 **값이 아니라 함수로 받는다.**
    * 로그인 전이라 보낼 수 없으면 `null` 을 주면 된다(그때는 부르지 않는다).
+   *
+   * `Accept` · `Content-Type`(본문이 있을 때)은 **패키지가 붙인다**(1.1). 빠지면 서버가 본문을 못 읽어
+   * 번호가 빈칸이 되고, 어떤 번호든 `bad_phone` 이 난다(2026-09-22 당근캐시 실기기). 여기서 같은
+   * 이름을 주면 그 값이 이긴다.
    */
   headers: () => Record<string, string> | null;
   /** 밀리초. 기본 8초 */
@@ -121,7 +127,7 @@ export function createPhone(deps: PhoneDeps): Phone {
     try {
       const res = await fetch(deps.base + path, {
         method: body ? 'POST' : 'GET',
-        headers: h,
+        headers: { Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}), ...h },
         signal: ctrl.signal,
         body: body ? JSON.stringify(body) : undefined,
       });

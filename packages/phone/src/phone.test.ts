@@ -135,4 +135,32 @@ describe('서버 호출', () => {
     withFetch({ ok: true, smsReady: false });
     expect((await createPhone(deps).status())?.smsReady).toBe(false);
   });
+
+  it('앱이 Content-Type 을 안 줘도 붙인다 — 빠지면 서버가 번호를 빈칸으로 읽어 bad_phone 이다', async () => {
+    const spy = withFetch({ ok: true });
+    await createPhone(deps).send('01012345678');
+    const h = (spy.mock.calls[0] as any)[1].headers;
+    expect(h).toMatchObject({ Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer t' });
+  });
+
+  it('본문이 없는 조회에는 Content-Type 을 붙이지 않는다', async () => {
+    const spy = withFetch({ ok: true });
+    await createPhone(deps).status();
+    const h = (spy.mock.calls[0] as any)[1].headers;
+    expect(h.Accept).toBe('application/json');
+    expect(h['Content-Type']).toBeUndefined();
+  });
+
+  it('앱이 준 헤더가 이긴다', async () => {
+    const spy = withFetch({ ok: true });
+    await createPhone({ ...deps, headers: () => ({ Accept: 'text/plain' }) }).send('01012345678');
+    expect((spy.mock.calls[0] as any)[1].headers.Accept).toBe('text/plain');
+  });
+
+  it('확인해 둔 내 번호로 다시 받으면 same_phone — 다른 번호를 넣으라고 한다', async () => {
+    withFetch({ ok: false, error: 'same_phone' }, 409);
+    const r = await createPhone(deps).send('01012345678');
+    expect(r).toEqual({ ok: false, error: 'same_phone', waitMs: undefined });
+    expect(message('same_phone')).toContain('다른 번호');
+  });
 });

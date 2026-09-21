@@ -43,6 +43,8 @@ exports.codeLooksValid = codeLooksValid;
 function message(error, extra) {
     switch (error) {
         case 'phone_taken': return '이미 다른 계정에서 쓰고 있는 번호예요.';
+        // 확인해 둔 내 번호로 다시 받기(서버 409, jcurve-api 209e8ba) — 문자를 보내지 않는다
+        case 'same_phone': return '지금 확인된 번호와 같아요. 다른 번호를 넣어 주세요.';
         case 'signup_required': return '가입한 뒤에 번호를 인증할 수 있어요.';
         case 'sms_off': return '문자 인증을 준비하고 있어요. 조금만 기다려 주세요.';
         case 'bad_phone': return '휴대폰 번호를 다시 확인해 주세요.';
@@ -77,7 +79,7 @@ function createPhone(deps) {
         try {
             const res = await fetch(deps.base + path, {
                 method: body ? 'POST' : 'GET',
-                headers: h,
+                headers: { Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}), ...h },
                 signal: ctrl.signal,
                 body: body ? JSON.stringify(body) : undefined,
             });

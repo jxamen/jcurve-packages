@@ -31,8 +31,8 @@
  *   headers: () => {
  *     const t = session?.token;
  *     if (!t) return null;                       // 로그인 전 — 부르지 않는다
- *     return { Accept: 'application/json', 'Content-Type': 'application/json',
- *              'X-App-Token': APP_TOKEN, Authorization: 'Bearer ' + t };
+ *     // Accept · Content-Type 은 패키지가 붙인다(1.1)
+ *     return { 'X-App-Token': APP_TOKEN, Authorization: 'Bearer ' + t };
  *   },
  * });
  *
