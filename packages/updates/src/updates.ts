@@ -59,6 +59,9 @@ let env: Env = defaultEnv();
 /** 시험에서만 쓴다 — 기기 대신 흉내 낸 것을 쓴다. 인자 없이 부르면 원래대로 */
 export function __reset(fake?: Partial<Env>): void {
   env = { ...defaultEnv(), ...fake };
+  waiting = false;
+  current = null;
+  readyFns.clear();
 }
 
 const updates = (): ExpoUpdates | null => {
@@ -84,7 +87,51 @@ export type AutoApplyDeps = {
   busy: () => boolean;
   /** 로그인한 사람에게 적용해도 되는 자리인가 — 메인 화면(꼬꼬농장: 농장 탭 첫 화면) */
   atHome: () => boolean;
+  /**
+   * 「새 버전 알려 주기」가 켜져 있는가(2.2) — 켜져 있으면 **스스로 적용하지 않고** 띠를 띄울 수 있게 알린다
+   * (`onUpdateReady`). 사람이 띠를 누르면 `applyUpdate()` 가 적용한다. 꺼져 있거나 주지 않으면 위 규칙대로 스스로 적용한다.
+   * 도중에 바꿔도 따른다 — 켜 두었다가 끄면 다음 조용한 순간에 스스로 적용된다.
+   */
+  notice?: () => boolean;
 };
+
+/*
+ | 받아 둔 새 판과 지금 붙어 있는 앱 사정 — 띠(`onUpdateReady`·`applyUpdate`)가 autoApply 와 같은 판단을 쓰게 한 곳에 둔다.
+ | autoApply 는 앱이 켜질 때 한 번만 부르므로 하나면 된다.
+ */
+let waiting = false;
+let current: { deps: AutoApplyDeps; reload: () => void } | null = null;
+const readyFns = new Set<() => void>();
+
+/** 받아 둔 새 판이 있는가 */
+export const hasWaiting = (): boolean => waiting;
+
+/**
+ * 새 판을 다 받으면 알려 달라 — 띠를 띄우는 화면이 부른다. **이미 받아 뒀으면 그 자리에서 한 번 부른다**
+ * (받는 것이 화면보다 먼저 끝난 기기에서 알림을 놓쳐 띠가 영영 안 뜨던 구멍). 돌려주는 함수로 끊는다.
+ */
+export function onUpdateReady(fn: () => void): () => void {
+  readyFns.add(fn);
+  if (waiting) { try { fn(); } catch { /* 화면 쪽 오류는 삼킨다 */ } }
+
+  return () => { readyFns.delete(fn); };
+}
+
+/**
+ * 지금 띠를 눌러 적용해도 되는가 — 받아 둔 것이 있고, **로그인·가입 중이 아니고** 앱이 떠 있을 때.
+ * 띠는 이것이 참일 때만 보여 준다(로그인 중에 누르면 로그인이 끊긴다 — 이 패키지가 생긴 까닭이다).
+ */
+export function canApplyNow(): boolean {
+  return waiting && !!current && !current.deps.busy() && env.active();
+}
+
+/** 띠를 눌렀다 — 적용할 수 있으면 곧바로 다시 시작한다. 못 하면 거짓(로그인 중·받아 둔 것 없음) */
+export function applyUpdate(): boolean {
+  if (!canApplyNow() || !current) return false;
+  current.reload();
+
+  return true;
+}
 
 /**
  * 네이티브가 받아 둔 새 버전을 **안전한 순간에** 적용한다 — 앱이 켜질 때 한 번 부른다. 돌려주는 함수로 멈춘다.
@@ -111,16 +158,25 @@ export function autoApply(deps: AutoApplyDeps, opts: { quickMs?: number; everyMs
   const reload = (): void => {
     try { void Promise.resolve(U.reloadAsync()).catch(() => undefined); } catch { /* 다음 실행에 적용된다 */ }
   };
+  const noticeOn = (): boolean => { try { return !!deps.notice?.(); } catch { return false; } };
+  current = { deps, reload };
 
   const onPending = (): void => {
     if (armed) return;
     armed = true;
-    // 1. 시작 화면이 아직 떠 있는 동안 — 켠 지 6초 안에 로그인 창을 여는 사람도 있어 같은 가드를 둔다
-    if (deps.signedIn() && !busy() && Date.now() - launchedAt < quickMs) { reload(); return; }
-    // 2. 로그인 전, 아직 로그인 버튼을 안 눌렀다 — 재시작해도 같은 로그인 화면으로 돌아올 뿐이다
-    if (!deps.signedIn() && !deps.triedAuth() && !busy()) { reload(); return; }
-    // 3. 그 뒤로는 조용한 순간을 기다린다
+    waiting = true;
+    // 띠를 띄우는 화면에 알린다 — 「새 버전 알려 주기」가 켜져 있으면 띠가 뜨고, 꺼져 있으면 화면이 무시한다
+    readyFns.forEach((f) => { try { f(); } catch { /* 화면 쪽 오류는 삼킨다 */ } });
+    // 알려 주기가 켜져 있으면 스스로 적용하지 않는다 — 사람이 띠를 누를 때(applyUpdate)까지 기다린다
+    if (!noticeOn()) {
+      // 1. 시작 화면이 아직 떠 있는 동안 — 켠 지 6초 안에 로그인 창을 여는 사람도 있어 같은 가드를 둔다
+      if (deps.signedIn() && !busy() && Date.now() - launchedAt < quickMs) { reload(); return; }
+      // 2. 로그인 전, 아직 로그인 버튼을 안 눌렀다 — 재시작해도 같은 로그인 화면으로 돌아올 뿐이다
+      if (!deps.signedIn() && !deps.triedAuth() && !busy()) { reload(); return; }
+    }
+    // 3. 그 뒤로는 조용한 순간을 기다린다(알려 주기를 켜 둔 동안은 기다리기만 — 끄면 여기서 적용된다)
     timer = setInterval(() => {
+      if (noticeOn()) return;
       if (busy()) return;
       if (!deps.signedIn()) { if (deps.triedAuth()) return; }
       else if (!deps.atHome()) return;
@@ -161,6 +217,7 @@ export function autoApply(deps: AutoApplyDeps, opts: { quickMs?: number; everyMs
     timer = null;
     if (fetchTimer) clearTimeout(fetchTimer);
     fetchTimer = null;
+    if (current?.deps === deps) current = null;
   };
 }
 

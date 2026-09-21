@@ -56,10 +56,25 @@
  *
  * `bundleLabel()` 은 지금 돌고 있는 판 이름이다(설정 화면에 두면 「적용됐나?」를 눈으로 본다).
  *
+ * ## 2.2 — 「새 버전 알려 주기」 토글(영테크·당근 등 띠가 있는 앱)
+ *
+ * **설정 켜짐 = 띠, 꺼짐 = 스스로 적용.** 토글 값을 `notice` 로 넘기면, 켜져 있을 때는 스스로 적용하지 않고 띠를 띄울 수
+ * 있게 알린다. 사람이 누르면 그때 적용한다. 꺼져 있으면(또는 토글이 없는 앱) 위 규칙대로 스스로 적용한다.
+ * **로그인·가입 중에는 띠를 숨기고 눌러도 적용하지 않는다**(`canApplyNow`) — 로그인이 끊기는 것이 이 패키지가 생긴 까닭이다.
+ *
+ * ```ts
+ * autoApply({ ...위와 같이, notice: () => settings.updateNotice });
+ * const [ready, setReady] = useState(hasWaiting());
+ * useEffect(() => onUpdateReady(() => setReady(true)), []);
+ * {ready && settings.updateNotice && canApplyNow() && !keyboard && (
+ *   <Band onPress={() => applyUpdate()}>새 버전이 준비됐어요</Band>   // 띠 모양은 앱마다
+ * )}
+ * ```
+ *
  * ## 1.0 에서 달라진 것
  *
  * 1.0 은 「스스로 다시 시작하지 않고, 띠를 눌러야 적용」이었다. 적용이 사람 손에 달려 새 버전이 퍼지지
  * 않았고, 쓰는 앱도 없었다. 2.0 은 꼬꼬농장이 실제로 쓰며 다듬은 방식을 **모든 앱이 그대로** 쓴다.
  */
-export { __reset, autoApply, bundleLabel, startupSettled } from './updates';
+export { __reset, applyUpdate, autoApply, bundleLabel, canApplyNow, hasWaiting, onUpdateReady, startupSettled } from './updates';
 export type { AutoApplyDeps } from './updates';

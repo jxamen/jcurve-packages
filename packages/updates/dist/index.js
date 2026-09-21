@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.startupSettled = exports.bundleLabel = exports.autoApply = exports.__reset = void 0;
+exports.startupSettled = exports.onUpdateReady = exports.hasWaiting = exports.canApplyNow = exports.bundleLabel = exports.autoApply = exports.applyUpdate = exports.__reset = void 0;
 /**
  * `@jcurve/updates` — 리워드 앱 공용 **OTA 적용하기**(2.0 — 꼬꼬농장 방식).
  *
@@ -59,6 +59,21 @@ exports.startupSettled = exports.bundleLabel = exports.autoApply = exports.__res
  *
  * `bundleLabel()` 은 지금 돌고 있는 판 이름이다(설정 화면에 두면 「적용됐나?」를 눈으로 본다).
  *
+ * ## 2.2 — 「새 버전 알려 주기」 토글(영테크·당근 등 띠가 있는 앱)
+ *
+ * **설정 켜짐 = 띠, 꺼짐 = 스스로 적용.** 토글 값을 `notice` 로 넘기면, 켜져 있을 때는 스스로 적용하지 않고 띠를 띄울 수
+ * 있게 알린다. 사람이 누르면 그때 적용한다. 꺼져 있으면(또는 토글이 없는 앱) 위 규칙대로 스스로 적용한다.
+ * **로그인·가입 중에는 띠를 숨기고 눌러도 적용하지 않는다**(`canApplyNow`) — 로그인이 끊기는 것이 이 패키지가 생긴 까닭이다.
+ *
+ * ```ts
+ * autoApply({ ...위와 같이, notice: () => settings.updateNotice });
+ * const [ready, setReady] = useState(hasWaiting());
+ * useEffect(() => onUpdateReady(() => setReady(true)), []);
+ * {ready && settings.updateNotice && canApplyNow() && !keyboard && (
+ *   <Band onPress={() => applyUpdate()}>새 버전이 준비됐어요</Band>   // 띠 모양은 앱마다
+ * )}
+ * ```
+ *
  * ## 1.0 에서 달라진 것
  *
  * 1.0 은 「스스로 다시 시작하지 않고, 띠를 눌러야 적용」이었다. 적용이 사람 손에 달려 새 버전이 퍼지지
@@ -66,6 +81,10 @@ exports.startupSettled = exports.bundleLabel = exports.autoApply = exports.__res
  */
 var updates_1 = require("./updates");
 Object.defineProperty(exports, "__reset", { enumerable: true, get: function () { return updates_1.__reset; } });
+Object.defineProperty(exports, "applyUpdate", { enumerable: true, get: function () { return updates_1.applyUpdate; } });
 Object.defineProperty(exports, "autoApply", { enumerable: true, get: function () { return updates_1.autoApply; } });
 Object.defineProperty(exports, "bundleLabel", { enumerable: true, get: function () { return updates_1.bundleLabel; } });
+Object.defineProperty(exports, "canApplyNow", { enumerable: true, get: function () { return updates_1.canApplyNow; } });
+Object.defineProperty(exports, "hasWaiting", { enumerable: true, get: function () { return updates_1.hasWaiting; } });
+Object.defineProperty(exports, "onUpdateReady", { enumerable: true, get: function () { return updates_1.onUpdateReady; } });
 Object.defineProperty(exports, "startupSettled", { enumerable: true, get: function () { return updates_1.startupSettled; } });

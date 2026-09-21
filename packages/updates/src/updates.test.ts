@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { __reset, autoApply, bundleLabel, startupSettled, type AutoApplyDeps } from './updates';
+import { __reset, applyUpdate, autoApply, bundleLabel, canApplyNow, hasWaiting, onUpdateReady, startupSettled, type AutoApplyDeps } from './updates';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -36,13 +36,14 @@ function fakeUpdates(ctx: Record<string, unknown> = {}, auto: string | null = 'O
 }
 
 /** 앱 상태 — 테스트에서 바꾼다 */
-function app(o: Partial<{ signedIn: boolean; triedAuth: boolean; busy: boolean; atHome: boolean }> = {}) {
-  const s = { signedIn: false, triedAuth: false, busy: false, atHome: false, ...o };
+function app(o: Partial<{ signedIn: boolean; triedAuth: boolean; busy: boolean; atHome: boolean; notice: boolean }> = {}) {
+  const s = { signedIn: false, triedAuth: false, busy: false, atHome: false, notice: false, ...o };
   const deps: AutoApplyDeps = {
     signedIn: () => s.signedIn,
     triedAuth: () => s.triedAuth,
     busy: () => s.busy,
     atHome: () => s.atHome,
+    notice: () => s.notice,
   };
 
   return { s, deps };
@@ -276,5 +277,66 @@ describe('2.1 — 켤 때 네이티브가 받지 않는 빌드(ON_ERROR_RECOVERY
     vi.advanceTimersByTime(5000);
     await flush();
     expect(U.checks).toBe(0);
+  });
+});
+
+describe('2.2 — 「새 버전 알려 주기」 토글', () => {
+  it('켜져 있으면 스스로 적용하지 않고 띠에 알린다 — 누르면 그때 적용', () => {
+    const { deps } = app({ signedIn: true, atHome: true, notice: true });
+    let told = 0;
+    onUpdateReady(() => { told++; });
+    autoApply(deps);
+    U.emit({ isUpdatePending: true });
+    vi.advanceTimersByTime(60000);
+    expect(U.reloads, '6초 안·메인이어도 스스로 적용하지 않는다').toBe(0);
+    expect([told, hasWaiting(), canApplyNow()]).toEqual([1, true, true]);
+    expect(applyUpdate()).toBe(true);
+    expect(U.reloads).toBe(1);
+  });
+
+  it('**로그인·가입 중에는 띠를 눌러도 적용하지 않는다** — 로그인이 끊긴다', () => {
+    const { s, deps } = app({ busy: true, notice: true });
+    autoApply(deps);
+    U.emit({ isUpdatePending: true });
+    expect(canApplyNow()).toBe(false);
+    expect(applyUpdate()).toBe(false);
+    expect(U.reloads).toBe(0);
+    s.busy = false;
+    expect(applyUpdate()).toBe(true);
+  });
+
+  it('꺼져 있으면(또는 토글이 없는 앱) 꼬꼬 규칙대로 스스로 적용한다', () => {
+    const { deps } = app({ signedIn: true, notice: false });
+    autoApply(deps);
+    U.emit({ isUpdatePending: true });
+    expect(U.reloads).toBe(1);
+  });
+
+  it('켜 두었다가 끄면 다음 조용한 순간에 스스로 적용된다', () => {
+    const { s, deps } = app({ signedIn: true, atHome: true, notice: true });
+    autoApply(deps);
+    vi.advanceTimersByTime(7000);
+    U.emit({ isUpdatePending: true });
+    vi.advanceTimersByTime(9000);
+    expect(U.reloads).toBe(0);
+    s.notice = false;
+    vi.advanceTimersByTime(3000);
+    expect(U.reloads).toBe(1);
+  });
+
+  it('띠 화면이 늦게 붙어도(이미 받아 둔 뒤) 그 자리에서 알린다 — 띠가 영영 안 뜨던 구멍', () => {
+    const { deps } = app({ notice: true, triedAuth: true });
+    autoApply(deps);
+    U.emit({ isUpdatePending: true });
+    let told = 0;
+    const off = onUpdateReady(() => { told++; });
+    expect(told).toBe(1);
+    off();
+  });
+
+  it('받아 둔 것이 없으면 눌러도 아무것도 안 한다', () => {
+    autoApply(app({ notice: true }).deps);
+    expect([hasWaiting(), canApplyNow(), applyUpdate()]).toEqual([false, false, false]);
+    expect(U.reloads).toBe(0);
   });
 });

@@ -7,7 +7,11 @@
  * 죽이고, OTA 로 옛 런타임에 같은 JS 가 내려가므로 더 그렇다.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.hasWaiting = void 0;
 exports.__reset = __reset;
+exports.onUpdateReady = onUpdateReady;
+exports.canApplyNow = canApplyNow;
+exports.applyUpdate = applyUpdate;
 exports.autoApply = autoApply;
 exports.startupSettled = startupSettled;
 exports.bundleLabel = bundleLabel;
@@ -27,6 +31,9 @@ let env = defaultEnv();
 /** 시험에서만 쓴다 — 기기 대신 흉내 낸 것을 쓴다. 인자 없이 부르면 원래대로 */
 function __reset(fake) {
     env = { ...defaultEnv(), ...fake };
+    waiting = false;
+    current = null;
+    readyFns.clear();
 }
 const updates = () => {
     try {
@@ -37,6 +44,44 @@ const updates = () => {
         return null;
     }
 };
+/*
+ | 받아 둔 새 판과 지금 붙어 있는 앱 사정 — 띠(`onUpdateReady`·`applyUpdate`)가 autoApply 와 같은 판단을 쓰게 한 곳에 둔다.
+ | autoApply 는 앱이 켜질 때 한 번만 부르므로 하나면 된다.
+ */
+let waiting = false;
+let current = null;
+const readyFns = new Set();
+/** 받아 둔 새 판이 있는가 */
+const hasWaiting = () => waiting;
+exports.hasWaiting = hasWaiting;
+/**
+ * 새 판을 다 받으면 알려 달라 — 띠를 띄우는 화면이 부른다. **이미 받아 뒀으면 그 자리에서 한 번 부른다**
+ * (받는 것이 화면보다 먼저 끝난 기기에서 알림을 놓쳐 띠가 영영 안 뜨던 구멍). 돌려주는 함수로 끊는다.
+ */
+function onUpdateReady(fn) {
+    readyFns.add(fn);
+    if (waiting) {
+        try {
+            fn();
+        }
+        catch { /* 화면 쪽 오류는 삼킨다 */ }
+    }
+    return () => { readyFns.delete(fn); };
+}
+/**
+ * 지금 띠를 눌러 적용해도 되는가 — 받아 둔 것이 있고, **로그인·가입 중이 아니고** 앱이 떠 있을 때.
+ * 띠는 이것이 참일 때만 보여 준다(로그인 중에 누르면 로그인이 끊긴다 — 이 패키지가 생긴 까닭이다).
+ */
+function canApplyNow() {
+    return waiting && !!current && !current.deps.busy() && env.active();
+}
+/** 띠를 눌렀다 — 적용할 수 있으면 곧바로 다시 시작한다. 못 하면 거짓(로그인 중·받아 둔 것 없음) */
+function applyUpdate() {
+    if (!canApplyNow() || !current)
+        return false;
+    current.reload();
+    return true;
+}
 /**
  * 네이티브가 받아 둔 새 버전을 **안전한 순간에** 적용한다 — 앱이 켜질 때 한 번 부른다. 돌려주는 함수로 멈춘다.
  *
@@ -65,22 +110,40 @@ function autoApply(deps, opts = {}) {
         }
         catch { /* 다음 실행에 적용된다 */ }
     };
+    const noticeOn = () => { try {
+        return !!deps.notice?.();
+    }
+    catch {
+        return false;
+    } };
+    current = { deps, reload };
     const onPending = () => {
         if (armed)
             return;
         armed = true;
-        // 1. 시작 화면이 아직 떠 있는 동안 — 켠 지 6초 안에 로그인 창을 여는 사람도 있어 같은 가드를 둔다
-        if (deps.signedIn() && !busy() && Date.now() - launchedAt < quickMs) {
-            reload();
-            return;
+        waiting = true;
+        // 띠를 띄우는 화면에 알린다 — 「새 버전 알려 주기」가 켜져 있으면 띠가 뜨고, 꺼져 있으면 화면이 무시한다
+        readyFns.forEach((f) => { try {
+            f();
         }
-        // 2. 로그인 전, 아직 로그인 버튼을 안 눌렀다 — 재시작해도 같은 로그인 화면으로 돌아올 뿐이다
-        if (!deps.signedIn() && !deps.triedAuth() && !busy()) {
-            reload();
-            return;
+        catch { /* 화면 쪽 오류는 삼킨다 */ } });
+        // 알려 주기가 켜져 있으면 스스로 적용하지 않는다 — 사람이 띠를 누를 때(applyUpdate)까지 기다린다
+        if (!noticeOn()) {
+            // 1. 시작 화면이 아직 떠 있는 동안 — 켠 지 6초 안에 로그인 창을 여는 사람도 있어 같은 가드를 둔다
+            if (deps.signedIn() && !busy() && Date.now() - launchedAt < quickMs) {
+                reload();
+                return;
+            }
+            // 2. 로그인 전, 아직 로그인 버튼을 안 눌렀다 — 재시작해도 같은 로그인 화면으로 돌아올 뿐이다
+            if (!deps.signedIn() && !deps.triedAuth() && !busy()) {
+                reload();
+                return;
+            }
         }
-        // 3. 그 뒤로는 조용한 순간을 기다린다
+        // 3. 그 뒤로는 조용한 순간을 기다린다(알려 주기를 켜 둔 동안은 기다리기만 — 끄면 여기서 적용된다)
         timer = setInterval(() => {
+            if (noticeOn())
+                return;
             if (busy())
                 return;
             if (!deps.signedIn()) {
@@ -135,6 +198,8 @@ function autoApply(deps, opts = {}) {
         if (fetchTimer)
             clearTimeout(fetchTimer);
         fetchTimer = null;
+        if (current?.deps === deps)
+            current = null;
     };
 }
 /** 시작 확인이 끝났거나(받을 게 없음·오류) 받기가 시작됐는가 */
