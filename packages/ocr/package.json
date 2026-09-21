@@ -1,0 +1,40 @@
+{
+  "name": "@jcurve/ocr",
+  "version": "1.0.0",
+  "description": "리워드 앱 공용 영수증 OCR — 사진 준비 · 맡기기 · 결과 받기",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "expo-image-manipulator": ">=13",
+    "react-native": ">=0.74"
+  },
+  "peerDependenciesMeta": {
+    "expo-image-manipulator": {
+      "optional": true
+    },
+    "react-native": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "typescript": "~5.9.2",
+    "vitest": "^3.2.4",
+    "@types/node": "^22.10.2"
+  },
+  "license": "UNLICENSED",
+  "private": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jxamen/jcurve-packages",
+    "directory": "packages/ocr"
+  }
+}
