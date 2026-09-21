@@ -1,0 +1,13 @@
+{
+  "name": "@jcurve/updates",
+  "version": "1.0.0",
+  "description": "리워드 앱 공용 OTA — 언제 받고 언제 적용할지",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist", "src", "README.md"],
+  "scripts": { "build": "tsc -p tsconfig.json", "test": "vitest run" },
+  "peerDependencies": { "expo-updates": "*", "react-native": ">=0.74" },
+  "peerDependenciesMeta": { "expo-updates": { "optional": true }, "react-native": { "optional": true } },
+  "repository": { "type": "git", "url": "https://github.com/jxamen/jcurve-packages", "directory": "packages/updates" },
+  "license": "UNLICENSED"
+}
