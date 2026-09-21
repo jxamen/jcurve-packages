@@ -33,6 +33,10 @@ exports.startupSettled = exports.bundleLabel = exports.autoApply = exports.__res
  * `app.json` 은 **기본값 그대로** 둔다 — `checkAutomatically` 를 건드리지 않고(켤 때 네이티브가 받는다),
  * `"fallbackToCacheTimeout": 0`(받기를 기다리느라 시작이 늦지 않게).
  *
+ * **(2.1) `checkAutomatically` 를 ON_ERROR_RECOVERY·NEVER 로 박아 낸 빌드도 된다** — 1.0 안내대로 만든 앱(당근캐시 등).
+ * 그 설정은 빌드에 박혀 OTA 로 못 바꾸므로, 그런 빌드면 패키지가 켠 지 2초 뒤 직접 받는다. 적용 규칙은 같다.
+ * 다음 네이티브 빌드 때 기본값으로 돌려 두면 네이티브가 받는다.
+ *
  * ```ts
  * import { autoApply, startupSettled } from '@jcurve/updates';
  * import { auth } from './auth';   // @jcurve/auth

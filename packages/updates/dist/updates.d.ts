@@ -22,6 +22,14 @@ type ExpoUpdates = {
     isEmbeddedLaunch: boolean;
     updateId: string | null;
     reloadAsync: () => Promise<void>;
+    /** 빌드에 박힌 「켤 때 받기」 설정 — ON_LOAD·WIFI_ONLY 면 네이티브가 받는다 */
+    checkAutomatically?: string | null;
+    checkForUpdateAsync?: () => Promise<{
+        isAvailable?: boolean;
+    }>;
+    fetchUpdateAsync?: () => Promise<{
+        isNew?: boolean;
+    }>;
     latestContext?: NativeState;
     addUpdatesStateChangeListener?: (fn: (e: {
         context?: NativeState;
@@ -65,6 +73,7 @@ export type AutoApplyDeps = {
 export declare function autoApply(deps: AutoApplyDeps, opts?: {
     quickMs?: number;
     everyMs?: number;
+    fetchDelayMs?: number;
 }): () => void;
 /**
  * 로그인 전 사람의 시작 화면을 **네이티브의 시작 확인이 끝날 때까지**(최대 `maxMs`) 붙잡는다.

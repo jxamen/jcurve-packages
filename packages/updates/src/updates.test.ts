@@ -4,9 +4,15 @@ import { __reset, autoApply, bundleLabel, startupSettled, type AutoApplyDeps } f
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 /** expo-updates 흉내 — 받아 두기(pending)를 손으로 일으키고, 다시 시작한 횟수를 센다 */
-function fakeUpdates(ctx: Record<string, unknown> = {}) {
+function fakeUpdates(ctx: Record<string, unknown> = {}, auto: string | null = 'ON_LOAD') {
   const listeners = new Set<(e: any) => void>();
   const U = {
+    checkAutomatically: auto,
+    checks: 0,
+    fetches: 0,
+    available: true,
+    checkForUpdateAsync: async () => { U.checks++; return { isAvailable: U.available }; },
+    fetchUpdateAsync: async () => { U.fetches++; U.emit({ isUpdatePending: true }); return { isNew: true }; },
     isEnabled: true,
     isEmbeddedLaunch: false,
     updateId: '01a0c45d-cacb-7eeb',
@@ -211,5 +217,64 @@ describe('판 이름', () => {
     expect(bundleLabel()).toBe('01a0c45d');
     U.isEmbeddedLaunch = true;
     expect(bundleLabel()).toBe('');
+  });
+});
+
+describe('2.1 — 켤 때 네이티브가 받지 않는 빌드(ON_ERROR_RECOVERY)', () => {
+  const flush = async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); };
+
+  it('패키지가 2초 뒤 받아 두고, 적용은 꼬꼬 규칙대로(로그인 버튼 누르기 전이면 바로)', async () => {
+    U = fakeUpdates({}, 'ON_ERROR_RECOVERY');
+    __reset({ updates: () => U as any, active: () => active, dev: () => false });
+    autoApply(app().deps);
+    vi.advanceTimersByTime(1999);
+    expect(U.checks).toBe(0);
+    vi.advanceTimersByTime(1);
+    await flush();
+    expect([U.checks, U.fetches]).toEqual([1, 1]);
+    expect(U.reloads).toBe(1);
+  });
+
+  it('받은 뒤에도 로그인 중이면 적용하지 않는다 — 규칙은 같다', async () => {
+    U = fakeUpdates({}, 'ON_ERROR_RECOVERY');
+    __reset({ updates: () => U as any, active: () => active, dev: () => false });
+    autoApply(app({ triedAuth: true }).deps);
+    vi.advanceTimersByTime(2000);
+    await flush();
+    vi.advanceTimersByTime(60000);
+    expect(U.fetches).toBe(1);
+    expect(U.reloads).toBe(0);
+  });
+
+  it('새 판이 없으면 받지 않는다', async () => {
+    U = fakeUpdates({}, 'NEVER');
+    U.available = false;
+    __reset({ updates: () => U as any, active: () => active, dev: () => false });
+    autoApply(app().deps);
+    vi.advanceTimersByTime(2000);
+    await flush();
+    expect([U.checks, U.fetches]).toEqual([1, 0]);
+  });
+
+  it('**켤 때 받는 빌드(꼬꼬, ON_LOAD)는 따로 확인하지 않는다** — 네이티브와 겹치지 않게', async () => {
+    autoApply(app().deps);
+    vi.advanceTimersByTime(10000);
+    await flush();
+    expect(U.checks).toBe(0);
+  });
+
+  it('앱이 뒤로 가 있으면 받지 않고, 멈추면 예약도 지운다', async () => {
+    U = fakeUpdates({}, 'ON_ERROR_RECOVERY');
+    __reset({ updates: () => U as any, active: () => active, dev: () => false });
+    active = false;
+    autoApply(app().deps);
+    vi.advanceTimersByTime(2000);
+    await flush();
+    active = true;
+    const stop = autoApply(app().deps);
+    stop();
+    vi.advanceTimersByTime(5000);
+    await flush();
+    expect(U.checks).toBe(0);
   });
 });

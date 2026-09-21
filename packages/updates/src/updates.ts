@@ -26,6 +26,10 @@ type ExpoUpdates = {
   isEmbeddedLaunch: boolean;
   updateId: string | null;
   reloadAsync: () => Promise<void>;
+  /** 빌드에 박힌 「켤 때 받기」 설정 — ON_LOAD·WIFI_ONLY 면 네이티브가 받는다 */
+  checkAutomatically?: string | null;
+  checkForUpdateAsync?: () => Promise<{ isAvailable?: boolean }>;
+  fetchUpdateAsync?: () => Promise<{ isNew?: boolean }>;
   latestContext?: NativeState;
   addUpdatesStateChangeListener?: (fn: (e: { context?: NativeState }) => void) => { remove: () => void };
 };
@@ -92,7 +96,7 @@ export type AutoApplyDeps = {
  *  3. 그 밖 — 3초마다 보다가, 로그인 전이면 「아직 안 눌렀을 때」, 로그인했으면 「메인에 있을 때」
  * 어느 경우든 **로그인·가입 중이거나 앱이 뒤로 가 있으면 하지 않는다** — 끝내 기회가 없으면 다음 실행에 저절로 적용된다.
  */
-export function autoApply(deps: AutoApplyDeps, opts: { quickMs?: number; everyMs?: number } = {}): () => void {
+export function autoApply(deps: AutoApplyDeps, opts: { quickMs?: number; everyMs?: number; fetchDelayMs?: number } = {}): () => void {
   const U = updates();
   if (!U) return () => undefined;
   const quickMs = opts.quickMs ?? 6000;
@@ -100,6 +104,7 @@ export function autoApply(deps: AutoApplyDeps, opts: { quickMs?: number; everyMs
   const launchedAt = Date.now();
   let armed = false;
   let timer: ReturnType<typeof setInterval> | null = null;
+  let fetchTimer: ReturnType<typeof setTimeout> | null = null;
   let sub: { remove: () => void } | undefined;
 
   const busy = (): boolean => deps.busy() || !env.active();
@@ -130,10 +135,32 @@ export function autoApply(deps: AutoApplyDeps, opts: { quickMs?: number; everyMs
     else sub = U.addUpdatesStateChangeListener?.((e) => { if (e?.context?.isUpdatePending) { sub?.remove(); onPending(); } });
   } catch { /* 상태를 못 읽으면 다음 실행에 저절로 적용된다 */ }
 
+  /*
+   | **켤 때 네이티브가 받지 않는 빌드**는 여기서 받는다(2.1). 1.0 안내대로 `checkAutomatically` 를 ON_ERROR_RECOVERY 로
+   | 박아 스토어에 낸 앱(당근캐시 등)이 있는데, 그 설정은 빌드에 박혀 OTA 로는 못 바꾼다 — 그대로 두면 새 판을 영영
+   | 안 받는다. 받기만 하고, 언제 적용할지는 위 규칙 그대로다(다 받으면 네이티브 상태가 바뀌어 위 구독이 부른다).
+   | 켤 때 받는 빌드(꼬꼬농장 — ON_LOAD)는 네이티브와 겹치지 않게 아무것도 하지 않는다.
+   */
+  const auto = String(U.checkAutomatically ?? 'ON_LOAD').toUpperCase();
+  if (auto !== 'ON_LOAD' && auto !== 'WIFI_ONLY' && U.checkForUpdateAsync && U.fetchUpdateAsync && !U.latestContext?.isUpdatePending) {
+    fetchTimer = setTimeout(() => {
+      fetchTimer = null;
+      if (!env.active()) return;   // 뒤로 넘어간 앱이 굳이 받을 이유가 없다
+      void (async () => {
+        try {
+          const found = await U.checkForUpdateAsync!();
+          if (found?.isAvailable) await U.fetchUpdateAsync!();
+        } catch { /* 못 받아도 지금 판은 멀쩡하다 */ }
+      })();
+    }, opts.fetchDelayMs ?? 2000);   // 첫 화면이 쓸 네트워크를 같이 먹지 않게 잠깐 텀을 둔다
+  }
+
   return () => {
     sub?.remove();
     if (timer) clearInterval(timer);
     timer = null;
+    if (fetchTimer) clearTimeout(fetchTimer);
+    fetchTimer = null;
   };
 }
 
