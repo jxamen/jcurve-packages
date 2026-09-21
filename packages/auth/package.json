@@ -1,0 +1,36 @@
+{
+  "name": "@jcurve/auth",
+  "version": "1.0.0",
+  "description": "리워드 앱 공용 소셜 로그인 — 카카오·구글·애플",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "react-native": ">=0.74"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.2",
+    "vitest": "^3.2.4",
+    "@types/node": "^22.10.2"
+  },
+  "license": "UNLICENSED",
+  "private": false,
+  "peerDependenciesMeta": {
+    "react-native": {
+      "optional": true
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jxamen/jcurve-packages",
+    "directory": "packages/auth"
+  }
+}
