@@ -157,6 +157,15 @@ describe('서버 호출', () => {
     expect((spy.mock.calls[0] as any)[1].headers.Accept).toBe('text/plain');
   });
 
+  it('fetch 를 주면 그것으로 부른다 — 미리보기의 모의 서버(1.2)', async () => {
+    const global = withFetch({ ok: false, error: 'wrong' });
+    const mine = vi.fn(async () => ({ json: async () => ({ ok: true, ttlMs: 1000, leftToday: 2 }) }));
+    const r = await createPhone({ ...deps, fetch: mine }).send('01012345678');
+    expect(r).toEqual({ ok: true, ttlMs: 1000, leftToday: 2 });
+    expect(mine).toHaveBeenCalledTimes(1);
+    expect(global).not.toHaveBeenCalled();
+  });
+
   it('확인해 둔 내 번호로 다시 받으면 same_phone — 다른 번호를 넣으라고 한다', async () => {
     withFetch({ ok: false, error: 'same_phone' }, 409);
     const r = await createPhone(deps).send('01012345678');

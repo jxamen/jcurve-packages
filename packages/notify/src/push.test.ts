@@ -14,14 +14,20 @@ function setup(o: {
   noModule?: boolean;
   lastResponse?: any;
   platform?: string;
+  tokenError?: string;
+  reply?: () => unknown;
 } = {}) {
+  const errors: Array<{ stage: string; message: string }> = [];
   const calls: Array<{ url: string; headers: Record<string, string>; body: any }> = [];
   const opened: string[] = [];
   let respond: ((r: any) => void) | null = null;
   const s = { session: o.session === undefined ? SESSION : o.session, token: o.token ?? 'fcmTok:APA91b-device_token_0123456789' };
   const N = {
     getPermissionsAsync: async () => ({ granted: o.granted ?? true }),
-    getDevicePushTokenAsync: async () => ({ type: o.platform ?? 'android', data: s.token }),
+    getDevicePushTokenAsync: async () => {
+      if (o.tokenError) throw new Error(o.tokenError);
+      return { type: o.platform ?? 'android', data: s.token };
+    },
     getExpoPushTokenAsync: async () => { throw new Error('Expo 토큰은 쓰지 않는다'); },
     addNotificationResponseReceivedListener: (fn: (r: any) => void) => { respond = fn; },
     getLastNotificationResponseAsync: async () => o.lastResponse ?? null,
@@ -29,7 +35,7 @@ function setup(o: {
   const env: PushEnv = {
     notifications: () => (o.noModule ? null : N),
     platform: () => o.platform ?? 'android',
-    fetch: async (url, init) => { calls.push({ url, headers: init.headers, body: JSON.parse(init.body) }); return {}; },
+    fetch: async (url, init) => { calls.push({ url, headers: init.headers, body: JSON.parse(init.body) }); return o.reply ? o.reply() : {}; },
     openUrl: (u) => { opened.push(u); },
   };
   const deps: PushDeps = {
@@ -37,11 +43,12 @@ function setup(o: {
     appToken: 'APPTOKEN',
     session: () => s.session,
     consent: o.consent === undefined ? undefined : () => o.consent as boolean,
+    onError: (e) => { errors.push(e); },
   };
   const push = createPush(deps, env);
   const tap = (data: unknown) => respond?.({ notification: { request: { content: { data } } } });
 
-  return { push, calls, opened, s, tap };
+  return { push, calls, opened, s, tap, errors };
 }
 
 describe('토큰 등록', () => {
@@ -97,6 +104,39 @@ describe('토큰 등록', () => {
     await expect(push.register()).resolves.toBeUndefined();
     expect(() => push.init()).not.toThrow();
     expect(calls).toHaveLength(0);
+  });
+
+  it('기기 토큰을 못 받으면 onError(token) — 권한을 켰는데 안 오는 이유가 남는다(1.2)', async () => {
+    const { push, calls, errors } = setup({ tokenError: 'no FCM sender' });
+    await push.register();
+    expect(calls).toHaveLength(0);
+    expect(errors).toEqual([{ stage: 'token', message: 'no FCM sender' }]);
+  });
+
+  it('서버가 5xx 면 onError(register) 이고, **다음 register() 에 다시 올린다**(1.2 — 전에는 이번 실행 내내 안 올렸다)', async () => {
+    let status = 503;
+    const { push, calls, errors } = setup({ reply: () => ({ ok: status < 400, status }) });
+    await push.register();
+    expect(errors).toEqual([{ stage: 'register', message: 'http_503' }]);
+    status = 200;
+    await push.register();
+    expect(calls).toHaveLength(2);
+    await push.register();
+    expect(calls).toHaveLength(2);   // 올라간 뒤에는 같은 토큰을 다시 안 올린다
+  });
+
+  it('통신이 끊겨도 던지지 않고 onError(register)', async () => {
+    const { push, errors } = setup({ reply: () => { throw new Error('Network request failed'); } });
+    await expect(push.register()).resolves.toBeUndefined();
+    expect(errors).toEqual([{ stage: 'register', message: 'Network request failed' }]);
+  });
+
+  it('권한이 없거나 모듈이 없는 것은 오류가 아니다 — onError 를 부르지 않는다', async () => {
+    const a = setup({ granted: false });
+    await a.push.register();
+    const b = setup({ noModule: true });
+    await b.push.register();
+    expect([...a.errors, ...b.errors]).toEqual([]);
   });
 
   it('끄면 서버에 알리고, 다시 동의하면 같은 토큰도 다시 올린다', async () => {

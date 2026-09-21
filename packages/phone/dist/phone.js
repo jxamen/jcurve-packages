@@ -77,7 +77,7 @@ function createPhone(deps) {
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), deps.timeoutMs ?? 8000);
         try {
-            const res = await fetch(deps.base + path, {
+            const res = await (deps.fetch ?? fetch)(deps.base + path, {
                 method: body ? 'POST' : 'GET',
                 headers: { Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}), ...h },
                 signal: ctrl.signal,

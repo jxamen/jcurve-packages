@@ -109,6 +109,12 @@ export type PhoneDeps = {
   headers: () => Record<string, string> | null;
   /** 밀리초. 기본 8초 */
   timeoutMs?: number;
+  /**
+   * 서버를 부르는 함수(1.2) — 주지 않으면 전역 `fetch`. 공개키 없는 미리보기에서 **모의 서버**로 돌리는
+   * 앱이 있다(영테크: 앱의 api 를 거쳐 가짜 응답을 준다). 응답은 `json()` 만 있으면 된다.
+   */
+  fetch?: (url: string, init: { method: string; headers: Record<string, string>; signal?: AbortSignal; body?: string }) =>
+    Promise<{ json: () => Promise<unknown> }>;
 };
 
 export type Phone = {
@@ -125,7 +131,7 @@ export function createPhone(deps: PhoneDeps): Phone {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), deps.timeoutMs ?? 8000);
     try {
-      const res = await fetch(deps.base + path, {
+      const res = await (deps.fetch ?? fetch)(deps.base + path, {
         method: body ? 'POST' : 'GET',
         headers: { Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}), ...h },
         signal: ctrl.signal,

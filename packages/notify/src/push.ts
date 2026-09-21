@@ -63,6 +63,12 @@ export type PushDeps = {
    * 권한만으로는 새 계정의 뜻을 알 수 없다(꼬꼬농장 2026-09-14 — 계정마다 따로 묻는다).
    */
   consent?: () => boolean | Promise<boolean>;
+  /**
+   * 권한은 있는데 토큰이 서버에 못 올라갔을 때(1.2) — 왜인지 계측에 남기는 자리. 이것이 없으면
+   * 「알림을 켰는데 안 온다」의 원인이 아무 데도 안 남는다(영테크가 push_register_failed 로 남기던 것).
+   * `token` = 기기 토큰을 못 받음, `register` = 서버에 못 올림(네트워크 · HTTP 오류). 던져도 앱은 멈추지 않는다.
+   */
+  onError?: (e: { stage: 'token' | 'register'; message: string }) => void;
 };
 
 export type Push = {
@@ -130,18 +136,31 @@ export function createPush(deps: PushDeps, env: PushEnv = defaultEnv()): Push {
       const platform = env.platform();
       if (platform !== 'android' && platform !== 'ios') return;
       if (deps.consent && !(await deps.consent())) return;
+      const fail = (stage: 'token' | 'register', e: unknown): void => {
+        try { deps.onError?.({ stage, message: String((e as Error)?.message ?? e).slice(0, 120) }); } catch { /* 보고가 앱을 막으면 안 된다 */ }
+      };
+      let tok = '';
       try {
         const N = env.notifications();
-        if (!N) return;
+        if (!N) return;                                 // 옛 빌드·웹 — 고장이 아니므로 알리지 않는다
         const perm = await N.getPermissionsAsync();
         if (!perm?.granted) return;                     // 허용 요청은 앱의 알림 안내가 따로 한다
         const got = await N.getDevicePushTokenAsync();
-        const tok = typeof got?.data === 'string' ? got.data : '';
-        if (!tok || tok === registered) return;
-        registered = tok;
+        tok = typeof got?.data === 'string' ? got.data : '';
+        if (!tok) { fail('token', 'empty_token'); return; }
+      } catch (e) { fail('token', e); return; }
+      if (tok === registered) return;
+      try {
         // platform 을 꼭 같이 — 서버가 이것으로 FCM·APNs 를 가른다
-        await post('/push/register', h, { token: tok, platform });
-      } catch { /* 시뮬레이터·옛 빌드 — 조용히 넘긴다 */ }
+        const res: any = await post('/push/register', h, { token: tok, platform });
+        // fetch 는 4xx·5xx 에도 던지지 않는다 — 응답의 ok 로 가른다(가짜 환경은 ok 칸이 없을 수 있다)
+        if (res && typeof res.ok === 'boolean' && !res.ok) throw new Error('http_' + String(res.status ?? ''));
+        /*
+         | **올라간 뒤에** 기억한다(1.2). 전에는 보내기 전에 기억해서, 네트워크가 끊기거나 서버가 5xx 를
+         | 주면 이번 실행 동안 다시 올리지 않았다 — 앱을 껐다 켜야 올라갔다.
+         */
+        registered = tok;
+      } catch (e) { fail('register', e); }
     },
 
     async unregister() {

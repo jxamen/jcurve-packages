@@ -41,6 +41,15 @@ export type PushDeps = {
      * 권한만으로는 새 계정의 뜻을 알 수 없다(꼬꼬농장 2026-09-14 — 계정마다 따로 묻는다).
      */
     consent?: () => boolean | Promise<boolean>;
+    /**
+     * 권한은 있는데 토큰이 서버에 못 올라갔을 때(1.2) — 왜인지 계측에 남기는 자리. 이것이 없으면
+     * 「알림을 켰는데 안 온다」의 원인이 아무 데도 안 남는다(영테크가 push_register_failed 로 남기던 것).
+     * `token` = 기기 토큰을 못 받음, `register` = 서버에 못 올림(네트워크 · HTTP 오류). 던져도 앱은 멈추지 않는다.
+     */
+    onError?: (e: {
+        stage: 'token' | 'register';
+        message: string;
+    }) => void;
 };
 export type Push = {
     /** 앱 시작에 한 번 — 알림을 눌렀을 때를 걸고, 알림으로 켜진 경우도 처리한다 */

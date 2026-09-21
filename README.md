@@ -7,7 +7,7 @@
 `package.json` 에 릴리스 파일 주소를 적는다.
 
 ```json
-"@jcurve/phone": "https://github.com/jxamen/jcurve-packages/releases/download/phone-v1.1.0/jcurve-phone-1.1.0.tgz"
+"@jcurve/phone": "https://github.com/jxamen/jcurve-packages/releases/download/phone-v1.2.0/jcurve-phone-1.2.0.tgz"
 ```
 
 ```ts
@@ -23,12 +23,12 @@ import { createPhone, format, looksValid, message } from '@jcurve/phone';
 |---|---|---|
 | `@jcurve/auth` | 소셜 로그인 + 가입 퍼널 기록 — 카카오·구글·애플 SDK, 안 되면 서버 웹 로그인 (2.1) | 없음 |
 | `@jcurve/apphub` | 앱 모아보기 — 계열 앱 목록 시트 | 시트만 공용, 입구 버튼은 앱마다 |
-| `@jcurve/phone` | 휴대폰 번호 인증 — 서버 호출·번호 검증·오류 문구 (1.1) | 없음 |
+| `@jcurve/phone` | 휴대폰 번호 인증 — 서버 호출·번호 검증·오류 문구 (1.2) | 없음 |
 | `@jcurve/updates` | OTA — 받은 새 버전을 로그인과 겹치지 않는 순간에 적용 (꼬꼬농장 방식, 2.0) | 없음 |
 | `@jcurve/ocr` | 영수증 사진 → 읽은 값. 어드민에서 켠 앱만 | 없음 |
 | `@jcurve/money` | 현금 인출 검증 — 금액·계좌·예금주·번호 | 없음 |
 | `@jcurve/identity` | 간편인증(KICA) 본인확인 — CI 로 1인 1계정 | 없음 |
-| `@jcurve/notify` | 로컬 알림(문구는 어드민) + 원격 푸시 받기 — 기기 토큰 등록·열람 보고(서버가 FCM·APNs 로 직접 발송, 1.1) | 없음 |
+| `@jcurve/notify` | 로컬 알림(문구는 어드민) + 원격 푸시 받기 — 기기 토큰 등록·열람 보고·실패 알림(서버가 FCM·APNs 로 직접 발송, 1.2) | 없음 |
 | `@jcurve/ads` | AdMob 보상형 광고 — 안전하게 띄우고 끝까지 봤는지 알려 준다(꼬꼬농장 방식) | 없음 (대기·목업 화면은 앱마다) |
 
 ## 새 판 내기
