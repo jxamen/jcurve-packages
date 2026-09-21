@@ -74,5 +74,10 @@ export type FunnelEnv = {
     now: () => number;
     random: () => string;
 };
+/**
+ * 퍼널에 적을 앱 버전 — OTA 런타임 버전이 있으면 그것, **없으면 앱 설정의 버전**(2.1.1).
+ * OTA 가 꺼진 빌드는 runtimeVersion 이 비어 서버 app_ver 가 null 로 쌓였다(AWeek 2026-09-22 — 전에는 1.0.0 을 보냈다).
+ */
+export declare const pickVersion: (runtimeVersion: unknown, configVersion: unknown) => string;
 export declare function referrerKeys(raw: string): string;
 export declare function createFunnel(deps: FunnelDeps, env?: FunnelEnv): Funnel;

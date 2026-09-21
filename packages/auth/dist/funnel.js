@@ -14,7 +14,7 @@
  * 실패해도 조용히 넘긴다(계측이 앱을 막으면 안 된다).
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.FUNNEL_EVENTS = void 0;
+exports.pickVersion = exports.FUNNEL_EVENTS = void 0;
 exports.looksPersonal = looksPersonal;
 exports.referrerKeys = referrerKeys;
 exports.createFunnel = createFunnel;
@@ -54,10 +54,16 @@ function mod(load) {
         return null;
     }
 }
+/**
+ * 퍼널에 적을 앱 버전 — OTA 런타임 버전이 있으면 그것, **없으면 앱 설정의 버전**(2.1.1).
+ * OTA 가 꺼진 빌드는 runtimeVersion 이 비어 서버 app_ver 가 null 로 쌓였다(AWeek 2026-09-22 — 전에는 1.0.0 을 보냈다).
+ */
+const pickVersion = (runtimeVersion, configVersion) => runtimeVersion ? String(runtimeVersion) : configVersion ? String(configVersion) : '';
+exports.pickVersion = pickVersion;
 function defaultEnv() {
     return {
         os: () => String(mod(() => require('react-native'))?.Platform?.OS ?? ''),
-        appVersion: () => String(mod(() => require('expo-updates'))?.runtimeVersion ?? ''),
+        appVersion: () => (0, exports.pickVersion)(mod(() => require('expo-updates'))?.runtimeVersion, mod(() => require('expo-constants'))?.default?.expoConfig?.version),
         post: (url, headers, body) => fetch(url, { method: 'POST', headers, body }).then((r) => r.ok).catch(() => false),
         /*
          | expo-application 은 네이티브 모듈이 없으면 **불러오는 순간 던진다** — 있는지 먼저 본다.

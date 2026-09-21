@@ -95,10 +95,20 @@ function mod<M>(load: () => M): M | null {
   try { return load(); } catch { return null; }
 }
 
+/**
+ * 퍼널에 적을 앱 버전 — OTA 런타임 버전이 있으면 그것, **없으면 앱 설정의 버전**(2.1.1).
+ * OTA 가 꺼진 빌드는 runtimeVersion 이 비어 서버 app_ver 가 null 로 쌓였다(AWeek 2026-09-22 — 전에는 1.0.0 을 보냈다).
+ */
+export const pickVersion = (runtimeVersion: unknown, configVersion: unknown): string =>
+  runtimeVersion ? String(runtimeVersion) : configVersion ? String(configVersion) : '';
+
 function defaultEnv(): FunnelEnv {
   return {
     os: () => String(mod<any>(() => require('react-native'))?.Platform?.OS ?? ''),
-    appVersion: () => String(mod<any>(() => require('expo-updates'))?.runtimeVersion ?? ''),
+    appVersion: () => pickVersion(
+      mod<any>(() => require('expo-updates'))?.runtimeVersion,
+      mod<any>(() => require('expo-constants'))?.default?.expoConfig?.version,   // expo 가 늘 함께 든 모듈
+    ),
     post: (url, headers, body) => fetch(url, { method: 'POST', headers, body }).then((r) => r.ok).catch(() => false),
     /*
      | expo-application 은 네이티브 모듈이 없으면 **불러오는 순간 던진다** — 있는지 먼저 본다.

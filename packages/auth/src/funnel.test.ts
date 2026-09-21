@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { createFunnel, FUNNEL_EVENTS, looksPersonal, referrerKeys, type FunnelEnv, type KeyValue } from './funnel';
+import { createFunnel, FUNNEL_EVENTS, looksPersonal, pickVersion, referrerKeys, type FunnelEnv, type KeyValue } from './funnel';
 import { createTrack, propOf, standardEvent } from './track';
 
 function memory(init: Record<string, string> = {}): KeyValue & { data: Record<string, string> } {
@@ -285,4 +285,13 @@ describe('Codex 2차 — 개인정보가 새는 길(#6)', () => {
     expect(propOf({ provider: 'apple_web', code: 'x' })).toBe('apple_web:x');
     expect(propOf({ provider: 'kakao_native' })).toBe('kakao_native');
   });
+});
+
+describe('앱 버전 — OTA 런타임이 없으면 앱 설정 버전(2.1.1)', () => {
+  it('런타임 버전이 있으면 그것', () => { expect(pickVersion('1.0.6', '1.0.6')).toBe('1.0.6'); });
+  it('OTA 가 꺼진 빌드(런타임 없음)는 앱 설정 버전 — 비우면 서버 app_ver 가 null 로 쌓인다', () => {
+    expect(pickVersion('', '1.0.0')).toBe('1.0.0');
+    expect(pickVersion(null, '1.0.0')).toBe('1.0.0');
+  });
+  it('둘 다 없으면 빈 문자열', () => { expect(pickVersion(undefined, undefined)).toBe(''); });
 });
