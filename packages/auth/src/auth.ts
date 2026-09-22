@@ -811,7 +811,10 @@ export function createAuth<T>(deps: AuthDeps<T>, env: AuthEnv = defaultEnv()): A
 
   async function run(provider: AnyProvider, alive: () => boolean): Promise<T> {
     const list = deps.providers?.() ?? [];
-    if (list.length > 0 && !list.includes(provider)) throw new AuthError('disabled', provider);
+    // 카카오는 REST 키(kakao)든 앱 키(kakao_native)든 하나만 켜져도 켜진 것이다(2.1.2) — 서버는 앱 키만 있으면
+    // kakao_native 만 준다. 'kakao' 만 찾아서, 카카오톡 로그인만 켠 앱(총무님)의 버튼이 서버에 가지도 않고 막혔다
+    const on = list.includes(provider) || (provider === 'kakao' && list.includes('kakao_native'));
+    if (list.length > 0 && !on) throw new AuthError('disabled', provider);
 
     /*
      | 이 제공자로 시작한 웹 로그인에 **늦게 온 복귀 주소가 있으면 SDK 보다 먼저** 그것으로 끝낸다.

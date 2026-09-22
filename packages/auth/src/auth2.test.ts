@@ -247,6 +247,15 @@ describe('SDK 가 안 되면 서버 웹 로그인으로 넘어간다', () => {
     expect(b.opened).toEqual([]);
   });
 
+  it('(2.1.2) 카카오 앱 키만 켠 앱(kakao_native)도 카카오 버튼이 SDK 로 간다 — disabled 로 막지 않는다', async () => {
+    const k = kakaoFake();
+    const b = browserFake({ type: 'success', url: RET + '?ticket=T' });
+    const { auth, server } = setup({ kakao: k, browser: b, providers: ['google', 'apple', 'kakao_native'] });
+    await auth.signIn('kakao');
+    expect(k.calls).toHaveLength(1);
+    expect(server).toEqual(['kakao:KTOKEN']);
+  });
+
   it('어드민이 끈 로그인은 시작도 안 한다', async () => {
     const b = browserFake({ type: 'success', url: RET + '?ticket=T' });
     const { auth } = setup({ browser: b, providers: ['google'] });

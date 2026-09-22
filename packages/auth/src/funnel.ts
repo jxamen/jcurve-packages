@@ -164,6 +164,12 @@ export function createFunnel(deps: FunnelDeps, env: FunnelEnv = defaultEnv()): F
   const headers = { Accept: 'application/json', 'Content-Type': 'application/json', 'X-App-Token': deps.appToken };
 
   let deviceP: Promise<{ id: string; fresh: boolean }> | null = null;
+  /*
+   | first_open 은 **한 실행에 한 번**(2.1.2). 안드로이드는 뒤로가기로 나갔다 다시 열면 JS 가 살아 있어 앱 루트가
+   | 다시 뜨고 appOpen 을 또 부른다 — 기억해 둔 「처음(fresh)」 으로 다시 열 때마다 첫 실행이 찍혔다(꼬꼬 2026-09-22,
+   | 한 기기 · 같은 ID 로 20분에 7번). app_open 은 다시 연 것이 맞으니 그대로 보낸다.
+   */
+  let firstSent = false;
   /** 기기 임시 ID — 처음이면 만들고(fresh) 저장한다. 계정이 바뀌어도 그대로다(설치 단위) */
   function device(): Promise<{ id: string; fresh: boolean }> {
     if (!deviceP) {
@@ -225,7 +231,7 @@ export function createFunnel(deps: FunnelDeps, env: FunnelEnv = defaultEnv()): F
     appOpen() {
       if (env.os() === 'web') return;
       void device().then((d) => {
-        if (d.fresh) void post(d.id, 'first_open');
+        if (d.fresh && !firstSent) { firstSent = true; void post(d.id, 'first_open'); }
         void post(d.id, 'app_open');
         void sendInstallRef(d.id);
       }).catch(() => undefined);

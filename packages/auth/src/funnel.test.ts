@@ -35,6 +35,18 @@ const flush = () => new Promise((r) => setTimeout(r, 0));
 const BASE = { base: 'https://api/v1/app', appToken: 'pub' };
 
 describe('기기 ID — 설치 단위로 하나', () => {
+  it('(2.1.2) 한 실행에서 appOpen 을 다시 불러도 first_open 은 한 번 — 안드로이드 뒤로가기 후 다시 열기', async () => {
+    const e = env();
+    const f = createFunnel({ ...BASE, storage: memory() }, e);
+    f.appOpen();
+    await flush();
+    f.appOpen();
+    await flush();
+    f.appOpen();
+    await flush();
+    expect(e.sent.map((s) => s.event)).toEqual(['first_open', 'app_open', 'app_open', 'app_open']);
+  });
+
   it('처음이면 만들어 저장하고 first_open 을 보낸다', async () => {
     const st = memory();
     const e = env();
