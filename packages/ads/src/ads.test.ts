@@ -35,10 +35,11 @@ function setup(o: { os?: string; test?: boolean; noSdk?: boolean; units?: AdsOpt
     addEventListener: (_t: 'change', fn: (s: string) => void) => { appListeners.add(fn); return { remove: () => appListeners.delete(fn) }; },
   };
   const att = {
-    asked: 0, status: 'undetermined', skip: false,
-    getTrackingPermissionsAsync: async () => ({ status: att.status }),
+    asked: 0, status: 'undetermined', skip: false, id: 'AAAA-1111' as string | null,
+    getTrackingPermissionsAsync: async () => ({ status: att.status, granted: att.status === 'granted' }),
     // skip 이면 창을 띄우지 못하고 미정 그대로 — 앞에 오기 전·다른 시스템 창과 겹쳤을 때
-    requestTrackingPermissionsAsync: async () => { att.asked++; if (!att.skip) att.status = 'authorized'; return { status: att.status }; },
+    requestTrackingPermissionsAsync: async () => { att.asked++; if (!att.skip) att.status = 'granted'; return { status: att.status, granted: att.status === 'granted' }; },
+    getAdvertisingId: () => att.id,
   };
   const sdk = {
     default: () => ({
@@ -262,7 +263,7 @@ describe('미리 받기·초기화', () => {
   it('iOS 추적 허용은 답을 받으면 다시 묻지 않는다', async () => {
     const s = setup({ os: 'ios' });
     await tracked(s);
-    s.att.status = 'authorized';
+    s.att.status = 'granted';
     await tracked(s);
     expect(s.att.asked).toBe(1);
   });
@@ -291,6 +292,22 @@ describe('미리 받기·초기화', () => {
     expect(s.att.asked).toBe(2);
     await tracked(s);
     expect(s.att.asked, '답을 받은 뒤로는 묻지 않는다').toBe(2);
+  });
+
+  it('(1.4) 광고 식별자는 읽기만 — iOS 는 허용 전이면 null 이고 ATT 를 묻지 않는다, 허용 뒤엔 값', async () => {
+    const s = setup({ os: 'ios' });
+    expect(await s.ads.advertisingId()).toBeNull();
+    expect(s.att.asked, '식별자를 읽으려고 ATT 창을 띄우지 않는다').toBe(0);
+    s.att.status = 'granted';
+    expect(await s.ads.advertisingId()).toBe('AAAA-1111');
+  });
+
+  it('(1.4) 초기화된 식별자(0000-…)는 없는 것으로 · 안드로이드는 허용 확인 없이 읽는다', async () => {
+    const a = setup({ os: 'android' });
+    expect(await a.ads.advertisingId()).toBe('AAAA-1111');
+    const z = setup({ os: 'android' });
+    z.att.id = '00000000-0000-0000-0000-000000000000';
+    expect(await z.ads.advertisingId()).toBeNull();
   });
 
   it('안드로이드는 묻지 않는다', async () => {

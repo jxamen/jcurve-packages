@@ -135,6 +135,30 @@ function createRewarded(opts, env = defaultEnv()) {
         })();
         return trackingP;
     };
+    // 값을 얻었을 때만 기억한다 — 아직 허용 전이면 나중에 허용된 뒤 다시 읽는다
+    let adidCache = null;
+    const advertisingId = async () => {
+        if (adidCache)
+            return adidCache;
+        try {
+            const att = env.tracking();
+            if (!att)
+                return null;
+            if (os === 'ios') {
+                const cur = (await withTimeout(att.getTrackingPermissionsAsync(), 3000));
+                if (!(cur?.granted === true || cur?.status === 'granted'))
+                    return null;
+            }
+            const id = typeof att.getAdvertisingId === 'function' ? att.getAdvertisingId() : null;
+            const v = typeof id === 'string' && id !== '' && !/^[0-]+$/.test(id) ? id : null;
+            if (v)
+                adidCache = v;
+            return v;
+        }
+        catch {
+            return null;
+        }
+    };
     let showing = false;
     let showingAt = 0;
     let stage = '';
@@ -326,5 +350,6 @@ function createRewarded(opts, env = defaultEnv()) {
         cancel: () => { abortCurrent?.(); },
         mutedMs: () => Math.max(0, mutedUntil - Date.now()),
         requestTracking,
+        advertisingId,
     };
 }

@@ -67,6 +67,13 @@ export type Rewarded = {
      * 알림 권한 창과 겹치면 ATT 가 창 없이 끝난다 — 알림을 묻기 전에 이 약속을 기다린다.
      */
     requestTracking: () => Promise<void>;
+    /**
+     * 광고 식별자(IDFA · AAID) — **읽기만 한다**(1.4). ATT 는 묻지 않는다 — 묻는 것은 `requestTracking` 이 켤 때 한다.
+     * iOS 는 추적을 허용했을 때만 값, 안드로이드는 그대로. 초기화된 식별자(0000-…)·시뮬레이터는 null.
+     * 미션 매체가 참여자를 가리는 데 쓴다(당근·영테크·용돈캡슐·캐시팡이 각자 들고 있던 adid.ts — 그중 몇은 여기서
+     * ATT 를 따로 물어 심사 기준과 어긋났다).
+     */
+    advertisingId: () => Promise<string | null>;
 };
 type AppStateLike = {
     currentState: string;

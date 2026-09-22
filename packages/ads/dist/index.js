@@ -29,6 +29,8 @@ exports.useTestAdUnit = exports.ssvRequestOptions = exports.readUpdateChannel = 
  *     심사자가 창을 못 찾아 거절된다(용돈캡슐 2026-09-21, Guideline 2.1). 패키지가 **앱이 앞에 올라온 뒤 0.6초**에 묻고,
  *     창 없이 넘어가면(미정) 다음 호출에 다시 묻는다. **알림 권한 창보다 먼저** — 두 시스템 창이 겹치면 ATT 가 창 없이
  *     끝나므로, 알림 권한을 묻기 전에 이 약속을 기다린다(당근캐시 src/ads/tracking.ts 가 본보기).
+ *  ⑩ **광고 식별자는 `ads.advertisingId()` 로 읽기만 한다(1.4)** — 앱이 따로 ATT 를 묻지 않는다. iOS 는 허용했을 때만
+ *     값이 나온다(미션 매체의 uk 등). 앱마다 들고 있던 adid.ts 를 이것으로 바꾼다.
  *
  * ## 쓰는 법
  *
