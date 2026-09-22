@@ -83,10 +83,15 @@
  * autoApply(deps, { resumeCheckMs: 10 * 60_000 });   // 10분 — 앞뒤로 자주 오가도 서버를 두드리지 않게
  * ```
  *
+ * ## 2.5 — OTA 판 헤더(`otaHeaders`)
+ *
+ * 서버(jcurve-api OtaTrack)가 판별 사용자 수를 센다 — 앱의 모든 API 요청에 `...otaHeaders()` 를 붙인다
+ * (x-ota-update-id · x-ota-channel · x-ota-runtime · x-ota-platform). 앱마다 들고 있던 ota() 를 이것으로 바꾼다.
+ *
  * ## 1.0 에서 달라진 것
  *
  * 1.0 은 「스스로 다시 시작하지 않고, 띠를 눌러야 적용」이었다. 적용이 사람 손에 달려 새 버전이 퍼지지
  * 않았고, 쓰는 앱도 없었다. 2.0 은 꼬꼬농장이 실제로 쓰며 다듬은 방식을 **모든 앱이 그대로** 쓴다.
  */
-export { __reset, applyUpdate, autoApply, bundleLabel, canApplyNow, hasWaiting, isRestarting, onUpdateReady, startupSettled } from './updates';
+export { __reset, applyUpdate, autoApply, bundleLabel, canApplyNow, hasWaiting, isRestarting, onUpdateReady, otaHeaders, startupSettled } from './updates';
 export type { AutoApplyDeps } from './updates';

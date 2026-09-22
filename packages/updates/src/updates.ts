@@ -25,6 +25,8 @@ type ExpoUpdates = {
   isEnabled: boolean;
   isEmbeddedLaunch: boolean;
   updateId: string | null;
+  channel?: string | null;
+  runtimeVersion?: string | null;
   reloadAsync: () => Promise<void>;
   /** 빌드에 박힌 「켤 때 받기」 설정 — ON_LOAD·WIFI_ONLY 면 네이티브가 받는다 */
   checkAutomatically?: string | null;
@@ -42,6 +44,8 @@ type Env = {
   dev: () => boolean;
   /** 앱이 다시 앞으로 올 때마다 부른다(2.4) — 돌려주는 함수로 끊는다 */
   onActive: (fn: () => void) => () => void;
+  /** 플랫폼(2.5) — ios · android · web */
+  os: () => string;
 };
 
 const defaultEnv = (): Env => ({
@@ -54,6 +58,7 @@ const defaultEnv = (): Env => ({
     }
   },
   dev: () => typeof __DEV__ !== 'undefined' && !!__DEV__,
+  os: () => { try { return String((require('react-native') as { Platform: { OS: string } }).Platform.OS ?? ''); } catch { return ''; } },
   onActive: (fn) => {
     try {
       const sub = (require('react-native') as {
@@ -76,6 +81,7 @@ export function __reset(fake?: Partial<Env>): void {
   restarting = false;
   current = null;
   readyFns.clear();
+  headersCache = null;
 }
 
 const updates = (): ExpoUpdates | null => {
@@ -276,6 +282,31 @@ export function autoApply(
     fetchTimer = null;
     if (current?.deps === deps) current = null;
   };
+}
+
+let headersCache: Record<string, string> | null = null;
+
+/**
+ * 서버가 판별 사용자 수를 세는 헤더(2.5) — 앱의 모든 API 요청에 붙인다. 이름은 jcurve-api `OtaTrack` 이 읽는 그대로.
+ * 안드로이드 요청은 UA 가 okhttp 라 서버가 기기를 못 가려 플랫폼을 따로 싣는다(2026-09-19). 웹·모듈 없는 빌드는 빈 객체.
+ * 한 실행 동안 판이 바뀌지 않으므로(바뀌면 다시 시작한다) 한 번 만들어 둔다.
+ *
+ *   fetch(url, { headers: { 'X-App-Token': KEY, ...otaHeaders() } })
+ */
+export function otaHeaders(): Record<string, string> {
+  if (headersCache) return headersCache;
+  const os = env.os();
+  if (os !== 'ios' && os !== 'android') return {};
+  const h: Record<string, string> = { 'x-ota-platform': os, 'x-ota-update-id': 'embedded' };
+  try {
+    const U = env.updates();
+    if (U?.updateId) h['x-ota-update-id'] = String(U.updateId);
+    if (U?.channel) h['x-ota-channel'] = String(U.channel);
+    if (U?.runtimeVersion) h['x-ota-runtime'] = String(U.runtimeVersion);
+  } catch { /* 모듈이 없는 빌드 — 스토어 판(embedded)으로 싣는다 */ }
+  headersCache = h;
+
+  return h;
 }
 
 /** 시작 확인이 끝났거나(받을 게 없음·오류) 받기가 시작됐는가 */

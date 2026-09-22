@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.startupSettled = exports.onUpdateReady = exports.isRestarting = exports.hasWaiting = exports.canApplyNow = exports.bundleLabel = exports.autoApply = exports.applyUpdate = exports.__reset = void 0;
+exports.startupSettled = exports.otaHeaders = exports.onUpdateReady = exports.isRestarting = exports.hasWaiting = exports.canApplyNow = exports.bundleLabel = exports.autoApply = exports.applyUpdate = exports.__reset = void 0;
 /**
  * `@jcurve/updates` — 리워드 앱 공용 **OTA 적용하기**(2.0 — 꼬꼬농장 방식).
  *
@@ -86,6 +86,11 @@ exports.startupSettled = exports.onUpdateReady = exports.isRestarting = exports.
  * autoApply(deps, { resumeCheckMs: 10 * 60_000 });   // 10분 — 앞뒤로 자주 오가도 서버를 두드리지 않게
  * ```
  *
+ * ## 2.5 — OTA 판 헤더(`otaHeaders`)
+ *
+ * 서버(jcurve-api OtaTrack)가 판별 사용자 수를 센다 — 앱의 모든 API 요청에 `...otaHeaders()` 를 붙인다
+ * (x-ota-update-id · x-ota-channel · x-ota-runtime · x-ota-platform). 앱마다 들고 있던 ota() 를 이것으로 바꾼다.
+ *
  * ## 1.0 에서 달라진 것
  *
  * 1.0 은 「스스로 다시 시작하지 않고, 띠를 눌러야 적용」이었다. 적용이 사람 손에 달려 새 버전이 퍼지지
@@ -100,4 +105,5 @@ Object.defineProperty(exports, "canApplyNow", { enumerable: true, get: function 
 Object.defineProperty(exports, "hasWaiting", { enumerable: true, get: function () { return updates_1.hasWaiting; } });
 Object.defineProperty(exports, "isRestarting", { enumerable: true, get: function () { return updates_1.isRestarting; } });
 Object.defineProperty(exports, "onUpdateReady", { enumerable: true, get: function () { return updates_1.onUpdateReady; } });
+Object.defineProperty(exports, "otaHeaders", { enumerable: true, get: function () { return updates_1.otaHeaders; } });
 Object.defineProperty(exports, "startupSettled", { enumerable: true, get: function () { return updates_1.startupSettled; } });

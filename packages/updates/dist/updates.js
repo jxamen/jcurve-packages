@@ -13,6 +13,7 @@ exports.onUpdateReady = onUpdateReady;
 exports.canApplyNow = canApplyNow;
 exports.applyUpdate = applyUpdate;
 exports.autoApply = autoApply;
+exports.otaHeaders = otaHeaders;
 exports.startupSettled = startupSettled;
 exports.bundleLabel = bundleLabel;
 const defaultEnv = () => ({
@@ -26,6 +27,12 @@ const defaultEnv = () => ({
         }
     },
     dev: () => typeof __DEV__ !== 'undefined' && !!__DEV__,
+    os: () => { try {
+        return String(require('react-native').Platform.OS ?? '');
+    }
+    catch {
+        return '';
+    } },
     onActive: (fn) => {
         try {
             const sub = require('react-native').AppState.addEventListener('change', (st) => { if (st === 'active')
@@ -48,6 +55,7 @@ function __reset(fake) {
     restarting = false;
     current = null;
     readyFns.clear();
+    headersCache = null;
 }
 const updates = () => {
     try {
@@ -264,6 +272,34 @@ function autoApply(deps, opts = {}) {
         if (current?.deps === deps)
             current = null;
     };
+}
+let headersCache = null;
+/**
+ * 서버가 판별 사용자 수를 세는 헤더(2.5) — 앱의 모든 API 요청에 붙인다. 이름은 jcurve-api `OtaTrack` 이 읽는 그대로.
+ * 안드로이드 요청은 UA 가 okhttp 라 서버가 기기를 못 가려 플랫폼을 따로 싣는다(2026-09-19). 웹·모듈 없는 빌드는 빈 객체.
+ * 한 실행 동안 판이 바뀌지 않으므로(바뀌면 다시 시작한다) 한 번 만들어 둔다.
+ *
+ *   fetch(url, { headers: { 'X-App-Token': KEY, ...otaHeaders() } })
+ */
+function otaHeaders() {
+    if (headersCache)
+        return headersCache;
+    const os = env.os();
+    if (os !== 'ios' && os !== 'android')
+        return {};
+    const h = { 'x-ota-platform': os, 'x-ota-update-id': 'embedded' };
+    try {
+        const U = env.updates();
+        if (U?.updateId)
+            h['x-ota-update-id'] = String(U.updateId);
+        if (U?.channel)
+            h['x-ota-channel'] = String(U.channel);
+        if (U?.runtimeVersion)
+            h['x-ota-runtime'] = String(U.runtimeVersion);
+    }
+    catch { /* 모듈이 없는 빌드 — 스토어 판(embedded)으로 싣는다 */ }
+    headersCache = h;
+    return h;
 }
 /** 시작 확인이 끝났거나(받을 게 없음·오류) 받기가 시작됐는가 */
 const settled = (c) => !c?.isStartupProcedureRunning || !!c.isDownloading || !!c.isUpdatePending || !!c.checkError || !!c.downloadError;
