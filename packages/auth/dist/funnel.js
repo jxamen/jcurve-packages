@@ -34,6 +34,8 @@ exports.FUNNEL_EVENTS = [
     // 가입 관문 밖의 기능 계측(2.1) — 초대·앱 모아보기. 서버가 받게 되어(jcurve-api c002595) GA4 와 함께 서버에도 남긴다
     'invite_lock', 'invite_join', 'invite_share',
     'apphub_open', 'apphub_tap',
+    // 푸시 토큰을 못 올린 까닭(@jcurve/notify onError) — 목록에 없어 GA4 로만 가고 서버 퍼널에 안 남았다(2.1.3, 꿀꿀)
+    'push_register_failed',
 ];
 /**
  * 개인정보처럼 보이는 값인가 — 이메일(@) 이나 숫자가 7개 넘게 이어진 것(전화번호·회원번호).
