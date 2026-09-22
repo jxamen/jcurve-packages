@@ -34,7 +34,12 @@ function setup(o: { os?: string; test?: boolean; noSdk?: boolean; units?: AdsOpt
     currentState: 'active',
     addEventListener: (_t: 'change', fn: (s: string) => void) => { appListeners.add(fn); return { remove: () => appListeners.delete(fn) }; },
   };
-  const att = { asked: 0, getTrackingPermissionsAsync: async () => ({ status: 'undetermined' }), requestTrackingPermissionsAsync: async () => { att.asked++; return { status: 'granted' }; } };
+  const att = {
+    asked: 0, status: 'undetermined', skip: false,
+    getTrackingPermissionsAsync: async () => ({ status: att.status }),
+    // skip 이면 창을 띄우지 못하고 미정 그대로 — 앞에 오기 전·다른 시스템 창과 겹쳤을 때
+    requestTrackingPermissionsAsync: async () => { att.asked++; if (!att.skip) att.status = 'authorized'; return { status: att.status }; },
+  };
   const sdk = {
     default: () => ({
       initialize: async () => { inits++; order.push('initialize'); },
@@ -248,11 +253,50 @@ describe('미리 받기·초기화', () => {
     expect(s.made[0].shows).toBe(1);
   });
 
-  it('iOS 추적 허용은 한 번만 묻는다', async () => {
+  const tracked = async (s: ReturnType<typeof setup>): Promise<void> => {
+    const p = s.ads.requestTracking();
+    await flush(); vi.advanceTimersByTime(600); await flush();
+    await p;
+  };
+
+  it('iOS 추적 허용은 답을 받으면 다시 묻지 않는다', async () => {
     const s = setup({ os: 'ios' });
-    await s.ads.requestTracking();
-    await s.ads.requestTracking();
+    await tracked(s);
+    s.att.status = 'authorized';
+    await tracked(s);
     expect(s.att.asked).toBe(1);
+  });
+
+  it('(1.3) 앱이 앞에 올라오기 전에는 묻지 않고, 올라온 뒤 0.6초에 묻는다 — 그 전에 물으면 iOS 가 창 없이 넘긴다', async () => {
+    const s = setup({ os: 'ios' });
+    s.toBg();
+    const p = s.ads.requestTracking();
+    await flush(); vi.advanceTimersByTime(5000); await flush();
+    expect(s.att.asked, '뒤에 있는 동안은 묻지 않는다').toBe(0);
+    s.toFg();
+    await flush(); vi.advanceTimersByTime(599); await flush();
+    expect(s.att.asked).toBe(0);
+    vi.advanceTimersByTime(1); await flush();
+    await p;
+    expect(s.att.asked).toBe(1);
+  });
+
+  it('(1.3) 물었는데 창 없이 넘어가 미정으로 남으면 다음 호출에 다시 묻는다', async () => {
+    const s = setup({ os: 'ios' });
+    s.att.skip = true;   // 창을 못 띄우고 undetermined 그대로
+    await tracked(s);
+    expect(s.att.asked).toBe(1);
+    s.att.skip = false;
+    await tracked(s);
+    expect(s.att.asked).toBe(2);
+    await tracked(s);
+    expect(s.att.asked, '답을 받은 뒤로는 묻지 않는다').toBe(2);
+  });
+
+  it('안드로이드는 묻지 않는다', async () => {
+    const s = setup({ os: 'android' });
+    await s.ads.requestTracking();
+    expect(s.att.asked).toBe(0);
   });
 });
 

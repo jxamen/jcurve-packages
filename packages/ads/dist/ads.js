@@ -76,22 +76,62 @@ function createRewarded(opts, env = defaultEnv()) {
         }
         return withTimeout(initDone, 5000);
     };
+    /*
+     | **앱이 앞에 올라온 뒤에** 묻는다(1.3, 당근캐시 96ae2c7 에서 옮김). 그 전에 부르면 iOS 가 창을 띄우지 않고 조용히
+     | 넘긴다 — 답이 미정(undetermined)으로 남는다. 전에는 한 실행에 한 번만 물어서 그 실행에서는 다시 안 떴다.
+     | 이제 창 없이 넘어갔으면 기억을 지워 다음 호출(광고를 열 때 등)에 다시 묻는다.
+     | 앞에 올라온 뒤 0.6초 — 첫 화면이 그려지기 전에 창이 뜨면 뒤가 빈 화면이다.
+     */
+    const SETTLE_MS = 600;
+    const whenActive = () => new Promise((resolve) => {
+        const st = env.appState();
+        if (!st || st.currentState === 'active') {
+            resolve();
+            return;
+        }
+        let sub = null;
+        try {
+            sub = st.addEventListener('change', (s) => {
+                if (s !== 'active')
+                    return;
+                try {
+                    sub?.remove();
+                }
+                catch { /* noop */ }
+                resolve();
+            });
+        }
+        catch {
+            resolve();
+        }
+    });
     let trackingP = null;
+    let trackingGen = 0; // 창 없이 넘어간 **이번 시도만** 지운다 — 사이에 새로 시작한 것을 지우지 않게
     const requestTracking = () => {
         if (os !== 'ios')
             return Promise.resolve();
         if (trackingP)
             return trackingP;
+        const gen = ++trackingGen;
+        const forget = () => { if (trackingGen === gen)
+            trackingP = null; };
         trackingP = (async () => {
             try {
                 const att = env.tracking();
                 if (!att)
-                    return;
+                    return; // 모듈이 없는 빌드 — 묻지 못한 것이지 고장이 아니다
+                await whenActive();
+                await new Promise((r) => setTimeout(r, SETTLE_MS));
                 const cur = (await withTimeout(att.getTrackingPermissionsAsync(), 3000));
-                if (cur?.status === 'undetermined')
-                    await withTimeout(att.requestTrackingPermissionsAsync(), 20000);
+                if (cur?.status !== 'undetermined')
+                    return; // 이미 답했다(허용·거부) — 다시 묻지 않는다
+                const after = (await withTimeout(att.requestTrackingPermissionsAsync(), 20000));
+                if (!after || after.status === 'undetermined')
+                    forget(); // 창 없이 넘어갔다 — 다음 호출에 다시 묻는다
             }
-            catch { /* 모듈이 없는 빌드면 그냥 넘어간다 */ }
+            catch {
+                forget();
+            }
         })();
         return trackingP;
     };
