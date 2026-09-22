@@ -1,6 +1,6 @@
 {
   "name": "@jcurve/money",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "리워드 앱 공용 현금 인출 검증",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

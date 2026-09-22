@@ -74,6 +74,10 @@ describe('sayCashProblem — 사유마다 다르게 말한다', () => {
     const all = ['empty', 'not_number', 'unit', 'min', 'max', 'balance'] as const;
     for (const p of all) expect(sayCashProblem(p).length).toBeGreaterThan(0);
   });
+
+  it('(1.0.1) 금액을 안 골랐을 때 — 버튼으로 고르는 화면이라 「골라」', () => {
+    expect(sayCashProblem('empty')).toBe('받을 금액을 골라 주세요');
+  });
 });
 
 describe('계좌·이름·번호', () => {

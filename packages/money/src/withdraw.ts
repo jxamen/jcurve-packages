@@ -87,7 +87,8 @@ export function amountChoices(balance: number, rules: CashRules = DEFAULT_CASH):
 /** 사유를 사람 말로 */
 export function sayCashProblem(p: CashProblem, rules: CashRules = DEFAULT_CASH): string {
   switch (p) {
-    case 'empty': return '받을 금액을 적어 주세요';
+    // 금액은 amountChoices 버튼으로 고른다(1.0.1, 꿀꿀 제보) — 「적어」는 숫자판 시절 문구였다
+    case 'empty': return '받을 금액을 골라 주세요';
     case 'not_number': return '숫자만 적어 주세요';
     case 'unit': return rules.unit.toLocaleString() + '원 단위로 적어 주세요';
     case 'min': return '최소 ' + rules.min.toLocaleString() + '원부터 신청할 수 있어요';
