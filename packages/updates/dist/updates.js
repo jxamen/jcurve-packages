@@ -290,7 +290,9 @@ function otaHeaders() {
     const h = { 'x-ota-platform': os, 'x-ota-update-id': 'embedded' };
     try {
         const U = env.updates();
-        if (U?.updateId)
+        // 스토어 판 그대로 켠 기기도 updateId 에 내장 판 id 가 들어 있다 — 그 id 를 실으면 서버의 「스토어 판」 칸이
+        // 늘 0 이 되고 기기는 낯선 id 로 잡힌다(2.5.1, 꿀꿀 제보). 받은 판으로 켰을 때만 id 를 싣는다
+        if (U?.updateId && !U.isEmbeddedLaunch)
             h['x-ota-update-id'] = String(U.updateId);
         if (U?.channel)
             h['x-ota-channel'] = String(U.channel);
