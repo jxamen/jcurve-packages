@@ -214,16 +214,37 @@ describe('미리 받기·초기화', () => {
     expect(s.inits()).toBe(1);
   });
 
-  it('미리 받은 광고는 같은 조건일 때만 꺼내 바로 연다 — 새로 받지 않는다', async () => {
+  it('(1.2) 미리 받지 않는다 — warm 은 아무 광고도 만들거나 받지 않고, warmReady 는 늘 거짓', async () => {
     const s = setup();
     s.ads.warm('m1', 'feed');
+    s.ads.warm('m1', 'feed', true);
     await flush();
-    s.made[0].emit(EV.LOADED);
-    expect(s.ads.warmReady('m1', 'feed')).toBe(true);
-    expect(s.ads.warmReady('m1', 'water'), 'SSV 데이터가 다르면 못 쓴다').toBe(false);
+    vi.advanceTimersByTime(5000);
+    expect(s.made).toHaveLength(0);
+    expect(s.inits(), '미리 받으려고 SDK 를 깨우지도 않는다').toBe(0);
+    expect(s.ads.warmReady('m1', 'feed')).toBe(false);
+  });
+
+  it('(1.2) 광고를 닫은 뒤 다음 것을 스스로 받아 두지 않는다 — 안 보여 줄 광고가 요청으로만 쌓였다', async () => {
+    const s = setup();
     void s.ads.show({ userId: 'm1', customData: 'feed', ...s.cb });
     await flush();
+    const ad = s.made[0];
+    ad.emit(EV.LOADED); ad.emit(EV.OPENED); ad.emit(EV.EARNED_REWARD); ad.emit(EV.CLOSED);
+    await flush();
+    vi.advanceTimersByTime(10_000);
+    await flush();
     expect(s.made).toHaveLength(1);
+    expect(ad.loads).toBe(1);
+  });
+
+  it('보여 줄 때마다 새로 받아 연다 — 받으면(LOADED) 연다', async () => {
+    const s = setup();
+    void s.ads.show({ userId: 'm1', customData: 'feed', ...s.cb });
+    await flush();
+    expect(s.made[0].loads).toBe(1);
+    expect(s.made[0].shows).toBe(0);
+    s.made[0].emit(EV.LOADED);
     expect(s.made[0].shows).toBe(1);
   });
 

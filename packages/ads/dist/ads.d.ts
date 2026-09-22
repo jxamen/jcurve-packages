@@ -49,9 +49,12 @@ export type Rewarded = {
     interstitialAvailable: boolean;
     /** 광고를 띄운다. 이미 하나가 도는 중이라 시작하지 못하면 거짓 */
     show: (o: ShowOptions) => Promise<boolean>;
-    /** 안내 팝업이 뜨는 순간 미리 받아 둔다 — **앱 시작에는 부르지 않는다**(발열) */
+    /**
+     * **(1.2) 아무것도 하지 않는다** — 광고를 미리 받지 않는다(2026-09-22 사용자 결정 「미리 받아 오는 거 없애자」).
+     * 받아 두고 안 보여 준 광고는 AdMob 에 요청만 있고 노출이 없는 것으로 쌓인다. 부르는 앱이 깨지지 않게 이름만 남겼다.
+     */
     warm: (userId?: string, customData?: string, interstitial?: boolean) => void;
-    /** 미리 받아 둔 광고가 바로 열 수 있는가 — 대기 화면을 띄울지 정한다 */
+    /** (1.2) 늘 거짓 — 미리 받아 두지 않으므로. 대기 화면은 늘 뜬다 */
     warmReady: (userId?: string, customData?: string, interstitial?: boolean) => boolean;
     /** 기다리기를 그만둔다(대기 화면의 「그만두기」) — 실패로 세지 않는다 */
     cancel: () => void;

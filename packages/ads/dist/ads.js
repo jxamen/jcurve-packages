@@ -120,61 +120,13 @@ function createRewarded(opts, env = defaultEnv()) {
         return RewardedAd.createForAdRequest(unit, { requestNonPersonalizedAdsOnly: false, ...(0, mode_1.ssvRequestOptions)(test, userId, customData) });
     };
     /*
-     | 미리 받아 둔 광고 — 안내 팝업이 뜨는 순간 받아 두면 확인을 누를 때 로딩 없이 바로 열린다(꼬꼬농장 2026-08-27).
-     | **한 번 쓰고 버린다** — 한 인스턴스를 재사용하면 두 번째부터 안 열렸다.
-     | 보상형·보상형 전면은 다른 광고라 키를 가른다 — 섞어 꺼내 쓰면 다른 형식이 열린다.
+     | **광고는 보여 줄 때만 받는다**(1.2, 2026-09-22 사용자 결정 「미리 받아 오는 거 없애자」).
+     | 전에는 안내 팝업이 뜰 때(warm)와 광고를 닫은 1.5초 뒤 다음 것을 미리 받아 두었다(2026-08-27 · 09-08). 받아 두고
+     | 안 보여 준 광고는 AdMob 에 요청만 있고 노출은 없는 것으로 쌓인다. 대가는 누를 때마다 몇 초의 로딩이다.
+     | warm · warmReady 는 부르는 앱이 깨지지 않게 이름만 남긴다.
      */
-    let pre = null;
-    const preKey = (u, c, i = false) => (u ?? '') + '|' + (c ?? '') + (i ? '|i' : '');
-    const dropPre = () => {
-        if (!pre)
-            return;
-        pre.offs.forEach((f) => { try {
-            f();
-        }
-        catch { /* noop */ } });
-        pre = null;
-    };
-    /** 같은 보상 조건일 때만 꺼낸다 — SSV 데이터가 다르면 못 쓴다 */
-    const takeWarm = (key) => {
-        if (!pre || !pre.loaded || pre.key !== key)
-            return null;
-        const box = pre;
-        pre = null;
-        box.offs.forEach((f) => { try {
-            f();
-        }
-        catch { /* noop */ } });
-        return box.ad;
-    };
-    const warmReady = (userId, customData, interstitial = false) => !!pre && pre.loaded && pre.key === preKey(userId, customData, interstitial);
-    const warm = (userId, customData, interstitial = false) => {
-        if (!nativeReady || !unitReady || showing)
-            return;
-        if (interstitial && !interstitialAvailable)
-            return;
-        const key = preKey(userId, customData, interstitial);
-        if (pre && pre.key === key)
-            return; // 이미 같은 조건으로 받는 중
-        dropPre();
-        void ensureInit().then(() => {
-            if (showing || pre)
-                return;
-            const { RewardedAdEventType, AdEventType } = mod;
-            const box = { ad: makeAd(userId, customData, interstitial), key, loaded: false, offs: [] };
-            box.offs.push(box.ad.addAdEventListener(RewardedAdEventType.LOADED, () => { box.loaded = true; }));
-            box.offs.push(box.ad.addAdEventListener(AdEventType.ERROR, () => { if (pre === box)
-                dropPre(); }));
-            pre = box;
-            try {
-                box.ad.load();
-            }
-            catch {
-                if (pre === box)
-                    dropPre();
-            }
-        });
-    };
+    const warm = (_userId, _customData, _interstitial = false) => { };
+    const warmReady = (_userId, _customData, _interstitial = false) => false;
     async function show({ userId, customData, interstitial = false, onEarned, onFail, onClosed, onOpened }) {
         if (!nativeReady) {
             onFail('이 빌드에서는 광고를 재생할 수 없어요', true);
@@ -199,11 +151,7 @@ function createRewarded(opts, env = defaultEnv()) {
         }
         catch { /* 아래에서 요청을 시도하고 안 되면 ERROR 로 안내된다 */ }
         const { RewardedAdEventType, AdEventType } = mod;
-        // 안내 팝업에서 미리 받아 둔 게 있으면 그걸 그대로 연다(로딩 대기 없음)
-        const warmAd = takeWarm(preKey(userId, customData, interstitial));
-        if (!warmAd)
-            dropPre();
-        const ad = warmAd ?? makeAd(userId, customData, interstitial);
+        const ad = makeAd(userId, customData, interstitial);
         let earned = false;
         let opened = false;
         let finished = false;
@@ -291,12 +239,7 @@ function createRewarded(opts, env = defaultEnv()) {
             safe(onOpened);
         }));
         offs.push(ad.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => { earned = true; safe(onEarned); }));
-        offs.push(ad.addAdEventListener(AdEventType.CLOSED, () => {
-            finishClose();
-            // 미리 받아 둔 것은 방금 썼다 — 다음 것을 바로 받아 둔다(안 하면 연달아 볼 때 로딩에서 실패했다, 2026-09-08)
-            if (!interstitial)
-                setTimeout(() => warm(userId, customData), 1500);
-        }));
+        offs.push(ad.addAdEventListener(AdEventType.CLOSED, () => finishClose()));
         offs.push(ad.addAdEventListener(AdEventType.ERROR, (err) => {
             const code = String(err?.code ?? err?.message ?? '');
             fail(/no.?fill/i.test(code)
@@ -318,11 +261,7 @@ function createRewarded(opts, env = defaultEnv()) {
             appSub = null;
         }
         try {
-            // 미리 받아 둔 광고는 LOADED 가 이미 지났으므로 바로 띄운다
-            if (warmAd)
-                present();
-            else
-                ad.load();
+            ad.load();
         }
         catch (e) {
             fail('광고를 열지 못했어요 (' + String(e?.message ?? e ?? '원인 불명') + ')');
@@ -330,12 +269,12 @@ function createRewarded(opts, env = defaultEnv()) {
         }
         /*
          | 광고가 없으면 ERROR 가 몇 초 안에 오므로, 여기까지 오는 것은 SDK 가 응답을 안 주는 경우다 — 더 기다려도
-         | 소용없다. 25초는 화면이 덮인 채 멈춘 줄 알았다는 제보가 와서(2026-09-10) 15초(미리 받은 것은 12초).
+         | 소용없다. 25초는 화면이 덮인 채 멈춘 줄 알았다는 제보가 와서(2026-09-10) 15초.
          */
         timers.push(setTimeout(() => {
             if (!opened && !finished)
                 fail('광고를 불러오지 못했어요. 잠시 후 다시 시도해 주세요 (' + stage + ')');
-        }, warmAd ? 12000 : 15000));
+        }, 15000));
         return true;
     }
     return {
