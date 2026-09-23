@@ -97,7 +97,7 @@ async function scan() {
 ## 5. OCR 과 잇기 (`@jcurve/ocr`)
 
 스캐너는 사진 파일만 준다. OCR 에 넘기기 전에 **`preparePhoto` 를 거친다** — 1600 으로 줄이고 방향을 굽는다.
-스캐너 사진은 크고(기기에 따라 4000px 넘음) 그대로 올리면 서버와 맥이 버티지 못한다.
+스캐너 사진은 줄이지 않은 원본 크기라 그대로 올리면 서버와 맥이 버티지 못한다.
 
 ```ts
 import { scanDocument } from '@jcurve/scanner';
