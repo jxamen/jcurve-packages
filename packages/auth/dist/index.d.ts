@@ -116,7 +116,7 @@
  * 아래로」 같은 것을 붙일 때는 반드시 `kakaoTalkAvailable()` 을 쓴다 — 그 안에서 초기화를
  * 먼저 한다. 직접 `isKakaoTalkLoginAvailable()` 을 부르면 ③ 을 밟는다.
  */
-export { AuthError, createAuth, isCancel, parseReturn, PLACEHOLDER } from './auth';
+export { AuthError, cameBackFromOtherApp, createAuth, isCancel, parseReturn, PLACEHOLDER } from './auth';
 export type { AnyProvider, Auth, AuthDeps, AuthEnv, AuthErrorCode, Guest, Provider, ServerLogin, TrackParams, WebLogin } from './auth';
 export { createFunnel, FUNNEL_EVENTS, looksPersonal, referrerKeys } from './funnel';
 export type { Funnel, FunnelDeps, FunnelEnv, KeyValue } from './funnel';

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isCancel = exports.PLACEHOLDER = exports.AuthError = void 0;
+exports.cameBackFromOtherApp = exports.isCancel = exports.PLACEHOLDER = exports.AuthError = void 0;
 exports.parseReturn = parseReturn;
 exports.createAuth = createAuth;
 /**
@@ -48,6 +48,25 @@ const isPlaceholder = (v) => exports.PLACEHOLDER.test(String(v ?? '').trim());
  */
 const isCancel = (code) => /cancel|취소|access.?denied|(?<![0-9])(1001|12501)(?![0-9])/i.test(code);
 exports.isCancel = isCancel;
+/**
+ * `AppState` 가 이렇게 바뀐 것이 **앱 밖에 다녀온 것**인가 — `abandon()` 을 언제 잴지 가르는 한 줄.
+ *
+ * **`background` → `active` 만 참이다.** 카카오톡·크롬처럼 다른 앱에 다녀온 경우다.
+ * `inactive` ↔ `active` 는 **앱 안에서 일어난 일**이다 — iOS 앱 안 로그인 창(`ASWebAuthenticationSession`),
+ * 구글 계정 고르기, 제어센터, 알림창. 이걸 「돌아왔다」로 읽으면 사용자가 계정을 고르는 사이에
+ * 로그인을 잊어버리고, 화면에는 「로그인 창이 닫혔어요」 같은 팝업이 뜬다
+ * (2026-09-22 영테크 실기기 · 당근 a93c018 · 꿀꿀 82e748c — 앱마다 따로 고치다 세 번 샜다).
+ *
+ * ```ts
+ * AppState.addEventListener('change', (next) => {
+ *   const prev = last; last = next;
+ *   if (!cameBackFromOtherApp(prev, next)) return;   // 앱 안에서 오간 것은 세지 않는다
+ *   setTimeout(() => { if (stillBusy()) { auth.abandon(); clearBusy(); } }, 2500);  // 팝업은 띄우지 않는다
+ * });
+ * ```
+ */
+const cameBackFromOtherApp = (prev, next) => prev === 'background' && next === 'active';
+exports.cameBackFromOtherApp = cameBackFromOtherApp;
 /**
  * 복귀 주소에서 티켓·오류를 꺼낸다 — **RN 의 `URLSearchParams` 폴리필을 믿지 않는다.**
  *

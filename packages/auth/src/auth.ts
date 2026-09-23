@@ -169,8 +169,16 @@ export type Auth<T> = {
    *
    * 로그인 중 앱 밖에 나갔다 **아이콘으로** 돌아오면 SDK·커스텀 탭의 약속이 영영 안 끝날 수 있다
    * (당근캐시 2026-09-18 실기기). 패키지가 그 약속을 붙잡고 있으면 같은 버튼은 그 약속을 또 받고
-   * 다른 버튼은 `busy` 라 **모든 로그인 버튼이 먹통**이 된다. 앱은 `AppState` 가 active 가 되고
-   * **2.5초 기다렸다가** 안 끝났으면 화면의 busy 와 함께 이것을 부른다(바로 풀면 정상 로그인에 오탐).
+   * 다른 버튼은 `busy` 라 **모든 로그인 버튼이 먹통**이 된다.
+   *
+   * ⚠ **언제 부르는지가 중요하다**(2026-09-22 영테크 · 당근 a93c018 · 꿀꿀 82e748c 에서 각각 터짐).
+   * 앱이 **밖에 다녀왔을 때만** 잰다 — `cameBackFromOtherApp(prev, next)` 이 참일 때(background → active)
+   * 2.5초 기다렸다가 안 끝났으면 화면의 busy 와 함께 이것을 부른다(바로 풀면 정상 로그인에 오탐).
+   * **`inactive` ↔ `active` 만 오간 것은 밖에 나간 게 아니다** — iOS 의 앱 안 로그인 창
+   * (`ASWebAuthenticationSession`)·구글 계정 고르기·제어센터가 그렇다. 그걸 「돌아왔다」로 읽으면
+   * 계정을 고르는 사이에 로그인을 잊어버린다.
+   * 그리고 이때 **안내 팝업(RN `Modal`)을 띄우지 마라** — iOS 에서 그 창 위에 Modal 을 올리면
+   * 보이지 않는 막이 남아 화면 터치가 전부 막힌다. 조용히 busy 만 푼다.
    * 웹 흐름·받아 둔 후보는 그대로 둔다 — 복귀 주소가 뒤늦게 오면 `onLateReturn` 으로 이어진다.
    */
   abandon: () => void;
@@ -204,6 +212,26 @@ const isPlaceholder = (v?: string): boolean => PLACEHOLDER.test(String(v ?? '').
  */
 export const isCancel = (code: string): boolean =>
   /cancel|취소|access.?denied|(?<![0-9])(1001|12501)(?![0-9])/i.test(code);
+
+/**
+ * `AppState` 가 이렇게 바뀐 것이 **앱 밖에 다녀온 것**인가 — `abandon()` 을 언제 잴지 가르는 한 줄.
+ *
+ * **`background` → `active` 만 참이다.** 카카오톡·크롬처럼 다른 앱에 다녀온 경우다.
+ * `inactive` ↔ `active` 는 **앱 안에서 일어난 일**이다 — iOS 앱 안 로그인 창(`ASWebAuthenticationSession`),
+ * 구글 계정 고르기, 제어센터, 알림창. 이걸 「돌아왔다」로 읽으면 사용자가 계정을 고르는 사이에
+ * 로그인을 잊어버리고, 화면에는 「로그인 창이 닫혔어요」 같은 팝업이 뜬다
+ * (2026-09-22 영테크 실기기 · 당근 a93c018 · 꿀꿀 82e748c — 앱마다 따로 고치다 세 번 샜다).
+ *
+ * ```ts
+ * AppState.addEventListener('change', (next) => {
+ *   const prev = last; last = next;
+ *   if (!cameBackFromOtherApp(prev, next)) return;   // 앱 안에서 오간 것은 세지 않는다
+ *   setTimeout(() => { if (stillBusy()) { auth.abandon(); clearBusy(); } }, 2500);  // 팝업은 띄우지 않는다
+ * });
+ * ```
+ */
+export const cameBackFromOtherApp = (prev: string | null | undefined, next: string | null | undefined): boolean =>
+  prev === 'background' && next === 'active';
 
 /**
  * 복귀 주소에서 티켓·오류를 꺼낸다 — **RN 의 `URLSearchParams` 폴리필을 믿지 않는다.**
