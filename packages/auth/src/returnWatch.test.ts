@@ -111,3 +111,43 @@ describe('createReturnWatch(deps) — 타이머', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 });
+
+/** 막 누른 참은 봐준다 — 창이 뜨는 중에 놓아 주면 정상 로그인을 시작하자마자 끊는다(2.4) */
+describe('createReturnWatch — 막 누른 참(grace)', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('누른 지 얼마 안 됐으면 놓아 주지 않는다', () => {
+    const onStuck = vi.fn();
+    const w = createReturnWatch({ busy: () => true, onStuck });
+    w.started();                         // 버튼을 누른 순간
+    w.saw('background'); w.saw('active');
+    vi.advanceTimersByTime(2500);        // 타이머는 터지지만 누른 지 2.5초뿐이다
+    expect(onStuck).not.toHaveBeenCalled();
+  });
+
+  it('누른 지 오래됐으면 놓아 준다', () => {
+    const onStuck = vi.fn();
+    const w = createReturnWatch({ busy: () => true, onStuck });
+    w.started();
+    vi.advanceTimersByTime(4000);        // 창이 뜬 채로 4초
+    w.saw('background'); w.saw('active');
+    vi.advanceTimersByTime(2500);
+    expect(onStuck).toHaveBeenCalledTimes(1);
+  });
+
+  it('봐주는 시간은 바꿀 수 있고, started() 를 안 부르면 봐주기가 없다', () => {
+    const a = vi.fn();
+    const w1 = createReturnWatch({ busy: () => true, onStuck: a, grace: 100 });
+    w1.started();
+    w1.saw('background'); w1.saw('active');
+    vi.advanceTimersByTime(2500);
+    expect(a).toHaveBeenCalledTimes(1);   // 100ms 만 봐주므로 놓아 준다
+
+    const b = vi.fn();
+    const w2 = createReturnWatch({ busy: () => true, onStuck: b });
+    w2.saw('background'); w2.saw('active');   // started() 없음
+    vi.advanceTimersByTime(2500);
+    expect(b).toHaveBeenCalledTimes(1);
+  });
+});

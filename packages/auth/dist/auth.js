@@ -51,6 +51,7 @@ const isCancel = (code) => /cancel|취소|access.?denied|(?<![0-9])(1001|12501)(
 exports.isCancel = isCancel;
 function createReturnWatch(deps) {
     let wasOutside = false;
+    let startedAt = null;
     let timer = null;
     const stop = () => {
         if (timer !== null) {
@@ -60,6 +61,9 @@ function createReturnWatch(deps) {
     };
     return {
         stop,
+        started() {
+            startedAt = Date.now();
+        },
         saw(next) {
             if (next === 'background') {
                 wasOutside = true;
@@ -79,6 +83,10 @@ function createReturnWatch(deps) {
                 stop();
                 timer = setTimeout(() => {
                     timer = null;
+                    // 막 누른 참이면 봐준다 — 창이 아직 뜨는 중일 수 있다
+                    if (startedAt !== null && Date.now() - startedAt < (deps.grace ?? 3000)) {
+                        return;
+                    }
                     if (deps.busy()) {
                         deps.onStuck();
                     }

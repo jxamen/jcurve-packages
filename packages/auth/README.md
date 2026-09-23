@@ -187,6 +187,7 @@ if (Platform.OS === 'android') await WebBrowser.warmUpAsync();
   ```ts
   const watch = createReturnWatch({ busy: () => busyRef.current, onStuck: () => { auth.abandon(); clearBusy(); } });
   const sub = AppState.addEventListener('change', (s) => watch.saw(s));
+  // 로그인 버튼을 누를 때: watch.started();   ← 「막 누른 참」은 봐준다(2.4, 기본 3초)
   // 화면을 떠날 때: sub.remove(); watch.stop();
   ```
 

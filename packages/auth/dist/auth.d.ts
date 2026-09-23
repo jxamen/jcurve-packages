@@ -231,8 +231,17 @@ export type ReturnWatchDeps = {
     onStuck: () => void;
     /** 기다리는 시간(밀리초, 기본 2500) */
     wait?: number;
+    /**
+     * **막 누른 참은 봐준다**(밀리초, 기본 3000). `started()` 를 부른 지 이만큼 안 지났으면 `onStuck` 을 걸지 않는다 —
+     * 로그인 창이 아직 뜨는 중일 수 있어, 그때 놓아 주면 **정상 로그인을 시작하자마자 끊는다**
+     * (용돈캡슐 · 꾹테크가 앱마다 따로 두던 처리를 2.4 에서 패키지가 든다).
+     * `started()` 를 안 부르면 이 봐주기는 없던 것처럼 돈다.
+     */
+    grace?: number;
 };
 export declare function createReturnWatch(deps?: ReturnWatchDeps): {
+    /** 로그인 버튼을 누르는 순간 부른다 — 「막 누른 참」을 재는 기준 */
+    started: () => void;
     saw: (next: string | null | undefined) => boolean;
     stop: () => void;
 };
