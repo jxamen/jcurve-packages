@@ -65,6 +65,28 @@ describe('기기 ID — 설치 단위로 하나', () => {
     expect(e.sent[0].device).toBe('old-device');
   });
 
+  /*
+   | 기기 ID 를 **동기로** 꺼내 쓰는 자리가 생겼다(광고 기록에 함께 싣는다 — @jcurve/ads 1.3).
+   | 광고를 여는 순간 값을 만들어야 해서 기다릴 수 없다. 아직이면 빈 문자열을 주고 그 광고만 없이 나간다.
+   */
+  it('deviceId() — 읽기 전에는 빈 문자열, 읽고 나면 그 값', async () => {
+    const st = memory({ 'jc.device.v1': 'saved-device' });
+    const f = createFunnel({ ...BASE, storage: st }, env());
+    expect(f.deviceId(), '아직 안 읽었으면 빈 문자열이어야 한다').toBe('');
+    await flush(); await flush();
+    expect(f.deviceId()).toBe('saved-device');
+  });
+
+  it('deviceId() 는 퍼널이 쓰는 그 ID 와 같다 — 따로 만들지 않는다', async () => {
+    const st = memory();
+    const e = env();
+    const f = createFunnel({ ...BASE, storage: st }, e);
+    f.appOpen();
+    await flush(); await flush();
+    expect(f.deviceId()).toBe(e.sent[0].device);
+    expect(f.deviceId()).toBe(st.data['jc.device.v1']);
+  });
+
   it('기능이 나오기 전부터 쓰던 사람은 기기 ID 가 없어도 첫 실행이 아니다', async () => {
     const e = env();
     createFunnel({ ...BASE, storage: memory(), existingUser: async () => true }, e).appOpen();

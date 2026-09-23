@@ -25,7 +25,7 @@ class FakeAd {
   show() { this.shows++; return Promise.resolve(); }
 }
 
-function setup(o: { os?: string; test?: boolean; noSdk?: boolean; units?: AdsOptions['units']; testDevices?: string[] } = {}) {
+function setup(o: { os?: string; test?: boolean; noSdk?: boolean; units?: AdsOptions['units']; testDevices?: string[]; device?: () => string } = {}) {
   const made: FakeAd[] = [];
   let inits = 0;
   const order: string[] = [];
@@ -63,6 +63,7 @@ function setup(o: { os?: string; test?: boolean; noSdk?: boolean; units?: AdsOpt
     units: o.units ?? { rewarded: { android: 'AND_R', ios: 'IOS_R' }, rewardedInterstitial: { android: 'AND_RI', ios: 'IOS_RI' } },
     test: o.test ?? false,
     testDevices: o.testDevices,
+    device: o.device,
   }, env);
   const calls = { earned: 0, closed: 0, opened: 0, fail: [] as string[], noAd: [] as boolean[] };
   const cb = {
@@ -190,6 +191,46 @@ describe('광고 단위·SSV', () => {
     await flush();
     expect(s.made[0].unit).toBe('IOS_R');
     expect(s.made[0].reqOpts.serverSideVerificationOptions).toEqual({ userId: 'm6', customData: '{"kind":"water"}' });
+  });
+
+  /*
+   | 기기 ID(1.3) — 광고 기록에 회원번호밖에 없어 「한 사람이 많이 보는가, 계정이 여럿인가」를 가릴 수 없었다.
+   | 앱이 이미 만들어 둔 값을 받아 SSV 에 함께 싣는다(새로 걷는 것 없음, 광고 식별자 아님).
+   */
+  it('기기 ID 를 주면 SSV 값에 dev 로 함께 싣는다', async () => {
+    const s = setup({ device: () => 'mudgmogx-6ol1hvkhe7' });
+    void s.ads.show({ userId: 'm7', customData: '{"kind":"feed","stage":"hen"}', ...s.cb });
+    await flush();
+    expect(JSON.parse(s.made[0].reqOpts.serverSideVerificationOptions.customData))
+      .toEqual({ kind: 'feed', stage: 'hen', dev: 'mudgmogx-6ol1hvkhe7' });
+  });
+
+  it('아직 못 읽었으면(빈 문자열) 그 광고는 그냥 나간다', async () => {
+    const s = setup({ device: () => '' });
+    void s.ads.show({ userId: 'm7', customData: '{"kind":"feed"}', ...s.cb });
+    await flush();
+    expect(s.made[0].reqOpts.serverSideVerificationOptions.customData).toBe('{"kind":"feed"}');
+  });
+
+  it('맨 문자열로 보내는 앱의 값은 건드리지 않는다 — 뜻이 바뀌면 서버 판정이 어긋난다', async () => {
+    const s = setup({ device: () => 'dev-1' });
+    void s.ads.show({ userId: 'm7', customData: 'stamp_main', ...s.cb });
+    await flush();
+    expect(s.made[0].reqOpts.serverSideVerificationOptions.customData).toBe('stamp_main');
+  });
+
+  it('앱이 이미 dev 를 넣었으면 그대로 둔다', async () => {
+    const s = setup({ device: () => '내값' });
+    void s.ads.show({ userId: 'm7', customData: '{"kind":"feed","dev":"앱이넣음"}', ...s.cb });
+    await flush();
+    expect(JSON.parse(s.made[0].reqOpts.serverSideVerificationOptions.customData).dev).toBe('앱이넣음');
+  });
+
+  it('기기 ID 를 안 주는 앱은 예전 그대로다', async () => {
+    const s = setup();
+    void s.ads.show({ userId: 'm7', customData: '{"kind":"feed"}', ...s.cb });
+    await flush();
+    expect(s.made[0].reqOpts.serverSideVerificationOptions.customData).toBe('{"kind":"feed"}');
   });
 
   it('테스트 광고: 구글 테스트 단위, SSV 없음(붙이면 로드가 실패했다)', async () => {

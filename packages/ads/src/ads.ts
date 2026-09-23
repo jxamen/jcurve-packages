@@ -34,6 +34,14 @@ export type AdsOptions = {
    * ID 는 그 기기에서 광고를 한 번 요청하면 로그에 찍힌다(`testDeviceIdentifiers = @[ @"…" ]`). 서명 키마다 다르다.
    */
   testDevices?: string[];
+  /**
+   * 기기 ID 를 돌려주는 함수(선택) — 주면 SSV 값(`customData`)에 **`dev` 로 함께 실어 보낸다**(1.3, 2026-09-23).
+   *
+   * 광고 기록에 회원번호밖에 없어 「한 사람이 많이 보는가, 계정이 여럿인가」를 가릴 수 없었다.
+   * 앱이 **이미 만들어 둔** 값을 받아 쓸 뿐이라 새로 걷는 항목이 아니고, 광고 식별자(adid)도 아니다.
+   * 보통 `device: funnel.deviceId`(`@jcurve/auth`). 빈 문자열이면 그 광고만 그냥 나간다.
+   */
+  device?: () => string;
 };
 
 export type ShowOptions = {
@@ -231,17 +239,36 @@ export function createRewarded(opts: AdsOptions, env: AdsEnv = defaultEnv()): Re
   };
   const noteAdOpen = (): void => { failStreak = 0; mutedUntil = 0; };
 
+  /**
+   * SSV 값에 기기 ID 를 끼운다 — **JSON 객체로 온 값에만**.
+   * 'feed' 처럼 맨 문자열을 보내는 앱의 뜻을 바꾸면 서버 판정이 어긋난다.
+   * 앱이 이미 `dev` 를 넣어 보냈으면 그대로 둔다(앱 쪽이 먼저다).
+   */
+  const withDevice = (customData?: string): string | undefined => {
+    const dev = (opts.device?.() ?? '').slice(0, 64);
+    const body = (customData ?? '').trim();
+    if (!dev || !body.startsWith('{') || !body.endsWith('}')) return customData;
+    try {
+      const o = JSON.parse(body);
+      if (!o || typeof o !== 'object' || Array.isArray(o) || 'dev' in o) return customData;
+
+      return JSON.stringify({ ...o, dev });
+    } catch {
+      return customData;   // 우리가 못 읽는 모양이면 건드리지 않는다
+    }
+  };
+
   const makeAd = (userId?: string, customData?: string, interstitial = false): any => {
     const { RewardedAd, RewardedInterstitialAd, TestIds } = mod;
     // 보상형 전면도 이벤트·SSV 가 보상형과 같다 — 만드는 클래스와 광고 단위만 다르다
     if (interstitial) {
       const unit = test ? TestIds.REWARDED_INTERSTITIAL : unitOf(opts.units.rewardedInterstitial);
 
-      return RewardedInterstitialAd.createForAdRequest(unit, { requestNonPersonalizedAdsOnly: false, ...ssvRequestOptions(test, userId, customData) });
+      return RewardedInterstitialAd.createForAdRequest(unit, { requestNonPersonalizedAdsOnly: false, ...ssvRequestOptions(test, userId, withDevice(customData)) });
     }
     const unit = test ? TestIds.REWARDED : unitOf(opts.units.rewarded);
 
-    return RewardedAd.createForAdRequest(unit, { requestNonPersonalizedAdsOnly: false, ...ssvRequestOptions(test, userId, customData) });
+    return RewardedAd.createForAdRequest(unit, { requestNonPersonalizedAdsOnly: false, ...ssvRequestOptions(test, userId, withDevice(customData)) });
   };
 
   /*

@@ -122,6 +122,8 @@ function createFunnel(deps, env = defaultEnv()) {
     const url = deps.base.replace(/\/+$/, '') + '/funnel';
     const headers = { Accept: 'application/json', 'Content-Type': 'application/json', 'X-App-Token': deps.appToken };
     let deviceP = null;
+    /** 읽어 둔 기기 ID — `deviceId()` 가 **기다리지 않고** 꺼내 쓴다(아직이면 빈 문자열) */
+    let deviceNow = '';
     /*
      | first_open 은 **한 실행에 한 번**(2.1.2). 안드로이드는 뒤로가기로 나갔다 다시 열면 JS 가 살아 있어 앱 루트가
      | 다시 뜨고 appOpen 을 또 부른다 — 기억해 둔 「처음(fresh)」 으로 다시 열 때마다 첫 실행이 찍혔다(꼬꼬 2026-09-22,
@@ -164,7 +166,8 @@ function createFunnel(deps, env = defaultEnv()) {
                 return { id, fresh: !used };
             })();
         }
-        return deviceP;
+        // 읽고 나면 동기 변수에도 담는다 — deviceId() 는 기다릴 수 없는 자리(광고 열기)에서 쓰인다
+        return deviceP.then((d) => { deviceNow = d.id; return d; });
     }
     /** 절대 던지지 않는다 — 앱이 준 `post` 가 거절해도 처리되지 않은 거절로 새지 않게(Codex #8) */
     const post = (id, event, extra) => Promise.resolve()
@@ -198,6 +201,12 @@ function createFunnel(deps, env = defaultEnv()) {
             // 개인정보처럼 보이면 꼬리표를 통째로 뺀다 — 글자를 걸러 내는 것만으로는 전화번호가 그대로 통과한다
             const p = prop && !looksPersonal(prop) ? prop.replace(/[^A-Za-z0-9_:.-]/g, '').slice(0, 40) : '';
             void device().then((d) => post(d.id, name, p ? { p } : undefined)).catch(() => undefined);
+        },
+        deviceId() {
+            // 아직 안 읽었으면 지금 읽어 둔다 — 이번 광고는 없이 나가고 다음 광고부터 실린다
+            if (!deviceP)
+                void device().catch(() => undefined);
+            return deviceNow;
         },
         appOpen() {
             if (env.os() === 'web')

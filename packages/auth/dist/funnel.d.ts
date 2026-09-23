@@ -60,6 +60,14 @@ export type Funnel = {
     event: (name: string, prop?: string) => void;
     /** 앱 실행마다 한 번 — 설치 후 첫 실행이면 `first_open` 도, 안드로이드면 설치 출처도 한 번 */
     appOpen: () => void;
+    /**
+     * 이 기기 ID — **동기로** 꺼낸다. 아직 안 읽혔으면 `''`.
+     *
+     * 광고 기록에 함께 남기려고 연다(`@jcurve/ads` 의 `device`). 광고를 여는 순간 값을 만들어야 해서
+     * 기다릴 수가 없다 — 그래서 없으면 빈 문자열을 주고 **그 광고만 기기 ID 없이** 나간다(다음 광고부터 실린다).
+     * 새로 걷는 값이 아니다. 퍼널이 이미 만들어 저장해 둔 임의의 문자열이고 광고 식별자(adid)가 아니다.
+     */
+    deviceId: () => string;
 };
 /** 기기와 닿는 것 — 시험에서만 갈아 끼운다 */
 export type FunnelEnv = {
