@@ -49,33 +49,17 @@ const isPlaceholder = (v) => exports.PLACEHOLDER.test(String(v ?? '').trim());
  */
 const isCancel = (code) => /cancel|취소|access.?denied|(?<![0-9])(1001|12501)(?![0-9])/i.test(code);
 exports.isCancel = isCancel;
-/**
- * **앱 밖에 다녀왔다가 돌아왔는가** — `abandon()` 을 언제 잴지 가르는 장치. `AppState` 변화를 그대로 넣는다.
- *
- * 규칙은 둘뿐이다.
- *  - `background` 에서 **깃발을 올린다**(다른 앱·홈 화면으로 나갔다).
- *  - `active` 에서 **깃발을 내리고**, 올라가 있었으면 참을 돌려준다.
- *  - **`inactive` 는 깃발을 건드리지 않는다.**
- *
- * ⚠ **`inactive` 에서 깃발을 지우면 안 된다.** iOS 는 아이콘으로 나갔다 돌아올 때도 `background → inactive →
- * active` 로 알려 줘서, 중간에 지우면 **진짜 다녀온 경우를 놓친다** — 원래 버그(로그인 버튼이 영영 먹통,
- * 당근캐시 2026-09-18)가 되살아난다(총무님 세션 2026-09-22).
- * 반대로 `inactive → active` 만 오간 것은 **앱 안에서 일어난 일**이다 — iOS 앱 안 로그인 창
- * (`ASWebAuthenticationSession`), 구글 계정 고르기, 제어센터, 알림창. 그걸 「돌아왔다」로 읽으면 사용자가
- * 계정을 고르는 사이에 로그인을 잊어버린다(2026-09-22 영테크 실기기 · 당근 a93c018 · 꿀꿀 82e748c —
- * 앱마다 따로 만들다 세 번 샜다).
- *
- * ```ts
- * const watch = createReturnWatch();
- * AppState.addEventListener('change', (next) => {
- *   if (!watch.saw(next)) return;                    // 밖에 다녀온 것이 아니면 아무것도 하지 않는다
- *   setTimeout(() => { if (stillBusy()) { auth.abandon(); clearBusy(); } }, 2500);   // 팝업은 띄우지 않는다
- * });
- * ```
- */
-function createReturnWatch() {
+function createReturnWatch(deps) {
     let wasOutside = false;
+    let timer = null;
+    const stop = () => {
+        if (timer !== null) {
+            clearTimeout(timer);
+            timer = null;
+        }
+    };
     return {
+        stop,
         saw(next) {
             if (next === 'background') {
                 wasOutside = true;
@@ -86,6 +70,20 @@ function createReturnWatch() {
             }
             const out = wasOutside;
             wasOutside = false;
+            if (out && deps) {
+                /*
+                 | **앞서 건 타이머를 먼저 끈다**(2026-09-22 영테크 f9f643b · 당근 0079d15 가 고쳤던 것).
+                 | 다녀와서 타이머를 걸고 **또 나갔다 오면**, 옛 타이머가 뒤늦게 울려 그 사이 시작된
+                 | 정상 로그인을 놓아 버린다(토큰을 받는 중인데 abandon). 복귀마다 새로 건다.
+                 */
+                stop();
+                timer = setTimeout(() => {
+                    timer = null;
+                    if (deps.busy()) {
+                        deps.onStuck();
+                    }
+                }, deps.wait ?? 2500);
+            }
             return out;
         },
     };

@@ -232,17 +232,43 @@ export const isCancel = (code: string): boolean =>
  * 앱마다 따로 만들다 세 번 샜다).
  *
  * ```ts
- * const watch = createReturnWatch();
- * AppState.addEventListener('change', (next) => {
- *   if (!watch.saw(next)) return;                    // 밖에 다녀온 것이 아니면 아무것도 하지 않는다
- *   setTimeout(() => { if (stillBusy()) { auth.abandon(); clearBusy(); } }, 2500);   // 팝업은 띄우지 않는다
+ * // 타이머까지 맡긴다(권장) — 다녀올 때마다 앞서 건 타이머를 끄고 새로 건다
+ * const watch = createReturnWatch({
+ *   busy: () => stillBusy(),
+ *   onStuck: () => { auth.abandon(); clearBusy(); },   // 팝업은 띄우지 않는다
  * });
+ * const sub = AppState.addEventListener('change', (next) => watch.saw(next));
+ * // 화면을 떠날 때: sub.remove(); watch.stop();
  * ```
+ *
+ * ⚠ **앞서 건 타이머를 끄지 않으면**, 다녀와서 타이머를 걸고 또 나갔다 왔을 때 옛 타이머가 뒤늦게 울려
+ * **그 사이 시작된 정상 로그인을 놓아 버린다**(당근 0079d15 · 영테크 f9f643b). 인자를 넘기면 패키지가 처리한다.
+ * 인자 없이 `saw(next)` 만 쓰면 「밖에 다녀왔나」만 알려 준다 — 그때는 앱이 옛 타이머를 직접 무효화해야 한다.
  */
-export function createReturnWatch(): { saw: (next: string | null | undefined) => boolean } {
+export type ReturnWatchDeps = {
+  /** 지금도 로그인이 도는 중인가 — 참일 때만 `onStuck` 을 부른다 */
+  busy: () => boolean;
+  /** 밖에 다녀와 `wait` 가 지나도 안 끝났을 때 — `auth.abandon()` 과 화면 busy 풀기를 여기서 한다(팝업 금지) */
+  onStuck: () => void;
+  /** 기다리는 시간(밀리초, 기본 2500) */
+  wait?: number;
+};
+
+export function createReturnWatch(deps?: ReturnWatchDeps): {
+  saw: (next: string | null | undefined) => boolean;
+  stop: () => void;
+} {
   let wasOutside = false;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const stop = (): void => {
+    if (timer !== null) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
 
   return {
+    stop,
     saw(next) {
       if (next === 'background') {
         wasOutside = true;
@@ -254,6 +280,20 @@ export function createReturnWatch(): { saw: (next: string | null | undefined) =>
       }
       const out = wasOutside;
       wasOutside = false;
+      if (out && deps) {
+        /*
+         | **앞서 건 타이머를 먼저 끈다**(2026-09-22 영테크 f9f643b · 당근 0079d15 가 고쳤던 것).
+         | 다녀와서 타이머를 걸고 **또 나갔다 오면**, 옛 타이머가 뒤늦게 울려 그 사이 시작된
+         | 정상 로그인을 놓아 버린다(토큰을 받는 중인데 abandon). 복귀마다 새로 건다.
+         */
+        stop();
+        timer = setTimeout(() => {
+          timer = null;
+          if (deps.busy()) {
+            deps.onStuck();
+          }
+        }, deps.wait ?? 2500);
+      }
 
       return out;
     },

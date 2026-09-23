@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createReturnWatch } from './auth';
 
@@ -44,5 +44,70 @@ describe('createReturnWatch', () => {
     expect(createReturnWatch().saw('active')).toBe(false);
     expect(createReturnWatch().saw(null)).toBe(false);
     expect(createReturnWatch().saw(undefined)).toBe(false);
+  });
+});
+
+/**
+ * 타이머까지 맡긴 경우 — 다녀올 때마다 **앞서 건 타이머를 끈다.**
+ * 안 끄면 옛 타이머가 뒤늦게 울려 그 사이 시작된 정상 로그인을 놓아 버린다(당근 0079d15 · 영테크 f9f643b).
+ */
+describe('createReturnWatch(deps) — 타이머', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('밖에 다녀오고 2.5초 동안 안 끝나면 놓아 준다', () => {
+    const onStuck = vi.fn();
+    const w = createReturnWatch({ busy: () => true, onStuck });
+    w.saw('background'); w.saw('active');
+    vi.advanceTimersByTime(2499);
+    expect(onStuck).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(onStuck).toHaveBeenCalledTimes(1);
+  });
+
+  it('그 사이 로그인이 끝났으면 놓아 주지 않는다', () => {
+    const onStuck = vi.fn();
+    let busy = true;
+    const w = createReturnWatch({ busy: () => busy, onStuck });
+    w.saw('background'); w.saw('active');
+    busy = false;
+    vi.advanceTimersByTime(3000);
+    expect(onStuck).not.toHaveBeenCalled();
+  });
+
+  it('또 나갔다 오면 옛 타이머는 울리지 않는다 — 한 번만 부른다', () => {
+    const onStuck = vi.fn();
+    const w = createReturnWatch({ busy: () => true, onStuck });
+    w.saw('background'); w.saw('active');     // 첫 복귀 — 타이머 ①
+    vi.advanceTimersByTime(2000);
+    w.saw('background'); w.saw('active');     // 두 번째 복귀 — ① 을 끄고 ②
+    vi.advanceTimersByTime(600);              // ① 이 살아 있었다면 여기서 울린다
+    expect(onStuck).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1900);
+    expect(onStuck).toHaveBeenCalledTimes(1);
+  });
+
+  it('앱 안에서만 오간 것에는 타이머를 걸지 않는다', () => {
+    const onStuck = vi.fn();
+    const w = createReturnWatch({ busy: () => true, onStuck });
+    w.saw('inactive'); w.saw('active');
+    vi.advanceTimersByTime(5000);
+    expect(onStuck).not.toHaveBeenCalled();
+  });
+
+  it('stop() 하면 걸린 타이머가 울리지 않는다 — 화면을 떠날 때', () => {
+    const onStuck = vi.fn();
+    const w = createReturnWatch({ busy: () => true, onStuck });
+    w.saw('background'); w.saw('active');
+    w.stop();
+    vi.advanceTimersByTime(5000);
+    expect(onStuck).not.toHaveBeenCalled();
+  });
+
+  it('인자 없이 쓰면 타이머를 만들지 않는다 — 2.2.0 처럼 판단만', () => {
+    const w = createReturnWatch();
+    w.saw('background');
+    expect(w.saw('active')).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

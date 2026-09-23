@@ -1,6 +1,6 @@
 {
   "name": "@jcurve/auth",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "리워드 앱 공용 소셜 로그인 + 가입 퍼널 기록 — 카카오·구글·애플·네이버(웹)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
