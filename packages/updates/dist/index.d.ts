@@ -88,6 +88,21 @@
  * 서버(jcurve-api OtaTrack)가 판별 사용자 수를 센다 — 앱의 모든 API 요청에 `...otaHeaders()` 를 붙인다
  * (x-ota-update-id · x-ota-channel · x-ota-runtime · x-ota-platform). 앱마다 들고 있던 ota() 를 이것으로 바꾼다.
  *
+ * ## 2.6 — 스토어 업데이트(강제·권장)
+ *
+ * OTA 로 못 고치는 것(네이티브)을 고친 스토어 판으로 사람을 보낸다. 어드민 「앱 관리」의 **최소 설치 · 권장 버전**(iOS·안드로이드 따로)을
+ * 서버 `GET {app}/app/version` 으로 읽는다. 최소보다 낮으면 닫을 수 없는 창 → 스토어, 권장보다 낮으면 「나중에」가 있는 창(같은 권장 버전은 하루 한 번).
+ * iOS 는 앱스토어 공개 버전도 권장 후보다. 최소가 비면 강제하지 않는다. **JS 뿐이라 OTA 로 퍼진다**(창은 RN Alert, 설치 버전은 expo-application).
+ *
+ * ```ts
+ * checkStoreVersion({
+ *   fetch: () => api.get('app/version'),          // 앱의 인증된 GET(X-App-Token)
+ *   canRecommend: () => !!session && !inSignup,     // 권유는 로그인 뒤·가입 중 아닐 때만(선택)
+ * });
+ * ```
+ *
+ * 자체 화면을 그리는 앱은 `decideStoreUpdate(설치 버전, 서버 값, 스토어 버전)` 와 `storeLinks` 만 가져다 쓴다.
+ *
  * ## 1.0 에서 달라진 것
  *
  * 1.0 은 「스스로 다시 시작하지 않고, 띠를 눌러야 적용」이었다. 적용이 사람 손에 달려 새 버전이 퍼지지
@@ -95,3 +110,5 @@
  */
 export { __reset, applyUpdate, autoApply, bundleLabel, canApplyNow, hasWaiting, isRestarting, onUpdateReady, otaHeaders, startupSettled } from './updates';
 export type { AutoApplyDeps } from './updates';
+export { checkStoreVersion, decideStoreUpdate, storeLinks, cmpVersion, __resetStoreVersion } from './storeVersion';
+export type { StoreDecision, StorePlatform, StoreVersionDeps, StoreVersionInfo } from './storeVersion';
