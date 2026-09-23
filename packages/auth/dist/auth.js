@@ -5,6 +5,16 @@ exports.createReturnWatch = createReturnWatch;
 exports.parseReturn = parseReturn;
 exports.createAuth = createAuth;
 /**
+ * 소셜 로그인 본체 — 왜 이렇게 생겼는지는 `index.ts` 머리말에 있다.
+ *
+ * 이 파일은 **앱을 모른다.** 키·서버 호출·기록을 받아서 쓸 뿐이다.
+ *
+ * 2.0 에서 1.0 의 SDK 로그인 위에 **꼬꼬농장이 실기기에서 쌓은 장치**를 얹었다 —
+ * 서버 웹 로그인으로 넘어가기, 늦게 오는 복귀 주소, 게스트 농장 잇기, 어드민이 켠 로그인만,
+ * 로그인 중 재시작 막기. 전부 **선택**이라 1.0 처럼 셋(키·서버·기록)만 줘도 그대로 돈다.
+ */
+const settle_1 = require("./settle");
+/**
  * 로그인이 안 됐을 때 던지는 것.
  *
  * `tag` 는 **어디서 끊겼는지**다 — `open:`(창을 못 띄움) · `win:`(창이 이상하게 닫힘) ·
@@ -143,6 +153,12 @@ function defaultEnv() {
         browser: () => mod(() => require('expo-web-browser')),
         linking: () => rn()?.Linking ?? null,
         wait: (ms) => new Promise((r) => setTimeout(r, ms)),
+        appState: () => String(rn()?.AppState?.currentState ?? 'active'),
+        onAppState: (fn) => {
+            const sub = rn()?.AppState?.addEventListener?.('change', fn);
+            return () => { sub?.remove?.(); };
+        },
+        now: () => Date.now(),
     };
 }
 /** 오류에서 판정에 쓸 글자 — 카카오는 `code`, 다른 것은 `message` 에 사유를 둔다 */
@@ -163,6 +179,13 @@ function createAuth(deps, env = defaultEnv()) {
      | 다른 버튼이면 `busy` 로 돌려보낸다. OTA 재시작을 막는 `isAuthorizing` 도 이것을 본다.
      */
     let current = null;
+    // 로그인 직후 안전 시점(2.6) — 도는 로그인이 없고 · active · 조용해진 뒤
+    const settle = (0, settle_1.createSettle)(() => current !== null, {
+        appState: env.appState ?? (() => 'active'),
+        onAppState: env.onAppState ?? (() => () => undefined),
+        now: env.now ?? (() => Date.now()),
+        sleep: env.wait,
+    }, deps.settleMs ?? 1000);
     let flow = null;
     let candidates = [];
     const MAX_CANDIDATES = 20;
@@ -765,7 +788,7 @@ function createAuth(deps, env = defaultEnv()) {
         // 이 실행이 아직 「지금 로그인」인가 — `abandon()` 뒤에는 거짓이라 공유 상태를 건드리지 않는다
         const alive = () => current === entry;
         entry.p = run(provider, alive).finally(() => { if (current === entry)
-            current = null; });
+            current = null; settle.ended(); });
         return entry.p;
     }
     function onLateReturn(fn) {
@@ -780,6 +803,9 @@ function createAuth(deps, env = defaultEnv()) {
         hasTriedAuth: () => triedAuth,
         isAuthorizing: () => current !== null,
         onLateReturn,
-        abandon: () => { current = null; },
+        abandon: () => { current = null; settle.ended(); },
+        afterLoginSettled: settle.wait,
+        runAfterLogin: settle.run,
+        loginSettled: settle.settled,
     };
 }

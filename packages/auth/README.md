@@ -161,6 +161,39 @@ const talk = await kakaoTalkAvailable();
 **취소 판별은 `isCancel()` 을 쓴다.** 직접 정규식을 쓰면 `user_cancel`·`12501` 을 빠뜨린다.
 그러면 그만둔 사람에게 오류창이 뜨고, 퍼널에서 이탈이 **실패로 부풀어** 보인다.
 
+## 2.6 — 로그인 직후 안전 시점(`runAfterLogin`)
+
+**로그인 창이 닫히는 중에 RN `Modal` 을 열지 마라.** 머니트리 iOS(2026-09-23): 첫 설치 뒤 구글 로그인 → 홈에 들어오는
+순간 가이드 팝업을 열었더니, 구글 창이 닫히는 중이라 Modal 은 안 보이고 **보이지 않는 막만 남아 화면이 전부 안 눌렸다.**
+`createReturnWatch` 가 막는 「밖에 다녀옴」과 다른 원인이다.
+
+안전 시점 = 도는 로그인이 없고 · 앱이 `active` 이고 · 로그인이 끝난 때와 마지막 AppState 변화에서 둘 다 1초(`settleMs`)가
+지난 뒤 한 틱 더. 로그인이 없었던 실행에서는 곧 풀린다.
+
+**로그인 직후 여는 Modal · 시스템 창은 모두 `runAfterLogin` 으로 줄을 세운다** — 가이드 → ATT → 알림 권한처럼.
+앞의 것이 돌려준 약속이 끝나야 다음이 열린다(시스템 창 둘이 겹치면 뒤의 것이 창 없이 끝난다). 앞의 것이 실패해도 뒤는 연다.
+
+```ts
+// 홈에 들어온 뒤
+auth.runAfterLogin(() => openGuide());               // 가이드가 닫힐 때 풀리는 약속을 돌려준다
+auth.runAfterLogin(() => ads.requestTracking());     // 그다음 ATT
+auth.runAfterLogin(() => notify.ask());              // 그다음 알림 권한
+
+// 기다리기만 할 때
+await auth.afterLoginSettled();
+```
+
+**안전장치 — 다른 경로로 열리는 Modal 도 막는다.** 로그인 직후 어디서든 열릴 수 있는 Modal 은 `visible` 에 한 겹 더 건다:
+
+```tsx
+const [, redraw] = useState(0);
+const safe = auth.loginSettled();
+useEffect(() => { if (!safe) void auth.afterLoginSettled().then(() => redraw((n) => n + 1)); }, [safe]);
+<Modal visible={want && safe} … />
+```
+
+패키지가 RN `Modal` 을 통째로 가로채지는 않는다 — 화면 부품을 건드리면 앱마다 깨지는 곳이 달라진다. 그래서 위 두 가지를 쓴다.
+
 ## 웹 폴백을 직접 만들 때 (안드로이드)
 
 2.0 의 `web` 을 주면 **패키지가 창을 열고 아래도 한다.** 앱에서 `openAuthSessionAsync` 같은 것으로
