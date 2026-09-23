@@ -185,10 +185,14 @@ if (Platform.OS === 'android') await WebBrowser.warmUpAsync();
   옛 약속을 붙잡고 있어 같은 버튼은 그 약속을 또 받고 다른 버튼은 `busy` 가 된다.
 
   ```ts
-  const watch = createReturnWatch({ busy: () => stillBusy(), onStuck: () => { auth.abandon(); clearBusy(); } });
+  const watch = createReturnWatch({ busy: () => busyRef.current, onStuck: () => { auth.abandon(); clearBusy(); } });
   const sub = AppState.addEventListener('change', (s) => watch.saw(s));
   // 화면을 떠날 때: sub.remove(); watch.stop();
   ```
+
+  ⚠ `busy` 는 **값이 아니라 함수**다(`() => boolean`). 패키지는 타이머가 터지는 **그때** 읽는다 —
+  값으로 넘기면 창을 열던 순간의 옛 값으로 판단해 **도는 로그인을 놓거나 먹통을 안 풀어 준다.**
+  리액트 state 를 그대로 넘기지 말고 `busyRef.current` 처럼 최신을 읽는 것을 넘겨라(총무님 2026-09-22).
 
   이 한 줄에 사고 셋이 들어 있다. ① `inactive ↔ active` 를 「돌아왔다」로 읽으면 iOS 앱 안 로그인 창 ·
   구글 계정 고르기 중에 로그인을 잊는다(영테크 · 당근 a93c018 · 꿀꿀 82e748c). ② 중간 `inactive` 에서
