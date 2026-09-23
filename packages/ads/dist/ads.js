@@ -173,15 +173,49 @@ function createRewarded(opts, env = defaultEnv()) {
         }
     };
     const noteAdOpen = () => { failStreak = 0; mutedUntil = 0; };
+    /**
+     * SSV 값에 기기 ID 를 끼운다 — **JSON 객체로 온 값에만**.
+     * 'feed' 처럼 맨 문자열을 보내는 앱의 뜻을 바꾸면 서버 판정이 어긋난다.
+     * 앱이 이미 `dev` 를 넣어 보냈으면 그대로 둔다(앱 쪽이 먼저다).
+     */
+    const withDevice = (customData) => {
+        const dev = (opts.device?.() ?? '').slice(0, 64);
+        /*
+         | 광고 식별자(adid)는 **전 앱 합산 상한**의 기준이다(1.5, 2026-09-23 — 서버가 폰 하나당 하루 몇 회로 센다).
+         | 앱이 스스로 만든 기기 ID 는 앱을 넘지 못해 합산이 안 된다.
+         | **이미 읽어 둔 값만** 쓴다 — 여기서 기다리면 광고 여는 것이 늦어진다. 아직 없으면 지금 읽어 두고
+         | 이번 광고만 없이 나간다(다음 광고부터 실린다). 추적을 껐거나 iOS 미동의면 영영 없고, 그건 그대로 둔다.
+         */
+        if (opts.adid && !adidCache)
+            void advertisingId();
+        const adid = opts.adid ? (adidCache ?? '').slice(0, 64) : '';
+        const body = (customData ?? '').trim();
+        if ((!dev && !adid) || !body.startsWith('{') || !body.endsWith('}'))
+            return customData;
+        try {
+            const o = JSON.parse(body);
+            if (!o || typeof o !== 'object' || Array.isArray(o))
+                return customData;
+            const add = {};
+            if (dev && !('dev' in o))
+                add.dev = dev;
+            if (adid && !('adid' in o))
+                add.adid = adid;
+            return Object.keys(add).length > 0 ? JSON.stringify({ ...o, ...add }) : customData;
+        }
+        catch {
+            return customData; // 우리가 못 읽는 모양이면 건드리지 않는다
+        }
+    };
     const makeAd = (userId, customData, interstitial = false) => {
         const { RewardedAd, RewardedInterstitialAd, TestIds } = mod;
         // 보상형 전면도 이벤트·SSV 가 보상형과 같다 — 만드는 클래스와 광고 단위만 다르다
         if (interstitial) {
             const unit = test ? TestIds.REWARDED_INTERSTITIAL : unitOf(opts.units.rewardedInterstitial);
-            return RewardedInterstitialAd.createForAdRequest(unit, { requestNonPersonalizedAdsOnly: false, ...(0, mode_1.ssvRequestOptions)(test, userId, customData) });
+            return RewardedInterstitialAd.createForAdRequest(unit, { requestNonPersonalizedAdsOnly: false, ...(0, mode_1.ssvRequestOptions)(test, userId, withDevice(customData)) });
         }
         const unit = test ? TestIds.REWARDED : unitOf(opts.units.rewarded);
-        return RewardedAd.createForAdRequest(unit, { requestNonPersonalizedAdsOnly: false, ...(0, mode_1.ssvRequestOptions)(test, userId, customData) });
+        return RewardedAd.createForAdRequest(unit, { requestNonPersonalizedAdsOnly: false, ...(0, mode_1.ssvRequestOptions)(test, userId, withDevice(customData)) });
     };
     /*
      | **광고는 보여 줄 때만 받는다**(1.2, 2026-09-22 사용자 결정 「미리 받아 오는 거 없애자」).
