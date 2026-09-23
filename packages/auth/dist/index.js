@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.standardEvent = exports.propOf = exports.createTrack = exports.referrerKeys = exports.looksPersonal = exports.FUNNEL_EVENTS = exports.createFunnel = exports.PLACEHOLDER = exports.parseReturn = exports.isCancel = exports.createAuth = exports.cameBackFromOtherApp = exports.AuthError = void 0;
+exports.standardEvent = exports.propOf = exports.createTrack = exports.referrerKeys = exports.looksPersonal = exports.FUNNEL_EVENTS = exports.createFunnel = exports.PLACEHOLDER = exports.parseReturn = exports.isCancel = exports.createReturnWatch = exports.createAuth = exports.AuthError = void 0;
 /**
  * `@jcurve/auth` — 리워드 앱들이 **같이 쓰는 소셜 로그인 + 가입 퍼널 기록**.
  *
@@ -121,8 +121,8 @@ exports.standardEvent = exports.propOf = exports.createTrack = exports.referrerK
  */
 var auth_1 = require("./auth");
 Object.defineProperty(exports, "AuthError", { enumerable: true, get: function () { return auth_1.AuthError; } });
-Object.defineProperty(exports, "cameBackFromOtherApp", { enumerable: true, get: function () { return auth_1.cameBackFromOtherApp; } });
 Object.defineProperty(exports, "createAuth", { enumerable: true, get: function () { return auth_1.createAuth; } });
+Object.defineProperty(exports, "createReturnWatch", { enumerable: true, get: function () { return auth_1.createReturnWatch; } });
 Object.defineProperty(exports, "isCancel", { enumerable: true, get: function () { return auth_1.isCancel; } });
 Object.defineProperty(exports, "parseReturn", { enumerable: true, get: function () { return auth_1.parseReturn; } });
 Object.defineProperty(exports, "PLACEHOLDER", { enumerable: true, get: function () { return auth_1.PLACEHOLDER; } });

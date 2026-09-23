@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.cameBackFromOtherApp = exports.isCancel = exports.PLACEHOLDER = exports.AuthError = void 0;
+exports.isCancel = exports.PLACEHOLDER = exports.AuthError = void 0;
+exports.createReturnWatch = createReturnWatch;
 exports.parseReturn = parseReturn;
 exports.createAuth = createAuth;
 /**
@@ -49,24 +50,46 @@ const isPlaceholder = (v) => exports.PLACEHOLDER.test(String(v ?? '').trim());
 const isCancel = (code) => /cancel|취소|access.?denied|(?<![0-9])(1001|12501)(?![0-9])/i.test(code);
 exports.isCancel = isCancel;
 /**
- * `AppState` 가 이렇게 바뀐 것이 **앱 밖에 다녀온 것**인가 — `abandon()` 을 언제 잴지 가르는 한 줄.
+ * **앱 밖에 다녀왔다가 돌아왔는가** — `abandon()` 을 언제 잴지 가르는 장치. `AppState` 변화를 그대로 넣는다.
  *
- * **`background` → `active` 만 참이다.** 카카오톡·크롬처럼 다른 앱에 다녀온 경우다.
- * `inactive` ↔ `active` 는 **앱 안에서 일어난 일**이다 — iOS 앱 안 로그인 창(`ASWebAuthenticationSession`),
- * 구글 계정 고르기, 제어센터, 알림창. 이걸 「돌아왔다」로 읽으면 사용자가 계정을 고르는 사이에
- * 로그인을 잊어버리고, 화면에는 「로그인 창이 닫혔어요」 같은 팝업이 뜬다
- * (2026-09-22 영테크 실기기 · 당근 a93c018 · 꿀꿀 82e748c — 앱마다 따로 고치다 세 번 샜다).
+ * 규칙은 둘뿐이다.
+ *  - `background` 에서 **깃발을 올린다**(다른 앱·홈 화면으로 나갔다).
+ *  - `active` 에서 **깃발을 내리고**, 올라가 있었으면 참을 돌려준다.
+ *  - **`inactive` 는 깃발을 건드리지 않는다.**
+ *
+ * ⚠ **`inactive` 에서 깃발을 지우면 안 된다.** iOS 는 아이콘으로 나갔다 돌아올 때도 `background → inactive →
+ * active` 로 알려 줘서, 중간에 지우면 **진짜 다녀온 경우를 놓친다** — 원래 버그(로그인 버튼이 영영 먹통,
+ * 당근캐시 2026-09-18)가 되살아난다(총무님 세션 2026-09-22).
+ * 반대로 `inactive → active` 만 오간 것은 **앱 안에서 일어난 일**이다 — iOS 앱 안 로그인 창
+ * (`ASWebAuthenticationSession`), 구글 계정 고르기, 제어센터, 알림창. 그걸 「돌아왔다」로 읽으면 사용자가
+ * 계정을 고르는 사이에 로그인을 잊어버린다(2026-09-22 영테크 실기기 · 당근 a93c018 · 꿀꿀 82e748c —
+ * 앱마다 따로 만들다 세 번 샜다).
  *
  * ```ts
+ * const watch = createReturnWatch();
  * AppState.addEventListener('change', (next) => {
- *   const prev = last; last = next;
- *   if (!cameBackFromOtherApp(prev, next)) return;   // 앱 안에서 오간 것은 세지 않는다
- *   setTimeout(() => { if (stillBusy()) { auth.abandon(); clearBusy(); } }, 2500);  // 팝업은 띄우지 않는다
+ *   if (!watch.saw(next)) return;                    // 밖에 다녀온 것이 아니면 아무것도 하지 않는다
+ *   setTimeout(() => { if (stillBusy()) { auth.abandon(); clearBusy(); } }, 2500);   // 팝업은 띄우지 않는다
  * });
  * ```
  */
-const cameBackFromOtherApp = (prev, next) => prev === 'background' && next === 'active';
-exports.cameBackFromOtherApp = cameBackFromOtherApp;
+function createReturnWatch() {
+    let wasOutside = false;
+    return {
+        saw(next) {
+            if (next === 'background') {
+                wasOutside = true;
+                return false;
+            }
+            if (next !== 'active') {
+                return false; // inactive — 깃발을 건드리지 않는다
+            }
+            const out = wasOutside;
+            wasOutside = false;
+            return out;
+        },
+    };
+}
 /**
  * 복귀 주소에서 티켓·오류를 꺼낸다 — **RN 의 `URLSearchParams` 폴리필을 믿지 않는다.**
  *
