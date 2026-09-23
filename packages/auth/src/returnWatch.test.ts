@@ -151,3 +151,35 @@ describe('createReturnWatch — 막 누른 참(grace)', () => {
     expect(b).toHaveBeenCalledTimes(1);
   });
 });
+
+/**
+ * 꾹테크 32ebf5d 가 짚은 장면 — 기다리는 2.5초 **사이에 사람이 다시 누른다**(앞 로그인이 취소로 끝난 직후).
+ * 그때 울린 타이머는 앞 로그인을 겨냥한 것인데 busy() 는 새 로그인 때문에 참이다.
+ * `started()` 를 누를 때마다 부르면, 새 로그인이 「막 누른 참」이라 놓아 주지 않는다.
+ */
+describe('기다리는 사이에 다시 누른 로그인', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('새로 누른 로그인은 끊지 않는다', () => {
+    const onStuck = vi.fn();
+    const w = createReturnWatch({ busy: () => true, onStuck });
+    w.started();                          // 첫 로그인
+    vi.advanceTimersByTime(5000);         // 창이 뜬 채 한참
+    w.saw('background'); w.saw('active'); // 아이콘으로 복귀 — 타이머 시작
+    vi.advanceTimersByTime(1000);
+    w.started();                          // 사람이 다시 누름(취소 뒤 재시도)
+    vi.advanceTimersByTime(1500);         // 옛 타이머가 여기서 울린다
+    expect(onStuck).not.toHaveBeenCalled();
+  });
+
+  it('다시 누르지 않았으면 예정대로 놓아 준다', () => {
+    const onStuck = vi.fn();
+    const w = createReturnWatch({ busy: () => true, onStuck });
+    w.started();
+    vi.advanceTimersByTime(5000);
+    w.saw('background'); w.saw('active');
+    vi.advanceTimersByTime(2500);
+    expect(onStuck).toHaveBeenCalledTimes(1);
+  });
+});
