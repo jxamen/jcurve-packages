@@ -190,17 +190,30 @@ function createRewarded(opts, env = defaultEnv()) {
             void advertisingId();
         const adid = opts.adid ? (adidCache ?? '').slice(0, 64) : '';
         const body = (customData ?? '').trim();
-        if ((!dev && !adid) || !body.startsWith('{') || !body.endsWith('}'))
+        if ((!dev && !adid) || body === '')
             return customData;
+        const add = {};
+        if (dev)
+            add.dev = dev;
+        if (adid)
+            add.adid = adid;
+        /*
+         | **용도를 평문으로 보내는 앱**(당근 `harvest` · 영테크 `ticket` · 꾹테크 `stamp_main`)은
+         | `{"purpose":"<평문>", dev, adid}` 로 감싼다(1.5.1). 감싸지 않으면 그 앱들에는 기기 ID·광고
+         | 식별자가 영영 안 실린다 — 전 앱 합산의 기준이 그 값이라 앱마다 구멍이 남는다.
+         | 서버는 평문과 이 모양을 **둘 다** 받는다(jcurve-api 51b46b6). 서버가 먼저 나가야 한다.
+         */
+        if (!body.startsWith('{') || !body.endsWith('}')) {
+            return JSON.stringify({ purpose: body, ...add });
+        }
         try {
             const o = JSON.parse(body);
             if (!o || typeof o !== 'object' || Array.isArray(o))
                 return customData;
-            const add = {};
-            if (dev && !('dev' in o))
-                add.dev = dev;
-            if (adid && !('adid' in o))
-                add.adid = adid;
+            for (const k of Object.keys(add)) {
+                if (k in o)
+                    delete add[k];
+            } // 앱이 이미 넣은 값은 덮지 않는다
             return Object.keys(add).length > 0 ? JSON.stringify({ ...o, ...add }) : customData;
         }
         catch {

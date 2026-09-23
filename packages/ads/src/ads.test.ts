@@ -213,8 +213,21 @@ describe('광고 단위·SSV', () => {
     expect(s.made[0].reqOpts.serverSideVerificationOptions.customData).toBe('{"kind":"feed"}');
   });
 
-  it('맨 문자열로 보내는 앱의 값은 건드리지 않는다 — 뜻이 바뀌면 서버 판정이 어긋난다', async () => {
-    const s = setup({ device: () => 'dev-1' });
+  /*
+   | 평문 용도를 보내는 앱(당근·영테크·꾹테크)은 감싼다(1.5.1) — 안 감싸면 그 앱들에만 기기 ID가 영영 안 실린다.
+   | 서버가 평문과 이 모양을 둘 다 받게 고친 뒤에 나간다(jcurve-api 51b46b6).
+   */
+  it('평문 용도는 {"purpose":…} 로 감싸 싣는다', async () => {
+    const s = setup({ device: () => 'dev-1', adid: true });
+    await s.ads.advertisingId();
+    void s.ads.show({ userId: 'm7', customData: 'stamp_main', ...s.cb });
+    await flush();
+    expect(JSON.parse(s.made[0].reqOpts.serverSideVerificationOptions.customData))
+      .toEqual({ purpose: 'stamp_main', dev: 'dev-1', adid: 'AAAA-1111' });
+  });
+
+  it('실을 것이 없으면 평문 그대로 둔다 — 뜻을 괜히 바꾸지 않는다', async () => {
+    const s = setup();   // device 없음 · adid 꺼짐
     void s.ads.show({ userId: 'm7', customData: 'stamp_main', ...s.cb });
     await flush();
     expect(s.made[0].reqOpts.serverSideVerificationOptions.customData).toBe('stamp_main');
