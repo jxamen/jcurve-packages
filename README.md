@@ -26,6 +26,7 @@ import { createPhone, format, looksValid, message } from '@jcurve/phone';
 | `@jcurve/phone` | 휴대폰 번호 인증 — 서버 호출·번호 검증·오류 문구 (1.2) | 없음 |
 | `@jcurve/updates` | OTA — 받은 새 버전을 로그인과 겹치지 않는 순간에 적용 (꼬꼬농장 방식, 2.5.1 — 앞으로 올 때 받기 선택 · 로그인 중엔 안 받음 · `otaHeaders()` 판 헤더) | 없음 |
 | `@jcurve/ocr` | 영수증 사진 → 읽은 값. 어드민에서 켠 앱만 | 없음 |
+| `@jcurve/scanner` | 문서 스캐너 — 테두리 인식·자르기·원근 보정한 사진 파일. **네이티브 모듈이라 새 스토어 빌드가 있어야 한다** (1.0) | 없음 (일반 촬영 화면은 앱마다) |
 | `@jcurve/money` | 현금 인출 검증 — 금액·계좌·예금주·번호 (1.0.1) | 없음 |
 | `@jcurve/identity` | 간편인증(KICA) 본인확인 — CI 로 1인 1계정 | 없음 |
 | `@jcurve/notify` | 로컬 알림(문구는 어드민) + 원격 푸시 받기 — 기기 토큰 등록·열람 보고·실패 알림(서버가 FCM·APNs 로 직접 발송, 1.2) — **권한을 묻는 곳(`ask()`)이 앱에 없으면 `register()` 가 조용히 끝나 토큰이 영영 안 올라간다** | 없음 |

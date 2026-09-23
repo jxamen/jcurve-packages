@@ -1,0 +1,44 @@
+{
+  "name": "@jcurve/scanner",
+  "version": "1.0.0",
+  "description": "리워드 앱 공용 문서 스캐너 — 테두리 인식 · 자르기 · 원근 보정한 사진 파일을 준다",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "expo-image-picker": ">=16",
+    "react-native": ">=0.74",
+    "react-native-document-scanner-plugin": "2.0.4"
+  },
+  "peerDependenciesMeta": {
+    "expo-image-picker": {
+      "optional": true
+    },
+    "react-native": {
+      "optional": true
+    },
+    "react-native-document-scanner-plugin": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "typescript": "~5.9.2",
+    "vitest": "^3.2.4",
+    "@types/node": "^22.10.2"
+  },
+  "license": "UNLICENSED",
+  "private": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jxamen/jcurve-packages",
+    "directory": "packages/scanner"
+  }
+}
