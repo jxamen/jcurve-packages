@@ -25,7 +25,7 @@ class FakeAd {
   show() { this.shows++; return Promise.resolve(); }
 }
 
-function setup(o: { os?: string; test?: boolean; noSdk?: boolean; units?: AdsOptions['units']; testDevices?: string[]; device?: () => string } = {}) {
+function setup(o: { os?: string; test?: boolean; noSdk?: boolean; units?: AdsOptions['units']; testDevices?: string[]; device?: () => string; adid?: boolean } = {}) {
   const made: FakeAd[] = [];
   let inits = 0;
   const order: string[] = [];
@@ -64,6 +64,7 @@ function setup(o: { os?: string; test?: boolean; noSdk?: boolean; units?: AdsOpt
     test: o.test ?? false,
     testDevices: o.testDevices,
     device: o.device,
+    adid: o.adid,
   }, env);
   const calls = { earned: 0, closed: 0, opened: 0, fail: [] as string[], noAd: [] as boolean[] };
   const cb = {
@@ -224,6 +225,44 @@ describe('광고 단위·SSV', () => {
     void s.ads.show({ userId: 'm7', customData: '{"kind":"feed","dev":"앱이넣음"}', ...s.cb });
     await flush();
     expect(JSON.parse(s.made[0].reqOpts.serverSideVerificationOptions.customData).dev).toBe('앱이넣음');
+  });
+
+  /*
+   | 광고 식별자(1.4) — 전 앱 합산 상한의 기준. 읽어 둔 값이 있을 때만 싣고, 없으면 이번 광고는 그냥 나간다.
+   */
+  it('광고 식별자를 읽어 뒀으면 adid 로 함께 싣는다', async () => {
+    const s = setup({ adid: true });
+    await s.ads.advertisingId();          // 미션 쪽이 앱 시작 때 부르는 그 함수
+    void s.ads.show({ userId: 'm8', customData: '{"kind":"feed"}', ...s.cb });
+    await flush();
+    expect(JSON.parse(s.made[0].reqOpts.serverSideVerificationOptions.customData))
+      .toEqual({ kind: 'feed', adid: 'AAAA-1111' });
+  });
+
+  it('기기 ID 와 광고 식별자를 함께 싣는다', async () => {
+    const s = setup({ device: () => 'dev-9', adid: true });
+    await s.ads.advertisingId();
+    void s.ads.show({ userId: 'm8', customData: '{"kind":"feed"}', ...s.cb });
+    await flush();
+    expect(JSON.parse(s.made[0].reqOpts.serverSideVerificationOptions.customData))
+      .toEqual({ kind: 'feed', dev: 'dev-9', adid: 'AAAA-1111' });
+  });
+
+  it('**켜지 않은 앱은 안 싣는다** — 방침 고지가 된 앱만 켠다', async () => {
+    const s = setup();                       // adid 스위치 없음(기본)
+    await s.ads.advertisingId();             // 값은 읽혀 있어도
+    void s.ads.show({ userId: 'm8', customData: '{"kind":"feed"}', ...s.cb });
+    await flush();
+    expect(s.made[0].reqOpts.serverSideVerificationOptions.customData).toBe('{"kind":"feed"}');
+  });
+
+  it('추적을 끈 기기(값이 0뿐)는 싣지 않는다', async () => {
+    const s = setup({ adid: true });
+    s.att.id = '00000000-0000-0000-0000-000000000000';
+    await s.ads.advertisingId();
+    void s.ads.show({ userId: 'm8', customData: '{"kind":"feed"}', ...s.cb });
+    await flush();
+    expect(s.made[0].reqOpts.serverSideVerificationOptions.customData).toBe('{"kind":"feed"}');
   });
 
   it('기기 ID 를 안 주는 앱은 예전 그대로다', async () => {

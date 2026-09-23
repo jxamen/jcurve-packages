@@ -42,6 +42,15 @@ export type AdsOptions = {
    * 보통 `device: funnel.deviceId`(`@jcurve/auth`). 빈 문자열이면 그 광고만 그냥 나간다.
    */
   device?: () => string;
+  /**
+   * 광고 식별자(IDFA/광고 ID)를 SSV 값에 `adid` 로 실을까(1.4). **기본은 끄기.**
+   *
+   * 서버가 이것으로 **폰 하나당 하루 몇 회**를 전 앱 합산해 센다 — 앱이 스스로 만든 기기 ID 는
+   * 앱을 넘지 못해 합산이 안 된다. 새로 걷는 항목은 아니지만(미션이 이미 쓴다) **쓰는 목적이 늘어난다** —
+   * 그래서 **개인정보처리방침에 「부정 이용 방지·전체 하루 상한 합산에 쓴다」가 들어간 앱만** 켠다.
+   * 추적을 껐거나 iOS 미동의면 값이 없고, 그때는 싣지 않는다(서버도 그런 기기는 막지 않는다).
+   */
+  adid?: boolean;
 };
 
 export type ShowOptions = {
@@ -246,13 +255,24 @@ export function createRewarded(opts: AdsOptions, env: AdsEnv = defaultEnv()): Re
    */
   const withDevice = (customData?: string): string | undefined => {
     const dev = (opts.device?.() ?? '').slice(0, 64);
+    /*
+     | 광고 식별자(adid)는 **전 앱 합산 상한**의 기준이다(1.4, 2026-09-23 — 서버가 폰 하나당 하루 몇 회로 센다).
+     | 앱이 스스로 만든 기기 ID 는 앱을 넘지 못해 합산이 안 된다.
+     | **이미 읽어 둔 값만** 쓴다 — 여기서 기다리면 광고 여는 것이 늦어진다. 아직 없으면 지금 읽어 두고
+     | 이번 광고만 없이 나간다(다음 광고부터 실린다). 추적을 껐거나 iOS 미동의면 영영 없고, 그건 그대로 둔다.
+     */
+    if (opts.adid && !adidCache) void advertisingId();
+    const adid = opts.adid ? (adidCache ?? '').slice(0, 64) : '';
     const body = (customData ?? '').trim();
-    if (!dev || !body.startsWith('{') || !body.endsWith('}')) return customData;
+    if ((!dev && !adid) || !body.startsWith('{') || !body.endsWith('}')) return customData;
     try {
       const o = JSON.parse(body);
-      if (!o || typeof o !== 'object' || Array.isArray(o) || 'dev' in o) return customData;
+      if (!o || typeof o !== 'object' || Array.isArray(o)) return customData;
+      const add: Record<string, string> = {};
+      if (dev && !('dev' in o)) add.dev = dev;
+      if (adid && !('adid' in o)) add.adid = adid;
 
-      return JSON.stringify({ ...o, dev });
+      return Object.keys(add).length > 0 ? JSON.stringify({ ...o, ...add }) : customData;
     } catch {
       return customData;   // 우리가 못 읽는 모양이면 건드리지 않는다
     }
