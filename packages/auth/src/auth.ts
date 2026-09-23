@@ -7,6 +7,8 @@
  * 서버 웹 로그인으로 넘어가기, 늦게 오는 복귀 주소, 게스트 농장 잇기, 어드민이 켠 로그인만,
  * 로그인 중 재시작 막기. 전부 **선택**이라 1.0 처럼 셋(키·서버·기록)만 줘도 그대로 돈다.
  */
+import { createSettle } from './settle';
+
 export type Provider = 'kakao' | 'google' | 'apple';
 
 /** 서버 웹 로그인으로만 되는 제공자까지 — 네이버는 SDK 를 붙이지 않고 웹으로만 간다 */
@@ -108,6 +110,8 @@ export type AuthDeps<T> = {
    * 그 모듈이 없는 앱(꼬꼬농장)은 try/catch 로 감싸도 **번들이 깨진다**(Codex 3차).
    */
   random?: (bytes: Uint8Array) => void;
+  /** 로그인이 끝나고 조용해져야 하는 시간(밀리초, 기본 1000) — `afterLoginSettled` 가 쓴다(2.6) */
+  settleMs?: number;
 };
 
 /**
@@ -184,6 +188,31 @@ export type Auth<T> = {
    * 웹 흐름·받아 둔 후보는 그대로 둔다 — 복귀 주소가 뒤늦게 오면 `onLateReturn` 으로 이어진다.
    */
   abandon: () => void;
+  /**
+   * (2.6) **로그인 직후 안전 시점**까지 기다린다 — 로그인 창(구글·애플·카카오)이 완전히 닫히고 앱이 `active` 로
+   * 돌아와 1초 조용해진 뒤 한 틱 더. 로그인이 없었으면 곧 풀린다.
+   *
+   * 로그인 창이 **닫히는 중에** RN `Modal` 을 열면 iOS 에서 Modal 은 안 보이고 **보이지 않는 막만 남아 화면이 전부
+   * 안 눌린다**(머니트리 2026-09-23 — 홈 진입 순간 가이드). 로그인 직후 여는 Modal · 시스템 창(가이드 · 알림 동의 ·
+   * ATT)은 모두 이것을 거친다 — 보통은 `runAfterLogin` 으로.
+   */
+  afterLoginSettled: () => Promise<void>;
+  /**
+   * (2.6) 안전 시점에 **차례로** 연다 — 앞의 것이 끝나야(돌려준 약속까지) 다음이 열린다. 앞의 것이 실패해도 뒤는 연다.
+   * 시스템 창 두 개가 겹치면 뒤의 것이 창 없이 끝난다(ATT · 알림 권한) — 그래서 줄을 세운다.
+   *
+   * ```ts
+   * auth.runAfterLogin(() => showGuide());                 // 가이드가 닫힐 때 풀리는 약속을 돌려준다
+   * auth.runAfterLogin(() => ads.requestTracking());       // 그다음 ATT
+   * auth.runAfterLogin(() => notify.ask());                // 그다음 알림 권한
+   * ```
+   */
+  runAfterLogin: <R>(fn: () => R | Promise<R>) => Promise<R>;
+  /**
+   * (2.6) 지금 안전 시점인가(동기) — **Modal 안전장치**로 쓴다: `visible={want && auth.loginSettled()}`.
+   * 거짓이었으면 `afterLoginSettled().then(다시 그리기)` 로 한 번 더 그린다.
+   */
+  loginSettled: () => boolean;
 };
 
 /**
@@ -360,6 +389,10 @@ export type AuthEnv = {
   /** react-native 의 Linking */
   linking: () => any | null;
   wait: (ms: number) => Promise<void>;
+  /** (2.6) 지금 AppState · 바뀔 때 알림 · 시각 — 없으면 늘 active 로 본다(시험·웹) */
+  appState?: () => string;
+  onAppState?: (fn: (next: string) => void) => () => void;
+  now?: () => number;
 };
 
 /** 모듈이 없으면 null — 크래시 대신 그 버튼만 숨긴다(②) */
@@ -382,6 +415,13 @@ function defaultEnv(): AuthEnv {
     browser: () => mod<any>(() => require('expo-web-browser')),
     linking: () => rn()?.Linking ?? null,
     wait: (ms) => new Promise((r) => setTimeout(r, ms)),
+    appState: () => String(rn()?.AppState?.currentState ?? 'active'),
+    onAppState: (fn) => {
+      const sub = rn()?.AppState?.addEventListener?.('change', fn);
+
+      return () => { sub?.remove?.(); };
+    },
+    now: () => Date.now(),
   };
 }
 
@@ -409,6 +449,13 @@ export function createAuth<T>(deps: AuthDeps<T>, env: AuthEnv = defaultEnv()): A
    | 다른 버튼이면 `busy` 로 돌려보낸다. OTA 재시작을 막는 `isAuthorizing` 도 이것을 본다.
    */
   let current: { provider: AnyProvider; p: Promise<T> } | null = null;
+  // 로그인 직후 안전 시점(2.6) — 도는 로그인이 없고 · active · 조용해진 뒤
+  const settle = createSettle(() => current !== null, {
+    appState: env.appState ?? (() => 'active'),
+    onAppState: env.onAppState ?? (() => () => undefined),
+    now: env.now ?? (() => Date.now()),
+    sleep: env.wait,
+  }, deps.settleMs ?? 1000);
 
   /*
    | 늦게 오는 복귀 주소(2.0) — 안드로이드에서 카카오톡 앱을 다녀오면 로그인 창이 **먼저 닫혀**
@@ -990,7 +1037,7 @@ export function createAuth<T>(deps: AuthDeps<T>, env: AuthEnv = defaultEnv()): A
     current = entry;
     // 이 실행이 아직 「지금 로그인」인가 — `abandon()` 뒤에는 거짓이라 공유 상태를 건드리지 않는다
     const alive = (): boolean => current === entry;
-    entry.p = run(provider, alive).finally(() => { if (current === entry) current = null; });
+    entry.p = run(provider, alive).finally(() => { if (current === entry) current = null; settle.ended(); });
 
     return entry.p;
   }
@@ -1009,6 +1056,9 @@ export function createAuth<T>(deps: AuthDeps<T>, env: AuthEnv = defaultEnv()): A
     hasTriedAuth: () => triedAuth,
     isAuthorizing: () => current !== null,
     onLateReturn,
-    abandon: () => { current = null; },
+    abandon: () => { current = null; settle.ended(); },
+    afterLoginSettled: settle.wait,
+    runAfterLogin: settle.run,
+    loginSettled: settle.settled,
   };
 }

@@ -118,6 +118,12 @@ exports.standardEvent = exports.propOf = exports.createTrack = exports.referrerK
  * 그래도 되게 만들어 두었다(모듈 객체의 필드를 읽기만 한다). 「카카오톡이 없으면 버튼을
  * 아래로」 같은 것을 붙일 때는 반드시 `kakaoTalkAvailable()` 을 쓴다 — 그 안에서 초기화를
  * 먼저 한다. 직접 `isKakaoTalkLoginAvailable()` 을 부르면 ③ 을 밟는다.
+ *
+ * ## 2.6 — 로그인 직후 안전 시점
+ *
+ * 로그인 창이 **닫히는 중에** RN `Modal` 을 열면 iOS 에서 보이지 않는 막만 남아 화면이 전부 안 눌린다(머니트리 2026-09-23).
+ * 로그인 직후 여는 Modal · 시스템 창(가이드 · ATT · 알림 권한)은 `auth.runAfterLogin(fn)` 으로 차례로 연다.
+ * 기다리기만 할 때 `auth.afterLoginSettled()`, Modal 안전장치는 `visible={want && auth.loginSettled()}`(README 2.6).
  */
 var auth_1 = require("./auth");
 Object.defineProperty(exports, "AuthError", { enumerable: true, get: function () { return auth_1.AuthError; } });
