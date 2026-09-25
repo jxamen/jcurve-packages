@@ -12,6 +12,22 @@
 import type { FamilyApp } from './pick';
 export type Loader = () => Promise<FamilyApp[]>;
 /**
+ * 하단 「추천 포인트 앱 둘러보기」 칸 — 어드민 앱관리에서 앱마다 켜고 끄고 제목 · 설명을 정한다(2026-09-25 대표님).
+ * `title` · `desc` 가 null 이면 앱 · 패키지의 기존 문구를 쓴다.
+ */
+export type FamilySection = {
+    on: boolean;
+    title: string | null;
+    desc: string | null;
+};
+export type Hub = {
+    items: FamilyApp[];
+    section: FamilySection;
+};
+export declare const DEFAULT_SECTION: FamilySection;
+/** `{base}/family` 응답 → 목록 + 칸 설정. 칸이 없던 옛 서버면 켜짐 · 기존 문구 */
+export declare function parseHub(j: unknown): Hub;
+/**
  * `{base}/family` 를 부른다. `base` 는 앱이 쓰는 API 주소 그대로다
  * (예: `https://api.j-curve.co.kr/v1/carrotcash`) — 슬러그가 이미 들어 있다.
  *
@@ -23,3 +39,9 @@ export declare function storeLoader(opts: {
     token?: string;
     timeoutMs?: number;
 }): Loader;
+/** `storeLoader` 와 같지만 칸 설정(`section`)도 함께 — 입구를 보일지 · 제목을 한 번 부르기로 정한다 */
+export declare function hubLoader(opts: {
+    base: string;
+    token?: string;
+    timeoutMs?: number;
+}): () => Promise<Hub>;

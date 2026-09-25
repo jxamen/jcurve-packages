@@ -14,6 +14,28 @@ import type { FamilyApp } from './pick';
 export type Loader = () => Promise<FamilyApp[]>;
 
 /**
+ * 하단 「추천 포인트 앱 둘러보기」 칸 — 어드민 앱관리에서 앱마다 켜고 끄고 제목 · 설명을 정한다(2026-09-25 대표님).
+ * `title` · `desc` 가 null 이면 앱 · 패키지의 기존 문구를 쓴다.
+ */
+export type FamilySection = { on: boolean; title: string | null; desc: string | null };
+
+export type Hub = { items: FamilyApp[]; section: FamilySection };
+
+export const DEFAULT_SECTION: FamilySection = { on: true, title: null, desc: null };
+
+/** `{base}/family` 응답 → 목록 + 칸 설정. 칸이 없던 옛 서버면 켜짐 · 기존 문구 */
+export function parseHub(j: unknown): Hub {
+  const o = (j && typeof j === 'object' ? j : {}) as { items?: unknown; section?: Partial<FamilySection> | null };
+  const sec = o.section && typeof o.section === 'object' ? o.section : {};
+  const text = (v: unknown) => (typeof v === 'string' && v.trim() !== '' ? v.trim() : null);
+
+  return {
+    items: Array.isArray(o.items) ? (o.items as FamilyApp[]) : [],
+    section: { on: sec.on !== false, title: text(sec.title), desc: text(sec.desc) },
+  };
+}
+
+/**
  * `{base}/family` 를 부른다. `base` 는 앱이 쓰는 API 주소 그대로다
  * (예: `https://api.j-curve.co.kr/v1/carrotcash`) — 슬러그가 이미 들어 있다.
  *
@@ -21,6 +43,13 @@ export type Loader = () => Promise<FamilyApp[]>;
  * 거짓말을 한다 — 「지금 못 불러왔다」와 「없다」는 다른 말이다.
  */
 export function storeLoader(opts: { base: string; token?: string; timeoutMs?: number }): Loader {
+  const hub = hubLoader(opts);
+
+  return async () => (await hub()).items;
+}
+
+/** `storeLoader` 와 같지만 칸 설정(`section`)도 함께 — 입구를 보일지 · 제목을 한 번 부르기로 정한다 */
+export function hubLoader(opts: { base: string; token?: string; timeoutMs?: number }): () => Promise<Hub> {
   return async () => {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? 8000);
@@ -33,9 +62,7 @@ export function storeLoader(opts: { base: string; token?: string; timeoutMs?: nu
         signal: ctrl.signal,
       });
       if (!res.ok) throw new Error('family ' + res.status);
-      const j = (await res.json()) as { items?: FamilyApp[] };
-
-      return Array.isArray(j.items) ? j.items : [];
+      return parseHub(await res.json());
     } finally {
       clearTimeout(t);
     }

@@ -33,6 +33,29 @@ const [hub, setHub] = useState(false);
 ```
 
 - `base` 대신 `load`(직접 받아 오는 함수)를 줘도 된다 — 앱 자기 통로(토큰·재시도)를 쓰고 싶을 때.
+
+### 입구 켜기 · 제목 · 설명 (1.1.0, 2026-09-25)
+
+어드민 앱관리에서 앱마다 「추천 포인트 앱 둘러보기」를 켜고 끄고 제목 · 설명을 정한다. 서버가 `/family` 에 `section{on, title, desc}` 로 내준다.
+
+```tsx
+import { AppHubSheet, useAppHub } from '@jcurve/apphub';
+
+const hub = useAppHub({ base: API_BASE, token: APP_TOKEN });   // 한 번만 부른다
+
+{hub.section.on ? (
+  <Pressable onPress={() => setOpen(true)}>
+    <Text>{hub.section.title ?? '추천 포인트 앱 둘러보기'}</Text>
+  </Pressable>
+) : null}
+
+<AppHubSheet open={open} onClose={() => setOpen(false)} items={hub.items} section={hub.section} … />   // 다시 부르지 않는다
+```
+
+- `section.title` · `desc` 가 null 이면 기존 문구. 시트 안 소개(「추천 앱」 · 설명)도 같은 값으로 바뀐다.
+- 칸이 없던 옛 서버면 `{on:true, title:null, desc:null}` 이다.
+- 1.0 처럼 `base` 만 넘겨도 그대로 동작한다.
+
 - 받는 계측 이름은 `apphub_open` · `apphub_tap`(`{ slug }`) 둘뿐이다. 패키지는 아무 데도 보내지 않는다.
 - 색만 받는다. **문구·순서·동작은 받지 않는다** — 열어 두면 앱마다 달라지고, 패키지로 만든 이유가 없어진다.
 

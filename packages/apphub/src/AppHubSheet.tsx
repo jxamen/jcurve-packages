@@ -16,8 +16,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
-import { familyRows, type FamilyRow } from './pick';
-import { storeLoader, type Loader } from './load';
+import { familyRows, type FamilyApp, type FamilyRow } from './pick';
+import { storeLoader, type FamilySection, type Loader } from './load';
 
 export type AppHubTheme = {
   /** 화면 바탕 */
@@ -55,11 +55,15 @@ export type AppHubSheetProps = {
   /** 앱이 자기 통로로 직접 받아 오고 싶을 때 — 주면 `base` 대신 이것을 쓴다 */
   load?: Loader;
   theme?: AppHubTheme;
+  /** `useAppHub` 로 이미 받은 목록 — 주면 다시 부르지 않는다(2026-09-25) */
+  items?: FamilyApp[] | null;
+  /** 어드민이 정한 제목 · 설명 — null 이면 기존 문구 */
+  section?: FamilySection;
   /** 계측 — 앱의 `track()` 을 그대로 넘긴다(패키지는 아무 데도 보내지 않는다) */
   onEvent?: (name: string, props?: Record<string, string | number | boolean | null>) => void;
 };
 
-export function AppHubSheet({ open, onClose, base, token, load, theme, onEvent }: AppHubSheetProps) {
+export function AppHubSheet({ open, onClose, base, token, load, theme, items, section, onEvent }: AppHubSheetProps) {
   const t = { ...DEF, ...(theme ?? {}) };
   const s = styles(t);
   const [rows, setRows] = useState<FamilyRow[] | null>(null);
@@ -67,6 +71,7 @@ export function AppHubSheet({ open, onClose, base, token, load, theme, onEvent }
 
   const fetchRows = useCallback(async () => {
     setFailed(false);
+    if (items) { setRows(familyRows(items, Platform.OS)); return; }
     const loader = load ?? (base ? storeLoader({ base, token }) : null);
     if (!loader) { setFailed(true); return; }
     try {
@@ -76,7 +81,7 @@ export function AppHubSheet({ open, onClose, base, token, load, theme, onEvent }
       /* 「없다」가 아니라 「못 불러왔다」 — 다시 눌러 볼 수 있게 남긴다 */
       setFailed(true);
     }
-  }, [base, token, load]);
+  }, [base, token, load, items]);
 
   useEffect(() => {
     if (!open) return;
@@ -109,8 +114,8 @@ export function AppHubSheet({ open, onClose, base, token, load, theme, onEvent }
 
         <ScrollView contentContainerStyle={s.body} showsVerticalScrollIndicator={false}>
           <View style={s.intro}>
-            <Text style={s.introTitle}>추천 앱</Text>
-            <Text style={s.introBody}>받아서 시작하면 그 앱에서도 포인트를 모을 수 있어요{'\n'}포인트는 앱마다 따로 쌓여요</Text>
+            <Text style={s.introTitle}>{section?.title ?? '추천 앱'}</Text>
+            <Text style={s.introBody}>{section?.desc ?? '받아서 시작하면 그 앱에서도 포인트를 모을 수 있어요\n포인트는 앱마다 따로 쌓여요'}</Text>
           </View>
 
           {rows === null && !failed ? (
