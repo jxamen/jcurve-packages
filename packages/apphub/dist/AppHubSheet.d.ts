@@ -13,7 +13,8 @@
  * 달라지고, 이 패키지를 만든 이유가 없어진다.
  */
 import React from 'react';
-import { type Loader } from './load';
+import { type FamilyApp } from './pick';
+import { type FamilySection, type Loader } from './load';
 export type AppHubTheme = {
     /** 화면 바탕 */
     bg?: string;
@@ -38,7 +39,11 @@ export type AppHubSheetProps = {
     /** 앱이 자기 통로로 직접 받아 오고 싶을 때 — 주면 `base` 대신 이것을 쓴다 */
     load?: Loader;
     theme?: AppHubTheme;
+    /** `useAppHub` 로 이미 받은 목록 — 주면 다시 부르지 않는다(2026-09-25) */
+    items?: FamilyApp[] | null;
+    /** 어드민이 정한 제목 · 설명 — null 이면 기존 문구 */
+    section?: FamilySection;
     /** 계측 — 앱의 `track()` 을 그대로 넘긴다(패키지는 아무 데도 보내지 않는다) */
     onEvent?: (name: string, props?: Record<string, string | number | boolean | null>) => void;
 };
-export declare function AppHubSheet({ open, onClose, base, token, load, theme, onEvent }: AppHubSheetProps): React.JSX.Element | null;
+export declare function AppHubSheet({ open, onClose, base, token, load, theme, items, section, onEvent }: AppHubSheetProps): React.JSX.Element | null;
