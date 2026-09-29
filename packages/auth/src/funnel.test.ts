@@ -87,6 +87,25 @@ describe('기기 ID — 설치 단위로 하나', () => {
     expect(f.deviceId()).toBe(st.data['jc.device.v1']);
   });
 
+  it('(2.7) deviceHeaders() — 읽을 때까지 기다려 퍼널 · 광고와 같은 ID 를 X-Device-Id 로 준다', async () => {
+    const st = memory({ 'jc.device.v1': 'saved-device' });
+    const e = env();
+    const f = createFunnel({ ...BASE, storage: st }, e);
+    // 앱을 켜자마자(아직 안 읽음) 불러도 빠지지 않는다 — 자동 로그인 auth/me 자리
+    expect(await f.deviceHeaders()).toEqual({ 'X-Device-Id': 'saved-device' });
+    f.appOpen();
+    await flush(); await flush();
+    expect(e.sent[0].device).toBe('saved-device');
+    expect(f.deviceId()).toBe('saved-device');
+  });
+
+  it('(2.7) deviceHeaders() 는 저장소가 고장 나도 던지지 않는다 — 로그인을 막지 않는다', async () => {
+    const broken: KeyValue = { getItem: async () => { throw new Error('io'); }, setItem: async () => { throw new Error('io'); } };
+    const h = await createFunnel({ ...BASE, storage: broken }, env()).deviceHeaders();
+    // 못 읽으면 이번 실행만 쓰는 임시 ID(퍼널에 실리는 것과 같다)
+    expect(h['X-Device-Id']).toMatch(/^tmp-/);
+  });
+
   it('기능이 나오기 전부터 쓰던 사람은 기기 ID 가 없어도 첫 실행이 아니다', async () => {
     const e = env();
     createFunnel({ ...BASE, storage: memory(), existingUser: async () => true }, e).appOpen();

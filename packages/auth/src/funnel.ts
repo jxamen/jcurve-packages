@@ -86,6 +86,15 @@ export type Funnel = {
    * 새로 걷는 값이 아니다. 퍼널이 이미 만들어 저장해 둔 임의의 문자열이고 광고 식별자(adid)가 아니다.
    */
   deviceId: () => string;
+  /**
+   * 로그인 · 가입 · 세션 확인(`auth/me`) 요청에 실을 머리글 — `{ 'X-Device-Id': 기기 ID }`(2.7).
+   *
+   * 서버가 회원과 **이 기기 ID**(퍼널 · 광고 기록과 같은 값)를 잇는다 — 광고를 안 보고 미션만 한 회원도
+   * 설치일 묶음에 넣으려고(2026-09-29 대표님 획득 분석). 로그인 요청은 앱이 보내므로 앱의 `call()` 이 붙인다.
+   * 저장된 기기 ID 를 읽을 때까지 기다린다(앱을 켜자마자 부르는 `auth/me` 에서도 빠지지 않게).
+   * 못 읽으면 `{}` — **던지지 않는다**(계측이 로그인을 막으면 안 된다).
+   */
+  deviceHeaders: () => Promise<Record<string, string>>;
 };
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -246,6 +255,9 @@ export function createFunnel(deps: FunnelDeps, env: FunnelEnv = defaultEnv()): F
       if (!deviceP) void device().catch(() => undefined);
 
       return deviceNow;
+    },
+    deviceHeaders(): Promise<Record<string, string>> {
+      return device().then((d): Record<string, string> => (d.id ? { 'X-Device-Id': d.id } : {})).catch(() => ({}));
     },
     appOpen() {
       if (env.os() === 'web') return;
