@@ -208,6 +208,9 @@ function createFunnel(deps, env = defaultEnv()) {
                 void device().catch(() => undefined);
             return deviceNow;
         },
+        deviceHeaders() {
+            return device().then((d) => (d.id ? { 'X-Device-Id': d.id } : {})).catch(() => ({}));
+        },
         appOpen() {
             if (env.os() === 'web')
                 return;

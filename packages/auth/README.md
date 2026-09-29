@@ -194,6 +194,23 @@ useEffect(() => { if (!safe) void auth.afterLoginSettled().then(() => redraw((n)
 
 패키지가 RN `Modal` 을 통째로 가로채지는 않는다 — 화면 부품을 건드리면 앱마다 깨지는 곳이 달라진다. 그래서 위 두 가지를 쓴다.
 
+## 2.7 — 로그인 요청에 기기 ID 싣기(`deviceHeaders`)
+
+서버가 **회원 ↔ 기기 ID** 를 잇는다(2026-09-29 대표님 획득 분석 「방문, 광고, 미션 분리」). 설치 · 퍼널과 광고 기록은 이 기기 ID 로
+남는데 미션 기록은 회원 번호뿐이라, 광고를 안 보고 미션만 한 회원을 설치일 묶음에 넣을 수 없었다.
+새로 걷는 값이 아니다 — 퍼널이 이미 만들어 둔 난수 ID(`deviceId()` 와 같은 값)다.
+
+로그인 요청은 앱의 `api.ts` 가 보내므로 **앱의 `call()` 이 머리글을 붙인다.** 자동 로그인도 빠지지 않게 **`auth/me` 에도** 싣는다.
+
+```ts
+// api.ts — 이 경로들에만(모든 요청에 붙여도 서버는 이 경로에서만 읽는다)
+const DEVICE_PATHS = ['auth/me', 'auth/kakao', 'auth/google', 'auth/apple', 'auth/naver', 'auth/guest', 'auth/exchange', 'auth/toss'];
+const headers = { ...base, ...(DEVICE_PATHS.includes(path) ? await funnel.deviceHeaders() : {}) };
+```
+
+- `deviceHeaders()` 는 저장된 ID 를 **읽을 때까지 기다린다**(켜자마자 부르는 `auth/me` 에서도 실린다). 못 읽으면 `{}`, 던지지 않는다.
+- 서버(jcurve-api)는 `X-Device-Id` 가 없거나 모양이 틀리면 건너뛰고 **로그인은 그대로** 한다 — 옛 판도 같다.
+
 ## 웹 폴백을 직접 만들 때 (안드로이드)
 
 2.0 의 `web` 을 주면 **패키지가 창을 열고 아래도 한다.** 앱에서 `openAuthSessionAsync` 같은 것으로
