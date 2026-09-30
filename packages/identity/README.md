@@ -61,6 +61,9 @@ const r = await identity.verify();   // r.signupToken — 문자 인증과 같�
 인증 창: 켠 기관이 **하나면 우리 화면 없이 그 기관으로 바로**, 여럿이면 켠 것만 고르고 누르면 KICA 가 그 기관으로 넘어간다(`default_provider`).
 테스트 키(개발 주소)는 CI 를 빈 값으로 줄 때가 있어 **개발 환경에서만** 번호로 대신 식별한다. 운영은 CI 가 없으면 `CI_MISSING` 으로 멈춘다.
 
+> **테스트 키에서 정상인 것**(2026-09-30 대표님 확인): **PASS 는 테스트 환경에서 열리지 않는다** · **CI 는 빈 값으로 온다**.
+> 둘 다 버그가 아니다 — PASS 와 CI 는 **운영 키에서 확인**한다.
+
 ## 흔한 오류 코드
 
 `identityMessage(code)` 가 사람 말로 바꾸고 끝에 `(코드)` 를 붙인다(취소 제외).
@@ -71,6 +74,7 @@ const r = await identity.verify();   // r.signupToken — 문자 인증과 같�
 | `KIAP_<코드>` | KICA 가 준 그 밖의 오류(K/E 코드) | KICA 규격서 |
 | `KIAP_HTTP_401` | getResult 인증 실패 — 콜백의 **동적** access_token 대신 콘솔 토큰을 썼거나, 세션 게이트웨이와 다른 주소로 물었다 | 콜백 코드 · 테스트/운영 주소 |
 | `KIAP_TIMEOUT` | KICA 응답 5초 넘음 | 잠시 뒤 다시 |
+| (테스트 키) PASS 가 안 열림 · CI 빈 값 | **정상** — KICA 테스트 환경은 PASS 를 열지 않고 CI 를 빈 값으로 준다. 서버는 개발 주소에서만 번호로 대신 식별한다 | 운영 키에서 확인 |
 | `CI_MISSING` | 운영에서 CI 가 없다(계약에 CI 가 빠졌거나 칸 이름이 다르다) | 서버 로그 `kiap getResult fields`(칸 이름 · CI 출처만 남김) · KICA 계약 |
 | `DUPLICATE_CI` | 같은 사람이 이미 다른 계정으로 인증했다(1인 1계정) | 정상 — 기존 계정으로 로그인 안내 |
 | `UID_CI_CONFLICT` | 이 계정은 다른 사람 명의로 인증돼 있다 | 정상 |
