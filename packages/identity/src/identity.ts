@@ -23,12 +23,22 @@ export type IdentityDeps = {
   keep?: (v: { name: string; phone: string; provider: string }) => void | Promise<void>;
   /** 이미 인증한 회원일 때 서버 회원 정보를 읽는다 — 기기를 바꾼 사람을 이어 준다 */
   me?: () => Promise<{ name?: string; phone?: string } | null>;
+  /**
+   * 흐름. 기본 `init` — 플랫폼 API(로그인한 회원, POST kiap/init → page).
+   * `start` — **가입 전**(회원 세션 없음) 자체 서버 흐름(스터디숲): status 가 준 `start` 주소를 `?ret=` 붙여 열고,
+   * result 는 세션 없이 1회용 토큰으로 받는다(결과에 signupToken 이 올 수 있다).
+   */
+  flow?: 'init' | 'start';
 };
 
 export type IdentityResult =
-  | { ok: true; name: string; phone: string; provider: string }
+  | { ok: true; name: string; phone: string; provider: string; birth?: string | null; signupToken?: string }
   | { ok: false; reason: string };
 
+/**
+ * 사유 코드 → 사람 말. **문구 끝에 코드를 붙인다**(identityMessage) — 문의가 오면 코드로 바로 가른다(스터디숲 #304 · #305).
+ * 서버 사유는 복귀 주소의 `reason`, KICA 자체 오류는 `KIAP_<코드>`(예: KIAP_E4108) 로 온다.
+ */
 const REASON: Record<string, string> = {
   CANCELED: '인증을 취소했어요.',
   NO_SESSION: '로그인한 뒤 다시 시도해 주세요.',
@@ -43,11 +53,39 @@ const REASON: Record<string, string> = {
   CI_MISSING: '인증 기관에서 정보를 받지 못했어요. 다시 시도해 주세요.',
   RESULT_LOST: '인증 결과를 받지 못했어요. 다시 시도해 주세요.',
   NEED_UPDATE: '앱을 최신 버전으로 업데이트해 주세요.',
+  FAILED: '본인인증에 실패했어요. 다시 시도해 주세요.',
+  SESSION_USED: '이미 끝난 인증이에요. 다시 시도해 주세요.',
+  DECRYPT_FAILED: '인증 결과를 읽지 못했어요. 다시 시도해 주세요.',
+  RESULT_BINDING_MISMATCH: '인증 결과가 맞지 않아요. 다시 시도해 주세요.',
+  CALLBACK_FIELDS_MISSING: '인증 기관 응답이 비었어요. 다시 시도해 주세요.',
+  PROVIDER_NOT_ALLOWED: '이 인증 기관은 쓸 수 없어요. 다른 기관을 골라 주세요.',
+  PROVIDER_DISABLED: '이 인증 기관은 쓸 수 없어요. 다른 기관을 골라 주세요.',
+  RACE_BLOCKED: '인증이 두 번 들어왔어요. 다시 시도해 주세요.',
+  DUPLICATE_PHONE: '이미 가입한 번호예요. 로그인해 주세요.',
+  KIAP_TIMEOUT: '인증 기관 응답이 늦어요. 잠시 후 다시 시도해 주세요.',
+  KIAP_E4108: '인증 창을 열 수 없는 주소예요(허용 도메인). 잠시 후 다시 시도해 주세요.',
 };
+
+/** KICA 쪽 오류(KIAP_*)는 하나로 뭉뚱그리되 코드는 남긴다 */
+const KIAP_DEFAULT = '인증 기관에서 오류가 났어요. 잠시 후 다시 시도해 주세요.';
 
 /** 사유 → 사람이 읽는 말. 모르는 사유도 빈 문자열을 내지 않는다 */
 export function identityMessage(reason: string): string {
-  return REASON[reason] ?? `본인인증에 실패했어요. 다시 시도해 주세요. (${reason})`;
+  const r = String(reason || 'FAILED').toUpperCase();
+  const text = REASON[r] ?? (r.startsWith('KIAP_') ? KIAP_DEFAULT : '본인인증에 실패했어요. 다시 시도해 주세요.');
+  // 사용자가 스스로 닫은 것에는 코드를 붙이지 않는다
+  return r === 'CANCELED' ? text : `${text} (${r})`;
+}
+
+/**
+ * 인증 창을 연다 — iOS 는 **ephemeral 세션**으로 연다. 안 그러면 ASWebAuthenticationSession 이
+ * 「'앱'이(가) 로그인하려고 합니다」 확인 창을 먼저 띄운다(스터디숲 #303). 쿠키를 남기지 않는 것은 오히려 맞다(본인인증은 한 번).
+ */
+export async function openAuth(
+  WebBrowser: { openAuthSessionAsync: (url: string, ret: string, opt?: Record<string, unknown>) => Promise<{ type: string; url?: string }> },
+  url: string, ret: string,
+): Promise<{ type: string; url?: string }> {
+  return WebBrowser.openAuthSessionAsync(url, ret, { preferEphemeralSession: true });
 }
 
 /**
@@ -68,8 +106,12 @@ export function parseQuery(url: string): Record<string, string> {
 export type Identity = {
   /** 서버에 자격증명이 등록됐는가 — 아니면 화면이 「준비 중」으로 안내한다 */
   enabled: () => Promise<boolean>;
+  /** 이 앱에서 켠 인증기관(어드민 앱 관리 체크 ∩ KICA 계약) — 화면에 안내할 때 */
+  providers: () => Promise<string[]>;
   /** 인증 실행 — 브라우저를 열고 결과를 회수한다 */
   verify: () => Promise<IdentityResult>;
+  /** 복귀 URL 을 결과로 바꾼다 — verify 가 부른다(앱이 딥링크로 따로 받았을 때도 쓸 수 있다) */
+  finish: (r: { type: string; url?: string }) => Promise<IdentityResult>;
 };
 
 export function createIdentity(deps: IdentityDeps): Identity {
@@ -82,31 +124,59 @@ export function createIdentity(deps: IdentityDeps): Identity {
     return h;
   };
 
+  let started: string | null = null;   // flow 'start' — status 가 준 시작 주소
+  const status = async (): Promise<any> => {
+    // **앱 토큰을 빼먹으면 늘 「꺼짐」으로 읽힌다**(꼬꼬농장 2026-09-14) — 그래서 여기서 붙인다
+    const r = await fetch(deps.base + '/kiap/status', { headers: { Accept: 'application/json', 'X-App-Token': deps.appToken } });
+    const j = await r.json().catch(() => null);
+    if (typeof j?.start === 'string') started = j.start;
+
+    return j;
+  };
+
   return {
+    async providers() {
+      try {
+        const j = await status();
+
+        return Array.isArray(j?.providers) ? j.providers.map(String) : [];
+      } catch {
+        return [];
+      }
+    },
+
     async enabled() {
       try {
-        // **앱 토큰을 빼먹으면 늘 「꺼짐」으로 읽힌다** — 공용 API 가 unauthorized 를 주는데
-        // 그것을 「자격증명 없음」과 구분하지 않기 때문이다(꼬꼬농장 2026-09-14).
-        const r = await fetch(deps.base + '/kiap/status', { headers: { Accept: 'application/json', 'X-App-Token': deps.appToken } });
-        const j = await r.json().catch(() => null);
-
-        return !!j?.enabled;
+        return !!(await status())?.enabled;
       } catch {
         return false;
       }
     },
 
     async verify() {
+      const flow = deps.flow ?? 'init';
       const token = deps.token();
-      if (!token) return { ok: false, reason: 'NO_SESSION' };
+      if (flow === 'init' && !token) return { ok: false, reason: 'NO_SESSION' };
 
       // **지연 `require` 로만 집는다** — 이 네이티브 모듈이 없는 구 빌드에서 화면이
       // 열리는 것만으로 죽지 않게 한다. 모듈이 없으면 이 경로만 조용히 접는다.
-      let WebBrowser: { openAuthSessionAsync: (url: string, ret: string) => Promise<{ type: string; url?: string }> };
+      let WebBrowser: { openAuthSessionAsync: (url: string, ret: string, opt?: Record<string, unknown>) => Promise<{ type: string; url?: string }> };
       try {
         WebBrowser = require('expo-web-browser');
       } catch {
         return { ok: false, reason: 'NEED_UPDATE' };
+      }
+
+      if (flow === 'start') {
+        // 가입 전 흐름 — status 의 start 주소(허용 도메인 밑)를 ?ret= 로 연다. 서버가 세션을 만든다
+        try {
+          if (!started) await status();
+        } catch {
+          return { ok: false, reason: 'NETWORK' };
+        }
+        if (!started) return { ok: false, reason: 'KIAP_DISABLED' };
+
+        return this.finish(await openAuth(WebBrowser, `${started}?ret=${encodeURIComponent(deps.ret)}`, deps.ret));
       }
 
       let init: any = null;
@@ -137,7 +207,11 @@ export function createIdentity(deps: IdentityDeps): Identity {
         return { ok: false, reason: err.toUpperCase() };
       }
 
-      const r = await WebBrowser.openAuthSessionAsync(init.url, deps.ret);
+      return this.finish(await openAuth(WebBrowser, init.url, deps.ret));
+    },
+
+    /** 복귀 URL → 결과 회수(1회용 토큰). init · start 공통 */
+    async finish(r: { type: string; url?: string }): Promise<IdentityResult> {
       if (r.type !== 'success' || !r.url) return { ok: false, reason: 'CANCELED' };
 
       const p = parseQuery(r.url);
@@ -153,8 +227,12 @@ export function createIdentity(deps: IdentityDeps): Identity {
         if (!j?.ok) return { ok: false, reason: 'RESULT_LOST' };
         const v = { name: String(j.name ?? ''), phone: String(j.phone ?? ''), provider: String(j.provider ?? '') };
         await deps.keep?.(v);
+        // 생년월일은 인증 결과에서 받는다 — 가입에서 다시 묻지 않게(스터디숲 #308). 가입 전 흐름은 signupToken 도 온다
+        const extra: { birth?: string | null; signupToken?: string } = {};
+        if (j.birth !== undefined) extra.birth = typeof j.birth === 'string' ? j.birth : null;
+        if (typeof j.signupToken === 'string') extra.signupToken = j.signupToken;
 
-        return { ok: true, ...v };
+        return { ok: true, ...v, ...extra };
       } catch {
         return { ok: false, reason: 'NETWORK' };
       }
