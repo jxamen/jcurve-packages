@@ -48,6 +48,7 @@
 export {
   createIdentity,
   identityMessage,
+  openAuth,
   parseQuery,
   type Identity,
   type IdentityDeps,

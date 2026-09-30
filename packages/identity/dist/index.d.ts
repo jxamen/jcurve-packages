@@ -45,4 +45,4 @@
  *
  * **화면은 없다.** 본인인증 화면은 앱마다 그 앱답게 생겨야 한다.
  */
-export { createIdentity, identityMessage, parseQuery, type Identity, type IdentityDeps, type IdentityResult, } from './identity';
+export { createIdentity, identityMessage, openAuth, parseQuery, type Identity, type IdentityDeps, type IdentityResult, } from './identity';
