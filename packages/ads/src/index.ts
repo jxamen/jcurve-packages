@@ -61,5 +61,5 @@
  * `available` 이 거짓이면(Expo Go·웹) 앱이 목업 광고로 넘어간다. `interstitialAvailable` 이 거짓이면 보상형으로 띄운다.
  */
 export { createRewarded } from './ads';
-export type { AdsEnv, AdsOptions, AdUnits, Rewarded, ShowOptions } from './ads';
+export type { AdsEnv, AdsOptions, AdUnits, Rewarded, ShowOptions, TrackingResult } from './ads';
 export { isTestAds, readUpdateChannel, ssvRequestOptions, useTestAdUnit } from './mode';

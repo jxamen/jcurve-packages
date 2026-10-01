@@ -86,6 +86,29 @@ describe('앱을 켤 때', () => {
     expect(d.alerts).toHaveLength(2);
   });
 
+  it('강제 창이 버튼 없이 사라져도 1분 뒤 앞으로 돌아오면 다시 뜬다(민트런 시험 2026-10-01)', async () => {
+    const d = device();
+    checkStoreVersion({ fetch: server({ min: '1.0.2', package: 'p.k' }) });
+    await flush(); await flush();
+    expect(d.alerts).toHaveLength(1);
+    d.back(); await flush(); await flush();
+    expect(d.alerts).toHaveLength(1);   // 방금 띄운 창이면 그대로 둔다
+    d.tick(61_000);
+    d.back(); await flush(); await flush();
+    expect(d.alerts).toHaveLength(2);
+  });
+
+  it('앞으로 돌아오기가 빠르게 반복돼도 조회 · 창이 겹치지 않는다', async () => {
+    let release: () => void = () => {};
+    const slow = vi.fn(() => new Promise((r) => { release = () => r({ ok: true, android: { min: '1.0.2', package: 'p.k' } }); }));
+    const d = device();
+    checkStoreVersion({ fetch: slow });
+    d.tick(11 * 60_000); d.back(); d.back(); d.back();
+    expect(slow).toHaveBeenCalledTimes(1);
+    release(); await flush(); await flush();
+    expect(d.alerts).toHaveLength(1);
+  });
+
   it('스토어 앱이 안 열리면 웹 주소, 그것도 안 되면 강제 창을 다시 띄운다', async () => {
     const tried: string[] = [];
     const d = device({ openURL: async (u) => { tried.push(u); throw new Error('no'); } });

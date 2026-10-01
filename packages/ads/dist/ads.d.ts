@@ -83,7 +83,7 @@ export type Rewarded = {
      * 앱이 앞에 올라온 뒤 0.6초 기다렸다 묻고, 창 없이 넘어가면(답이 미정) 다음 호출에 다시 묻는다.
      * 알림 권한 창과 겹치면 ATT 가 창 없이 끝난다 — 알림을 묻기 전에 이 약속을 기다린다.
      */
-    requestTracking: () => Promise<void>;
+    requestTracking: () => Promise<TrackingResult>;
     /**
      * 광고 식별자(IDFA · AAID) — **읽기만 한다**(1.4). ATT 는 묻지 않는다 — 묻는 것은 `requestTracking` 이 켤 때 한다.
      * iOS 는 추적을 허용했을 때만 값, 안드로이드는 그대로. 초기화된 식별자(0000-…)·시뮬레이터는 null.
@@ -105,6 +105,11 @@ export type AdsEnv = {
     os: () => string;
     appState: () => AppStateLike | null;
     dev: () => boolean;
+};
+/** ATT 를 물은 결과 — timedOut 이면 창이 아직 떠 있을 수 있다(다음 권한 창 전에 앱이 앞으로 돌아오길 기다린다) */
+export type TrackingResult = {
+    status: string;
+    timedOut: boolean;
 };
 export declare function createRewarded(opts: AdsOptions, env?: AdsEnv): Rewarded;
 export {};

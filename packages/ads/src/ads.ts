@@ -98,7 +98,7 @@ export type Rewarded = {
    * 앱이 앞에 올라온 뒤 0.6초 기다렸다 묻고, 창 없이 넘어가면(답이 미정) 다음 호출에 다시 묻는다.
    * 알림 권한 창과 겹치면 ATT 가 창 없이 끝난다 — 알림을 묻기 전에 이 약속을 기다린다.
    */
-  requestTracking: () => Promise<void>;
+  requestTracking: () => Promise<TrackingResult>;
   /**
    * 광고 식별자(IDFA · AAID) — **읽기만 한다**(1.4). ATT 는 묻지 않는다 — 묻는 것은 `requestTracking` 이 켤 때 한다.
    * iOS 는 추적을 허용했을 때만 값, 안드로이드는 그대로. 초기화된 식별자(0000-…)·시뮬레이터는 null.
@@ -127,6 +127,9 @@ const defaultEnv = (): AdsEnv => ({
   appState: () => { try { return require('react-native').AppState as AppStateLike; } catch { return null; } },
   dev: () => typeof __DEV__ !== 'undefined' && !!__DEV__,
 });
+
+/** ATT 를 물은 결과 — timedOut 이면 창이 아직 떠 있을 수 있다(다음 권한 창 전에 앱이 앞으로 돌아오길 기다린다) */
+export type TrackingResult = { status: string; timedOut: boolean };
 
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
   return Promise.race([p.catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), ms))]);
@@ -190,25 +193,35 @@ export function createRewarded(opts: AdsOptions, env: AdsEnv = defaultEnv()): Re
       });
     } catch { resolve(); }
   });
-  let trackingP: Promise<void> | null = null;
+  let trackingP: Promise<TrackingResult> | null = null;
   let trackingGen = 0;   // 창 없이 넘어간 **이번 시도만** 지운다 — 사이에 새로 시작한 것을 지우지 않게
-  const requestTracking = (): Promise<void> => {
-    if (os !== 'ios') return Promise.resolve();
+  const requestTracking = (): Promise<TrackingResult> => {
+    if (os !== 'ios') return Promise.resolve({ status: 'unavailable', timedOut: false });
     if (trackingP) return trackingP;
     const gen = ++trackingGen;
     const forget = (): void => { if (trackingGen === gen) trackingP = null; };
-    trackingP = (async () => {
+    trackingP = (async (): Promise<TrackingResult> => {
       try {
         const att = env.tracking();
-        if (!att) return;   // 모듈이 없는 빌드 — 묻지 못한 것이지 고장이 아니다
+        if (!att) return { status: 'unavailable', timedOut: false };   // 모듈이 없는 빌드 — 묻지 못한 것이지 고장이 아니다
         await whenActive();
         await new Promise((r) => setTimeout(r, SETTLE_MS));
         const cur = (await withTimeout(att.getTrackingPermissionsAsync(), 3000)) as { status?: string } | null;
-        if (cur?.status !== 'undetermined') return;   // 이미 답했다(허용·거부) — 다시 묻지 않는다
-        const after = (await withTimeout(att.requestTrackingPermissionsAsync(), 20000)) as { status?: string } | null;
-        if (!after || after.status === 'undetermined') forget();   // 창 없이 넘어갔다 — 다음 호출에 다시 묻는다
+        if (cur?.status !== 'undetermined') return { status: String(cur?.status ?? 'unknown'), timedOut: false };   // 이미 답했다 — 다시 묻지 않는다
+        /*
+         | 20초 시간 초과와 창이 닫힌 것을 가른다(민트런 시험 2026-10-01) — 시간 초과면 창이 아직 떠 있을 수 있어
+         | 앱은 다음 권한 창(알림)을 부르기 전에 앱이 앞으로 돌아오는 것(AppState active)을 더 기다려야 한다.
+         */
+        let timedOut = false;
+        const after = (await Promise.race([
+          att.requestTrackingPermissionsAsync().catch(() => null),
+          new Promise<null>((r) => setTimeout(() => { timedOut = true; r(null); }, 20000)),
+        ])) as { status?: string } | null;
+        if (!after || after.status === 'undetermined') forget();   // 창 없이 넘어갔거나 시간 초과 — 다음 호출에 다시 묻는다
+        return { status: String(after?.status ?? 'undetermined'), timedOut };
       } catch {
         forget();
+        return { status: 'unknown', timedOut: false };
       }
     })();
 

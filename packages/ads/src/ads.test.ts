@@ -35,10 +35,10 @@ function setup(o: { os?: string; test?: boolean; noSdk?: boolean; units?: AdsOpt
     addEventListener: (_t: 'change', fn: (s: string) => void) => { appListeners.add(fn); return { remove: () => appListeners.delete(fn) }; },
   };
   const att = {
-    asked: 0, status: 'undetermined', skip: false, id: 'AAAA-1111' as string | null,
+    asked: 0, status: 'undetermined', skip: false, hang: false, id: 'AAAA-1111' as string | null,
     getTrackingPermissionsAsync: async () => ({ status: att.status, granted: att.status === 'granted' }),
     // skip 이면 창을 띄우지 못하고 미정 그대로 — 앞에 오기 전·다른 시스템 창과 겹쳤을 때
-    requestTrackingPermissionsAsync: async () => { att.asked++; if (!att.skip) att.status = 'granted'; return { status: att.status, granted: att.status === 'granted' }; },
+    requestTrackingPermissionsAsync: async () => { att.asked++; if (att.hang) return new Promise(() => {}); if (!att.skip) att.status = 'granted'; return { status: att.status, granted: att.status === 'granted' }; },
     getAdvertisingId: () => att.id,
   };
   const sdk = {
@@ -405,8 +405,22 @@ describe('미리 받기·초기화', () => {
 
   it('안드로이드는 묻지 않는다', async () => {
     const s = setup({ os: 'android' });
-    await s.ads.requestTracking();
+    expect(await s.ads.requestTracking()).toEqual({ status: 'unavailable', timedOut: false });
     expect(s.att.asked).toBe(0);
+  });
+
+  it('(1.6) 결과를 돌려준다 — 20초 시간 초과는 timedOut 으로 가른다(창이 아직 떠 있을 수 있다, 민트런 시험 2026-10-01)', async () => {
+    const s = setup({ os: 'ios' });
+    const p = s.ads.requestTracking();
+    await flush(); vi.advanceTimersByTime(600); await flush();
+    expect(await p).toEqual({ status: 'granted', timedOut: false });
+
+    const h = setup({ os: 'ios' });
+    h.att.hang = true;   // 창이 떠 있는 채로 답이 안 온다
+    const q = h.ads.requestTracking();
+    await flush(); vi.advanceTimersByTime(600); await flush();
+    vi.advanceTimersByTime(20_000); await flush();
+    expect(await q).toEqual({ status: 'undetermined', timedOut: true });
   });
 });
 

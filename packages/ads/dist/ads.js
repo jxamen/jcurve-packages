@@ -109,7 +109,7 @@ function createRewarded(opts, env = defaultEnv()) {
     let trackingGen = 0; // 창 없이 넘어간 **이번 시도만** 지운다 — 사이에 새로 시작한 것을 지우지 않게
     const requestTracking = () => {
         if (os !== 'ios')
-            return Promise.resolve();
+            return Promise.resolve({ status: 'unavailable', timedOut: false });
         if (trackingP)
             return trackingP;
         const gen = ++trackingGen;
@@ -119,18 +119,28 @@ function createRewarded(opts, env = defaultEnv()) {
             try {
                 const att = env.tracking();
                 if (!att)
-                    return; // 모듈이 없는 빌드 — 묻지 못한 것이지 고장이 아니다
+                    return { status: 'unavailable', timedOut: false }; // 모듈이 없는 빌드 — 묻지 못한 것이지 고장이 아니다
                 await whenActive();
                 await new Promise((r) => setTimeout(r, SETTLE_MS));
                 const cur = (await withTimeout(att.getTrackingPermissionsAsync(), 3000));
                 if (cur?.status !== 'undetermined')
-                    return; // 이미 답했다(허용·거부) — 다시 묻지 않는다
-                const after = (await withTimeout(att.requestTrackingPermissionsAsync(), 20000));
+                    return { status: String(cur?.status ?? 'unknown'), timedOut: false }; // 이미 답했다 — 다시 묻지 않는다
+                /*
+                 | 20초 시간 초과와 창이 닫힌 것을 가른다(민트런 시험 2026-10-01) — 시간 초과면 창이 아직 떠 있을 수 있어
+                 | 앱은 다음 권한 창(알림)을 부르기 전에 앱이 앞으로 돌아오는 것(AppState active)을 더 기다려야 한다.
+                 */
+                let timedOut = false;
+                const after = (await Promise.race([
+                    att.requestTrackingPermissionsAsync().catch(() => null),
+                    new Promise((r) => setTimeout(() => { timedOut = true; r(null); }, 20000)),
+                ]));
                 if (!after || after.status === 'undetermined')
-                    forget(); // 창 없이 넘어갔다 — 다음 호출에 다시 묻는다
+                    forget(); // 창 없이 넘어갔거나 시간 초과 — 다음 호출에 다시 묻는다
+                return { status: String(after?.status ?? 'undetermined'), timedOut };
             }
             catch {
                 forget();
+                return { status: 'unknown', timedOut: false };
             }
         })();
         return trackingP;
