@@ -264,10 +264,21 @@ describe('2.1 — 켤 때 네이티브가 받지 않는 빌드(ON_ERROR_RECOVERY
     expect(U.checks).toBe(0);
   });
 
+  it('(2.6.2) ATT 창이 위에 떠 inactive 여도 받기는 한다 — 적용(재시작)은 active 가 될 때까지 기다린다', async () => {
+    U = fakeUpdates({}, 'ON_ERROR_RECOVERY');
+    __reset({ updates: () => U as any, active: () => active, background: () => false, dev: () => false });
+    active = false;   // inactive — 앞에 있지만 시스템 창이 덮고 있다
+    autoApply(app().deps);
+    vi.advanceTimersByTime(2000);
+    await flush();
+    expect(U.fetches, '받기는 한다').toBe(1);
+    expect(U.reloads, '창이 떠 있는 동안 재시작하지 않는다').toBe(0);
+  });
+
   it('앱이 뒤로 가 있으면 받지 않고, 멈추면 예약도 지운다', async () => {
     U = fakeUpdates({}, 'ON_ERROR_RECOVERY');
-    __reset({ updates: () => U as any, active: () => active, dev: () => false });
-    active = false;
+    __reset({ updates: () => U as any, active: () => active, background: () => !active, dev: () => false });
+    active = false;   // 뒤로 넘어감(background)
     autoApply(app().deps);
     vi.advanceTimersByTime(2000);
     await flush();

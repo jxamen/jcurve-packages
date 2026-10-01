@@ -44,6 +44,8 @@ type Env = {
     updates: () => ExpoUpdates;
     /** 앱이 화면에 떠 있는가 — 뒤로 넘어간 사이(로그인 창·미션 매체)에는 적용하지 않는다 */
     active: () => boolean;
+    /** 뒤로 넘어갔는가(2.6.2) — 받기만 하는 일은 inactive(ATT 같은 시스템 창이 위에 뜸)에서도 한다. 없으면 !active 로 본다 */
+    background?: () => boolean;
     dev: () => boolean;
     /** 앱이 다시 앞으로 올 때마다 부른다(2.4) — 돌려주는 함수로 끊는다 */
     onActive: (fn: () => void) => () => void;

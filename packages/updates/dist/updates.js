@@ -26,6 +26,14 @@ const defaultEnv = () => ({
             return true;
         }
     },
+    background: () => {
+        try {
+            return require('react-native').AppState.currentState === 'background';
+        }
+        catch {
+            return false;
+        }
+    },
     dev: () => typeof __DEV__ !== 'undefined' && !!__DEV__,
     os: () => { try {
         return String(require('react-native').Platform.OS ?? '');
@@ -226,8 +234,13 @@ function autoApply(deps, opts = {}) {
     if (auto !== 'ON_LOAD' && auto !== 'WIFI_ONLY' && U.checkForUpdateAsync && U.fetchUpdateAsync && !U.latestContext?.isUpdatePending) {
         fetchTimer = setTimeout(() => {
             fetchTimer = null;
-            if (!env.active())
-                return; // 뒤로 넘어간 앱이 굳이 받을 이유가 없다
+            /*
+             | 뒤로 넘어간 앱만 건너뛴다 — inactive 는 받는다(2.6.2). 새로 설치하면 첫 실행에 ATT 창(시스템 창)이 떠
+             | 실행 내내 inactive 라, active 만 보면 첫 실행에 OTA 를 못 받았다(민트런 실기기 2026-10-01, 아이폰 12 mini).
+             | 받기만 한다 — 적용(재시작)은 위 규칙대로 active 에서만 한다(busy()).
+             */
+            if (env.background ? env.background() : !env.active())
+                return;
             void fetchNow();
         }, opts.fetchDelayMs ?? 2000); // 첫 화면이 쓸 네트워크를 같이 먹지 않게 잠깐 텀을 둔다
     }
