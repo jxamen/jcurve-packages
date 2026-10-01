@@ -92,6 +92,8 @@ export type StoreVersionEnv = {
 };
 
 const NAG_KEY = 'jcurve.storeNag.v1';
+/** 강제 창이 이만큼 떠 있다고 기억되는데 앱이 앞으로 돌아오면 사라진 것으로 보고 다시 띄운다 */
+const STUCK_MS = 60_000;
 
 const defaultEnv = (): StoreVersionEnv => {
   const rn = (): any => require('react-native');
@@ -161,10 +163,27 @@ export function checkStoreVersion(deps: StoreVersionDeps): () => void {
     recTitle: '새 버전이 나왔어요', recBody: '더 편해진 새 버전을 만나 보세요.', update: '업데이트', later: '나중에', ...deps.text };
   let last = 0;
   let open = false;
+  let openedAt = 0;     // 창을 띄운 시각 — 버튼 콜백 없이 창이 사라져도(액티비티 재생성 · 표시 실패) 풀 수 있게
+  let running = false;  // 조회 중 — active 가 빠르게 반복돼도 조회 · 창이 겹치지 않게(민트런 시험: 강제 창 요청 3회)
   let forced = false;   // 마지막 판단이 강제였나 — 스토어에서 돌아오면 10분을 기다리지 않고 다시 본다
 
+  const show = (title: string, body: string, buttons: AlertButton[]): void => {
+    open = true;
+    openedAt = e.now();
+    e.alert(title, body, buttons);
+  };
+
   const run = async (): Promise<void> => {
-    if (open) return;
+    if (open || running) return;
+    running = true;
+    try {
+      await check();
+    } finally {
+      running = false;
+    }
+  };
+
+  const check = async (): Promise<void> => {
     last = e.now();
     let info: StoreVersionInfo;
     try {
@@ -184,23 +203,28 @@ export function checkStoreVersion(deps: StoreVersionDeps): () => void {
       void e.openURL(links.app).catch(() => e.openURL(links.web)).catch(() => { if (forced) void run(); });
     };
 
+    if (open) return;   // 조회하는 사이 다른 길로 창이 떴다 — 두 번 띄우지 않는다
     if (d.kind === 'force') {
-      open = true;
-      e.alert(t.forceTitle, t.forceBody + '\n현재 ' + d.installed + ' → ' + d.target, [{ text: t.update, onPress: go }]);
+      show(t.forceTitle, t.forceBody + '\n현재 ' + d.installed + ' → ' + d.target, [{ text: t.update, onPress: go }]);
       return;
     }
     if (deps.canRecommend && !deps.canRecommend()) return;
     const key = d.target + '|' + dayKey(e.now());
     if ((await e.getItem(NAG_KEY).catch(() => null)) === key) return;
     await e.setItem(NAG_KEY, key).catch(() => undefined);
-    open = true;
-    e.alert(t.recTitle, t.recBody + '\n현재 ' + d.installed + ' → ' + d.target, [
+    if (open) return;
+    show(t.recTitle, t.recBody + '\n현재 ' + d.installed + ' → ' + d.target, [
       { text: t.later, style: 'cancel', onPress: () => { open = false; } },
       { text: t.update, onPress: go },
     ]);
   };
 
   void run();
-  // 강제 창은 스토어에 다녀오면 닫혀 있다 — 돌아오면 바로 다시 본다. 그 밖에는 10분에 한 번
-  return e.onActive(() => { if (!open && (forced || e.now() - last >= 10 * 60_000)) void run(); });
+  // 강제 창은 스토어에 다녀오면 닫혀 있다 — 돌아오면 바로 다시 본다. 그 밖에는 10분에 한 번.
+  // 강제 창이 버튼 콜백 없이 사라졌으면(액티비티 재생성 · 표시 실패) open 이 영영 안 풀려 강제 업데이트를 피할 틈이 됐다 —
+  // 띄운 지 1분이 지났는데 앞으로 돌아오면 풀고 다시 본다(민트런 시험 2026-10-01). 진짜 떠 있으면 다시 떠도 같은 창이다
+  return e.onActive(() => {
+    if (open && forced && e.now() - openedAt >= STUCK_MS) open = false;
+    if (!open && (forced || e.now() - last >= 10 * 60_000)) void run();
+  });
 }
