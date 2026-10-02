@@ -38,6 +38,14 @@ export type AdsOptions = {
      * 추적을 껐거나 iOS 미동의면 값이 없고, 그때는 싣지 않는다(서버도 그런 기기는 막지 않는다).
      */
     adid?: boolean;
+    /**
+     * 틱톡 광고 전환(1.7) — 주면 보상형 광고가 **열린 순간** 틱톡에 광고 열람(InAppADImpr)을 보낸다. 앱 코드는 필요 없다.
+     * 보통 `createTikTok({ group, waitForTracking: () => ads.requestTracking() })` 로 만든 것(순서 때문에 나중에 끼워도 된다:
+     * `ads.setTikTok(t)`).
+     */
+    tiktok?: {
+        adImpression: () => void;
+    } | null;
 };
 export type ShowOptions = {
     /** 서버 보상 확인(SSV)에 실을 회원 번호 — 둘러보기면 비운다 */
@@ -58,6 +66,24 @@ export type ShowOptions = {
     onFail: (msg: string, noAd: boolean) => void;
     onClosed?: () => void;
     onOpened?: () => void;
+    /** (1.8) 그만두기(`cancel`) · 걸린 표시 풀기로 끝났다 — 실패로 세지 않는다(play 가 결과를 내려고 쓴다) */
+    onAbort?: () => void;
+};
+/**
+ * `play()` 의 결과 하나(1.8) — 닫힘 뒤 늦게 오는 보상(1.2초)까지 **엔진이 기다린 뒤** 한 번만 온다.
+ * 앱이 닫힘 뒤 몇 백 ms 에 스스로 「안 봤다」로 끝내 0.7~1.2초에 온 보상을 버리던 것(2026-10-02 앱총괄)을 막는다.
+ */
+export type PlayResult = {
+    /** 끝까지 봤다 — 보상(서버 SSV 가 확정) 연출을 해도 된다 */
+    earned: boolean;
+    /** 광고가 화면에 떴었나 */
+    opened: boolean;
+    /** 이미 다른 광고가 도는 중이라 시작하지 못했다(횟수도 깎지 않는다) */
+    busy: boolean;
+    /** 열리지도 않았다(재고 없음 · 로드 실패 · 시간 초과 · 그만두기) — 「다시 시도」 안내 */
+    noAd: boolean;
+    /** 못 봤을 때 보여 줄 문구 */
+    message?: string;
 };
 export type Rewarded = {
     /** 실제 광고를 띄울 수 있는 빌드인가(Expo Go·웹은 거짓 — 앱이 목업으로 넘어간다) */
@@ -66,6 +92,11 @@ export type Rewarded = {
     interstitialAvailable: boolean;
     /** 광고를 띄운다. 이미 하나가 도는 중이라 시작하지 못하면 거짓 */
     show: (o: ShowOptions) => Promise<boolean>;
+    /**
+     * (1.8) 광고를 띄우고 **끝난 결과 하나**를 기다린다 — 보상 판정은 엔진만 한다(닫힘 뒤 늦은 보상 1.2초 포함).
+     * 앱은 타이머로 「안 봤다」를 판정하지 않는다. `onOpened` 등 화면 연출 콜백만 넘긴다.
+     */
+    play: (o: Omit<ShowOptions, 'onEarned' | 'onFail' | 'onClosed' | 'onAbort'>) => Promise<PlayResult>;
     /**
      * **(1.2) 아무것도 하지 않는다** — 광고를 미리 받지 않는다(2026-09-22 사용자 결정 「미리 받아 오는 거 없애자」).
      * 받아 두고 안 보여 준 광고는 AdMob 에 요청만 있고 노출이 없는 것으로 쌓인다. 부르는 앱이 깨지지 않게 이름만 남겼다.
@@ -91,6 +122,10 @@ export type Rewarded = {
      * ATT 를 따로 물어 심사 기준과 어긋났다).
      */
     advertisingId: () => Promise<string | null>;
+    /** (1.7) 틱톡을 나중에 끼운다 — `createTikTok` 이 `ads.requestTracking` 을 기다려야 해서 만드는 순서가 꼬일 때 */
+    setTikTok: (t: {
+        adImpression: () => void;
+    } | null) => void;
 };
 type AppStateLike = {
     currentState: string;

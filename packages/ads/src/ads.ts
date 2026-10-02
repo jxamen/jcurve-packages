@@ -51,6 +51,12 @@ export type AdsOptions = {
    * 추적을 껐거나 iOS 미동의면 값이 없고, 그때는 싣지 않는다(서버도 그런 기기는 막지 않는다).
    */
   adid?: boolean;
+  /**
+   * 틱톡 광고 전환(1.7) — 주면 보상형 광고가 **열린 순간** 틱톡에 광고 열람(InAppADImpr)을 보낸다. 앱 코드는 필요 없다.
+   * 보통 `createTikTok({ group, waitForTracking: () => ads.requestTracking() })` 로 만든 것(순서 때문에 나중에 끼워도 된다:
+   * `ads.setTikTok(t)`).
+   */
+  tiktok?: { adImpression: () => void } | null;
 };
 
 export type ShowOptions = {
@@ -72,6 +78,25 @@ export type ShowOptions = {
   onFail: (msg: string, noAd: boolean) => void;
   onClosed?: () => void;
   onOpened?: () => void;
+  /** (1.8) 그만두기(`cancel`) · 걸린 표시 풀기로 끝났다 — 실패로 세지 않는다(play 가 결과를 내려고 쓴다) */
+  onAbort?: () => void;
+};
+
+/**
+ * `play()` 의 결과 하나(1.8) — 닫힘 뒤 늦게 오는 보상(1.2초)까지 **엔진이 기다린 뒤** 한 번만 온다.
+ * 앱이 닫힘 뒤 몇 백 ms 에 스스로 「안 봤다」로 끝내 0.7~1.2초에 온 보상을 버리던 것(2026-10-02 앱총괄)을 막는다.
+ */
+export type PlayResult = {
+  /** 끝까지 봤다 — 보상(서버 SSV 가 확정) 연출을 해도 된다 */
+  earned: boolean;
+  /** 광고가 화면에 떴었나 */
+  opened: boolean;
+  /** 이미 다른 광고가 도는 중이라 시작하지 못했다(횟수도 깎지 않는다) */
+  busy: boolean;
+  /** 열리지도 않았다(재고 없음 · 로드 실패 · 시간 초과 · 그만두기) — 「다시 시도」 안내 */
+  noAd: boolean;
+  /** 못 봤을 때 보여 줄 문구 */
+  message?: string;
 };
 
 export type Rewarded = {
@@ -81,6 +106,11 @@ export type Rewarded = {
   interstitialAvailable: boolean;
   /** 광고를 띄운다. 이미 하나가 도는 중이라 시작하지 못하면 거짓 */
   show: (o: ShowOptions) => Promise<boolean>;
+  /**
+   * (1.8) 광고를 띄우고 **끝난 결과 하나**를 기다린다 — 보상 판정은 엔진만 한다(닫힘 뒤 늦은 보상 1.2초 포함).
+   * 앱은 타이머로 「안 봤다」를 판정하지 않는다. `onOpened` 등 화면 연출 콜백만 넘긴다.
+   */
+  play: (o: Omit<ShowOptions, 'onEarned' | 'onFail' | 'onClosed' | 'onAbort'>) => Promise<PlayResult>;
   /**
    * **(1.2) 아무것도 하지 않는다** — 광고를 미리 받지 않는다(2026-09-22 사용자 결정 「미리 받아 오는 거 없애자」).
    * 받아 두고 안 보여 준 광고는 AdMob 에 요청만 있고 노출이 없는 것으로 쌓인다. 부르는 앱이 깨지지 않게 이름만 남겼다.
@@ -106,6 +136,8 @@ export type Rewarded = {
    * ATT 를 따로 물어 심사 기준과 어긋났다).
    */
   advertisingId: () => Promise<string | null>;
+  /** (1.7) 틱톡을 나중에 끼운다 — `createTikTok` 이 `ads.requestTracking` 을 기다려야 해서 만드는 순서가 꼬일 때 */
+  setTikTok: (t: { adImpression: () => void } | null) => void;
 };
 
 type AppStateLike = { currentState: string; addEventListener: (t: 'change', fn: (s: string) => void) => { remove: () => void } };
@@ -144,6 +176,7 @@ const MUTE_AFTER = 3;
 const MUTE_MS = 30 * 60 * 1000;
 
 export function createRewarded(opts: AdsOptions, env: AdsEnv = defaultEnv()): Rewarded {
+  let tiktok = opts.tiktok ?? null;
   const mod = env.sdk();
   const os = env.os();
   const test = env.dev() || opts.test;
@@ -324,7 +357,7 @@ export function createRewarded(opts: AdsOptions, env: AdsEnv = defaultEnv()): Re
   const warm = (_userId?: string, _customData?: string, _interstitial = false): void => { /* 1.2: 미리 받지 않는다 */ };
   const warmReady = (_userId?: string, _customData?: string, _interstitial = false): boolean => false;
 
-  async function show({ userId, customData, interstitial = false, onEarned, onFail, onClosed, onOpened }: ShowOptions): Promise<boolean> {
+  async function show({ userId, customData, interstitial = false, onEarned, onFail, onClosed, onOpened, onAbort }: ShowOptions): Promise<boolean> {
     if (!nativeReady) { onFail('이 빌드에서는 광고를 재생할 수 없어요', true); return false; }
     const appState = env.appState();
     const elapsed = Date.now() - showingAt;
@@ -361,8 +394,8 @@ export function createRewarded(opts: AdsOptions, env: AdsEnv = defaultEnv()): Re
       timers.forEach((t) => clearTimeout(t));
       timers.length = 0;
     };
-    abortCurrent = () => { finished = true; cleanup(); };
     const safe = (f?: (...a: any[]) => void, ...args: any[]): void => { try { f?.(...args); } catch { /* noop */ } };
+    abortCurrent = () => { const was = finished; finished = true; cleanup(); if (!was) safe(onAbort); };
     /*
      | 광고를 끝까지 봤는데 「끝까지 보지 않았어요」가 뜨고 보상도 안 들어왔다(꼬꼬농장 2026-09-08).
      | EARNED_REWARD 가 CLOSED **뒤에** 오는 기기가 있다 — 마지막 순간에 X 를 누르면 특히 그렇다.
@@ -410,6 +443,8 @@ export function createRewarded(opts: AdsOptions, env: AdsEnv = defaultEnv()): Re
       opened = true;
       stage = 'open';
       noteAdOpen();
+      // 틱톡 광고 열람 — 계측이 광고를 막지 않는다(1.7)
+      try { tiktok?.adImpression(); } catch { /* noop */ }
       safe(onOpened);
     }));
     offs.push(ad.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => { earned = true; safe(onEarned); }));
@@ -446,8 +481,32 @@ export function createRewarded(opts: AdsOptions, env: AdsEnv = defaultEnv()): Re
     return true;
   }
 
+  /*
+   | 결과 하나로(1.8) — 보상이 닫힘보다 먼저 오면 닫힐 때, 닫힘 뒤에 오면 그때, 끝내 안 오면 엔진의 onFail(닫힘 1.2초 뒤)에서 끝낸다.
+   | 앱 타이머가 끼어들 자리가 없다.
+   */
+  const play = (o: Omit<ShowOptions, 'onEarned' | 'onFail' | 'onClosed' | 'onAbort'>): Promise<PlayResult> => new Promise((resolve) => {
+    let earned = false;
+    let closed = false;
+    let opened = false;
+    let done = false;
+    const finish = (r: PlayResult): void => { if (!done) { done = true; resolve(r); } };
+    void show({
+      ...o,
+      onOpened: () => { opened = true; try { o.onOpened?.(); } catch { /* noop */ } },
+      onEarned: () => { earned = true; if (closed) finish({ earned: true, opened: true, busy: false, noAd: false }); },
+      onClosed: () => { closed = true; if (earned) finish({ earned: true, opened: true, busy: false, noAd: false }); },
+      onFail: (message: string, noAd: boolean) => finish({ earned: false, opened, busy: false, noAd: !!noAd, message }),
+      // 그만두기 · 걸림 풀기 — 이미 보상이 왔으면 본 것으로(서버 SSV 는 그대로 온다)
+      onAbort: () => finish(earned ? { earned: true, opened, busy: false, noAd: false } : { earned: false, opened, busy: false, noAd: !opened, message: '광고를 그만뒀어요' }),
+    }).then((started) => {
+      if (!started && !done) finish({ earned: false, opened: false, busy: true, noAd: false });
+    }, () => finish({ earned: false, opened, busy: false, noAd: !opened, message: '광고를 열지 못했어요' }));
+  });
+
   return {
     available: nativeReady && unitReady,
+    play,
     interstitialAvailable,
     show,
     warm,
@@ -456,5 +515,6 @@ export function createRewarded(opts: AdsOptions, env: AdsEnv = defaultEnv()): Re
     mutedMs: () => Math.max(0, mutedUntil - Date.now()),
     requestTracking,
     advertisingId,
+    setTikTok: (t) => { tiktok = t; },
   };
 }

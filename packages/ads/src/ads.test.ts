@@ -466,3 +466,51 @@ describe('1.1 — 당근캐시가 쓰던 것', () => {
     expect(n.order).toEqual(['initialize']);
   });
 });
+
+describe('play() — 결과 하나(1.8, 앱이 0.7초에 스스로 「안 봤다」로 끝내 늦은 보상을 버리던 것)', () => {
+  it('보상이 닫힘 뒤 0.8초에 와도 earned · 안 오면 1.2초 뒤 earned 거짓(noAd 아님)', async () => {
+    const s = setup();
+    const p = s.ads.play({});
+    await flush();
+    const ad = s.made[0];
+    ad.emit(EV.LOADED); ad.emit(EV.OPENED); ad.emit(EV.CLOSED);
+    vi.advanceTimersByTime(800);
+    ad.emit(EV.EARNED_REWARD);
+    expect(await p).toEqual({ earned: true, opened: true, busy: false, noAd: false });
+
+    const s2 = setup();
+    const p2 = s2.ads.play({});
+    await flush();
+    const ad2 = s2.made[0];
+    ad2.emit(EV.LOADED); ad2.emit(EV.OPENED); ad2.emit(EV.CLOSED);
+    vi.advanceTimersByTime(1300);
+    expect(await p2).toEqual({ earned: false, opened: true, busy: false, noAd: false, message: '광고를 끝까지 보지 않았어요' });
+  });
+
+  it('보상 → 닫힘 순서도 earned · 열리기 전 실패는 noAd · 이미 도는 중이면 busy', async () => {
+    const s = setup();
+    const p = s.ads.play({});
+    await flush();
+    const ad = s.made[0];
+    ad.emit(EV.LOADED); ad.emit(EV.OPENED); ad.emit(EV.EARNED_REWARD);
+    const busy = await s.ads.play({});
+    expect(busy).toEqual({ earned: false, opened: false, busy: true, noAd: false });
+    ad.emit(EV.CLOSED);
+    expect((await p).earned).toBe(true);
+
+    const s2 = setup();
+    const p2 = s2.ads.play({});
+    await flush();
+    s2.made[0].emit(EV.ERROR, { code: 'googleMobileAds/no-fill' });
+    const r2 = await p2;
+    expect([r2.earned, r2.opened, r2.noAd]).toEqual([false, false, true]);
+  });
+
+  it('그만두기(cancel)도 결과를 낸다 — 약속이 매달리지 않는다', async () => {
+    const s = setup();
+    const p = s.ads.play({});
+    await flush();
+    s.ads.cancel();
+    expect(await p).toEqual({ earned: false, opened: false, busy: false, noAd: true, message: '광고를 그만뒀어요' });
+  });
+});
