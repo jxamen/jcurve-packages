@@ -123,7 +123,7 @@
  * 기다리기만 할 때 `auth.afterLoginSettled()`, Modal 안전장치는 `visible={want && auth.loginSettled()}`(README 2.6).
  */
 export { AuthError, createAuth, createReturnWatch, isCancel, parseReturn, PLACEHOLDER } from './auth';
-export type { AnyProvider, Auth, AuthDeps, AuthEnv, AuthErrorCode, Guest, Provider, ServerLogin, TrackParams, WebLogin } from './auth';
+export type { AnyProvider, Auth, AuthDeps, AuthEnv, AuthErrorCode, Guest, NaverKeys, Provider, ServerLogin, TrackParams, WebLogin } from './auth';
 export { createFunnel, FUNNEL_EVENTS, looksPersonal, referrerKeys } from './funnel';
 export type { Funnel, FunnelDeps, FunnelEnv, KeyValue } from './funnel';
 export { createTrack, propOf, standardEvent } from './track';

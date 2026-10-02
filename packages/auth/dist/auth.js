@@ -493,6 +493,61 @@ function createAuth(deps, env = defaultEnv()) {
             throw e;
         }
     }
+    /** 이 앱이 네이버 앱 로그인을 붙였는가 — 셋 중 하나도 없으면 예전처럼 조용히 웹으로(기록도 안 남긴다) */
+    const naverWired = () => Boolean(deps.naverSdk || keys.naver || server.naver);
+    let naverInitKey = '';
+    /**
+     * 네이버 토큰(2.8) — 네이버 앱이 깔려 있으면 앱으로, 없으면 SDK 가 자기 화면으로 한다(대표님 10-03 「네이버 앱으로」).
+     * 카카오처럼 **갈래마다 사유를 남긴다.** 취소는 취소다 — 웹 창을 또 열지 않는다.
+     */
+    async function naverToken() {
+        const fall = (code) => {
+            track('login_native_fallback', { provider: 'naver', code });
+            if (web)
+                return FALL;
+            throw new AuthError('failed', 'naver_' + code);
+        };
+        const raw = mod(() => deps.naverSdk?.());
+        const sdk = raw?.login ? raw : raw?.default;
+        if (!sdk?.login || !sdk?.initialize || !server.naver)
+            return fall('no_sdk');
+        let k;
+        try {
+            k = await keys.naver?.();
+        }
+        catch {
+            k = null;
+        }
+        if (!k || isPlaceholder(k.consumerKey) || isPlaceholder(k.consumerSecret))
+            return fall('no_keys');
+        // iOS 는 URL Scheme 이 없으면 SDK 가 초기화를 조용히 건너뛴다 — 그러면 login() 이 영영 안 끝날 수 있다
+        if (env.os() === 'ios' && isPlaceholder(k.serviceUrlScheme))
+            return fall('no_scheme');
+        let r;
+        try {
+            const sig = [k.consumerKey, k.consumerSecret, k.appName, k.serviceUrlScheme ?? ''].join('|');
+            if (naverInitKey !== sig) {
+                await sdk.initialize({ consumerKey: k.consumerKey, consumerSecret: k.consumerSecret, appName: k.appName || 'app',
+                    serviceUrlSchemeIOS: k.serviceUrlScheme ?? '' });
+                naverInitKey = sig;
+            }
+            r = await sdk.login();
+        }
+        catch (e) {
+            if ((0, exports.isCancel)(errText(e)))
+                throw new AuthError('cancelled', 'naver');
+            return fall('sdk_' + shortCode(e));
+        }
+        const token = String(r?.successResponse?.accessToken ?? '');
+        if (r?.isSuccess && token) {
+            track('login_native_ok', { provider: 'naver' });
+            return token;
+        }
+        const f = r?.failureResponse;
+        if (f?.isCancel === true || (0, exports.isCancel)(String(f?.message ?? '')))
+            throw new AuthError('cancelled', 'naver');
+        return fall('sdk_' + String(f?.lastErrorCodeFromNaverSDK ?? (r?.isSuccess ? 'no_token' : 'failed')).replace(/[^A-Za-z0-9_]/g, '').slice(0, 20));
+    }
     async function appleNative() {
         const a = env.apple();
         if (!a)
@@ -720,7 +775,8 @@ function createAuth(deps, env = defaultEnv()) {
         const list = deps.providers?.() ?? [];
         // 카카오는 REST 키(kakao)든 앱 키(kakao_native)든 하나만 켜져도 켜진 것이다(2.1.2) — 서버는 앱 키만 있으면
         // kakao_native 만 준다. 'kakao' 만 찾아서, 카카오톡 로그인만 켠 앱(총무님)의 버튼이 서버에 가지도 않고 막혔다
-        const on = list.includes(provider) || (provider === 'kakao' && list.includes('kakao_native'));
+        const on = list.includes(provider) || (provider === 'kakao' && list.includes('kakao_native'))
+            || (provider === 'naver' && list.includes('naver_native'));
         if (list.length > 0 && !on)
             throw new AuthError('disabled', provider);
         /*
@@ -743,6 +799,20 @@ function createAuth(deps, env = defaultEnv()) {
             throw new AuthError('failed', 'apple_unavailable');
         }
         if (provider === 'naver') {
+            if (naverWired()) {
+                // 서버가 네이버 앱 로그인을 안 준다(키 없음)고 **받아 본 결과**일 때만 건너뛴다 — 비어 있으면 모르는 것
+                if (list.length > 0 && !list.includes('naver_native')) {
+                    track('login_native_fallback', { provider: 'naver', code: 'server_off' });
+                }
+                else {
+                    const t = await naverToken();
+                    if (t !== FALL) {
+                        const s = await exchange('naver', () => server.naver(t));
+                        if (s !== FALL)
+                            return s;
+                    }
+                }
+            }
             if (!web)
                 throw new AuthError('failed', 'naver_needs_web');
             return webLogin('naver', alive);

@@ -11,8 +11,14 @@ import { createSettle } from './settle';
 
 export type Provider = 'kakao' | 'google' | 'apple';
 
-/** 서버 웹 로그인으로만 되는 제공자까지 — 네이버는 SDK 를 붙이지 않고 웹으로만 간다 */
+/** 서버 웹 로그인으로도 되는 제공자까지 — 네이버는 앱이 SDK 를 주면 네이버 앱으로(2.8), 아니면 웹으로 간다 */
 export type AnyProvider = Provider | 'naver';
+
+/**
+ * 네이버 SDK 초기화 값(2.8) — **서버가 내려 준 값**을 앱이 그대로 넘긴다(`auth/providers` 의 `config.naver`).
+ * `serviceUrlScheme` 은 앱의 iOS URL Scheme(app.json 에 넣은 것) — 패키지는 이 값만 쓴다(하드코딩 없음).
+ */
+export type NaverKeys = { consumerKey: string; consumerSecret: string; appName: string; serviceUrlScheme?: string };
 
 /** 서버가 토큰을 받아 세션을 만들어 준다 — 모양은 앱마다 다르므로 그대로 흘려보낸다 */
 export type ServerLogin<T> = {
@@ -20,6 +26,8 @@ export type ServerLogin<T> = {
   google: (idToken: string) => Promise<T>;
   /** 이름은 애플이 **최초 1회만** 준다 — 그때 서버에 넘기지 않으면 영영 못 받는다 */
   apple: (identityToken: string, name: string) => Promise<T>;
+  /** (2.8) 네이버 앱 로그인 토큰 → `POST {app}/auth/naver { accessToken }`. 없으면 네이버는 웹으로만 */
+  naver?: (accessToken: string) => Promise<T>;
 };
 
 /**
@@ -81,7 +89,19 @@ export type AuthDeps<T> = {
     googleWeb?: string;
     /** 없으면 웹 클라이언트 ID 로만 돈다 */
     googleIos?: string;
+    /**
+     * (2.8) 네이버 SDK 값 — **누를 때** 부른다(서버 목록을 앱이 뜬 뒤 받으므로 함수). 못 받았으면 null —
+     * 그때는 웹 로그인으로 넘어가고 `login_native_fallback{provider:'naver', code:'no_keys'}` 를 남긴다.
+     */
+    naver?: () => NaverKeys | null | undefined | Promise<NaverKeys | null | undefined>;
   };
+  /**
+   * (2.8) `@react-native-seoul/naver-login` 모듈 — 앱이 `() => require('@react-native-seoul/naver-login').default` 로 준다.
+   *
+   * 패키지가 직접 require 하지 않는 이유는 `random` 과 같다 — Metro 는 require 를 **빌드 때** 찾아서, 그 모듈이
+   * 없는 앱은 try/catch 로 감싸도 번들이 깨진다. 이것 · `keys.naver` · `server.naver` 가 모두 있어야 네이버 앱으로 간다.
+   */
+  naverSdk?: () => any;
   server: ServerLogin<T>;
   /**
    * 사용 기록 — `createTrack()` 이 만든 것이나 앱의 `track()` 을 그대로 준다.
@@ -94,7 +114,7 @@ export type AuthDeps<T> = {
   /** 서버 웹 로그인(2.0). 없으면 SDK 로만 한다 */
   web?: WebLogin<T>;
   /**
-   * 어드민이 켠 로그인 — 서버의 제공자 목록(`kakao`·`kakao_native`·`google`·`naver`·`apple`·`apple_web`).
+   * 어드민이 켠 로그인 — 서버의 제공자 목록(`kakao`·`kakao_native`·`google`·`naver`·`naver_native`·`apple`·`apple_web`).
    *
    * **비어 있으면 「아직 모른다」로 읽는다**(막지 않는다). 목록은 앱이 뜬 뒤 따로 받아 오는데,
    * 사람들은 첫 실행 1~5초 만에 로그인을 누른다. 그때 막으면 카카오 가입이 52 → 0 으로
@@ -757,7 +777,7 @@ export function createAuth<T>(deps: AuthDeps<T>, env: AuthEnv = defaultEnv()): A
    * 여기서 막히는데, 앱 기록만 보면 「카카오톡으로 잘 받았다」로 끝나 원인이 안 보인다.
    * 꼬꼬농장이 카카오 가입 0 명을 한동안 못 알아챈 것도 이런 자리였다.
    */
-  async function exchange(provider: 'kakao' | 'google', call: () => Promise<T>): Promise<T | typeof FALL> {
+  async function exchange(provider: 'kakao' | 'google' | 'naver', call: () => Promise<T>): Promise<T | typeof FALL> {
     try {
       return await withRetry(call);
     } catch (e) {
@@ -765,6 +785,59 @@ export function createAuth<T>(deps: AuthDeps<T>, env: AuthEnv = defaultEnv()): A
       if (web) return FALL;   // 서버 웹 로그인으로 한 번 더 기회를 준다
       throw e;
     }
+  }
+
+  /** 이 앱이 네이버 앱 로그인을 붙였는가 — 셋 중 하나도 없으면 예전처럼 조용히 웹으로(기록도 안 남긴다) */
+  const naverWired = (): boolean => Boolean(deps.naverSdk || keys.naver || server.naver);
+  let naverInitKey = '';
+
+  /**
+   * 네이버 토큰(2.8) — 네이버 앱이 깔려 있으면 앱으로, 없으면 SDK 가 자기 화면으로 한다(대표님 10-03 「네이버 앱으로」).
+   * 카카오처럼 **갈래마다 사유를 남긴다.** 취소는 취소다 — 웹 창을 또 열지 않는다.
+   */
+  async function naverToken(): Promise<string | typeof FALL> {
+    const fall = (code: string): typeof FALL => {
+      track('login_native_fallback', { provider: 'naver', code });
+      if (web) return FALL;
+      throw new AuthError('failed', 'naver_' + code);
+    };
+    const raw = mod<any>(() => deps.naverSdk?.());
+    const sdk = raw?.login ? raw : raw?.default;
+    if (!sdk?.login || !sdk?.initialize || !server.naver) return fall('no_sdk');
+    let k: NaverKeys | null | undefined;
+    try {
+      k = await keys.naver?.();
+    } catch {
+      k = null;
+    }
+    if (!k || isPlaceholder(k.consumerKey) || isPlaceholder(k.consumerSecret)) return fall('no_keys');
+    // iOS 는 URL Scheme 이 없으면 SDK 가 초기화를 조용히 건너뛴다 — 그러면 login() 이 영영 안 끝날 수 있다
+    if (env.os() === 'ios' && isPlaceholder(k.serviceUrlScheme)) return fall('no_scheme');
+
+    let r: any;
+    try {
+      const sig = [k.consumerKey, k.consumerSecret, k.appName, k.serviceUrlScheme ?? ''].join('|');
+      if (naverInitKey !== sig) {
+        await sdk.initialize({ consumerKey: k.consumerKey, consumerSecret: k.consumerSecret, appName: k.appName || 'app',
+          serviceUrlSchemeIOS: k.serviceUrlScheme ?? '' });
+        naverInitKey = sig;
+      }
+      r = await sdk.login();
+    } catch (e) {
+      if (isCancel(errText(e))) throw new AuthError('cancelled', 'naver');
+
+      return fall('sdk_' + shortCode(e));
+    }
+    const token = String(r?.successResponse?.accessToken ?? '');
+    if (r?.isSuccess && token) {
+      track('login_native_ok', { provider: 'naver' });
+
+      return token;
+    }
+    const f = r?.failureResponse;
+    if (f?.isCancel === true || isCancel(String(f?.message ?? ''))) throw new AuthError('cancelled', 'naver');
+
+    return fall('sdk_' + String(f?.lastErrorCodeFromNaverSDK ?? (r?.isSuccess ? 'no_token' : 'failed')).replace(/[^A-Za-z0-9_]/g, '').slice(0, 20));
   }
 
   async function appleNative(): Promise<T> {
@@ -972,7 +1045,8 @@ export function createAuth<T>(deps: AuthDeps<T>, env: AuthEnv = defaultEnv()): A
     const list = deps.providers?.() ?? [];
     // 카카오는 REST 키(kakao)든 앱 키(kakao_native)든 하나만 켜져도 켜진 것이다(2.1.2) — 서버는 앱 키만 있으면
     // kakao_native 만 준다. 'kakao' 만 찾아서, 카카오톡 로그인만 켠 앱(총무님)의 버튼이 서버에 가지도 않고 막혔다
-    const on = list.includes(provider) || (provider === 'kakao' && list.includes('kakao_native'));
+    const on = list.includes(provider) || (provider === 'kakao' && list.includes('kakao_native'))
+      || (provider === 'naver' && list.includes('naver_native'));
     if (list.length > 0 && !on) throw new AuthError('disabled', provider);
 
     /*
@@ -994,6 +1068,18 @@ export function createAuth<T>(deps: AuthDeps<T>, env: AuthEnv = defaultEnv()): A
       throw new AuthError('failed', 'apple_unavailable');
     }
     if (provider === 'naver') {
+      if (naverWired()) {
+        // 서버가 네이버 앱 로그인을 안 준다(키 없음)고 **받아 본 결과**일 때만 건너뛴다 — 비어 있으면 모르는 것
+        if (list.length > 0 && !list.includes('naver_native')) {
+          track('login_native_fallback', { provider: 'naver', code: 'server_off' });
+        } else {
+          const t = await naverToken();
+          if (t !== FALL) {
+            const s = await exchange('naver', () => (server.naver as (a: string) => Promise<T>)(t));
+            if (s !== FALL) return s;
+          }
+        }
+      }
       if (!web) throw new AuthError('failed', 'naver_needs_web');
 
       return webLogin('naver', alive);

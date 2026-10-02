@@ -211,6 +211,34 @@ const headers = { ...base, ...(DEVICE_PATHS.includes(path) ? await funnel.device
 - `deviceHeaders()` 는 저장된 ID 를 **읽을 때까지 기다린다**(켜자마자 부르는 `auth/me` 에서도 실린다). 못 읽으면 `{}`, 던지지 않는다.
 - 서버(jcurve-api)는 `X-Device-Id` 가 없거나 모양이 틀리면 건너뛰고 **로그인은 그대로** 한다 — 옛 판도 같다.
 
+## 2.8 — 네이버 앱 로그인(`naverSdk` · `keys.naver` · `server.naver`)
+
+대표님 2026-10-03 「네이버는 앱으로」 — 네이버 앱이 있으면 앱으로, 없으면 네이버 SDK 화면으로 로그인한다(웹 창 아님).
+**셋이 다 있어야** 네이버 앱으로 간다. 하나도 안 주면 예전처럼 서버 웹 로그인만.
+
+```ts
+// npm i @react-native-seoul/naver-login (5.x) — 패키지는 직접 require 하지 않는다(없는 앱의 번들이 깨지지 않게)
+const auth = createAuth({
+  keys: {
+    ...,
+    // 서버 `GET {app}/auth/providers` 의 config.naver — 실행 때 받은 값. 스킴은 app.json 에 넣은 iOS URL Scheme
+    naver: () => providers.config?.naver
+      ? { consumerKey: providers.config.naver.clientId, consumerSecret: providers.config.naver.clientSecret,
+          appName: providers.config.naver.appName, serviceUrlScheme: 'factoonaver' }
+      : null,
+  },
+  naverSdk: () => require('@react-native-seoul/naver-login').default,
+  server: { ..., naver: (accessToken) => call('auth/naver', { accessToken }) },
+});
+```
+
+- 서버는 네이버 키(client_id · client_secret)가 있는 앱에 `providers` 로 `naver_native` 와 `config.naver{clientId, clientSecret, appName}` 을 준다.
+  네이버 네이티브 SDK 는 공식 방식상 Client Secret 을 **앱 안에서** 쓴다 — 빌드에 굽지 않고 실행 때 받는다.
+- iOS: app.json 에 URL Scheme 을 넣고 **같은 값을** `serviceUrlScheme` 로 준다(패키지는 하드코딩하지 않는다). 없으면 `no_scheme` 으로 웹.
+- 취소는 취소다(웹 창을 또 열지 않는다). 안 될 때는 `login_native_fallback{provider:'naver', code}` 를 남기고 웹으로 —
+  `no_sdk`(모듈 · 서버 함수 없음) · `no_keys`(서버 값 못 받음) · `no_scheme` · `sdk_<네이버 오류 코드>` · `server_off`(서버가 naver_native 를 안 줌) · `server_reject`.
+- 성공은 `login_native_ok{provider:'naver'}`(GA4 에만).
+
 ## 웹 폴백을 직접 만들 때 (안드로이드)
 
 2.0 의 `web` 을 주면 **패키지가 창을 열고 아래도 한다.** 앱에서 `openAuthSessionAsync` 같은 것으로

@@ -1,12 +1,24 @@
 export type Provider = 'kakao' | 'google' | 'apple';
-/** 서버 웹 로그인으로만 되는 제공자까지 — 네이버는 SDK 를 붙이지 않고 웹으로만 간다 */
+/** 서버 웹 로그인으로도 되는 제공자까지 — 네이버는 앱이 SDK 를 주면 네이버 앱으로(2.8), 아니면 웹으로 간다 */
 export type AnyProvider = Provider | 'naver';
+/**
+ * 네이버 SDK 초기화 값(2.8) — **서버가 내려 준 값**을 앱이 그대로 넘긴다(`auth/providers` 의 `config.naver`).
+ * `serviceUrlScheme` 은 앱의 iOS URL Scheme(app.json 에 넣은 것) — 패키지는 이 값만 쓴다(하드코딩 없음).
+ */
+export type NaverKeys = {
+    consumerKey: string;
+    consumerSecret: string;
+    appName: string;
+    serviceUrlScheme?: string;
+};
 /** 서버가 토큰을 받아 세션을 만들어 준다 — 모양은 앱마다 다르므로 그대로 흘려보낸다 */
 export type ServerLogin<T> = {
     kakao: (accessToken: string) => Promise<T>;
     google: (idToken: string) => Promise<T>;
     /** 이름은 애플이 **최초 1회만** 준다 — 그때 서버에 넘기지 않으면 영영 못 받는다 */
     apple: (identityToken: string, name: string) => Promise<T>;
+    /** (2.8) 네이버 앱 로그인 토큰 → `POST {app}/auth/naver { accessToken }`. 없으면 네이버는 웹으로만 */
+    naver?: (accessToken: string) => Promise<T>;
 };
 /**
  * 계측에 실을 수 있는 값 — **스칼라만**.
@@ -64,7 +76,19 @@ export type AuthDeps<T> = {
         googleWeb?: string;
         /** 없으면 웹 클라이언트 ID 로만 돈다 */
         googleIos?: string;
+        /**
+         * (2.8) 네이버 SDK 값 — **누를 때** 부른다(서버 목록을 앱이 뜬 뒤 받으므로 함수). 못 받았으면 null —
+         * 그때는 웹 로그인으로 넘어가고 `login_native_fallback{provider:'naver', code:'no_keys'}` 를 남긴다.
+         */
+        naver?: () => NaverKeys | null | undefined | Promise<NaverKeys | null | undefined>;
     };
+    /**
+     * (2.8) `@react-native-seoul/naver-login` 모듈 — 앱이 `() => require('@react-native-seoul/naver-login').default` 로 준다.
+     *
+     * 패키지가 직접 require 하지 않는 이유는 `random` 과 같다 — Metro 는 require 를 **빌드 때** 찾아서, 그 모듈이
+     * 없는 앱은 try/catch 로 감싸도 번들이 깨진다. 이것 · `keys.naver` · `server.naver` 가 모두 있어야 네이버 앱으로 간다.
+     */
+    naverSdk?: () => any;
     server: ServerLogin<T>;
     /**
      * 사용 기록 — `createTrack()` 이 만든 것이나 앱의 `track()` 을 그대로 준다.
@@ -77,7 +101,7 @@ export type AuthDeps<T> = {
     /** 서버 웹 로그인(2.0). 없으면 SDK 로만 한다 */
     web?: WebLogin<T>;
     /**
-     * 어드민이 켠 로그인 — 서버의 제공자 목록(`kakao`·`kakao_native`·`google`·`naver`·`apple`·`apple_web`).
+     * 어드민이 켠 로그인 — 서버의 제공자 목록(`kakao`·`kakao_native`·`google`·`naver`·`naver_native`·`apple`·`apple_web`).
      *
      * **비어 있으면 「아직 모른다」로 읽는다**(막지 않는다). 목록은 앱이 뜬 뒤 따로 받아 오는데,
      * 사람들은 첫 실행 1~5초 만에 로그인을 누른다. 그때 막으면 카카오 가입이 52 → 0 으로
