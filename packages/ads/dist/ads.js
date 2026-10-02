@@ -50,6 +50,7 @@ function withTimeout(p, ms) {
 const MUTE_AFTER = 3;
 const MUTE_MS = 30 * 60 * 1000;
 function createRewarded(opts, env = defaultEnv()) {
+    let tiktok = opts.tiktok ?? null;
     const mod = env.sdk();
     const os = env.os();
     const test = env.dev() || opts.test;
@@ -357,6 +358,11 @@ function createRewarded(opts, env = defaultEnv()) {
             opened = true;
             stage = 'open';
             noteAdOpen();
+            // 틱톡 광고 열람 — 계측이 광고를 막지 않는다(1.7)
+            try {
+                tiktok?.adImpression();
+            }
+            catch { /* noop */ }
             safe(onOpened);
         }));
         offs.push(ad.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => { earned = true; safe(onEarned); }));
@@ -408,5 +414,6 @@ function createRewarded(opts, env = defaultEnv()) {
         mutedMs: () => Math.max(0, mutedUntil - Date.now()),
         requestTracking,
         advertisingId,
+        setTikTok: (t) => { tiktok = t; },
     };
 }

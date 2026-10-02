@@ -51,6 +51,12 @@ export type AdsOptions = {
    * 추적을 껐거나 iOS 미동의면 값이 없고, 그때는 싣지 않는다(서버도 그런 기기는 막지 않는다).
    */
   adid?: boolean;
+  /**
+   * 틱톡 광고 전환(1.7) — 주면 보상형 광고가 **열린 순간** 틱톡에 광고 열람(InAppADImpr)을 보낸다. 앱 코드는 필요 없다.
+   * 보통 `createTikTok({ group, waitForTracking: () => ads.requestTracking() })` 로 만든 것(순서 때문에 나중에 끼워도 된다:
+   * `ads.setTikTok(t)`).
+   */
+  tiktok?: { adImpression: () => void } | null;
 };
 
 export type ShowOptions = {
@@ -106,6 +112,8 @@ export type Rewarded = {
    * ATT 를 따로 물어 심사 기준과 어긋났다).
    */
   advertisingId: () => Promise<string | null>;
+  /** (1.7) 틱톡을 나중에 끼운다 — `createTikTok` 이 `ads.requestTracking` 을 기다려야 해서 만드는 순서가 꼬일 때 */
+  setTikTok: (t: { adImpression: () => void } | null) => void;
 };
 
 type AppStateLike = { currentState: string; addEventListener: (t: 'change', fn: (s: string) => void) => { remove: () => void } };
@@ -144,6 +152,7 @@ const MUTE_AFTER = 3;
 const MUTE_MS = 30 * 60 * 1000;
 
 export function createRewarded(opts: AdsOptions, env: AdsEnv = defaultEnv()): Rewarded {
+  let tiktok = opts.tiktok ?? null;
   const mod = env.sdk();
   const os = env.os();
   const test = env.dev() || opts.test;
@@ -410,6 +419,8 @@ export function createRewarded(opts: AdsOptions, env: AdsEnv = defaultEnv()): Re
       opened = true;
       stage = 'open';
       noteAdOpen();
+      // 틱톡 광고 열람 — 계측이 광고를 막지 않는다(1.7)
+      try { tiktok?.adImpression(); } catch { /* noop */ }
       safe(onOpened);
     }));
     offs.push(ad.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => { earned = true; safe(onEarned); }));
@@ -456,5 +467,6 @@ export function createRewarded(opts: AdsOptions, env: AdsEnv = defaultEnv()): Re
     mutedMs: () => Math.max(0, mutedUntil - Date.now()),
     requestTracking,
     advertisingId,
+    setTikTok: (t) => { tiktok = t; },
   };
 }

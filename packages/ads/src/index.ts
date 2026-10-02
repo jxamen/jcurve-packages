@@ -59,7 +59,26 @@
  * ```
  *
  * `available` 이 거짓이면(Expo Go·웹) 앱이 목업 광고로 넘어간다. `interstitialAvailable` 이 거짓이면 보상형으로 띄운다.
+ *
+ * ## 틱톡 광고 전환(1.7) — 광고는 전부 이 패키지
+ *
+ * 앱마다 따로 넣던 TikTok Business SDK 코드를 옮겼다(2026-10-02 대표님 「TikTok까지 패키지로 … 광고는 다」). 앱마다 다른 것은
+ * **어드민 설정 그룹 이름**뿐 — 값표는 README. app.json `plugins` 에 `"@jcurve/ads"` 를 더한다(안드 JitPack).
+ *
+ * ```ts
+ * import { createRewarded, createTikTok } from '@jcurve/ads';
+ * export const ads = createRewarded({ units, test });
+ * export const tiktok = createTikTok({ group: 'carrot', test, waitForTracking: () => ads.requestTracking() });
+ * ads.setTikTok(tiktok);                       // 보상형 광고가 열리면 InAppADImpr 를 패키지가 보낸다
+ * tiktok.boot(() => fetchCustomConfig().then((c) => c?.values));   // 앱 루트, 켤 때 한 번(로그인 전 설치)
+ * tiktok.track('signup_done');                 // 가입 · 'login_done'
+ * tiktok.identify(memberId); tiktok.logout();
+ * ```
  */
 export { createRewarded } from './ads';
 export type { AdsEnv, AdsOptions, AdUnits, Rewarded, ShowOptions, TrackingResult } from './ads';
 export { isTestAds, readUpdateChannel, ssvRequestOptions, useTestAdUnit } from './mode';
+export { createTikTok } from './tiktok';
+export type { TikTok, TikTokEnv, TikTokNative, TikTokOptions } from './tiktok';
+export { tiktokEventFor, tiktokIds, tiktokKeys, tiktokSecret } from './tiktok.map';
+export type { StandardKey, TikTokCall } from './tiktok.map';

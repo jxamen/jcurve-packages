@@ -38,6 +38,14 @@ export type AdsOptions = {
      * 추적을 껐거나 iOS 미동의면 값이 없고, 그때는 싣지 않는다(서버도 그런 기기는 막지 않는다).
      */
     adid?: boolean;
+    /**
+     * 틱톡 광고 전환(1.7) — 주면 보상형 광고가 **열린 순간** 틱톡에 광고 열람(InAppADImpr)을 보낸다. 앱 코드는 필요 없다.
+     * 보통 `createTikTok({ group, waitForTracking: () => ads.requestTracking() })` 로 만든 것(순서 때문에 나중에 끼워도 된다:
+     * `ads.setTikTok(t)`).
+     */
+    tiktok?: {
+        adImpression: () => void;
+    } | null;
 };
 export type ShowOptions = {
     /** 서버 보상 확인(SSV)에 실을 회원 번호 — 둘러보기면 비운다 */
@@ -91,6 +99,10 @@ export type Rewarded = {
      * ATT 를 따로 물어 심사 기준과 어긋났다).
      */
     advertisingId: () => Promise<string | null>;
+    /** (1.7) 틱톡을 나중에 끼운다 — `createTikTok` 이 `ads.requestTracking` 을 기다려야 해서 만드는 순서가 꼬일 때 */
+    setTikTok: (t: {
+        adImpression: () => void;
+    } | null) => void;
 };
 type AppStateLike = {
     currentState: string;

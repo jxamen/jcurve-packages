@@ -1,0 +1,5 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": { "modules": ["JcurveTikTokModule"] },
+  "android": { "modules": ["kr.co.jcurve.ads.tiktok.JcurveTikTokModule"] }
+}
