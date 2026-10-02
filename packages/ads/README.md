@@ -8,7 +8,7 @@
 
 ```jsonc
 // package.json
-"@jcurve/ads": "https://github.com/jxamen/jcurve-packages/releases/download/ads-v1.7.0/jcurve-ads-1.7.0.tgz"
+"@jcurve/ads": "https://github.com/jxamen/jcurve-packages/releases/download/ads-v1.8.0/jcurve-ads-1.8.0.tgz"
 ```
 
 ```jsonc
@@ -48,6 +48,20 @@ tiktok.track('signup_done');   // 가입 → Registration · 'login_done' → Lo
 tiktok.identify(memberId);     // 로그인 · 세션 복원(회원 번호만)
 tiktok.logout();
 ```
+
+## 끝난 결과 하나로 받기 — `play()`(1.8)
+
+앱이 닫힘 뒤 몇 백 ms 에 스스로 「끝까지 보지 않았어요」로 끝내면, 닫힘 **뒤에** 오는 보상(최대 1.2초)을 버린다(2026-10-02 여러 앱의
+0.7초 판정). `play()` 는 엔진이 그 대기까지 끝낸 뒤 **결과 하나**만 준다 — 앱은 타이머로 판정하지 않는다.
+
+```ts
+const r = await ads.play({ userId, customData, onOpened: () => hideWaiting() });
+if (r.busy) return;                       // 이미 다른 광고가 도는 중
+if (r.earned) celebrate();                // 보상은 서버 SSV 가 확정, 이건 연출
+else toast(r.message ?? '광고를 보지 못했어요');   // r.noAd 면 「잠시 후 다시」, 아니면 중간에 닫음
+```
+
+`show()` 와 콜백은 그대로 있다(옛 앱 그대로 돈다).
 
 ## 틱톡 값표
 

@@ -1,6 +1,6 @@
 {
   "name": "@jcurve/ads",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "리워드 앱 공용 광고 — AdMob 보상형(꼬꼬농장 방식, 화면 없음) · ATT · 틱톡 광고 전환(TikTok Business SDK)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

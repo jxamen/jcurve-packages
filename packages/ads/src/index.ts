@@ -76,7 +76,7 @@
  * ```
  */
 export { createRewarded } from './ads';
-export type { AdsEnv, AdsOptions, AdUnits, Rewarded, ShowOptions, TrackingResult } from './ads';
+export type { AdsEnv, AdsOptions, AdUnits, PlayResult, Rewarded, ShowOptions, TrackingResult } from './ads';
 export { isTestAds, readUpdateChannel, ssvRequestOptions, useTestAdUnit } from './mode';
 export { createTikTok } from './tiktok';
 export type { TikTok, TikTokEnv, TikTokNative, TikTokOptions } from './tiktok';

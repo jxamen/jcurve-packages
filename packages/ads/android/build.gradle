@@ -4,13 +4,13 @@ apply plugin: 'com.android.library'
 apply plugin: 'expo-module-gradle-plugin'
 
 group = 'kr.co.jcurve.ads'
-version = '1.7.0'
+version = '1.8.0'
 
 android {
   namespace "kr.co.jcurve.ads.tiktok"
   defaultConfig {
     versionCode 1
-    versionName "1.7.0"
+    versionName "1.8.0"
     // 앱의 R8 에 붙는 규칙 — Play 결제 클래스가 없어도 R8 이 멈추지 않게(consumer-rules.pro)
     consumerProguardFiles 'consumer-rules.pro'
   }
