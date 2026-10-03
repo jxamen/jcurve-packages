@@ -211,6 +211,24 @@ const headers = { ...base, ...(DEVICE_PATHS.includes(path) ? await funnel.device
 - `deviceHeaders()` 는 저장된 ID 를 **읽을 때까지 기다린다**(켜자마자 부르는 `auth/me` 에서도 실린다). 못 읽으면 `{}`, 던지지 않는다.
 - 서버(jcurve-api)는 `X-Device-Id` 가 없거나 모양이 틀리면 건너뛰고 **로그인은 그대로** 한다 — 옛 판도 같다.
 
+## 2.9 — 로그아웃 · 탈퇴 정리 · 새 가입 구분(`signOut` · `withdraw` · `isNewMember`)
+
+대표님 10-03 「이건 당연한 건데… 패키지화 가능?」 — 로그아웃 뒤 네이버를 다시 누르면 계정 선택 없이 바로 들어가고(SDK 토큰이 남음), 가입 회원이 온보딩으로 가던 것.
+
+```ts
+const auth = createAuth({ ..., server: { ..., logout: () => call('auth/logout'), withdraw: () => call('me/withdraw', { reason }) } });
+
+await auth.signOut();                 // 서버 로그아웃(실패 무시) + 네이버 logout · 카카오 logout · 구글 signOut → 앱은 자기 세션 저장값을 지운다
+const r = await auth.withdraw();      // 서버 탈퇴가 되면 네이버 deleteToken · 카카오 unlink · 구글 revokeAccess
+if (!r.ok) alert(r.error);            // 서버가 막으면 연결은 그대로 · 이유를 보여 준다
+if (isNewMember(loginResult)) goOnboarding();   // 서버 isNew(첫 세션) → 없으면 member.needsSignup
+memberLabel(member)                   // 이름 → 이메일 → 「네이버로 가입」(네이버 · 애플은 이메일이 비어 올 수 있다)
+```
+
+- `forgetSdks({ unlink? })` 만 따로 불러도 된다. SDK 하나가 실패해도 나머지는 정리하고 `{ kakao: '사유' }` 처럼 돌려준다. 애플은 기기에 지울 토큰이 없고, 애플 revoke 는 대표님 결정 전 보류.
+- 설정 플러그인: app.json plugins 에 `"@jcurve/auth"` — 네이버 앱이 어느 스킴으로 돌아와도 네이버 SDK 로 넘긴다(AppDelegate open url 맨 앞). 네이버를 안 쓰면 `["@jcurve/auth", { "naver": false }]`, 앱 안 웹 로그인 스킴은 `{ "naverUrlScheme": "…" }` 또는 app.json extra.naverUrlScheme. 앱에 넣어 둔 plugins/withNaverReturn.js 는 지운다.
+- 401 처리(세션이 없는 게스트가 로그인 필요한 API 를 불렀을 때 「만료」로 튕기지 않기)는 앱의 API 층 몫 — 세션 토큰이 있을 때만 만료 처리하세요.
+
 ## 2.8 — 네이버 앱 로그인(`naverSdk` · `keys.naver` · `server.naver`)
 
 대표님 2026-10-03 「네이버는 앱으로」 — 네이버 앱이 있으면 앱으로, 없으면 네이버 SDK 화면으로 로그인한다(웹 창 아님).

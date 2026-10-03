@@ -1,6 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.isCancel = exports.PLACEHOLDER = exports.AuthError = void 0;
+exports.isNewMember = isNewMember;
+exports.memberLabel = memberLabel;
 exports.createReturnWatch = createReturnWatch;
 exports.parseReturn = parseReturn;
 exports.createAuth = createAuth;
@@ -14,6 +16,31 @@ exports.createAuth = createAuth;
  * 로그인 중 재시작 막기. 전부 **선택**이라 1.0 처럼 셋(키·서버·기록)만 줘도 그대로 돈다.
  */
 const settle_1 = require("./settle");
+/**
+ * (2.9) 로그인 결과가 「새 가입」인가 — 서버 `isNew`(첫 세션, jcurve-api e98cfb5) → 없으면 `member.needsSignup`(약관 전) → false.
+ * 앱은 새 가입만 온보딩으로 보낸다(대표님 10-03 「가입 회원인데 온보딩으로 감」).
+ */
+function isNewMember(result) {
+    const r = (result ?? {});
+    if (typeof r.isNew === 'boolean')
+        return r.isNew;
+    return r.member?.needsSignup === true;
+}
+/**
+ * (2.9) 화면에 쓸 이름 — 이메일 · 이름이 없을 수 있다(네이버 · 애플은 동의를 안 하면 비어 온다). 빈 값이면 「○○로 가입」.
+ */
+function memberLabel(member) {
+    const m = (member ?? {});
+    const name = typeof m.name === 'string' ? m.name.trim() : '';
+    if (name)
+        return name;
+    const email = typeof m.email === 'string' ? m.email.trim() : '';
+    if (email)
+        return email;
+    const label = { kakao: '카카오', naver: '네이버', google: '구글', apple: 'Apple', toss: '토스', guest: '게스트' };
+    const p = typeof m.provider === 'string' ? m.provider : '';
+    return label[p] ? `${label[p]}로 가입` : '회원';
+}
 /**
  * 로그인이 안 됐을 때 던지는 것.
  *
@@ -865,8 +892,65 @@ function createAuth(deps, env = defaultEnv()) {
         lateListeners.add(fn);
         return () => { lateListeners.delete(fn); };
     }
+    /** SDK 하나 정리 — 모듈이 없거나 함수가 없으면 건너뛴다(그 앱이 안 쓰는 SDK) */
+    async function forgetOne(name, run, out) {
+        try {
+            await run();
+        }
+        catch (e) {
+            out[name] = shortCode(e);
+        }
+    }
+    async function forgetSdks(opts = {}) {
+        const out = {};
+        const unlink = opts.unlink === true;
+        const rawNaver = mod(() => deps.naverSdk?.());
+        const naver = rawNaver?.logout ? rawNaver : rawNaver?.default;
+        const kakao = env.kakaoUser();
+        const g = env.google()?.GoogleSignin;
+        await Promise.all([
+            naver ? forgetOne('naver', () => (unlink && naver.deleteToken ? naver.deleteToken() : naver.logout?.()), out) : Promise.resolve(),
+            kakao ? forgetOne('kakao', () => (unlink && kakao.unlink ? kakao.unlink() : kakao.logout?.()), out) : Promise.resolve(),
+            g ? forgetOne('google', async () => {
+                if (unlink && g.revokeAccess)
+                    await g.revokeAccess().catch(() => undefined);
+                await g.signOut?.();
+            }, out) : Promise.resolve(),
+        ]);
+        naverInitKey = ''; // 다음 로그인에 다시 초기화
+        if (Object.keys(out).length)
+            track('login_sdk_forget_failed', { unlink, ...out });
+        return out;
+    }
+    async function signOut(opts = {}) {
+        try {
+            await server.logout?.();
+        }
+        catch {
+            // 서버 세션은 만료되면 어차피 끝난다 — 기기 정리는 계속
+        }
+        current = null;
+        closeFlow();
+        return forgetSdks(opts);
+    }
+    async function withdraw() {
+        if (server.withdraw) {
+            try {
+                await server.withdraw();
+            }
+            catch (e) {
+                return { ok: false, error: String(e?.message ?? e ?? 'withdraw_failed') || 'withdraw_failed' };
+            }
+        }
+        current = null;
+        closeFlow();
+        return { ok: true, sdk: await forgetSdks({ unlink: true }) };
+    }
     return {
         initKakao,
+        forgetSdks,
+        signOut,
+        withdraw,
         availableProviders,
         kakaoTalkAvailable,
         signIn,

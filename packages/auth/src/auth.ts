@@ -28,7 +28,40 @@ export type ServerLogin<T> = {
   apple: (identityToken: string, name: string) => Promise<T>;
   /** (2.8) 네이버 앱 로그인 토큰 → `POST {app}/auth/naver { accessToken }`. 없으면 네이버는 웹으로만 */
   naver?: (accessToken: string) => Promise<T>;
+  /** (2.9) 서버 로그아웃(세션 지우기) — `signOut()` 이 부른다. 실패해도 기기 정리는 계속한다 */
+  logout?: () => Promise<unknown>;
+  /** (2.9) 서버 탈퇴 — `withdraw()` 가 부른다. 실패하면 SDK 연결은 끊지 않고 이유를 돌려준다 */
+  withdraw?: () => Promise<unknown>;
 };
+
+/** (2.9) SDK 정리 결과 — 제공자마다 실패했을 때만 사유(정리할 것이 없으면 칸이 없다) */
+export type SdkForgetResult = { naver?: string; kakao?: string; google?: string };
+
+/**
+ * (2.9) 로그인 결과가 「새 가입」인가 — 서버 `isNew`(첫 세션, jcurve-api e98cfb5) → 없으면 `member.needsSignup`(약관 전) → false.
+ * 앱은 새 가입만 온보딩으로 보낸다(대표님 10-03 「가입 회원인데 온보딩으로 감」).
+ */
+export function isNewMember(result: unknown): boolean {
+  const r = (result ?? {}) as { isNew?: unknown; member?: { needsSignup?: unknown } };
+  if (typeof r.isNew === 'boolean') return r.isNew;
+
+  return r.member?.needsSignup === true;
+}
+
+/**
+ * (2.9) 화면에 쓸 이름 — 이메일 · 이름이 없을 수 있다(네이버 · 애플은 동의를 안 하면 비어 온다). 빈 값이면 「○○로 가입」.
+ */
+export function memberLabel(member: unknown): string {
+  const m = (member ?? {}) as { name?: unknown; email?: unknown; provider?: unknown };
+  const name = typeof m.name === 'string' ? m.name.trim() : '';
+  if (name) return name;
+  const email = typeof m.email === 'string' ? m.email.trim() : '';
+  if (email) return email;
+  const label: Record<string, string> = { kakao: '카카오', naver: '네이버', google: '구글', apple: 'Apple', toss: '토스', guest: '게스트' };
+  const p = typeof m.provider === 'string' ? m.provider : '';
+
+  return label[p] ? `${label[p]}로 가입` : '회원';
+}
 
 /**
  * 계측에 실을 수 있는 값 — **스칼라만**.
@@ -228,6 +261,18 @@ export type Auth<T> = {
    * ```
    */
   runAfterLogin: <R>(fn: () => R | Promise<R>) => Promise<R>;
+  /**
+   * (2.9) 기기에 남은 SNS 로그인 정리 — 네이버 logout · 카카오 logout · 구글 signOut(`unlink` 면 네이버 deleteToken · 카카오 unlink · 구글 revokeAccess).
+   * 안 지우면 다시 누를 때 **계정 선택 없이 바로 들어간다**(팩트투자 10-03). 실패는 무시하고 사유만 돌려준다. 애플은 기기에 지울 토큰이 없다.
+   */
+  forgetSdks: (opts?: { unlink?: boolean }) => Promise<SdkForgetResult>;
+  /** (2.9) 로그아웃 — 서버(`server.logout`, 실패 무시) + SDK 정리. 앱은 그 뒤 자기 저장값(세션 토큰)을 지운다 */
+  signOut: (opts?: { unlink?: boolean }) => Promise<SdkForgetResult>;
+  /**
+   * (2.9) 탈퇴 — 서버(`server.withdraw`)가 성공했을 때만 SDK 연결을 끊는다(네이버 토큰 삭제 · 카카오 unlink · 구글 revoke).
+   * 서버가 실패하면 `{ ok:false, error }`(사용자에게 이유를 보여 준다) — 연결은 그대로라 다시 시도할 수 있다. 애플 revoke 는 대표님 결정 전 보류.
+   */
+  withdraw: () => Promise<{ ok: boolean; error?: string; sdk?: SdkForgetResult }>;
   /**
    * (2.6) 지금 안전 시점인가(동기) — **Modal 안전장치**로 쓴다: `visible={want && auth.loginSettled()}`.
    * 거짓이었으면 `afterLoginSettled().then(다시 그리기)` 로 한 번 더 그린다.
@@ -1134,8 +1179,67 @@ export function createAuth<T>(deps: AuthDeps<T>, env: AuthEnv = defaultEnv()): A
     return () => { lateListeners.delete(fn); };
   }
 
+  /** SDK 하나 정리 — 모듈이 없거나 함수가 없으면 건너뛴다(그 앱이 안 쓰는 SDK) */
+  async function forgetOne(name: keyof SdkForgetResult, run: () => Promise<unknown> | undefined, out: SdkForgetResult): Promise<void> {
+    try {
+      await run();
+    } catch (e) {
+      out[name] = shortCode(e);
+    }
+  }
+
+  async function forgetSdks(opts: { unlink?: boolean } = {}): Promise<SdkForgetResult> {
+    const out: SdkForgetResult = {};
+    const unlink = opts.unlink === true;
+    const rawNaver = mod<any>(() => deps.naverSdk?.());
+    const naver = rawNaver?.logout ? rawNaver : rawNaver?.default;
+    const kakao = env.kakaoUser();
+    const g = env.google()?.GoogleSignin;
+    await Promise.all([
+      naver ? forgetOne('naver', () => (unlink && naver.deleteToken ? naver.deleteToken() : naver.logout?.()), out) : Promise.resolve(),
+      kakao ? forgetOne('kakao', () => (unlink && kakao.unlink ? kakao.unlink() : kakao.logout?.()), out) : Promise.resolve(),
+      g ? forgetOne('google', async () => {
+        if (unlink && g.revokeAccess) await g.revokeAccess().catch(() => undefined);
+        await g.signOut?.();
+      }, out) : Promise.resolve(),
+    ]);
+    naverInitKey = '';   // 다음 로그인에 다시 초기화
+    if (Object.keys(out).length) track('login_sdk_forget_failed', { unlink, ...out });
+
+    return out;
+  }
+
+  async function signOut(opts: { unlink?: boolean } = {}): Promise<SdkForgetResult> {
+    try {
+      await server.logout?.();
+    } catch {
+      // 서버 세션은 만료되면 어차피 끝난다 — 기기 정리는 계속
+    }
+    current = null;
+    closeFlow();
+
+    return forgetSdks(opts);
+  }
+
+  async function withdraw(): Promise<{ ok: boolean; error?: string; sdk?: SdkForgetResult }> {
+    if (server.withdraw) {
+      try {
+        await server.withdraw();
+      } catch (e) {
+        return { ok: false, error: String((e as { message?: unknown })?.message ?? e ?? 'withdraw_failed') || 'withdraw_failed' };
+      }
+    }
+    current = null;
+    closeFlow();
+
+    return { ok: true, sdk: await forgetSdks({ unlink: true }) };
+  }
+
   return {
     initKakao,
+    forgetSdks,
+    signOut,
+    withdraw,
     availableProviders,
     kakaoTalkAvailable,
     signIn,
