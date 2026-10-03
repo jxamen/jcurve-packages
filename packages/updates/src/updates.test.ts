@@ -51,11 +51,22 @@ function app(o: Partial<{ signedIn: boolean; triedAuth: boolean; busy: boolean; 
 
 let active = true;
 let U: ReturnType<typeof fakeUpdates>;
+/** AppState 흉내(2.7) — 백그라운드로 갔다 ms 뒤 돌아온다 */
+let stateFns: Array<(st: string) => void> = [];
+const onState = (fn: (st: string) => void) => { stateFns.push(fn); return () => { stateFns = stateFns.filter((f) => f !== fn); }; };
+const goAway = (ms: number) => {
+  active = false;
+  stateFns.forEach((f) => f('background'));
+  vi.advanceTimersByTime(ms);
+  active = true;
+  stateFns.forEach((f) => f('active'));
+};
 beforeEach(() => {
   vi.useFakeTimers();
   active = true;
+  stateFns = [];
   U = fakeUpdates();
-  __reset({ updates: () => U as any, active: () => active, dev: () => false });
+  __reset({ updates: () => U as any, active: () => active, dev: () => false, onState });
 });
 afterEach(() => { vi.useRealTimers(); __reset(); });
 
@@ -67,18 +78,32 @@ describe('로그인한 사람', () => {
     expect(U.reloads).toBe(1);
   });
 
-  it('늦게 받으면 메인에 있을 때까지 기다린다', () => {
-    const { s, deps } = app({ signedIn: true, atHome: false });
+  it('(2.7) 늦게 받으면 쓰는 중엔 다시 시작하지 않는다 — 메인에 있어도. 30초 넘게 나갔다 돌아올 때 적용', () => {
+    const { deps } = app({ signedIn: true, atHome: true });
     autoApply(deps);
     vi.advanceTimersByTime(7000);
     U.emit({ isUpdatePending: true });
-    vi.advanceTimersByTime(9000);
-    expect(U.reloads, '메인이 아니면 적용하지 않는다').toBe(0);
-    s.atHome = true;
-    vi.advanceTimersByTime(3000);
+    vi.advanceTimersByTime(600_000);
+    expect(U.reloads, '쓰는 중(메인이어도)엔 적용하지 않는다').toBe(0);
+    goAway(10_000);
+    expect(U.reloads, '잠깐(30초 안) 다녀온 건 그대로').toBe(0);
+    goAway(31_000);
     expect(U.reloads).toBe(1);
-    vi.advanceTimersByTime(30000);
+    goAway(31_000);
     expect(U.reloads, '한 번만').toBe(1);
+  });
+
+  it('(2.7) 돌아올 때 로그인 창을 다녀오는 중이면 적용하지 않는다', () => {
+    const { s, deps } = app({ signedIn: true });
+    autoApply(deps);
+    vi.advanceTimersByTime(7000);
+    U.emit({ isUpdatePending: true });
+    s.busy = true;
+    goAway(60_000);
+    expect(U.reloads).toBe(0);
+    s.busy = false;
+    goAway(60_000);
+    expect(U.reloads).toBe(1);
   });
 
   it('6초 안이어도 로그인 창을 다녀오는 중이면 적용하지 않는다(세션 만료 뒤 재로그인)', () => {
@@ -88,7 +113,9 @@ describe('로그인한 사람', () => {
     vi.advanceTimersByTime(9000);
     expect(U.reloads).toBe(0);
     s.busy = false;
-    vi.advanceTimersByTime(3000);
+    vi.advanceTimersByTime(60_000);
+    expect(U.reloads, '(2.7) 로그인을 마치고 쓰는 중이면 기다린다').toBe(0);
+    goAway(31_000);
     expect(U.reloads).toBe(1);
   });
 });
@@ -134,7 +161,7 @@ describe('로그인 전', () => {
 describe('공통', () => {
   it('앱이 뒤로 가 있으면(로그인 창·미션 매체) 적용하지 않는다', () => {
     active = false;
-    const { deps } = app({ signedIn: true, atHome: true });
+    const { deps } = app();
     autoApply(deps);
     U.emit({ isUpdatePending: true });
     vi.advanceTimersByTime(9000);
@@ -323,15 +350,17 @@ describe('2.2 — 「새 버전 알려 주기」 토글', () => {
     expect(U.reloads).toBe(1);
   });
 
-  it('켜 두었다가 끄면 다음 조용한 순간에 스스로 적용된다', () => {
+  it('켜 두었다가 끄면 다음에 돌아올 때 스스로 적용된다(2.7)', () => {
     const { s, deps } = app({ signedIn: true, atHome: true, notice: true });
     autoApply(deps);
     vi.advanceTimersByTime(7000);
     U.emit({ isUpdatePending: true });
-    vi.advanceTimersByTime(9000);
-    expect(U.reloads).toBe(0);
+    goAway(60_000);
+    expect(U.reloads, '켜 둔 동안은 알리기만').toBe(0);
     s.notice = false;
     vi.advanceTimersByTime(3000);
+    expect(U.reloads).toBe(0);
+    goAway(60_000);
     expect(U.reloads).toBe(1);
   });
 
@@ -385,19 +414,21 @@ describe('2.4 — 앱이 다시 앞으로 올 때도 받는다(resumeCheckMs, �
   beforeEach(() => {
     resume = [];
     __reset({
-      updates: () => U as any, active: () => active, dev: () => false,
+      updates: () => U as any, active: () => active, dev: () => false, onState,
       onActive: (fn) => { resume.push(fn); return () => { resume = resume.filter((f) => f !== fn); }; },
     });
   });
 
-  it('마지막 확인에서 간격이 지났으면 묻고 받는다 — 받으면 평소 규칙대로 메인에서 적용', async () => {
+  it('마지막 확인에서 간격이 지났으면 묻고 받는다 — 받으면 쓰는 중엔 기다렸다 다음에 돌아올 때 적용(2.7)', async () => {
     const { deps } = app({ signedIn: true, atHome: true });
     autoApply(deps, { resumeCheckMs: 60_000 });
     vi.advanceTimersByTime(61_000);
     await comeBack();
     expect(U.checks).toBe(1);
     expect(U.fetches).toBe(1);
-    vi.advanceTimersByTime(3000);
+    vi.advanceTimersByTime(60_000);
+    expect(U.reloads).toBe(0);
+    goAway(31_000);
     expect(U.reloads).toBe(1);
   });
 

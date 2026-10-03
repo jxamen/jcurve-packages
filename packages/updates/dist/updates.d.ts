@@ -51,6 +51,8 @@ type Env = {
     onActive: (fn: () => void) => () => void;
     /** 플랫폼(2.5) — ios · android · web */
     os: () => string;
+    /** 앱 상태가 바뀔 때마다(2.7) — active · inactive · background. 돌려주는 함수로 끊는다. 없으면 onActive 만 쓴다 */
+    onState?: (fn: (state: string) => void) => () => void;
 };
 /** 시험에서만 쓴다 — 기기 대신 흉내 낸 것을 쓴다. 인자 없이 부르면 원래대로 */
 export declare function __reset(fake?: Partial<Env>): void;
@@ -65,8 +67,11 @@ export type AutoApplyDeps = {
      * 앱이 뒤로 가 있는지는 패키지가 따로 본다.
      */
     busy: () => boolean;
-    /** 로그인한 사람에게 적용해도 되는 자리인가 — 메인 화면(꼬꼬농장: 농장 탭 첫 화면) */
-    atHome: () => boolean;
+    /**
+     * (2.7 부터 쓰지 않음 — 받아도 무시) 예전엔 로그인한 사람이 메인에 있을 때 쓰는 중에도 다시 시작했다.
+     * 대표님 10-03 「쓰고 있는데 자꾸 꿈뻑꿈뻑」 — 이제는 켤 때와 백그라운드에서 돌아올 때만 적용한다. 옛 앱 코드가 깨지지 않게 칸만 남긴다.
+     */
+    atHome?: () => boolean;
     /**
      * 「새 버전 알려 주기」가 켜져 있는가(2.2) — 켜져 있으면 **스스로 적용하지 않고** 띠를 띄울 수 있게 알린다
      * (`onUpdateReady`). 사람이 띠를 누르면 `applyUpdate()` 가 적용한다. 꺼져 있거나 주지 않으면 위 규칙대로 스스로 적용한다.
@@ -103,14 +108,17 @@ export declare function applyUpdate(): boolean;
  * (`isUpdatePending`) 언제 다시 시작할지만 정한다:
  *  1. 로그인한 사람 — 켠 지 6초 안이면(시작 화면) 바로. 깜빡임이 안 보인다
  *  2. 로그인 전 — **로그인 버튼을 누르기 전이면** 바로. 새로 깐 사람이 스토어 빌드의 옛 코드에 갇히지 않게
- *  3. 그 밖 — 3초마다 보다가, 로그인 전이면 「아직 안 눌렀을 때」, 로그인했으면 「메인에 있을 때」
- * 어느 경우든 **로그인·가입 중이거나 앱이 뒤로 가 있으면 하지 않는다** — 끝내 기회가 없으면 다음 실행에 저절로 적용된다.
+ *  3. 로그인 전 · 아직 버튼 안 누름 — 로그인 · 가입 화면이 끝나길 3초마다 보다가(그 사이 누르면 끝까지 안 함)
+ *  4. 그 밖 — **쓰는 중엔 다시 시작하지 않는다**(2.7, 대표님 10-03 「쓰고 있는데 자꾸 꿈뻑꿈뻑」 · 「화면이 상단으로 붙음」).
+ *     앱이 백그라운드로 갔다가 `resumeApplyMs`(기본 30초) 넘게 있다 돌아오는 순간에만 적용 — 돌아오는 순간이라 깜빡임을 못 느낀다.
+ * 어느 경우든 **로그인·가입 중이거나 앱이 뒤로 가 있으면 하지 않는다** — 끝내 기회가 없으면 다음 실행에 저절로 적용된다. 「버튼 없이 자동」 원칙은 그대로.
  */
 export declare function autoApply(deps: AutoApplyDeps, opts?: {
     quickMs?: number;
     everyMs?: number;
     fetchDelayMs?: number;
     resumeCheckMs?: number;
+    resumeApplyMs?: number;
 }): () => void;
 /**
  * 서버가 판별 사용자 수를 세는 헤더(2.5) — 앱의 모든 API 요청에 붙인다. 이름은 jcurve-api `OtaTrack` 이 읽는 그대로.

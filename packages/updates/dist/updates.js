@@ -41,6 +41,18 @@ const defaultEnv = () => ({
     catch {
         return '';
     } },
+    onState: (fn) => {
+        try {
+            const sub = require('react-native').AppState.addEventListener('change', (st) => fn(String(st)));
+            return () => { try {
+                sub?.remove?.();
+            }
+            catch { /* 이미 끊겼다 */ } };
+        }
+        catch {
+            return () => undefined;
+        }
+    },
     onActive: (fn) => {
         try {
             const sub = require('react-native').AppState.addEventListener('change', (st) => { if (st === 'active')
@@ -129,8 +141,10 @@ function applyUpdate() {
  * (`isUpdatePending`) 언제 다시 시작할지만 정한다:
  *  1. 로그인한 사람 — 켠 지 6초 안이면(시작 화면) 바로. 깜빡임이 안 보인다
  *  2. 로그인 전 — **로그인 버튼을 누르기 전이면** 바로. 새로 깐 사람이 스토어 빌드의 옛 코드에 갇히지 않게
- *  3. 그 밖 — 3초마다 보다가, 로그인 전이면 「아직 안 눌렀을 때」, 로그인했으면 「메인에 있을 때」
- * 어느 경우든 **로그인·가입 중이거나 앱이 뒤로 가 있으면 하지 않는다** — 끝내 기회가 없으면 다음 실행에 저절로 적용된다.
+ *  3. 로그인 전 · 아직 버튼 안 누름 — 로그인 · 가입 화면이 끝나길 3초마다 보다가(그 사이 누르면 끝까지 안 함)
+ *  4. 그 밖 — **쓰는 중엔 다시 시작하지 않는다**(2.7, 대표님 10-03 「쓰고 있는데 자꾸 꿈뻑꿈뻑」 · 「화면이 상단으로 붙음」).
+ *     앱이 백그라운드로 갔다가 `resumeApplyMs`(기본 30초) 넘게 있다 돌아오는 순간에만 적용 — 돌아오는 순간이라 깜빡임을 못 느낀다.
+ * 어느 경우든 **로그인·가입 중이거나 앱이 뒤로 가 있으면 하지 않는다** — 끝내 기회가 없으면 다음 실행에 저절로 적용된다. 「버튼 없이 자동」 원칙은 그대로.
  */
 function autoApply(deps, opts = {}) {
     const U = updates();
@@ -144,6 +158,8 @@ function autoApply(deps, opts = {}) {
     let fetchTimer = null;
     let sub;
     let offActive = null;
+    let offState = null;
+    let wentBack = 0; // 백그라운드로 간 시각(2.7)
     let lastCheck = launchedAt; // 켤 때 네이티브(또는 아래 2.1)가 한 번 본다
     const busy = () => deps.busy() || !env.active();
     const reload = () => {
@@ -196,24 +212,51 @@ function autoApply(deps, opts = {}) {
                 return;
             }
         }
-        // 3. 그 뒤로는 조용한 순간을 기다린다(알려 주기를 켜 둔 동안은 기다리기만 — 끄면 여기서 적용된다)
-        timer = setInterval(() => {
-            if (noticeOn())
-                return;
-            if (busy())
-                return;
-            if (!deps.signedIn()) {
-                if (deps.triedAuth())
+        // 3. 로그인 전 · 아직 버튼을 안 눌렀다 — 로그인 · 가입 화면이 끝나길 기다린다(쓰기 시작 전이라 깜빡여도 같은 화면)
+        if (!deps.signedIn() && !deps.triedAuth()) {
+            timer = setInterval(() => {
+                if (noticeOn() || busy())
                     return;
-            }
-            else if (!deps.atHome())
-                return;
-            if (timer)
-                clearInterval(timer);
-            timer = null;
-            reload();
-        }, everyMs);
+                if (deps.signedIn() || deps.triedAuth()) { // 그 사이 로그인했거나 버튼을 눌렀다 — 4번(돌아올 때)으로
+                    if (timer)
+                        clearInterval(timer);
+                    timer = null;
+                    return;
+                }
+                if (timer)
+                    clearInterval(timer);
+                timer = null;
+                reload();
+            }, everyMs);
+        }
+        // 4. 그 밖은 백그라운드에서 돌아올 때만(아래 onState)
     };
+    const resumeApplyMs = opts.resumeApplyMs ?? 30000;
+    offState = env.onState ? env.onState((st) => {
+        if (st === 'background') {
+            wentBack = Date.now();
+            return;
+        }
+        if (st !== 'active')
+            return;
+        const away = wentBack ? Date.now() - wentBack : 0;
+        wentBack = 0;
+        if (!waiting || restarting || noticeOn() || away < resumeApplyMs)
+            return;
+        try {
+            if (deps.busy())
+                return;
+        }
+        catch {
+            return;
+        } // 로그인 창에서 돌아오는 복귀 — 로그인을 끊지 않는다
+        if (!deps.signedIn() && deps.triedAuth())
+            return; // 로그인 버튼을 누른 뒤 · 아직 로그인 전 — 돌아올 곳이 사라진다
+        if (timer)
+            clearInterval(timer);
+        timer = null;
+        reload();
+    }) : null;
     try {
         if (U.latestContext?.isUpdatePending)
             onPending();
@@ -276,6 +319,8 @@ function autoApply(deps, opts = {}) {
         sub?.remove();
         offActive?.();
         offActive = null;
+        offState?.();
+        offState = null;
         if (timer)
             clearInterval(timer);
         timer = null;
