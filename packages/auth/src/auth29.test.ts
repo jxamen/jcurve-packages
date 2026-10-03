@@ -77,3 +77,40 @@ describe('새 가입 · 이름 (2.9)', () => {
     expect(patchNaverReturn(out, 'x')).toBe(out);
   });
 });
+
+describe('이메일 꼭 받기 (2.9.1)', () => {
+  function kakaoEnv(me: any, second: () => Promise<any>) {
+    const logins: any[] = [];
+    const user = {
+      isKakaoTalkLoginAvailable: async () => true,
+      login: async (arg?: any) => { logins.push(arg ?? 'talk'); return arg?.scopes ? second() : { accessToken: 'T1' }; },
+      me: async () => me,
+    };
+    const env: AuthEnv = { os: () => 'ios', kakaoCore: () => ({ initializeKakaoSDK: async () => undefined }), kakaoUser: () => user, google: () => null, apple: () => null,
+      browser: () => null, linking: () => null, wait: async () => undefined };
+    const seen: string[] = [];
+    const auth = createAuth<any>({ keys: { kakaoNative: 'realkey123', requireEmail: true },
+      server: { kakao: async (t) => { seen.push(t); return { ok: true }; }, google: async () => ({}), apple: async () => ({}) } }, env);
+
+    return { auth, logins, seen };
+  }
+
+  it('이메일 동의가 없으면 이메일만 다시 묻고 새 토큰으로', async () => {
+    const { auth, logins, seen } = kakaoEnv({ emailNeedsAgreement: true }, async () => ({ accessToken: 'T2' }));
+    await auth.signIn('kakao');
+    expect(logins).toEqual(['talk', { useKakaoAccountLogin: true, scopes: ['account_email'] }]);
+    expect(seen).toEqual(['T2']);
+  });
+
+  it('거절하면 처음 토큰으로 그대로 로그인', async () => {
+    const { auth, seen } = kakaoEnv({ emailNeedsAgreement: true }, async () => { throw Object.assign(new Error('user cancelled'), { code: 'Cancelled' }); });
+    await auth.signIn('kakao');
+    expect(seen).toEqual(['T1']);
+  });
+
+  it('이미 동의했으면 묻지 않는다', async () => {
+    const { auth, logins } = kakaoEnv({ emailNeedsAgreement: false }, async () => ({ accessToken: 'T2' }));
+    await auth.signIn('kakao');
+    expect(logins).toEqual(['talk']);
+  });
+});

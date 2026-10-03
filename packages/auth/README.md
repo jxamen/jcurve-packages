@@ -211,6 +211,13 @@ const headers = { ...base, ...(DEVICE_PATHS.includes(path) ? await funnel.device
 - `deviceHeaders()` 는 저장된 ID 를 **읽을 때까지 기다린다**(켜자마자 부르는 `auth/me` 에서도 실린다). 못 읽으면 `{}`, 던지지 않는다.
 - 서버(jcurve-api)는 `X-Device-Id` 가 없거나 모양이 틀리면 건너뛰고 **로그인은 그대로** 한다 — 옛 판도 같다.
 
+## 2.9.1 — 이메일 꼭 받기(`keys.requireEmail`)
+
+대표님 10-03 「네이버, 카카오 모두 이메일 받자 · 나중에 이메일 보내지」. `createAuth({ keys: { ..., requireEmail: true } })`:
+- **카카오** — 로그인 뒤 그 계정에 이메일 동의가 없으면(`me().emailNeedsAgreement`) 이메일 항목만 한 번 더 묻는다(카카오 계정 화면, `login({ useKakaoAccountLogin, scopes:['account_email'] })`). 거절하면 받은 토큰으로 그대로 로그인 — 막지 않는다. 기록 `login_email_consent{provider, code: agreed|refused|…}`.
+- **네이버** — SDK(@react-native-seoul/naver-login)에 재동의 옵션이 없다. 네이버 개발자 콘솔에서 이메일을 **필수**로 두는 것이 전부이고, 서버는 로그인 때 비어 있던 이메일을 채운다(jcurve-api AuthController upsertMember).
+- 카카오 콘솔 「동의항목」에서 카카오계정(이메일)이 선택 · 필수 동의로 켜져 있어야 묻는다.
+
 ## 2.9 — 로그아웃 · 탈퇴 정리 · 새 가입 구분(`signOut` · `withdraw` · `isNewMember`)
 
 대표님 10-03 「이건 당연한 건데… 패키지화 가능?」 — 로그아웃 뒤 네이버를 다시 누르면 계정 선택 없이 바로 들어가고(SDK 토큰이 남음), 가입 회원이 온보딩으로 가던 것.

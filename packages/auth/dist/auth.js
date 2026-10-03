@@ -353,6 +353,27 @@ function createAuth(deps, env = defaultEnv()) {
      * 웹 로그인이 있으면 SDK 가 안 될 때 `FALL` 을 돌려 그리로 넘긴다. 없으면 1.0 처럼
      * 카카오톡 실패 뒤 카카오 계정 로그인을 한 번 더 해 보고, 그래도 안 되면 던진다.
      */
+    /**
+     * (2.9.1) 카카오 이메일 재동의 — keys.requireEmail 일 때, 받은 토큰의 계정에 이메일 동의가 없으면(me().emailNeedsAgreement)
+     * 이메일 항목만 다시 묻는다. 거절 · 실패면 처음 토큰 그대로(로그인은 막지 않는다).
+     */
+    async function askKakaoEmail(user, token) {
+        if (!keys.requireEmail || typeof user?.me !== 'function')
+            return token;
+        try {
+            const me = await user.me();
+            if (!me?.emailNeedsAgreement)
+                return token;
+            const r = await user.login({ useKakaoAccountLogin: true, scopes: ['account_email'] });
+            const t = String(r?.accessToken ?? '');
+            track('login_email_consent', { provider: 'kakao', code: t ? 'agreed' : 'empty' });
+            return t || token;
+        }
+        catch (e) {
+            track('login_email_consent', { provider: 'kakao', code: (0, exports.isCancel)(errText(e)) ? 'refused' : 'sdk_' + shortCode(e) });
+            return token;
+        }
+    }
     async function kakaoToken() {
         const user = await kakaoApi();
         if (!user?.login) {
@@ -384,7 +405,7 @@ function createAuth(deps, env = defaultEnv()) {
                 throw new Error('kakao_no_token');
             if (talk)
                 track('login_native_ok', { provider: 'kakao' });
-            return token;
+            return askKakaoEmail(user, token);
         }
         catch (e) {
             // 그만둔 것은 넘기지 않는다 — 웹 창이 또 뜨면 놀란다
@@ -401,7 +422,7 @@ function createAuth(deps, env = defaultEnv()) {
             const token = grab(await user.login({ useKakaoAccountLogin: true }));
             if (!token)
                 throw new Error('kakao_no_token');
-            return token;
+            return askKakaoEmail(user, token);
         }
         catch (e) {
             if ((0, exports.isCancel)(errText(e)))

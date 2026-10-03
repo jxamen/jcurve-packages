@@ -100,6 +100,12 @@ export type AuthDeps<T> = {
          * 그때는 웹 로그인으로 넘어가고 `login_native_fallback{provider:'naver', code:'no_keys'}` 를 남긴다.
          */
         naver?: () => NaverKeys | null | undefined | Promise<NaverKeys | null | undefined>;
+        /**
+         * (2.9.1) 이메일을 꼭 받는다(대표님 10-03 「네이버, 카카오 모두 이메일 받자」). 카카오는 로그인 뒤 이메일 동의가 없으면
+         * 이메일 항목만 한 번 더 동의를 묻는다(카카오 계정 화면) — 거절하면 받은 토큰으로 그대로 진행. 이미 가입한 회원도 다음 로그인 때 묻는다.
+         * 네이버 SDK 에는 재동의(reprompt) 옵션이 없다 — 네이버 콘솔에서 이메일을 필수로 두고, 빈 이메일은 서버가 다음 로그인에 채운다.
+         */
+        requireEmail?: boolean;
     };
     /**
      * (2.8) `@react-native-seoul/naver-login` 모듈 — 앱이 `() => require('@react-native-seoul/naver-login').default` 로 준다.
