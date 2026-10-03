@@ -211,6 +211,59 @@ const headers = { ...base, ...(DEVICE_PATHS.includes(path) ? await funnel.device
 - `deviceHeaders()` 는 저장된 ID 를 **읽을 때까지 기다린다**(켜자마자 부르는 `auth/me` 에서도 실린다). 못 읽으면 `{}`, 던지지 않는다.
 - 서버(jcurve-api)는 `X-Device-Id` 가 없거나 모양이 틀리면 건너뛰고 **로그인은 그대로** 한다 — 옛 판도 같다.
 
+## 2.9.1 — 이메일 꼭 받기(`keys.requireEmail`)
+
+대표님 10-03 「네이버, 카카오 모두 이메일 받자 · 나중에 이메일 보내지」. `createAuth({ keys: { ..., requireEmail: true } })`:
+- **카카오** — 로그인 뒤 그 계정에 이메일 동의가 없으면(`me().emailNeedsAgreement`) 이메일 항목만 한 번 더 묻는다(카카오 계정 화면, `login({ useKakaoAccountLogin, scopes:['account_email'] })`). 거절하면 받은 토큰으로 그대로 로그인 — 막지 않는다. 기록 `login_email_consent{provider, code: agreed|refused|…}`.
+- **네이버** — SDK(@react-native-seoul/naver-login)에 재동의 옵션이 없다. 네이버 개발자 콘솔에서 이메일을 **필수**로 두는 것이 전부이고, 서버는 로그인 때 비어 있던 이메일을 채운다(jcurve-api AuthController upsertMember).
+- 카카오 콘솔 「동의항목」에서 카카오계정(이메일)이 선택 · 필수 동의로 켜져 있어야 묻는다.
+
+## 2.9 — 로그아웃 · 탈퇴 정리 · 새 가입 구분(`signOut` · `withdraw` · `isNewMember`)
+
+대표님 10-03 「이건 당연한 건데… 패키지화 가능?」 — 로그아웃 뒤 네이버를 다시 누르면 계정 선택 없이 바로 들어가고(SDK 토큰이 남음), 가입 회원이 온보딩으로 가던 것.
+
+```ts
+const auth = createAuth({ ..., server: { ..., logout: () => call('auth/logout'), withdraw: () => call('me/withdraw', { reason }) } });
+
+await auth.signOut();                 // 서버 로그아웃(실패 무시) + 네이버 logout · 카카오 logout · 구글 signOut → 앱은 자기 세션 저장값을 지운다
+const r = await auth.withdraw();      // 서버 탈퇴가 되면 네이버 deleteToken · 카카오 unlink · 구글 revokeAccess
+if (!r.ok) alert(r.error);            // 서버가 막으면 연결은 그대로 · 이유를 보여 준다
+if (isNewMember(loginResult)) goOnboarding();   // 서버 isNew(첫 세션) → 없으면 member.needsSignup
+memberLabel(member)                   // 이름 → 이메일 → 「네이버로 가입」(네이버 · 애플은 이메일이 비어 올 수 있다)
+```
+
+- `forgetSdks({ unlink? })` 만 따로 불러도 된다. SDK 하나가 실패해도 나머지는 정리하고 `{ kakao: '사유' }` 처럼 돌려준다. 애플은 기기에 지울 토큰이 없고, 애플 revoke 는 대표님 결정 전 보류.
+- 설정 플러그인: app.json plugins 에 `"@jcurve/auth"` — 네이버 앱이 어느 스킴으로 돌아와도 네이버 SDK 로 넘긴다(AppDelegate open url 맨 앞). 네이버를 안 쓰면 `["@jcurve/auth", { "naver": false }]`, 앱 안 웹 로그인 스킴은 `{ "naverUrlScheme": "…" }` 또는 app.json extra.naverUrlScheme. 앱에 넣어 둔 plugins/withNaverReturn.js 는 지운다.
+- 401 처리(세션이 없는 게스트가 로그인 필요한 API 를 불렀을 때 「만료」로 튕기지 않기)는 앱의 API 층 몫 — 세션 토큰이 있을 때만 만료 처리하세요.
+
+## 2.8 — 네이버 앱 로그인(`naverSdk` · `keys.naver` · `server.naver`)
+
+대표님 2026-10-03 「네이버는 앱으로」 — 네이버 앱이 있으면 앱으로, 없으면 네이버 SDK 화면으로 로그인한다(웹 창 아님).
+**셋이 다 있어야** 네이버 앱으로 간다. 하나도 안 주면 예전처럼 서버 웹 로그인만.
+
+```ts
+// npm i @react-native-seoul/naver-login (5.x) — 패키지는 직접 require 하지 않는다(없는 앱의 번들이 깨지지 않게)
+const auth = createAuth({
+  keys: {
+    ...,
+    // 서버 `GET {app}/auth/providers` 의 config.naver — 실행 때 받은 값. 스킴은 app.json 에 넣은 iOS URL Scheme
+    naver: () => providers.config?.naver
+      ? { consumerKey: providers.config.naver.clientId, consumerSecret: providers.config.naver.clientSecret,
+          appName: providers.config.naver.appName, serviceUrlScheme: 'factoonaver' }
+      : null,
+  },
+  naverSdk: () => require('@react-native-seoul/naver-login').default,
+  server: { ..., naver: (accessToken) => call('auth/naver', { accessToken }) },
+});
+```
+
+- 서버는 네이버 키(client_id · client_secret)가 있는 앱에 `providers` 로 `naver_native` 와 `config.naver{clientId, clientSecret, appName}` 을 준다.
+  네이버 네이티브 SDK 는 공식 방식상 Client Secret 을 **앱 안에서** 쓴다 — 빌드에 굽지 않고 실행 때 받는다.
+- iOS: app.json 에 URL Scheme 을 넣고 **같은 값을** `serviceUrlScheme` 로 준다(패키지는 하드코딩하지 않는다). 없으면 `no_scheme` 으로 웹.
+- 취소는 취소다(웹 창을 또 열지 않는다). 안 될 때는 `login_native_fallback{provider:'naver', code}` 를 남기고 웹으로 —
+  `no_sdk`(모듈 · 서버 함수 없음) · `no_keys`(서버 값 못 받음) · `no_scheme` · `sdk_<네이버 오류 코드>` · `server_off`(서버가 naver_native 를 안 줌) · `server_reject`.
+- 성공은 `login_native_ok{provider:'naver'}`(GA4 에만).
+
 ## 웹 폴백을 직접 만들 때 (안드로이드)
 
 2.0 의 `web` 을 주면 **패키지가 창을 열고 아래도 한다.** 앱에서 `openAuthSessionAsync` 같은 것으로

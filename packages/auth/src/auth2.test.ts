@@ -64,6 +64,9 @@ function setup(o: {
   nonce?: () => Promise<string>;
   /** 앱이 주는 보안 난수(`random`) */
   random?: (b: Uint8Array) => void;
+  /** (2.8) 네이버 앱 로그인 — SDK 모듈 · 키 */
+  naverSdk?: () => any;
+  naverKeys?: () => any;
 } = {}) {
   const tracked: Array<[string, any]> = [];
   const server: string[] = [];
@@ -96,11 +99,13 @@ function setup(o: {
     wait: async () => { await o.onWait?.(); },
   };
   const auth = createAuth<Session>({
-    keys: { kakaoNative: 'realkey123', googleWeb: 'web.apps.googleusercontent.com' },
+    keys: { kakaoNative: 'realkey123', googleWeb: 'web.apps.googleusercontent.com', ...(o.naverKeys ? { naver: o.naverKeys } : {}) },
+    naverSdk: o.naverSdk,
     server: {
       kakao: o.server?.kakao ?? (async (t) => { server.push('kakao:' + t); return { s: 'K' }; }),
       google: o.server?.google ?? (async (t) => { server.push('google:' + t); return { s: 'G' }; }),
       apple: o.server?.apple ?? (async (t, n) => { server.push('apple:' + t + ':' + n); return { s: 'A' }; }),
+      ...(o.naverSdk ? { naver: o.server?.naver ?? (async (t: string) => { server.push('naver:' + t); return { s: 'N' }; }) } : {}),
     },
     track: (n, p) => { tracked.push([n, p]); },
     web: o.web === false ? undefined : {
@@ -1062,5 +1067,74 @@ describe('Codex 5차 — 잊힌 실행은 새 로그인을 건드리지 않는�
     expect(told).toEqual(['naver']);
     expect(await s.auth.signIn('naver')).toEqual({ s: 'W' });
     expect(b.opened).toHaveLength(1);
+  });
+});
+
+/** 네이버 SDK 흉내(@react-native-seoul/naver-login 5.x) — 초기화 값 · 로그인 횟수를 남긴다 */
+function naverFake(result: any = { isSuccess: true, successResponse: { accessToken: 'NTOKEN' } }) {
+  const inits: any[] = [];
+  let logins = 0;
+  const mod = {
+    initialize: (p: any) => { inits.push(p); },
+    login: async () => { logins++; if (result instanceof Error) throw result; return result; },
+  };
+
+  return { inits, logins: () => logins, sdk: () => ({ default: mod }) };
+}
+
+const NKEYS = { consumerKey: 'cid', consumerSecret: 'sec', appName: '팩트투자', serviceUrlScheme: 'factoonaver' };
+
+describe('네이버 앱 로그인 (2.8)', () => {
+  it('SDK 로 받은 토큰을 서버에 넘긴다 — 스킴은 앱이 준 값 그대로, 초기화는 한 번', async () => {
+    const n = naverFake();
+    const b = browserFake({ type: 'success', url: RET + '?ticket=N' });
+    const { auth, server, tracked } = setup({ os: 'ios', browser: b, naverSdk: n.sdk, naverKeys: () => NKEYS, providers: ['naver', 'naver_native'] });
+    expect(await auth.signIn('naver')).toEqual({ s: 'N' });
+    await auth.signIn('naver');
+    expect(server).toEqual(['naver:NTOKEN', 'naver:NTOKEN']);
+    expect(n.inits).toEqual([{ consumerKey: 'cid', consumerSecret: 'sec', appName: '팩트투자', serviceUrlSchemeIOS: 'factoonaver' }]);
+    expect(b.opened).toEqual([]);
+    expect(tracked.filter(([e]) => e === 'login_native_ok').map(([, p]) => p.provider)).toEqual(['naver', 'naver']);
+  });
+
+  it('취소는 취소다 — 웹 창을 열지 않는다', async () => {
+    const n = naverFake({ isSuccess: false, failureResponse: { message: 'user cancelled', isCancel: true } });
+    const b = browserFake({ type: 'success', url: RET + '?ticket=N' });
+    const { auth } = setup({ browser: b, naverSdk: n.sdk, naverKeys: () => NKEYS });
+    const e = await auth.signIn('naver').catch((x) => x);
+    expect([e.code, e.tag]).toEqual(['cancelled', 'naver']);
+    expect(b.opened).toEqual([]);
+  });
+
+  it('SDK 실패 · 키 없음 · iOS 스킴 없음 · 서버가 안 줌 → 사유를 남기고 웹으로', async () => {
+    const cases: Array<[string, Parameters<typeof setup>[0]]> = [
+      ['sdk_E42', { naverSdk: naverFake({ isSuccess: false, failureResponse: { message: 'x', isCancel: false, lastErrorCodeFromNaverSDK: 'E42' } }).sdk, naverKeys: () => NKEYS }],
+      ['no_keys', { naverSdk: naverFake().sdk, naverKeys: () => null }],
+      ['no_scheme', { os: 'ios', naverSdk: naverFake().sdk, naverKeys: () => ({ ...NKEYS, serviceUrlScheme: '' }) }],
+      ['no_sdk', { naverSdk: () => { throw new Error('no module'); }, naverKeys: () => NKEYS }],
+      ['server_off', { naverSdk: naverFake().sdk, naverKeys: () => NKEYS, providers: ['naver'] }],
+    ];
+    for (const [code, o] of cases) {
+      const b = browserFake({ type: 'success', url: RET + '?ticket=N' + code });
+      const { auth, tracked } = setup({ ...o, browser: b });
+      expect(await auth.signIn('naver')).toEqual({ s: 'W' });
+      expect(codes(tracked)).toEqual([code]);
+      expect(b.opened.map(plain)).toEqual(['https://api/auth/start?provider=naver']);
+    }
+  });
+
+  it('서버가 토큰을 거절하면 웹으로 한 번 더, naver_native 만 켜져도 버튼은 켜진 것', async () => {
+    const b = browserFake({ type: 'success', url: RET + '?ticket=NR' });
+    const { auth, tracked } = setup({ browser: b, naverSdk: naverFake().sdk, naverKeys: async () => NKEYS, providers: ['naver_native'],
+      server: { naver: async () => { throw Object.assign(new Error('bad'), { status: 401 }); } } });
+    expect(await auth.signIn('naver')).toEqual({ s: 'W' });
+    expect(codes(tracked)).toEqual(['server_reject']);
+  });
+
+  it('붙이지 않은 앱은 예전 그대로 — 기록 없이 웹으로', async () => {
+    const b = browserFake({ type: 'success', url: RET + '?ticket=N0' });
+    const { auth, tracked } = setup({ browser: b, providers: ['naver'] });
+    expect(await auth.signIn('naver')).toEqual({ s: 'W' });
+    expect(codes(tracked)).toEqual([]);
   });
 });
