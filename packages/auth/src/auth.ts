@@ -867,6 +867,31 @@ export function createAuth<T>(deps: AuthDeps<T>, env: AuthEnv = defaultEnv()): A
    * 네이버 토큰(2.8) — 네이버 앱이 깔려 있으면 앱으로, 없으면 SDK 가 자기 화면으로 한다(대표님 10-03 「네이버 앱으로」).
    * 카카오처럼 **갈래마다 사유를 남긴다.** 취소는 취소다 — 웹 창을 또 열지 않는다.
    */
+  /**
+   * (2.9.2) 네이버 SDK 초기화 — 이번 실행에서 아직 안 했으면 keys.naver 로 한다. 키가 없거나(iOS 스킴 없음 포함) 실패하면 false.
+   * 안드로이드 네이버 SDK 는 initialize 전에 logout · deleteToken 을 부르면 **앱 프로세스가 죽는다**(10-03 괜찮아 A32 — 네이버로 로그인 안 한 채 로그아웃).
+   */
+  async function ensureNaverInit(sdk: any): Promise<boolean> {
+    if (naverInitKey !== '') return true;
+    if (!sdk?.initialize) return false;
+    let k: NaverKeys | null | undefined;
+    try {
+      k = await keys.naver?.();
+    } catch {
+      return false;
+    }
+    if (!k || isPlaceholder(k.consumerKey) || isPlaceholder(k.consumerSecret)) return false;
+    if (env.os() === 'ios' && isPlaceholder(k.serviceUrlScheme)) return false;
+    try {
+      await sdk.initialize({ consumerKey: k.consumerKey, consumerSecret: k.consumerSecret, appName: k.appName || 'app', serviceUrlSchemeIOS: k.serviceUrlScheme ?? '' });
+      naverInitKey = [k.consumerKey, k.consumerSecret, k.appName, k.serviceUrlScheme ?? ''].join('|');
+
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async function naverToken(): Promise<string | typeof FALL> {
     const fall = (code: string): typeof FALL => {
       track('login_native_fallback', { provider: 'naver', code });
@@ -1223,14 +1248,14 @@ export function createAuth<T>(deps: AuthDeps<T>, env: AuthEnv = defaultEnv()): A
     const kakao = env.kakaoUser();
     const g = env.google()?.GoogleSignin;
     await Promise.all([
-      naver ? forgetOne('naver', () => (unlink && naver.deleteToken ? naver.deleteToken() : naver.logout?.()), out) : Promise.resolve(),
+      // 네이버는 초기화된 뒤에만(안 됐으면 키로 초기화 — 키가 없으면 정리할 네이버 로그인도 없다고 보고 건너뜀)
+      naver ? (async () => { if (await ensureNaverInit(naver)) await forgetOne('naver', () => (unlink && naver.deleteToken ? naver.deleteToken() : naver.logout?.()), out); })() : Promise.resolve(),
       kakao ? forgetOne('kakao', () => (unlink && kakao.unlink ? kakao.unlink() : kakao.logout?.()), out) : Promise.resolve(),
       g ? forgetOne('google', async () => {
         if (unlink && g.revokeAccess) await g.revokeAccess().catch(() => undefined);
         await g.signOut?.();
       }, out) : Promise.resolve(),
     ]);
-    naverInitKey = '';   // 다음 로그인에 다시 초기화
     if (Object.keys(out).length) track('login_sdk_forget_failed', { unlink, ...out });
 
     return out;

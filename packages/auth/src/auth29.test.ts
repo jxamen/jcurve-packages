@@ -17,7 +17,7 @@ function setup(o: { serverWithdraw?: () => Promise<unknown>; kakaoFail?: boolean
     browser: () => null, linking: () => null, wait: async () => undefined,
   };
   const auth = createAuth<any>({
-    keys: { kakaoNative: 'realkey123', googleWeb: 'web.apps.googleusercontent.com' },
+    keys: { kakaoNative: 'realkey123', googleWeb: 'web.apps.googleusercontent.com', naver: () => ({ consumerKey: 'cid', consumerSecret: 'sec', appName: 'a', serviceUrlScheme: 'jcurveapp' }) },
     naverSdk: () => ({ default: naver }),
     server: { kakao: async () => ({}), google: async () => ({}), apple: async () => ({}),
       logout: async () => { calls.push('server.logout'); throw new Error('net'); }, withdraw: o.serverWithdraw ?? (async () => { calls.push('server.withdraw'); }) },
@@ -112,5 +112,29 @@ describe('이메일 꼭 받기 (2.9.1)', () => {
     const { auth, logins } = kakaoEnv({ emailNeedsAgreement: false }, async () => ({ accessToken: 'T2' }));
     await auth.signIn('kakao');
     expect(logins).toEqual(['talk']);
+  });
+});
+
+describe('네이버 정리는 초기화 뒤에만 (2.9.2)', () => {
+  function env2(withKeys: boolean) {
+    const calls: string[] = [];
+    const naver = { initialize: () => { calls.push('naver.init'); }, login: async () => ({}), logout: async () => { calls.push('naver.logout'); } };
+    const env: AuthEnv = { os: () => 'android', kakaoCore: () => null, kakaoUser: () => null, google: () => null, apple: () => null, browser: () => null, linking: () => null, wait: async () => undefined };
+    const auth = createAuth<any>({ keys: withKeys ? { naver: () => ({ consumerKey: 'cid', consumerSecret: 'sec', appName: 'a' }) } : {},
+      naverSdk: () => ({ default: naver }), server: { kakao: async () => ({}), google: async () => ({}), apple: async () => ({}) } }, env);
+
+    return { auth, calls };
+  }
+
+  it('이번 실행에서 초기화 안 했으면 키로 초기화한 뒤 logout', async () => {
+    const { auth, calls } = env2(true);
+    await auth.signOut();
+    expect(calls).toEqual(['naver.init', 'naver.logout']);
+  });
+
+  it('키가 없으면 네이버는 건너뛴다(초기화 전 logout 은 안드로이드에서 앱이 죽는다)', async () => {
+    const { auth, calls } = env2(false);
+    expect(await auth.signOut()).toEqual({});
+    expect(calls).toEqual([]);
   });
 });
