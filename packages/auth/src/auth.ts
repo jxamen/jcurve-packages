@@ -1245,8 +1245,22 @@ export function createAuth<T>(deps: AuthDeps<T>, env: AuthEnv = defaultEnv()): A
     const unlink = opts.unlink === true;
     const rawNaver = mod<any>(() => deps.naverSdk?.());
     const naver = rawNaver?.logout ? rawNaver : rawNaver?.default;
-    const kakao = env.kakaoUser();
-    const g = env.google()?.GoogleSignin;
+    /*
+     | (2.9.3) 카카오 · 구글도 **이번 실행에서 SDK 를 켠 뒤에만** 정리한다. 안드로이드 카카오 SDK 는 initializeKakaoSDK 전 logout 에서
+     | lateinit hosts 로 앱이 죽었다(10-03 괜찮아 A32 — 구글로 로그인한 실행에서 로그아웃). 카카오는 kakaoApi(키가 있으면 초기화하고 모듈, 없으면 null),
+     | 구글은 웹 클라이언트 ID 가 있으면 configure 를 먼저(이미 했으면 같은 값을 다시 — 무해). 키가 없으면 그 SDK 는 건너뛴다(정리할 로그인도 없다).
+     */
+    const kakao = await kakaoApi().catch(() => null);
+    const g0 = env.google()?.GoogleSignin;
+    let g: any = null;
+    if (g0 && !isPlaceholder(keys.googleWeb)) {
+      try {
+        g0.configure({ webClientId: keys.googleWeb, iosClientId: isPlaceholder(keys.googleIos) ? undefined : keys.googleIos });
+        g = g0;
+      } catch {
+        g = null;
+      }
+    }
     await Promise.all([
       // 네이버는 초기화된 뒤에만(안 됐으면 키로 초기화 — 키가 없으면 정리할 네이버 로그인도 없다고 보고 건너뜀)
       naver ? (async () => { if (await ensureNaverInit(naver)) await forgetOne('naver', () => (unlink && naver.deleteToken ? naver.deleteToken() : naver.logout?.()), out); })() : Promise.resolve(),

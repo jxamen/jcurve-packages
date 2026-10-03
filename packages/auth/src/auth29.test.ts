@@ -11,7 +11,7 @@ function setup(o: { serverWithdraw?: () => Promise<unknown>; kakaoFail?: boolean
   const naver = { initialize: () => undefined, login: async () => ({}), logout: async () => { calls.push('naver.logout'); }, deleteToken: async () => { calls.push('naver.deleteToken'); } };
   const kakaoUser = { login: async () => ({}), logout: async () => { calls.push('kakao.logout'); if (o.kakaoFail) throw Object.assign(new Error('x'), { code: 'NotLoggedIn' }); },
     unlink: async () => { calls.push('kakao.unlink'); } };
-  const google = { GoogleSignin: { signOut: async () => { calls.push('google.signOut'); }, revokeAccess: async () => { calls.push('google.revoke'); } } };
+  const google = { GoogleSignin: { configure: () => undefined, signOut: async () => { calls.push('google.signOut'); }, revokeAccess: async () => { calls.push('google.revoke'); } } };
   const env: AuthEnv = {
     os: () => 'ios', kakaoCore: () => ({ initializeKakaoSDK: async () => undefined }), kakaoUser: () => kakaoUser, google: () => google, apple: () => null,
     browser: () => null, linking: () => null, wait: async () => undefined,
@@ -136,5 +136,24 @@ describe('네이버 정리는 초기화 뒤에만 (2.9.2)', () => {
     const { auth, calls } = env2(false);
     expect(await auth.signOut()).toEqual({});
     expect(calls).toEqual([]);
+  });
+});
+
+describe('카카오 · 구글 정리도 SDK 를 켠 뒤에만 (2.9.3)', () => {
+  it('카카오 키가 없으면 카카오는 건너뛰고, 있으면 초기화 뒤 logout · 구글은 configure 뒤 signOut', async () => {
+    const calls: string[] = [];
+    const kakaoUser = { login: async () => ({}), logout: async () => { calls.push('kakao.logout'); } };
+    const google = { GoogleSignin: { configure: () => { calls.push('google.configure'); }, signOut: async () => { calls.push('google.signOut'); } } };
+    const mk = (kakaoNative: string | undefined, googleWeb: string | undefined) => {
+      calls.length = 0;
+      const env: AuthEnv = { os: () => 'android', kakaoCore: () => ({ initializeKakaoSDK: async () => { calls.push('kakao.init'); } }), kakaoUser: () => kakaoUser,
+        google: () => google, apple: () => null, browser: () => null, linking: () => null, wait: async () => undefined };
+
+      return createAuth<any>({ keys: { kakaoNative, googleWeb }, server: { kakao: async () => ({}), google: async () => ({}), apple: async () => ({}) } }, env);
+    };
+    await mk(undefined, undefined).signOut();
+    expect(calls).toEqual([]);
+    await mk('realkey123', 'web.apps.googleusercontent.com').signOut();
+    expect(calls).toEqual(['kakao.init', 'google.configure', 'kakao.logout', 'google.signOut']);
   });
 });
