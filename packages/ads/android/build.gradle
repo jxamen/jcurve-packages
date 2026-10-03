@@ -1,0 +1,25 @@
+// @jcurve/ads 1.7 — 틱톡 비즈니스 SDK(공식 Android, JitPack com.github.tiktok:tiktok-business-android-sdk)를 JS 에 잇는다.
+// JitPack 저장소는 앱의 config plugin(`plugins: ["@jcurve/ads"]`)이 루트 build.gradle 에 넣는다(app.plugin.js).
+apply plugin: 'com.android.library'
+apply plugin: 'expo-module-gradle-plugin'
+
+group = 'kr.co.jcurve.ads'
+version = '1.8.0'
+
+android {
+  namespace "kr.co.jcurve.ads.tiktok"
+  defaultConfig {
+    versionCode 1
+    versionName "1.8.0"
+    // 앱의 R8 에 붙는 규칙 — Play 결제 클래스가 없어도 R8 이 멈추지 않게(consumer-rules.pro)
+    consumerProguardFiles 'consumer-rules.pro'
+  }
+}
+
+dependencies {
+  // 1.7.1 이 JitPack 의 최신 정상 빌드(2026-10-02 앱총괄 확인). 런타임 의존은 androidx annotation · lifecycle 뿐이고
+  // Play 결제(com.android.billingclient)는 compileOnly — 앱에 딸려 오지 않는다. 그래서 BILLING 권한도 생기지 않는다.
+  implementation 'com.github.tiktok:tiktok-business-android-sdk:1.7.1'
+  // SDK 는 설치 출처 라이브러리를 compileOnly 로만 둔다 — 넣어 줘야 설치 출처(광고 클릭 → 설치)가 잡힌다.
+  implementation 'com.android.installreferrer:installreferrer:2.2'
+}

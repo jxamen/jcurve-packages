@@ -50,6 +50,7 @@ function withTimeout(p, ms) {
 const MUTE_AFTER = 3;
 const MUTE_MS = 30 * 60 * 1000;
 function createRewarded(opts, env = defaultEnv()) {
+    let tiktok = opts.tiktok ?? null;
     const mod = env.sdk();
     const os = env.os();
     const test = env.dev() || opts.test;
@@ -248,7 +249,7 @@ function createRewarded(opts, env = defaultEnv()) {
      */
     const warm = (_userId, _customData, _interstitial = false) => { };
     const warmReady = (_userId, _customData, _interstitial = false) => false;
-    async function show({ userId, customData, interstitial = false, onEarned, onFail, onClosed, onOpened }) {
+    async function show({ userId, customData, interstitial = false, onEarned, onFail, onClosed, onOpened, onAbort }) {
         if (!nativeReady) {
             onFail('이 빌드에서는 광고를 재생할 수 없어요', true);
             return false;
@@ -297,11 +298,12 @@ function createRewarded(opts, env = defaultEnv()) {
             timers.forEach((t) => clearTimeout(t));
             timers.length = 0;
         };
-        abortCurrent = () => { finished = true; cleanup(); };
         const safe = (f, ...args) => { try {
             f?.(...args);
         }
         catch { /* noop */ } };
+        abortCurrent = () => { const was = finished; finished = true; cleanup(); if (!was)
+            safe(onAbort); };
         /*
          | 광고를 끝까지 봤는데 「끝까지 보지 않았어요」가 뜨고 보상도 안 들어왔다(꼬꼬농장 2026-09-08).
          | EARNED_REWARD 가 CLOSED **뒤에** 오는 기기가 있다 — 마지막 순간에 X 를 누르면 특히 그렇다.
@@ -357,6 +359,11 @@ function createRewarded(opts, env = defaultEnv()) {
             opened = true;
             stage = 'open';
             noteAdOpen();
+            // 틱톡 광고 열람 — 계측이 광고를 막지 않는다(1.7)
+            try {
+                tiktok?.adImpression();
+            }
+            catch { /* noop */ }
             safe(onOpened);
         }));
         offs.push(ad.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => { earned = true; safe(onEarned); }));
@@ -398,8 +405,40 @@ function createRewarded(opts, env = defaultEnv()) {
         }, 15000));
         return true;
     }
+    /*
+     | 결과 하나로(1.8) — 보상이 닫힘보다 먼저 오면 닫힐 때, 닫힘 뒤에 오면 그때, 끝내 안 오면 엔진의 onFail(닫힘 1.2초 뒤)에서 끝낸다.
+     | 앱 타이머가 끼어들 자리가 없다.
+     */
+    const play = (o) => new Promise((resolve) => {
+        let earned = false;
+        let closed = false;
+        let opened = false;
+        let done = false;
+        const finish = (r) => { if (!done) {
+            done = true;
+            resolve(r);
+        } };
+        void show({
+            ...o,
+            onOpened: () => { opened = true; try {
+                o.onOpened?.();
+            }
+            catch { /* noop */ } },
+            onEarned: () => { earned = true; if (closed)
+                finish({ earned: true, opened: true, busy: false, noAd: false }); },
+            onClosed: () => { closed = true; if (earned)
+                finish({ earned: true, opened: true, busy: false, noAd: false }); },
+            onFail: (message, noAd) => finish({ earned: false, opened, busy: false, noAd: !!noAd, message }),
+            // 그만두기 · 걸림 풀기 — 이미 보상이 왔으면 본 것으로(서버 SSV 는 그대로 온다)
+            onAbort: () => finish(earned ? { earned: true, opened, busy: false, noAd: false } : { earned: false, opened, busy: false, noAd: !opened, message: '광고를 그만뒀어요' }),
+        }).then((started) => {
+            if (!started && !done)
+                finish({ earned: false, opened: false, busy: true, noAd: false });
+        }, () => finish({ earned: false, opened, busy: false, noAd: !opened, message: '광고를 열지 못했어요' }));
+    });
     return {
         available: nativeReady && unitReady,
+        play,
         interstitialAvailable,
         show,
         warm,
@@ -408,5 +447,6 @@ function createRewarded(opts, env = defaultEnv()) {
         mutedMs: () => Math.max(0, mutedUntil - Date.now()),
         requestTracking,
         advertisingId,
+        setTikTok: (t) => { tiktok = t; },
     };
 }
