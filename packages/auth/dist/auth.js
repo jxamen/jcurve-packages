@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isCancel = exports.PLACEHOLDER = exports.AuthError = void 0;
+exports.isCancel = exports.PLACEHOLDER = exports.KAKAO_ACCOUNT_HINT = exports.AuthError = void 0;
 exports.isNewMember = isNewMember;
 exports.memberLabel = memberLabel;
 exports.createReturnWatch = createReturnWatch;
@@ -52,14 +52,18 @@ function memberLabel(member) {
  * 실패면 `auth_failed` 라 거짓이다 — 태그에 `cancel` 같은 글자가 섞여도 판정이 흔들리지 않는다.
  */
 class AuthError extends Error {
-    constructor(code, tag) {
+    constructor(code, tag, hint) {
         super(code === 'cancelled' ? 'user_cancel' : 'auth_' + code);
         this.name = 'AuthError';
         this.code = code;
         this.tag = tag;
+        if (hint)
+            this.hint = hint;
     }
 }
 exports.AuthError = AuthError;
+/** 카카오톡 없는 기기에서 카카오 계정 로그인 창이 안 열렸을 때 안내(2.9.4) */
+exports.KAKAO_ACCOUNT_HINT = '카카오 계정 로그인 창을 열지 못했어요. 카카오톡을 설치하거나 다른 방법으로 로그인해 주세요.';
 /**
  * 아직 안 채운 값인가 — `.env.example` 의 `여기에_...` 같은 자리표시자.
  *
@@ -411,11 +415,12 @@ function createAuth(deps, env = defaultEnv()) {
             // 그만둔 것은 넘기지 않는다 — 웹 창이 또 뜨면 놀란다
             if ((0, exports.isCancel)(errText(e)))
                 throw new AuthError('cancelled', 'kakao');
-            track('login_native_fallback', { provider: 'kakao', code: 'sdk_' + shortCode(e) });
+            // (2.9.4) 네이티브가 준 글을 그대로 짧게 남긴다 — 코드만으로는 「창을 못 띄움」인지 「설정 빠짐」인지 못 갈랐다
+            track('login_native_fallback', { provider: 'kakao', code: 'sdk_' + shortCode(e), detail: errText(e).trim().slice(0, 120) });
             if (web)
                 return FALL;
             if (!talk)
-                throw e;
+                throw kakaoAccountError(e);
         }
         // 1.0 방식 — 카카오톡이 실패했으면 카카오 계정 로그인을 한 번 더
         try {
@@ -427,8 +432,13 @@ function createAuth(deps, env = defaultEnv()) {
         catch (e) {
             if ((0, exports.isCancel)(errText(e)))
                 throw new AuthError('cancelled', 'kakao');
-            throw e;
+            track('login_native_fallback', { provider: 'kakao', code: 'acct_' + shortCode(e), detail: errText(e).trim().slice(0, 120) });
+            throw kakaoAccountError(e);
         }
+    }
+    /** 카카오 계정 로그인(카카오톡 없음 · 카카오톡 실패 뒤)이 안 됨 — 화면이 정확히 안내하게 AuthError 로 */
+    function kakaoAccountError(e) {
+        return e instanceof AuthError ? e : new AuthError('failed', 'kakao_account:' + shortCode(e), exports.KAKAO_ACCOUNT_HINT);
     }
     async function googleToken() {
         const g = env.google();

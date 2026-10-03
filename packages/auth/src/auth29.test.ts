@@ -2,7 +2,7 @@
  * 2.9 — 로그아웃 · 탈퇴 때 SNS SDK 정리(다시 누르면 계정 선택), 새 가입 구분, 빈 이름 안전, 네이버 돌아오기 플러그인.
  */
 import { describe, expect, it } from 'vitest';
-import { createAuth, isNewMember, memberLabel, type AuthEnv } from './auth';
+import { AuthError, KAKAO_ACCOUNT_HINT, createAuth, isNewMember, memberLabel, type AuthEnv } from './auth';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -155,5 +155,24 @@ describe('카카오 · 구글 정리도 SDK 를 켠 뒤에만 (2.9.3)', () => {
     expect(calls).toEqual([]);
     await mk('realkey123', 'web.apps.googleusercontent.com').signOut();
     expect(calls).toEqual(['kakao.init', 'google.configure', 'kakao.logout', 'google.signOut']);
+  });
+});
+
+describe('카카오톡 없는 기기의 카카오 계정 로그인 실패 (2.9.4)', () => {
+  it('SDK 오류를 그대로 던지지 않고 안내가 붙은 AuthError 로 · 네이티브 글을 기록에 남긴다', async () => {
+    const tracked: Array<[string, any]> = [];
+    const user = {
+      isKakaoTalkLoginAvailable: async () => false,
+      login: async () => { throw Object.assign(new Error('presentation anchor not found'), { code: 'ClientFailed' }); },
+    };
+    const env: AuthEnv = { os: () => 'ios', kakaoCore: () => ({ initializeKakaoSDK: async () => undefined }), kakaoUser: () => user, google: () => null, apple: () => null,
+      browser: () => null, linking: () => null, wait: async () => undefined };
+    const auth = createAuth<any>({ keys: { kakaoNative: 'realkey123' }, track: (n, p) => { tracked.push([n, p]); },
+      server: { kakao: async () => ({}), google: async () => ({}), apple: async () => ({}) } }, env);
+    const e = await auth.signIn('kakao').catch((x) => x);
+    expect(e).toBeInstanceOf(AuthError);
+    expect([e.code, e.tag, e.hint]).toEqual(['failed', 'kakao_account:ClientFailed', KAKAO_ACCOUNT_HINT]);
+    const fb = tracked.find(([n, p]) => n === 'login_native_fallback' && String(p?.code).startsWith('sdk_'));
+    expect(fb?.[1].detail).toContain('presentation anchor not found');
   });
 });

@@ -192,14 +192,23 @@ export type AuthErrorCode = 'cancelled' | 'failed' | 'disabled' | 'busy';
 export class AuthError extends Error {
   readonly code: AuthErrorCode;
   readonly tag: string;
+  /**
+   * (2.9.4) 사용자에게 보여 줄 **정확한 안내** — 있으면 화면은 이 글을 그대로 쓰면 된다(없으면 앱의 기본 문구).
+   * 예: 카카오톡이 없는 기기에서 카카오 계정 창을 못 열었을 때(10-04 디저트나우 iOS 시뮬).
+   */
+  readonly hint?: string;
 
-  constructor(code: AuthErrorCode, tag: string) {
+  constructor(code: AuthErrorCode, tag: string, hint?: string) {
     super(code === 'cancelled' ? 'user_cancel' : 'auth_' + code);
     this.name = 'AuthError';
     this.code = code;
     this.tag = tag;
+    if (hint) this.hint = hint;
   }
 }
+
+/** 카카오톡 없는 기기에서 카카오 계정 로그인 창이 안 열렸을 때 안내(2.9.4) */
+export const KAKAO_ACCOUNT_HINT = '카카오 계정 로그인 창을 열지 못했어요. 카카오톡을 설치하거나 다른 방법으로 로그인해 주세요.';
 
 export type Auth<T> = {
   /** 카카오 SDK 초기화 — 여러 번 불러도 한 번만 한다 */
@@ -736,9 +745,10 @@ export function createAuth<T>(deps: AuthDeps<T>, env: AuthEnv = defaultEnv()): A
     } catch (e) {
       // 그만둔 것은 넘기지 않는다 — 웹 창이 또 뜨면 놀란다
       if (isCancel(errText(e))) throw new AuthError('cancelled', 'kakao');
-      track('login_native_fallback', { provider: 'kakao', code: 'sdk_' + shortCode(e) });
+      // (2.9.4) 네이티브가 준 글을 그대로 짧게 남긴다 — 코드만으로는 「창을 못 띄움」인지 「설정 빠짐」인지 못 갈랐다
+      track('login_native_fallback', { provider: 'kakao', code: 'sdk_' + shortCode(e), detail: errText(e).trim().slice(0, 120) });
       if (web) return FALL;
-      if (!talk) throw e;
+      if (!talk) throw kakaoAccountError(e);
     }
 
     // 1.0 방식 — 카카오톡이 실패했으면 카카오 계정 로그인을 한 번 더
@@ -749,8 +759,14 @@ export function createAuth<T>(deps: AuthDeps<T>, env: AuthEnv = defaultEnv()): A
       return askKakaoEmail(user, token);
     } catch (e) {
       if (isCancel(errText(e))) throw new AuthError('cancelled', 'kakao');
-      throw e;
+      track('login_native_fallback', { provider: 'kakao', code: 'acct_' + shortCode(e), detail: errText(e).trim().slice(0, 120) });
+      throw kakaoAccountError(e);
     }
+  }
+
+  /** 카카오 계정 로그인(카카오톡 없음 · 카카오톡 실패 뒤)이 안 됨 — 화면이 정확히 안내하게 AuthError 로 */
+  function kakaoAccountError(e: unknown): AuthError {
+    return e instanceof AuthError ? e : new AuthError('failed', 'kakao_account:' + shortCode(e), KAKAO_ACCOUNT_HINT);
   }
 
   async function googleToken(): Promise<string | typeof FALL> {

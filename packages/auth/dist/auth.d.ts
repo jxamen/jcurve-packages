@@ -163,8 +163,15 @@ export type AuthErrorCode = 'cancelled' | 'failed' | 'disabled' | 'busy';
 export declare class AuthError extends Error {
     readonly code: AuthErrorCode;
     readonly tag: string;
-    constructor(code: AuthErrorCode, tag: string);
+    /**
+     * (2.9.4) 사용자에게 보여 줄 **정확한 안내** — 있으면 화면은 이 글을 그대로 쓰면 된다(없으면 앱의 기본 문구).
+     * 예: 카카오톡이 없는 기기에서 카카오 계정 창을 못 열었을 때(10-04 디저트나우 iOS 시뮬).
+     */
+    readonly hint?: string;
+    constructor(code: AuthErrorCode, tag: string, hint?: string);
 }
+/** 카카오톡 없는 기기에서 카카오 계정 로그인 창이 안 열렸을 때 안내(2.9.4) */
+export declare const KAKAO_ACCOUNT_HINT = "\uCE74\uCE74\uC624 \uACC4\uC815 \uB85C\uADF8\uC778 \uCC3D\uC744 \uC5F4\uC9C0 \uBABB\uD588\uC5B4\uC694. \uCE74\uCE74\uC624\uD1A1\uC744 \uC124\uCE58\uD558\uAC70\uB098 \uB2E4\uB978 \uBC29\uBC95\uC73C\uB85C \uB85C\uADF8\uC778\uD574 \uC8FC\uC138\uC694.";
 export type Auth<T> = {
     /** 카카오 SDK 초기화 — 여러 번 불러도 한 번만 한다 */
     initKakao: () => void;
