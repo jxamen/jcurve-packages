@@ -5,23 +5,42 @@
  * 누를 곳(`tap`)은 `Spot` 으로 감싼다 — 재생기가 그 자리를 재어 손가락을 보낸다.
  */
 import React, { createContext, useContext, useRef } from 'react';
-import { StyleSheet, View, type ViewStyle } from 'react-native';
+import { Animated, StyleSheet, View, type ViewStyle } from 'react-native';
 import type { MockNode, NavItem } from './types';
 import { T, row, useGuideTheme } from './ui';
 
-/** 누를 곳이 그려지면 재생기에 알린다 */
-export const SpotCtx = createContext<((node: View | null) => void) | null>(null);
+/**
+ * 재생기가 내려 주는 것 — 누를 곳 자리 알리기 + 깜빡이는 값.
+ * glowOp · glowSc 는 재생기의 장면 진행 값에서 나온다(장면마다 두 번 크게 깜빡). 움직임 줄이기면 숫자(고정).
+ */
+export type SpotLink = {
+  report: (node: View | null) => void;
+  glowOp: Animated.AnimatedInterpolation<number> | number;
+  glowSc: Animated.AnimatedInterpolation<number> | number;
+};
+export const SpotCtx = createContext<SpotLink | null>(null);
 
-/** 누를 곳 — 테두리로 표시하고 자리를 알린다 */
+/**
+ * 누를 곳 — **두꺼운 테두리 + 옅은 면이 함께 깜빡이고 살짝 커진다**(대표님 10-03 23:51 「영역 껌벅껌벅, 눈에 잘 띄게」).
+ * 테두리는 바깥으로 4px 내서 원래 버튼 테두리와 겹쳐 묻히지 않게 한다.
+ */
 function Spot({ children, style, r = 10 }: { children: React.ReactNode; style?: ViewStyle; r?: number }) {
-  const report = useContext(SpotCtx);
+  const link = useContext(SpotCtx);
   const theme = useGuideTheme();
   const ref = useRef<View>(null);
 
   return (
-    <View ref={ref} collapsable={false} style={style} onLayout={() => report?.(ref.current)}>
+    <View ref={ref} collapsable={false} style={style} onLayout={() => link?.report(ref.current)}>
       {children}
-      <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: r, borderWidth: 3, borderColor: theme.hot }]} />
+      <Animated.View
+        pointerEvents="none"
+        style={[s.glow, {
+          borderRadius: r + 4, borderColor: theme.hot,
+          opacity: link?.glowOp ?? 1, transform: [{ scale: link?.glowSc ?? 1 }],
+        }]}
+      >
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.hot, opacity: 0.16 }]} />
+      </Animated.View>
     </View>
   );
 }
@@ -274,6 +293,7 @@ function Menu({ node }: { node: Extract<MockNode, { type: 'menu' }> }) {
 }
 
 const s = StyleSheet.create({
+  glow: { position: 'absolute', left: -4, right: -4, top: -4, bottom: -4, borderWidth: 4, overflow: 'hidden' },
   pad: { paddingHorizontal: 14 },
   header: { height: 46, paddingHorizontal: 12, borderBottomWidth: 1 },
   scrolled: { height: 26, alignItems: 'center', justifyContent: 'center', borderBottomWidth: 1, borderStyle: 'dashed' },

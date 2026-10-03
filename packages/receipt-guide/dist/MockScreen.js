@@ -12,14 +12,19 @@ const jsx_runtime_1 = require("react/jsx-runtime");
 const react_1 = require("react");
 const react_native_1 = require("react-native");
 const ui_1 = require("./ui");
-/** 누를 곳이 그려지면 재생기에 알린다 */
 exports.SpotCtx = (0, react_1.createContext)(null);
-/** 누를 곳 — 테두리로 표시하고 자리를 알린다 */
+/**
+ * 누를 곳 — **두꺼운 테두리 + 옅은 면이 함께 깜빡이고 살짝 커진다**(대표님 10-03 23:51 「영역 껌벅껌벅, 눈에 잘 띄게」).
+ * 테두리는 바깥으로 4px 내서 원래 버튼 테두리와 겹쳐 묻히지 않게 한다.
+ */
 function Spot({ children, style, r = 10 }) {
-    const report = (0, react_1.useContext)(exports.SpotCtx);
+    const link = (0, react_1.useContext)(exports.SpotCtx);
     const theme = (0, ui_1.useGuideTheme)();
     const ref = (0, react_1.useRef)(null);
-    return ((0, jsx_runtime_1.jsxs)(react_native_1.View, { ref: ref, collapsable: false, style: style, onLayout: () => report?.(ref.current), children: [children, (0, jsx_runtime_1.jsx)(react_native_1.View, { pointerEvents: "none", style: [react_native_1.StyleSheet.absoluteFill, { borderRadius: r, borderWidth: 3, borderColor: theme.hot }] })] }));
+    return ((0, jsx_runtime_1.jsxs)(react_native_1.View, { ref: ref, collapsable: false, style: style, onLayout: () => link?.report(ref.current), children: [children, (0, jsx_runtime_1.jsx)(react_native_1.Animated.View, { pointerEvents: "none", style: [s.glow, {
+                        borderRadius: r + 4, borderColor: theme.hot,
+                        opacity: link?.glowOp ?? 1, transform: [{ scale: link?.glowSc ?? 1 }],
+                    }], children: (0, jsx_runtime_1.jsx)(react_native_1.View, { style: [react_native_1.StyleSheet.absoluteFill, { backgroundColor: theme.hot, opacity: 0.16 }] }) })] }));
 }
 /** 누를 곳이면 Spot, 아니면 그냥 */
 function Maybe({ on, children, style, r }) {
@@ -98,6 +103,7 @@ function Menu({ node }) {
     return ((0, jsx_runtime_1.jsx)(react_native_1.View, { style: [react_native_1.StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' }], children: (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: [s.sheet, { backgroundColor: theme.card }], children: [(0, jsx_runtime_1.jsx)(react_native_1.View, { style: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: GRAY, marginBottom: 8 } }), node.items.map((label, i) => ((0, jsx_runtime_1.jsx)(Maybe, { on: node.tap === i, r: 8, children: (0, jsx_runtime_1.jsx)(react_native_1.View, { style: { paddingVertical: 12, paddingHorizontal: 10 }, children: (0, jsx_runtime_1.jsx)(ui_1.T, { size: 15, w: 800, children: label }) }) }, label)))] }) }));
 }
 const s = react_native_1.StyleSheet.create({
+    glow: { position: 'absolute', left: -4, right: -4, top: -4, bottom: -4, borderWidth: 4, overflow: 'hidden' },
     pad: { paddingHorizontal: 14 },
     header: { height: 46, paddingHorizontal: 12, borderBottomWidth: 1 },
     scrolled: { height: 26, alignItems: 'center', justifyContent: 'center', borderBottomWidth: 1, borderStyle: 'dashed' },

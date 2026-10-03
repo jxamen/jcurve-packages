@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.stitchLayout = exports.stitchReceipts = exports.pickReceiptImages = exports.platformName = exports.pickLimit = exports.isPlatform = exports.guideOf = exports.PLATFORM_ORDER = exports.GUIDES = void 0;
+exports.stitchLayout = exports.stitchReceipts = exports.pickReceiptImages = exports.NEED_TWO_TEXT = exports.NEED_TWO_SHOTS = exports.platformName = exports.pickLimit = exports.needsTwo = exports.isPlatform = exports.guideOf = exports.TWO_SHOT = exports.TWO_SAME_ORDER = exports.PLATFORM_ORDER = exports.GUIDES = void 0;
 exports.ReceiptGuide = ReceiptGuide;
 exports.PlatformChooser = PlatformChooser;
 const jsx_runtime_1 = require("react/jsx-runtime");
@@ -17,11 +17,16 @@ const ui_1 = require("./ui");
 var data_2 = require("./data");
 Object.defineProperty(exports, "GUIDES", { enumerable: true, get: function () { return data_2.GUIDES; } });
 Object.defineProperty(exports, "PLATFORM_ORDER", { enumerable: true, get: function () { return data_2.PLATFORM_ORDER; } });
+Object.defineProperty(exports, "TWO_SAME_ORDER", { enumerable: true, get: function () { return data_2.TWO_SAME_ORDER; } });
+Object.defineProperty(exports, "TWO_SHOT", { enumerable: true, get: function () { return data_2.TWO_SHOT; } });
 Object.defineProperty(exports, "guideOf", { enumerable: true, get: function () { return data_2.guideOf; } });
 Object.defineProperty(exports, "isPlatform", { enumerable: true, get: function () { return data_2.isPlatform; } });
+Object.defineProperty(exports, "needsTwo", { enumerable: true, get: function () { return data_2.needsTwo; } });
 Object.defineProperty(exports, "pickLimit", { enumerable: true, get: function () { return data_2.pickLimit; } });
 Object.defineProperty(exports, "platformName", { enumerable: true, get: function () { return data_2.platformName; } });
 var pick_1 = require("./pick");
+Object.defineProperty(exports, "NEED_TWO_SHOTS", { enumerable: true, get: function () { return pick_1.NEED_TWO_SHOTS; } });
+Object.defineProperty(exports, "NEED_TWO_TEXT", { enumerable: true, get: function () { return pick_1.NEED_TWO_TEXT; } });
 Object.defineProperty(exports, "pickReceiptImages", { enumerable: true, get: function () { return pick_1.pickReceiptImages; } });
 var stitch_1 = require("./stitch");
 Object.defineProperty(exports, "stitchReceipts", { enumerable: true, get: function () { return stitch_1.stitchReceipts; } });
@@ -30,8 +35,8 @@ Object.defineProperty(exports, "stitchLayout", { enumerable: true, get: function
 function useCtx({ theme, renderCharacter }) {
     return (0, react_1.useMemo)(() => ({ theme: { ...ui_1.DEFAULT_THEME, ...theme }, renderCharacter }), [theme, renderCharacter]);
 }
-/** 앱별 안내 재생기 — 저절로 흘러가고 끝에서 [지금 올리기] */
-function ReceiptGuide({ platform, appName, onClose, onUpload, blockedNote, track, ...common }) {
+/** 앱별 안내 재생기 — 저절로 흘러가며 되풀이하고, 아래에 [지금 올리기] 가 늘 떠 있다 */
+function ReceiptGuide({ platform, appName, onClose, onUpload, cta, track, ...common }) {
     const ctx = useCtx(common);
     const trackRef = (0, react_1.useRef)(track);
     trackRef.current = track;
@@ -42,7 +47,7 @@ function ReceiptGuide({ platform, appName, onClose, onUpload, blockedNote, track
         trackRef.current?.('receipt_guide_open', { app: current }); }, [current]);
     if (!platform || !current)
         return null;
-    return ((0, jsx_runtime_1.jsx)(ui_1.GuideProvider, { value: ctx, children: (0, jsx_runtime_1.jsx)(Player_1.Player, { guide: (0, data_1.guideOf)(current), appName: appName, onClose: onClose, onUpload: () => onUpload(current), onDone: () => trackRef.current?.('receipt_guide_done', { app: current }), onSwitch: setCurrent, blockedNote: blockedNote }, current) }));
+    return ((0, jsx_runtime_1.jsx)(ui_1.GuideProvider, { value: ctx, children: (0, jsx_runtime_1.jsx)(Player_1.Player, { guide: (0, data_1.guideOf)(current), appName: appName, onClose: onClose, onUpload: () => onUpload(current), onDone: () => trackRef.current?.('receipt_guide_done', { app: current }), onSwitch: setCurrent, cta: cta }, current) }));
 }
 /** 어떤 영수증인가 고르는 칸 — 올리기 화면 첫 자리에 그대로 놓는다 */
 function PlatformChooser({ theme, renderCharacter, track, onGuide, onQuick, ...rest }) {

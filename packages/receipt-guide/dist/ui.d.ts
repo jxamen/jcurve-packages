@@ -55,17 +55,14 @@ export declare function BigButton({ label, onPress, tone, disabled }: {
     tone?: 'solid' | 'ghost';
     disabled?: boolean;
 }): React.JSX.Element;
-/** 작은 둥근 버튼 — 재생 조절 */
-export declare function SmallButton({ label, onPress, on, a11y }: {
-    label: string;
-    onPress: () => void;
-    on?: boolean;
-    a11y?: string;
-}): React.JSX.Element;
 /** 맨 위 줄 — [닫기] + 제목 */
 export declare function Header({ title, onClose }: {
     title: string;
     onClose: () => void;
+}): React.JSX.Element;
+/** 「2장」 딱지 — 2장이 꼭 필요한 곳을 눈에 띄게(대표님 10-03 23:53 「확실히 강조」) */
+export declare function TwoBadge({ big }: {
+    big?: boolean;
 }): React.JSX.Element;
 /** 캐릭터 + 말풍선 */
 export declare function Bubble({ say, sub }: {

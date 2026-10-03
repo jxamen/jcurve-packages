@@ -10,7 +10,7 @@
  * RN 에 기대지 않는 파일이라 노드 시험(data.test.ts)이 바로 읽는다.
  */
 /** 안내가 있는 앱 */
-export type GuideApp = 'baemin' | 'coupang' | 'coupangeats' | 'nplus' | 'naverpay' | 'musinsa' | 'kurly' | 'kakaopay' | 'other';
+export type GuideApp = 'baemin' | 'coupang' | 'coupangeats' | 'nplus' | 'naverpay' | 'musinsa' | 'kurly' | 'kurly_npay' | 'kakaopay';
 /** 올릴 때 서버에 함께 보내는 「어디 영수증인가」 — 종이 영수증은 안내 없이 바로 찍는다 */
 export type ReceiptPlatform = GuideApp | 'paper';
 /** 아래 탭 한 칸 — 사람 모양처럼 글자 없이 그림으로만 알아보는 칸은 `icon` */
@@ -110,8 +110,6 @@ export type MockNode =
 export type GuideStep = {
     /** 대표님 단계 번호(①②…) — 한 번호를 여러 장면으로 나눌 수 있다 */
     no: number;
-    /** 갈래 꼬리표 — 결제방법 등에 따라 길이 갈릴 때(컬리 「카드 결제라면」) 말풍선 위에 붙는다 */
-    branch?: string;
     /** 말풍선 큰 줄 */
     say: string;
     sub?: string;
@@ -124,7 +122,9 @@ export type GuideStep = {
     scrolled?: boolean;
     /** 이 장면이 머무는 시간(ms) — 없으면 재생기 기본값 */
     ms?: number;
-    /** 다른 안내로 가는 길(컬리 네이버페이 갈래 → 네이버페이 안내) — 가짜 화면 아래 카드 */
+    /** 올릴 이미지가 생기는 장면(캡처가 아닌 「저장하기」 등) — 캡처 장면처럼 판매자 정보 줄을 보여 준다 */
+    result?: true;
+    /** 다른 안내로 가는 길(컬리(네이버페이) → 네이버페이 안내) — 가짜 화면 아래 카드 */
     link?: {
         text: string;
         label: string;
@@ -137,10 +137,15 @@ export type ReceiptGuide = {
     name: string;
     /** 앱 느낌만 살짝 — 가짜 화면 머리 줄 · 칩에만 옅게 쓴다 */
     accent: string;
-    /** 대표님이 적어 준 단계 글 그대로 — 끝 카드에 다시 보여 준다 */
+    /** 대표님이 적어 준 단계 글 그대로(원문 기록) — 시험이 장면 번호가 이 줄 수와 맞는지 본다 */
     summary: string[];
-    /** 끝 카드 작은 줄 */
+    /** [지금 올리기] 위 작은 줄 */
     doneSub: string;
+    /**
+     * 캡처(저장) 장면에서 보여 줄 한 줄 — 판매자(상호 · 사업자번호)까지 보이게(대표님 10-04).
+     * 플랫폼 회사 사업자번호만 있고 판매자 칸이 없는 영수증은 서버가 반려한다(「판매자 정보가 보이게 다시 찍어 주세요.」).
+     */
+    seller: string;
     /** 사진첩에서 한 번에 고를 수 있는 장 수(없으면 1장) — 길어서 여러 장 캡처하는 앱만 */
     multi?: number;
     /** 사진첩을 열기 전 알려 줄 말(여러 장 순서 등) */
@@ -151,5 +156,18 @@ export type ReceiptGuide = {
 };
 /** 그 장면에서 누를 곳 수 — 한 화면에 하나여야 손가락이 어디로 갈지 정해진다 */
 export declare function targetsOf(step: GuideStep): number;
+/**
+ * 안내 맨 아래 버튼 — 부르는 앱이 정한다(캡슐 있음 → 지금 올리기 · 없음 → 광고 보고 받고 올리기 · 오늘 다 씀 …).
+ * 없으면 [지금 올리기] → onUpload. disabled 면 누를 수 없고 「건너뛰기」도 숨긴다.
+ */
+export type GuideCta = {
+    label: string;
+    /** 버튼 위 작은 줄(까닭 · 광고 실패 등) — 없으면 그 안내의 doneSub(2장 곳은 「2장 함께 골라요」) */
+    note?: string;
+    disabled?: boolean;
+    /** 지금 도는 중(광고 불러오는 중) — 누를 수 없다 */
+    busy?: boolean;
+    onPress?: (app: GuideApp) => void;
+};
 /** 글 속 `{앱}` 을 쓰는 앱 이름으로 바꾼다 */
 export declare function fillApp(text: string, appName: string): string;

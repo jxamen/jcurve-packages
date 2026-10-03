@@ -1,10 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PLATFORM_ORDER = exports.GUIDES = void 0;
+exports.TWO_SAME_ORDER = exports.TWO_SHOT = exports.PLATFORM_ORDER = exports.GUIDES = void 0;
 exports.guideOf = guideOf;
 exports.isPlatform = isPlatform;
 exports.platformName = platformName;
 exports.pickLimit = pickLimit;
+exports.needsTwo = needsTwo;
 /* ── 함께 쓰는 장면 ── */
 /** 마지막 장면 — {앱} 「사진 올리기」로 사진첩에서 고른다. pick 이 둘이면 여러 장 */
 const upload = (say, sub, pick = [0]) => ({
@@ -26,6 +27,7 @@ const baemin = {
         '{앱} 「사진 올리기」로 그 이미지 고르기',
     ],
     doneSub: '사진첩에 저장한 카드영수증을 고르면 돼요',
+    seller: '판매자 정보(상호 · 사업자번호)까지 보이게 저장해요',
     steps: [
         {
             no: 1, say: '아래 탭 「주문내역」을 눌러요',
@@ -71,12 +73,14 @@ const baemin = {
             ],
         },
         {
-            no: 4, say: '아래 「저장하기」를 눌러요', sub: '저장한 이미지가 사진첩에 들어가요',
+            no: 4, say: '아래 「저장하기」를 눌러요', sub: '저장한 이미지가 사진첩에 들어가요', result: true,
             toast: '사진첩에 저장했어요',
             nodes: [
                 { type: 'header', title: '카드영수증', close: true },
                 { type: 'tabs', items: ['주문금액', '배달팁'], on: 0 },
-                { type: 'rows', rows: [['카드종류', '신용카드'], ['승인번호', '0000****'], ['거래일시', '2026.10.03 19:20'], ['가맹점명', '○○치킨 △△점'], ['합계', '18,500원']], strong: 4 },
+                { type: 'rows', rows: [['카드종류', '신용카드'], ['승인번호', '0000****'], ['거래일시', '2026.10.03 19:20'], ['합계', '18,500원']], strong: 3 },
+                { type: 'section', title: '판매자 정보' },
+                { type: 'rows', rows: [['상호', '○○치킨 △△점'], ['사업자번호', '000-00-00000']] },
                 { type: 'buttons', items: ['이메일로 받기', '저장하기'], solid: 1, tap: 1 },
             ],
         },
@@ -98,6 +102,7 @@ const coupang = {
         '{앱} 「사진 올리기」',
     ],
     doneSub: '캡처한 카드영수증을 고르면 돼요',
+    seller: '판매자 사업자등록번호까지 보이게 캡처해요',
     steps: [
         {
             no: 1, say: '아래 탭 사람 모양(마이쿠팡)을 눌러요',
@@ -149,7 +154,7 @@ const coupang = {
                 { type: 'section', title: '구매정보' },
                 { type: 'rows', rows: [['상품명', '○○ 생수 2L × 12'], ['구매일자', '2026.10.03']] },
                 { type: 'section', title: '이용상점정보' },
-                { type: 'rows', rows: [['상점명', '○○마켓'], ['사업자번호', '000-00-00000']] },
+                { type: 'rows', rows: [['상점명', '○○마켓'], ['사업자등록번호', '000-00-00000']] },
             ],
         },
         last(6, upload('{앱} 「사진 올리기」로 그 캡처를 골라요', '캡처 한 장이면 돼요')),
@@ -168,6 +173,7 @@ const coupangeats = {
         '{앱} 「사진 올리기」로 그 캡처 고르기',
     ],
     doneSub: '캡처한 영수증을 고르면 돼요',
+    seller: '가게 이름까지 다 보이게 캡처해요',
     steps: [
         {
             no: 1, say: '아래 탭 「주문내역」을 눌러요',
@@ -236,6 +242,7 @@ const nplus = {
         '{앱} 「사진 올리기」에서 2장 함께 고르기(위 → 아래 순서) → 한 장으로 이어 붙여 올려요',
     ],
     doneSub: '캡처 2장을 위 → 아래 순서로 함께 고르면 돼요',
+    seller: '판매자 정보(상호 · 사업자번호)까지 보이게 캡처해요',
     multi: 3,
     pickHint: '위 → 아래 순서로 2장 골라 주세요',
     steps: [
@@ -298,6 +305,7 @@ const naverpay = {
         '{앱} 「사진 올리기」에서 2장 함께 고르기(위 → 아래) → 한 장으로 이어 붙여 올려요',
     ],
     doneSub: '캡처 2장을 위 → 아래 순서로 함께 고르면 돼요',
+    seller: '판매자 정보(상호 · 사업자번호)까지 보이게 캡처해요',
     note: '아래 「PDF로 저장」은 사진첩에 안 들어가요 — 캡처 2장으로 올려 주세요',
     multi: 3,
     pickHint: '위 → 아래 순서로 2장 골라 주세요',
@@ -358,6 +366,7 @@ const musinsa = {
         '{앱} 「사진 올리기」',
     ],
     doneSub: '캡처한 매출전표를 고르면 돼요',
+    seller: '이용상점(상호 · 사업자번호)까지 보이게 캡처해요',
     steps: [
         {
             no: 1, say: '무신사 아래 탭 「마이」를 눌러요',
@@ -396,25 +405,43 @@ const musinsa = {
             nodes: [
                 { type: 'header', title: '신용/체크카드 매출전표', close: true },
                 { type: 'rows', rows: [['카드종류', '○○카드'], ['승인번호', '0000****'], ['거래일시', '2026.10.03 21:10'], ['상품명', '○○ 반팔 티셔츠']] },
-                { type: 'section', title: '가맹점 정보' },
-                { type: 'rows', rows: [['가맹점명', '○○몰'], ['사업자번호', '000-00-00000']] },
+                { type: 'section', title: '이용상점 정보' },
+                { type: 'rows', rows: [['상호', '○○몰'], ['사업자번호', '000-00-00000']] },
                 { type: 'rows', rows: [['합계', '29,000원']], strong: 0 },
             ],
         },
         last(5, upload('{앱} 「사진 올리기」로 그 캡처를 골라요', '캡처 한 장이면 돼요')),
     ],
 };
-/* ── 컬리 — 결제방법에 따라 두 갈래(대표님 10-03 23:36) ──
- | 카드 결제: 「카드 영수증 보기」 → 「신용카드 매출전표」 한 장 캡처(1장)
- | 네이버페이(신용카드): 「주문 내역 상세」 화면 자체를 위 · 아래 2장 캡처 → 이어 붙여 1장
- | 재생은 두 갈래를 차례로 보여 준다(장면 위에 「카드 결제라면」 · 「네이버페이라면」 꼬리표).
+/* ── 컬리 — 결제방법에 따라 칸이 둘(대표님 10-03 23:36 · 23:53) ──
+ | kurly      카드 결제: 「카드 영수증 보기」 → 「신용카드 매출전표」 한 장 캡처(1장)
+ | kurly_npay 네이버페이(신용카드): 「주문 내역 상세」 화면 자체를 위 · 아래 2장 캡처 → 이어 붙여 1장(2장 꼭)
  */
 const KURLY_NAV = ['홈', '카테고리', '검색', '마이컬리'];
-const KURLY_DETAIL_TOP = [
-    { type: 'header', title: '주문 내역 상세', back: true },
-    { type: 'section', title: '주문 상품' },
-    { type: 'rows', rows: [['○○ 샐러드', '9,900원'], ['△△ 그릭요거트', '6,900원'], ['□□ 식빵', '8,000원']] },
-    { type: 'bars', n: 2 },
+/** 컬리 앞쪽 — 마이컬리 → 주문내역 → 주문 카드 「>」(두 칸이 같다) */
+const KURLY_HEAD = [
+    {
+        no: 1, say: '아래 탭 「마이컬리」를 눌러요',
+        nodes: [{ type: 'bars', n: 7 }, { type: 'nav', items: KURLY_NAV, on: 0, tap: 3 }],
+    },
+    {
+        no: 1, say: '「주문내역」을 눌러요',
+        nodes: [
+            { type: 'header', title: '마이컬리' },
+            { type: 'bars', n: 2 },
+            { type: 'section', title: '주문내역', links: ['>'], tap: 'title' },
+            { type: 'bars', n: 3 },
+            { type: 'nav', items: KURLY_NAV, on: 3 },
+        ],
+    },
+    {
+        no: 2, say: '주문 카드 오른쪽 「>」를 눌러요',
+        nodes: [
+            { type: 'header', title: '주문내역', back: true },
+            { type: 'order', shop: '○○ 샐러드 외 2건', meta: '배송완료 · 10/3(금)', amount: '24,800원', corner: '>', tap: 'corner' },
+            { type: 'order', shop: '△△ 우유 900mL 외 1건', meta: '배송완료 · 9/29(월)', amount: '7,600원', corner: '>', dim: true },
+        ],
+    },
 ];
 const kurlyPay = (method, tap) => [
     { type: 'header', title: '주문 내역 상세', back: true },
@@ -430,66 +457,67 @@ const kurly = {
     summary: [
         '아래 탭 「마이컬리」 → 「주문내역」',
         '주문 카드 오른쪽 「>」',
-        '「주문 내역 상세」 아래 「결제 정보」에서 결제방법 보기',
-        '카드 결제: 「카드 영수증 보기」 → 「신용카드 매출전표」 한 장 캡처',
-        '네이버페이(신용카드): 「주문 내역 상세」 화면을 위(주문 상품) · 아래(결제 정보 · 주문 정보) 2장 캡처',
-        '{앱} 「사진 올리기」 — 네이버페이는 2장 함께(위 → 아래), 한 장으로 이어 붙여 올려요',
+        '「주문 내역 상세」 아래 「결제 정보」 → 「카드 영수증 보기」',
+        '「신용카드 매출전표」 한 장 캡처',
+        '{앱} 「사진 올리기」',
     ],
-    doneSub: '카드는 매출전표 1장, 네이버페이는 2장을 위 → 아래로 고르면 돼요',
-    multi: 3,
-    pickHint: '네이버페이 결제는 위 → 아래 순서로 2장 골라 주세요',
+    doneSub: '캡처한 매출전표 1장을 고르면 돼요',
+    seller: '상점 정보(상호 · 사업자번호)까지 보이게 캡처해요',
     steps: [
+        ...KURLY_HEAD,
         {
-            no: 1, say: '아래 탭 「마이컬리」를 눌러요',
-            nodes: [{ type: 'bars', n: 7 }, { type: 'nav', items: KURLY_NAV, on: 0, tap: 3 }],
-        },
-        {
-            no: 1, say: '「주문내역」을 눌러요',
-            nodes: [
-                { type: 'header', title: '마이컬리' },
-                { type: 'bars', n: 2 },
-                { type: 'section', title: '주문내역', links: ['>'], tap: 'title' },
-                { type: 'bars', n: 3 },
-                { type: 'nav', items: KURLY_NAV, on: 3 },
-            ],
-        },
-        {
-            no: 2, say: '주문 카드 오른쪽 「>」를 눌러요',
-            nodes: [
-                { type: 'header', title: '주문내역', back: true },
-                { type: 'order', shop: '○○ 샐러드 외 2건', meta: '배송완료 · 10/3(금)', amount: '24,800원', corner: '>', tap: 'corner' },
-                { type: 'order', shop: '△△ 우유 900mL 외 1건', meta: '배송완료 · 9/29(월)', amount: '7,600원', corner: '>', dim: true },
-            ],
-        },
-        {
-            no: 3, say: '「결제 정보」의 결제방법을 봐요', sub: '카드 결제와 네이버페이 결제는 방법이 달라요',
-            nodes: kurlyPay('신용카드', 'row'),
-        },
-        {
-            no: 4, branch: '카드 결제라면', say: '「카드 영수증 보기」를 눌러요',
+            no: 3, say: '「결제 정보」의 「카드 영수증 보기」를 눌러요', sub: '네이버페이로 결제했다면 「컬리(네이버페이)」를 골라 주세요',
             nodes: kurlyPay('신용카드', 'button'),
         },
         {
-            no: 4, branch: '카드 결제라면', say: '「신용카드 매출전표」를 한 장 캡처해요',
+            no: 4, say: '「신용카드 매출전표」를 한 장 캡처해요',
             action: 'capture', toast: '화면을 캡처했어요',
             nodes: [
                 { type: 'header', title: '신용카드 매출전표', close: true },
                 { type: 'rows', rows: [['카드종류', '○○카드'], ['승인번호', '0000****'], ['거래일시', '2026.10.03 08:40']] },
-                { type: 'section', title: '가맹점 정보' },
-                { type: 'rows', rows: [['가맹점명', '○○마켓'], ['사업자번호', '000-00-00000']] },
+                { type: 'section', title: '상점 정보' },
+                { type: 'rows', rows: [['상호', '○○마켓'], ['사업자번호', '000-00-00000']] },
                 { type: 'rows', rows: [['합계', '24,800원']], strong: 0 },
             ],
         },
+        last(5, upload('{앱} 「사진 올리기」로 그 캡처를 골라요', '캡처 한 장이면 돼요')),
+    ],
+};
+const NPAY_LINK = { text: '네이버페이 결제내역에서도 찾을 수 있어요', label: '네이버페이 안내 보기', app: 'naverpay' };
+const kurlyNpay = {
+    app: 'kurly_npay',
+    name: '컬리(네이버페이)',
+    accent: '#5F0080',
+    summary: [
+        '아래 탭 「마이컬리」 → 「주문내역」',
+        '주문 카드 오른쪽 「>」',
+        '「주문 내역 상세」 아래 「결제 정보」 결제방법이 「네이버페이(신용카드)」',
+        '「주문 내역 상세」 화면을 위(주문 상품) · 아래(결제 정보 · 주문 정보: 주문번호 · 결제 일시) 2장 캡처',
+        '{앱} 「사진 올리기」에서 2장 함께(위 → 아래) — 한 장으로 이어 붙여 올려요',
+    ],
+    doneSub: '캡처 2장을 위 → 아래 순서로 함께 골라요',
+    seller: '주문번호 · 결제 일시까지 보이게 캡처해요',
+    multi: 3,
+    pickHint: '위 → 아래 순서로 2장 골라 주세요',
+    steps: [
+        ...KURLY_HEAD,
         {
-            no: 5, branch: '네이버페이(신용카드)라면', say: '「주문 내역 상세」 위쪽을 캡처해요', sub: '주문 상품이 보이게',
-            link: { text: '네이버페이 결제내역에서도 찾을 수 있어요', label: '네이버페이 안내 보기', app: 'naverpay' },
-            action: 'capture', toast: '1장째 캡처했어요',
-            nodes: KURLY_DETAIL_TOP,
+            no: 3, say: '결제방법이 「네이버페이(신용카드)」인지 봐요', sub: '카드 결제라면 「컬리」를 골라 주세요',
+            nodes: kurlyPay('네이버페이(신용카드)', 'row'),
         },
         {
-            no: 5, branch: '네이버페이(신용카드)라면', say: '내려서 아래쪽도 캡처해요', sub: '결제 정보 · 주문 정보(주문번호 · 결제 일시)',
-            link: { text: '네이버페이 결제내역에서도 찾을 수 있어요', label: '네이버페이 안내 보기', app: 'naverpay' },
-            action: 'capture', toast: '2장째 캡처했어요', scrolled: true,
+            no: 4, say: '「주문 내역 상세」 위쪽을 캡처해요', sub: '주문 상품이 보이게',
+            action: 'capture', toast: '1장째 캡처했어요', link: NPAY_LINK,
+            nodes: [
+                { type: 'header', title: '주문 내역 상세', back: true },
+                { type: 'section', title: '주문 상품' },
+                { type: 'rows', rows: [['○○ 샐러드', '9,900원'], ['△△ 그릭요거트', '6,900원'], ['□□ 식빵', '8,000원']] },
+                { type: 'bars', n: 2 },
+            ],
+        },
+        {
+            no: 4, say: '내려서 아래쪽도 캡처해요', sub: '결제 정보 · 주문 정보(주문번호 · 결제 일시)',
+            action: 'capture', toast: '2장째 캡처했어요', scrolled: true, link: NPAY_LINK,
             nodes: [
                 { type: 'section', title: '결제 정보' },
                 { type: 'rows', rows: [['결제금액', '24,800원'], ['결제방법', '네이버페이(신용카드)']], strong: 0 },
@@ -497,7 +525,7 @@ const kurly = {
                 { type: 'rows', rows: [['주문번호', '0000000000000'], ['결제 일시', '2026.10.03 08:40']] },
             ],
         },
-        last(6, upload('{앱} 「사진 올리기」로 골라요', '카드는 1장, 네이버페이는 2장을 위 → 아래 순서로 함께', [0, 1])),
+        last(5, upload('{앱} 「사진 올리기」에서 2장을 함께 골라요', '위 → 아래 순서로 고르면 한 장으로 이어 붙여 올려요', [0, 1])),
     ],
 };
 /* ── 카카오페이 — 온라인 결제 「거래확인증」 위 · 아래 2장 캡처 → 이어 붙여 1장 ── */
@@ -516,6 +544,7 @@ const kakaopay = {
         '{앱} 「사진 올리기」에서 2장 함께 고르기(위 → 아래)',
     ],
     doneSub: '캡처 2장을 위 → 아래 순서로 함께 고르면 돼요',
+    seller: '공급자 정보(상호 · 사업자번호)까지 보이게 캡처해요',
     note: '온라인 결제만 돼요 — 오프라인 결제 내역은 올릴 수 없어요',
     multi: 3,
     pickHint: '위 → 아래 순서로 2장 골라 주세요',
@@ -593,51 +622,9 @@ const kakaopay = {
         last(7, upload('{앱} 「사진 올리기」에서 2장을 함께 골라요', '위 → 아래 순서로 고르면 한 장으로 이어 붙여 올려요', [0, 1])),
     ],
 };
-/* ── 기타 앱 — 어느 앱에나 맞게. 길면 2장까지 → 이어 붙여 1장 ── */
-const OTHER_NAV = ['홈', '검색', '주문내역', '마이'];
-const other = {
-    app: 'other',
-    name: '기타 앱',
-    accent: '#6B7A99',
-    summary: [
-        '그 앱의 「주문내역」',
-        '주문 상세에서 「영수증」 · 「카드영수증」 · 「매출전표」 찾기',
-        '결제일 · 금액 · 상호 · 사업자번호가 보이게 화면 캡처(길면 2장까지)',
-        '{앱} 「사진 올리기」',
-    ],
-    doneSub: '캡처한 영수증을 고르면 돼요',
-    multi: 3,
-    pickHint: '여러 장이면 위 → 아래 순서로 골라 주세요',
-    steps: [
-        {
-            no: 1, say: '그 앱에서 「주문내역」을 찾아요', sub: '보통 아래 탭이나 「마이」 안에 있어요',
-            nodes: [{ type: 'bars', n: 7 }, { type: 'nav', items: OTHER_NAV, on: 0, tap: 2 }],
-        },
-        {
-            no: 2, say: '주문 상세에서 「영수증」을 찾아요', sub: '「카드영수증」 · 「매출전표」라고 적혀 있기도 해요',
-            nodes: [
-                { type: 'header', title: '주문 상세', back: true },
-                { type: 'bars', n: 2 },
-                { type: 'section', title: '결제 정보' },
-                { type: 'rows', rows: [['상품금액', '15,000원'], ['결제금액', '15,000원']], strong: 1 },
-                { type: 'buttons', items: ['카드영수증'], tap: 0 },
-            ],
-        },
-        {
-            no: 3, say: '결제일 · 금액 · 상호 · 사업자번호가 보이게 캡처해요', sub: '길면 내려서 한 장 더(2장까지)',
-            action: 'capture', toast: '화면을 캡처했어요',
-            nodes: [
-                { type: 'header', title: '카드영수증', close: true },
-                { type: 'rows', rows: [['결제일', '2026.10.03'], ['상호', '○○상점'], ['사업자번호', '000-00-00000'], ['결제금액', '15,000원']], strong: 3 },
-                { type: 'bars', n: 2 },
-            ],
-        },
-        last(4, upload('{앱} 「사진 올리기」로 골라요', '2장이면 위 → 아래 순서로 함께 골라요')),
-    ],
-};
 /* ── 목록 ── */
-/** 고르는 칸 순서(대표님 10-03 — 네이버페이는 N+스토어 다음, 컬리는 무신사 다음, 카카오페이는 기타 앱 앞) — 종이 영수증은 맨 끝 */
-exports.GUIDES = [baemin, coupang, coupangeats, nplus, naverpay, musinsa, kurly, kakaopay, other];
+/** 고르는 칸 순서(대표님 10-03 — 네이버페이는 N+스토어 다음, 컬리 · 컬리(네이버페이)는 무신사 다음, 카카오페이 다음) — 종이 영수증은 맨 끝 */
+exports.GUIDES = [baemin, coupang, coupangeats, nplus, naverpay, musinsa, kurly, kurlyNpay, kakaopay];
 exports.PLATFORM_ORDER = [...exports.GUIDES.map((g) => g.app), 'paper'];
 function guideOf(app) {
     return exports.GUIDES.find((g) => g.app === app);
@@ -652,4 +639,14 @@ function platformName(p) {
 /** 사진첩에서 한 번에 고를 수 있는 장 수 — 길어서 여러 장 캡처하는 곳만 2장 넘게 */
 function pickLimit(p) {
     return p && p !== 'paper' ? guideOf(p).multi ?? 1 : 1;
+}
+/**
+ * **2장이 꼭 필요한 곳**(대표님 10-03 23:53 「2장 아니면 업로드 안되게 막아야 함」) — 영수증이 길어 위 · 아래 2장 캡처를
+ * 이어 붙여야 결제 정보가 다 들어간다. 1장만 고르면 올리지 않는다. 서버도 shots < 2 면 422 need_two_shots.
+ */
+exports.TWO_SHOT = new Set(['nplus', 'naverpay', 'kakaopay', 'kurly_npay']);
+/** 2장 곳 작은 알림 — 서버는 이어 붙인 사진에 주문번호가 둘 이상이면 반려한다 */
+exports.TWO_SAME_ORDER = '같은 주문의 위 · 아래 2장이어야 해요';
+function needsTwo(p) {
+    return p !== null && exports.TWO_SHOT.has(p);
 }

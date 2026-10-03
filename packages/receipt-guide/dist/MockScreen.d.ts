@@ -5,10 +5,18 @@
  * 누를 곳(`tap`)은 `Spot` 으로 감싼다 — 재생기가 그 자리를 재어 손가락을 보낸다.
  */
 import React from 'react';
-import { View } from 'react-native';
+import { Animated, View } from 'react-native';
 import type { MockNode } from './types';
-/** 누를 곳이 그려지면 재생기에 알린다 */
-export declare const SpotCtx: React.Context<((node: View | null) => void) | null>;
+/**
+ * 재생기가 내려 주는 것 — 누를 곳 자리 알리기 + 깜빡이는 값.
+ * glowOp · glowSc 는 재생기의 장면 진행 값에서 나온다(장면마다 두 번 크게 깜빡). 움직임 줄이기면 숫자(고정).
+ */
+export type SpotLink = {
+    report: (node: View | null) => void;
+    glowOp: Animated.AnimatedInterpolation<number> | number;
+    glowSc: Animated.AnimatedInterpolation<number> | number;
+};
+export declare const SpotCtx: React.Context<SpotLink | null>;
 export declare function MockScreen({ nodes, accent, scrolled }: {
     nodes: MockNode[];
     accent: string;

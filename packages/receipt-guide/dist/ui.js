@@ -4,8 +4,8 @@ exports.row = exports.useCharacter = exports.useGuideTheme = exports.GuideProvid
 exports.useReducedMotion = useReducedMotion;
 exports.T = T;
 exports.BigButton = BigButton;
-exports.SmallButton = SmallButton;
 exports.Header = Header;
+exports.TwoBadge = TwoBadge;
 exports.Bubble = Bubble;
 exports.NoteCard = NoteCard;
 const jsx_runtime_1 = require("react/jsx-runtime");
@@ -70,19 +70,15 @@ function BigButton({ label, onPress, tone = 'solid', disabled }) {
                 opacity: disabled ? 0.5 : pressed ? 0.85 : 1,
             }], children: (0, jsx_runtime_1.jsx)(T, { size: 17, w: 900, color: solid ? theme.white : theme.text, children: label }) }));
 }
-/** 작은 둥근 버튼 — 재생 조절 */
-function SmallButton({ label, onPress, on, a11y }) {
-    const theme = (0, exports.useGuideTheme)();
-    return ((0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: a11y ?? label, onPress: onPress, hitSlop: 6, style: ({ pressed }) => [s.small, {
-                borderColor: on ? theme.brand : theme.line,
-                backgroundColor: on ? theme.brandSoft : theme.card,
-                opacity: pressed ? 0.8 : 1,
-            }], children: (0, jsx_runtime_1.jsx)(T, { size: 15, w: 800, color: on ? theme.brand : theme.sub, children: label }) }));
-}
 /** 맨 위 줄 — [닫기] + 제목 */
 function Header({ title, onClose }) {
     const theme = (0, exports.useGuideTheme)();
     return ((0, jsx_runtime_1.jsxs)(react_native_1.View, { style: [exports.row, s.head, { borderColor: theme.line }], children: [(0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", onPress: onClose, hitSlop: 10, style: s.headSide, children: (0, jsx_runtime_1.jsx)(T, { size: 16, w: 700, color: theme.sub, children: "\uB2EB\uAE30" }) }), (0, jsx_runtime_1.jsx)(T, { size: 17, w: 900, center: true, lines: 1, style: { flex: 1 }, children: title }), (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.headSide })] }));
+}
+/** 「2장」 딱지 — 2장이 꼭 필요한 곳을 눈에 띄게(대표님 10-03 23:53 「확실히 강조」) */
+function TwoBadge({ big }) {
+    const theme = (0, exports.useGuideTheme)();
+    return ((0, jsx_runtime_1.jsx)(react_native_1.View, { style: [s.two, big && s.twoBig, { backgroundColor: theme.hot }], children: (0, jsx_runtime_1.jsx)(T, { size: big ? 15 : 12.5, w: 900, color: theme.white, children: "2\uC7A5" }) }));
 }
 /** 캐릭터 + 말풍선 */
 function Bubble({ say, sub }) {
@@ -97,10 +93,11 @@ function NoteCard({ text }) {
 }
 const s = react_native_1.StyleSheet.create({
     big: { borderRadius: 16, borderWidth: 1.5, paddingVertical: 16, alignItems: 'center' },
-    small: { borderRadius: 999, borderWidth: 1.5, paddingVertical: 9, paddingHorizontal: 16, alignItems: 'center' },
     head: { height: 52, paddingHorizontal: 16, borderBottomWidth: 1 },
     headSide: { width: 48 },
     note: { borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, alignSelf: 'stretch' },
+    two: { borderRadius: 999, paddingVertical: 2, paddingHorizontal: 7 },
+    twoBig: { paddingVertical: 4, paddingHorizontal: 10 },
     bubble: { flex: 1, borderWidth: 2, borderRadius: 18, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 8 },
     tail: {
         position: 'absolute', left: -7, bottom: 16, width: 12, height: 12,

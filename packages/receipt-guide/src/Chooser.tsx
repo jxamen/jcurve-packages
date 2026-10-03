@@ -7,9 +7,9 @@
  */
 import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { GUIDES, guideOf } from './data';
+import { GUIDES, guideOf, needsTwo } from './data';
 import type { GuideApp, ReceiptPlatform } from './types';
-import { T, row, useGuideTheme } from './ui';
+import { T, TwoBadge, row, useGuideTheme } from './ui';
 
 export type ChooserProps = {
   /** 지난번에 고른 곳 — 앱이면 [바로 올리기] 를 낸다 */
@@ -31,13 +31,15 @@ export function Chooser({ remembered, onGuide, onQuick, quickDisabled, paper }: 
   return (
     <View style={[s.card, { backgroundColor: theme.card, borderColor: theme.line }]}>
       <T size={18} w={900}>어떤 영수증을 올리나요?</T>
-      <T size={14.5} w={700} color={theme.sub} lh={21} style={{ marginTop: 2 }}>앱 영수증은 고르면 올리는 법을 먼저 보여 줘요</T>
+      <T size={14.5} w={700} color={theme.sub} lh={21} style={{ marginTop: 2 }}>앱 영수증은 고르면 올리는 법을 먼저 보여 줘요. 「2장」은 캡처 2장을 함께 올려야 해요</T>
 
       {last ? (
         <View style={[s.quick, { backgroundColor: theme.brandSoft }]}>
           <View style={[row, { gap: 8 }]}>
             <View style={[s.dot, { backgroundColor: last.accent }]} />
-            <T size={15} w={800} style={{ flex: 1 }}>지난번 {last.name}</T>
+            <T size={15} w={800} style={{ flexShrink: 1 }}>지난번 {last.name}</T>
+            {needsTwo(last.app) ? <TwoBadge /> : null}
+            <View style={{ flex: 1 }} />
             <Pressable
               accessibilityRole="button" accessibilityLabel={last.name + ' 바로 올리기'} disabled={quickDisabled}
               onPress={() => onQuick(last.app)}
@@ -60,7 +62,8 @@ export function Chooser({ remembered, onGuide, onQuick, quickDisabled, paper }: 
                 style={({ pressed }) => [s.tile, { borderColor: on ? theme.brand : theme.line, backgroundColor: on ? theme.brandSoft : theme.card, opacity: pressed ? 0.8 : 1 }]}
               >
                 <View style={[s.dot, { backgroundColor: g.accent }]} />
-                <T size={15} w={800} lines={1}>{g.name}</T>
+                <T size={g.name.length > 6 ? 13.5 : 15} w={800} lines={1}>{g.name}</T>
+                {needsTwo(g.app) ? <View style={s.badge}><TwoBadge /></View> : null}
               </Pressable>
             </View>
           );
@@ -80,5 +83,6 @@ const s = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 10, marginHorizontal: -4 },
   cell: { width: '33.33%', padding: 4 },
   tile: { borderWidth: 1.5, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 8, alignItems: 'center', gap: 6 },
+  badge: { position: 'absolute', top: -6, right: -4 },
   dot: { width: 10, height: 10, borderRadius: 5 },
 });

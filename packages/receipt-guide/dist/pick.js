@@ -33,11 +33,12 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MAX_BYTES = void 0;
+exports.MAX_BYTES = exports.NEED_TWO_TEXT = exports.NEED_TWO_SHOTS = void 0;
 exports.pickReceiptImages = pickReceiptImages;
 /**
- * 사진첩에서 영수증 고르기 — 길게 캡처하는 곳(N+스토어 · 컬리 네이버페이 · 기타 앱)만 여러 장(3장까지).
+ * 사진첩에서 영수증 고르기 — 길게 캡처하는 곳(N+스토어 · 네이버페이 · 컬리(네이버페이) · 카카오페이)만 여러 장(3장까지).
  *
+ * 2장이 꼭 필요한 곳(TWO_SHOT)은 2장 미만이면 던진다(need_two_shots) — 올리기로 넘기지 않는다.
  * 한 장이면 **예전과 똑같은 옵션**으로 연다(여러 장 옵션을 아예 넣지 않는다). 여러 장이면 고른 순서대로
  * (orderedSelection) 위 → 아래로 이어 붙여 **한 장**을 돌려준다 — 올리기 쪽은 늘 사진 한 장만 받는다.
  * 웹은 이어 붙이기(Skia 오프스크린)를 쓰지 않으니 한 장만.
@@ -46,6 +47,9 @@ const react_native_1 = require("react-native");
 const ImagePicker = __importStar(require("expo-image-picker"));
 const data_1 = require("./data");
 const stitch_1 = require("./stitch");
+/** 2장이 꼭 필요한 곳에서 1장만 골랐을 때 — 올리지 않는다(대표님 10-03 23:53). 화면 문구는 NEED_TWO_TEXT */
+exports.NEED_TWO_SHOTS = 'need_two_shots';
+exports.NEED_TWO_TEXT = '이 영수증은 2장이 필요해요(위 · 아래)';
 /** 15MB 넘는 사진 · 빈 결과는 'receipt_too_large' 로 던진다(예전 화면 문구 그대로 쓰려고) */
 exports.MAX_BYTES = 15 * 1024 * 1024;
 async function pickReceiptImages(platform, opts = {}) {
@@ -59,6 +63,8 @@ async function pickReceiptImages(platform, opts = {}) {
     const assets = result.assets.slice(0, limit);
     if (!assets.length || assets.some((a) => a.fileSize && a.fileSize > exports.MAX_BYTES))
         throw new Error('receipt_too_large');
+    if ((0, data_1.needsTwo)(platform) && assets.length < 2)
+        throw new Error(exports.NEED_TWO_SHOTS);
     if (assets.length === 1)
         return { asset: assets[0], count: 1 };
     opts.track?.('receipt_multi_pick', { count: assets.length });

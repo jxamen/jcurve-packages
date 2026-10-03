@@ -1,6 +1,6 @@
 {
   "name": "@jcurve/receipt-guide",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "리워드 앱 공용 「영수증 받는 법」 — 플랫폼 고르기 · 따라 하기 자동 재생 · 긴 영수증 여러 장 이어 붙이기",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

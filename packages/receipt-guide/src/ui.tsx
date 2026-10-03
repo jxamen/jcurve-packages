@@ -106,24 +106,6 @@ export function BigButton({ label, onPress, tone = 'solid', disabled }: { label:
   );
 }
 
-/** 작은 둥근 버튼 — 재생 조절 */
-export function SmallButton({ label, onPress, on, a11y }: { label: string; onPress: () => void; on?: boolean; a11y?: string }) {
-  const theme = useGuideTheme();
-
-  return (
-    <Pressable
-      accessibilityRole="button" accessibilityLabel={a11y ?? label} onPress={onPress} hitSlop={6}
-      style={({ pressed }) => [s.small, {
-        borderColor: on ? theme.brand : theme.line,
-        backgroundColor: on ? theme.brandSoft : theme.card,
-        opacity: pressed ? 0.8 : 1,
-      }]}
-    >
-      <T size={15} w={800} color={on ? theme.brand : theme.sub}>{label}</T>
-    </Pressable>
-  );
-}
-
 /** 맨 위 줄 — [닫기] + 제목 */
 export function Header({ title, onClose }: { title: string; onClose: () => void }) {
   const theme = useGuideTheme();
@@ -135,6 +117,17 @@ export function Header({ title, onClose }: { title: string; onClose: () => void 
       </Pressable>
       <T size={17} w={900} center lines={1} style={{ flex: 1 }}>{title}</T>
       <View style={s.headSide} />
+    </View>
+  );
+}
+
+/** 「2장」 딱지 — 2장이 꼭 필요한 곳을 눈에 띄게(대표님 10-03 23:53 「확실히 강조」) */
+export function TwoBadge({ big }: { big?: boolean }) {
+  const theme = useGuideTheme();
+
+  return (
+    <View style={[s.two, big && s.twoBig, { backgroundColor: theme.hot }]}>
+      <T size={big ? 15 : 12.5} w={900} color={theme.white}>2장</T>
     </View>
   );
 }
@@ -169,10 +162,11 @@ export function NoteCard({ text }: { text: string }) {
 
 const s = StyleSheet.create({
   big: { borderRadius: 16, borderWidth: 1.5, paddingVertical: 16, alignItems: 'center' },
-  small: { borderRadius: 999, borderWidth: 1.5, paddingVertical: 9, paddingHorizontal: 16, alignItems: 'center' },
   head: { height: 52, paddingHorizontal: 16, borderBottomWidth: 1 },
   headSide: { width: 48 },
   note: { borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, alignSelf: 'stretch' },
+  two: { borderRadius: 999, paddingVertical: 2, paddingHorizontal: 7 },
+  twoBig: { paddingVertical: 4, paddingHorizontal: 10 },
   bubble: { flex: 1, borderWidth: 2, borderRadius: 18, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 8 },
   tail: {
     position: 'absolute', left: -7, bottom: 16, width: 12, height: 12,

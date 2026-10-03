@@ -6,11 +6,11 @@
 import React from 'react';
 import { type ChooserProps } from './Chooser';
 import type { TrackFn } from './pick';
-import type { GuideApp } from './types';
+import type { GuideApp, GuideCta } from './types';
 import { type CharacterRender, type GuideTheme } from './ui';
-export type { GuideApp, GuideStep, MockNode, ReceiptGuide as GuideData, ReceiptPlatform } from './types';
-export { GUIDES, PLATFORM_ORDER, guideOf, isPlatform, pickLimit, platformName } from './data';
-export { pickReceiptImages, type PickedReceipt, type TrackFn } from './pick';
+export type { GuideApp, GuideCta, GuideStep, MockNode, ReceiptGuide as GuideData, ReceiptPlatform } from './types';
+export { GUIDES, PLATFORM_ORDER, TWO_SAME_ORDER, TWO_SHOT, guideOf, isPlatform, needsTwo, pickLimit, platformName } from './data';
+export { NEED_TWO_SHOTS, NEED_TWO_TEXT, pickReceiptImages, type PickedReceipt, type TrackFn } from './pick';
 export { stitchReceipts } from './stitch';
 export { stitchLayout } from './stitchLayout';
 export type { GuideTheme, CharacterRender } from './ui';
@@ -26,15 +26,15 @@ export type ReceiptGuideProps = Common & {
     /** 글 속 {앱} 자리 — 「영테크 「사진 올리기」」 */
     appName: string;
     onClose: () => void;
-    /** 끝 카드 [지금 올리기] — 보통 안내를 닫고 pickReceiptImages(platform) 로 사진첩을 연다. 장면 link 로 옮겨 갔으면 옮긴 앱 */
+    /** [지금 올리기] · 「건너뛰기」 — 보통 안내를 닫고 pickReceiptImages(platform) 로 사진첩을 연다. 장면 link 로 옮겨 갔으면 옮긴 앱 */
     onUpload: (platform: GuideApp) => void;
-    /** 지금 못 올리는 까닭 — 있으면 [지금 올리기] 대신 [닫기] 와 이 글 */
-    blockedNote?: string;
-    /** receipt_guide_open {app} · receipt_guide_done {app} */
+    /** 맨 아래 버튼을 앱이 정한다(캡슐 없음 → 광고 보고 받고 올리기 · 오늘 다 씀 → 누를 수 없음 …). 없으면 [지금 올리기] → onUpload */
+    cta?: GuideCta;
+    /** receipt_guide_open {app} · receipt_guide_done {app}(첫 바퀴를 다 봤을 때) */
     track?: TrackFn;
 };
-/** 앱별 안내 재생기 — 저절로 흘러가고 끝에서 [지금 올리기] */
-export declare function ReceiptGuide({ platform, appName, onClose, onUpload, blockedNote, track, ...common }: ReceiptGuideProps): React.JSX.Element | null;
+/** 앱별 안내 재생기 — 저절로 흘러가며 되풀이하고, 아래에 [지금 올리기] 가 늘 떠 있다 */
+export declare function ReceiptGuide({ platform, appName, onClose, onUpload, cta, track, ...common }: ReceiptGuideProps): React.JSX.Element | null;
 export type PlatformChooserProps = Common & Omit<ChooserProps, 'onGuide' | 'onQuick'> & {
     onGuide: ChooserProps['onGuide'];
     onQuick: ChooserProps['onQuick'];
