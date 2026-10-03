@@ -1,0 +1,45 @@
+{
+  "name": "@jcurve/receipt-guide",
+  "version": "0.1.0",
+  "description": "리워드 앱 공용 「영수증 받는 법」 — 플랫폼 고르기 · 따라 하기 자동 재생 · 긴 영수증 여러 장 이어 붙이기",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "@shopify/react-native-skia": "*",
+    "expo-image-manipulator": "*",
+    "expo-image-picker": ">=16",
+    "react": ">=18",
+    "react-native": ">=0.74"
+  },
+  "peerDependenciesMeta": {
+    "@shopify/react-native-skia": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.0",
+    "react": "^19.2.0",
+    "react-native": "^0.86.3",
+    "typescript": "~5.9.2",
+    "vitest": "^3.2.4",
+    "@shopify/react-native-skia": "2.6.2",
+    "expo-image-manipulator": "~57.0.19",
+    "expo-image-picker": "~57.0.19"
+  },
+  "license": "UNLICENSED",
+  "private": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jxamen/jcurve-packages",
+    "directory": "packages/receipt-guide"
+  }
+}
