@@ -1,13 +1,44 @@
 export type Provider = 'kakao' | 'google' | 'apple';
-/** 서버 웹 로그인으로만 되는 제공자까지 — 네이버는 SDK 를 붙이지 않고 웹으로만 간다 */
+/** 서버 웹 로그인으로도 되는 제공자까지 — 네이버는 앱이 SDK 를 주면 네이버 앱으로(2.8), 아니면 웹으로 간다 */
 export type AnyProvider = Provider | 'naver';
+/**
+ * 네이버 SDK 초기화 값(2.8) — **서버가 내려 준 값**을 앱이 그대로 넘긴다(`auth/providers` 의 `config.naver`).
+ * `serviceUrlScheme` 은 앱의 iOS URL Scheme(app.json 에 넣은 것) — 패키지는 이 값만 쓴다(하드코딩 없음).
+ */
+export type NaverKeys = {
+    consumerKey: string;
+    consumerSecret: string;
+    appName: string;
+    serviceUrlScheme?: string;
+};
 /** 서버가 토큰을 받아 세션을 만들어 준다 — 모양은 앱마다 다르므로 그대로 흘려보낸다 */
 export type ServerLogin<T> = {
     kakao: (accessToken: string) => Promise<T>;
     google: (idToken: string) => Promise<T>;
     /** 이름은 애플이 **최초 1회만** 준다 — 그때 서버에 넘기지 않으면 영영 못 받는다 */
     apple: (identityToken: string, name: string) => Promise<T>;
+    /** (2.8) 네이버 앱 로그인 토큰 → `POST {app}/auth/naver { accessToken }`. 없으면 네이버는 웹으로만 */
+    naver?: (accessToken: string) => Promise<T>;
+    /** (2.9) 서버 로그아웃(세션 지우기) — `signOut()` 이 부른다. 실패해도 기기 정리는 계속한다 */
+    logout?: () => Promise<unknown>;
+    /** (2.9) 서버 탈퇴 — `withdraw()` 가 부른다. 실패하면 SDK 연결은 끊지 않고 이유를 돌려준다 */
+    withdraw?: () => Promise<unknown>;
 };
+/** (2.9) SDK 정리 결과 — 제공자마다 실패했을 때만 사유(정리할 것이 없으면 칸이 없다) */
+export type SdkForgetResult = {
+    naver?: string;
+    kakao?: string;
+    google?: string;
+};
+/**
+ * (2.9) 로그인 결과가 「새 가입」인가 — 서버 `isNew`(첫 세션, jcurve-api e98cfb5) → 없으면 `member.needsSignup`(약관 전) → false.
+ * 앱은 새 가입만 온보딩으로 보낸다(대표님 10-03 「가입 회원인데 온보딩으로 감」).
+ */
+export declare function isNewMember(result: unknown): boolean;
+/**
+ * (2.9) 화면에 쓸 이름 — 이메일 · 이름이 없을 수 있다(네이버 · 애플은 동의를 안 하면 비어 온다). 빈 값이면 「○○로 가입」.
+ */
+export declare function memberLabel(member: unknown): string;
 /**
  * 계측에 실을 수 있는 값 — **스칼라만**.
  *
@@ -64,7 +95,25 @@ export type AuthDeps<T> = {
         googleWeb?: string;
         /** 없으면 웹 클라이언트 ID 로만 돈다 */
         googleIos?: string;
+        /**
+         * (2.8) 네이버 SDK 값 — **누를 때** 부른다(서버 목록을 앱이 뜬 뒤 받으므로 함수). 못 받았으면 null —
+         * 그때는 웹 로그인으로 넘어가고 `login_native_fallback{provider:'naver', code:'no_keys'}` 를 남긴다.
+         */
+        naver?: () => NaverKeys | null | undefined | Promise<NaverKeys | null | undefined>;
+        /**
+         * (2.9.1) 이메일을 꼭 받는다(대표님 10-03 「네이버, 카카오 모두 이메일 받자」). 카카오는 로그인 뒤 이메일 동의가 없으면
+         * 이메일 항목만 한 번 더 동의를 묻는다(카카오 계정 화면) — 거절하면 받은 토큰으로 그대로 진행. 이미 가입한 회원도 다음 로그인 때 묻는다.
+         * 네이버 SDK 에는 재동의(reprompt) 옵션이 없다 — 네이버 콘솔에서 이메일을 필수로 두고, 빈 이메일은 서버가 다음 로그인에 채운다.
+         */
+        requireEmail?: boolean;
     };
+    /**
+     * (2.8) `@react-native-seoul/naver-login` 모듈 — 앱이 `() => require('@react-native-seoul/naver-login').default` 로 준다.
+     *
+     * 패키지가 직접 require 하지 않는 이유는 `random` 과 같다 — Metro 는 require 를 **빌드 때** 찾아서, 그 모듈이
+     * 없는 앱은 try/catch 로 감싸도 번들이 깨진다. 이것 · `keys.naver` · `server.naver` 가 모두 있어야 네이버 앱으로 간다.
+     */
+    naverSdk?: () => any;
     server: ServerLogin<T>;
     /**
      * 사용 기록 — `createTrack()` 이 만든 것이나 앱의 `track()` 을 그대로 준다.
@@ -77,7 +126,7 @@ export type AuthDeps<T> = {
     /** 서버 웹 로그인(2.0). 없으면 SDK 로만 한다 */
     web?: WebLogin<T>;
     /**
-     * 어드민이 켠 로그인 — 서버의 제공자 목록(`kakao`·`kakao_native`·`google`·`naver`·`apple`·`apple_web`).
+     * 어드민이 켠 로그인 — 서버의 제공자 목록(`kakao`·`kakao_native`·`google`·`naver`·`naver_native`·`apple`·`apple_web`).
      *
      * **비어 있으면 「아직 모른다」로 읽는다**(막지 않는다). 목록은 앱이 뜬 뒤 따로 받아 오는데,
      * 사람들은 첫 실행 1~5초 만에 로그인을 누른다. 그때 막으면 카카오 가입이 52 → 0 으로
@@ -114,8 +163,15 @@ export type AuthErrorCode = 'cancelled' | 'failed' | 'disabled' | 'busy';
 export declare class AuthError extends Error {
     readonly code: AuthErrorCode;
     readonly tag: string;
-    constructor(code: AuthErrorCode, tag: string);
+    /**
+     * (2.9.4) 사용자에게 보여 줄 **정확한 안내** — 있으면 화면은 이 글을 그대로 쓰면 된다(없으면 앱의 기본 문구).
+     * 예: 카카오톡이 없는 기기에서 카카오 계정 창을 못 열었을 때(10-04 디저트나우 iOS 시뮬).
+     */
+    readonly hint?: string;
+    constructor(code: AuthErrorCode, tag: string, hint?: string);
 }
+/** 카카오톡 없는 기기에서 카카오 계정 로그인 창이 안 열렸을 때 안내(2.9.4) */
+export declare const KAKAO_ACCOUNT_HINT = "\uCE74\uCE74\uC624 \uACC4\uC815 \uB85C\uADF8\uC778 \uCC3D\uC744 \uC5F4\uC9C0 \uBABB\uD588\uC5B4\uC694. \uCE74\uCE74\uC624\uD1A1\uC744 \uC124\uCE58\uD558\uAC70\uB098 \uB2E4\uB978 \uBC29\uBC95\uC73C\uB85C \uB85C\uADF8\uC778\uD574 \uC8FC\uC138\uC694.";
 export type Auth<T> = {
     /** 카카오 SDK 초기화 — 여러 번 불러도 한 번만 한다 */
     initKakao: () => void;
@@ -182,6 +238,26 @@ export type Auth<T> = {
      * ```
      */
     runAfterLogin: <R>(fn: () => R | Promise<R>) => Promise<R>;
+    /**
+     * (2.9) 기기에 남은 SNS 로그인 정리 — 네이버 logout · 카카오 logout · 구글 signOut(`unlink` 면 네이버 deleteToken · 카카오 unlink · 구글 revokeAccess).
+     * 안 지우면 다시 누를 때 **계정 선택 없이 바로 들어간다**(팩트투자 10-03). 실패는 무시하고 사유만 돌려준다. 애플은 기기에 지울 토큰이 없다.
+     */
+    forgetSdks: (opts?: {
+        unlink?: boolean;
+    }) => Promise<SdkForgetResult>;
+    /** (2.9) 로그아웃 — 서버(`server.logout`, 실패 무시) + SDK 정리. 앱은 그 뒤 자기 저장값(세션 토큰)을 지운다 */
+    signOut: (opts?: {
+        unlink?: boolean;
+    }) => Promise<SdkForgetResult>;
+    /**
+     * (2.9) 탈퇴 — 서버(`server.withdraw`)가 성공했을 때만 SDK 연결을 끊는다(네이버 토큰 삭제 · 카카오 unlink · 구글 revoke).
+     * 서버가 실패하면 `{ ok:false, error }`(사용자에게 이유를 보여 준다) — 연결은 그대로라 다시 시도할 수 있다. 애플 revoke 는 대표님 결정 전 보류.
+     */
+    withdraw: () => Promise<{
+        ok: boolean;
+        error?: string;
+        sdk?: SdkForgetResult;
+    }>;
     /**
      * (2.6) 지금 안전 시점인가(동기) — **Modal 안전장치**로 쓴다: `visible={want && auth.loginSettled()}`.
      * 거짓이었으면 `afterLoginSettled().then(다시 그리기)` 로 한 번 더 그린다.

@@ -1,6 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isCancel = exports.PLACEHOLDER = exports.AuthError = void 0;
+exports.isCancel = exports.PLACEHOLDER = exports.KAKAO_ACCOUNT_HINT = exports.AuthError = void 0;
+exports.isNewMember = isNewMember;
+exports.memberLabel = memberLabel;
 exports.createReturnWatch = createReturnWatch;
 exports.parseReturn = parseReturn;
 exports.createAuth = createAuth;
@@ -15,6 +17,31 @@ exports.createAuth = createAuth;
  */
 const settle_1 = require("./settle");
 /**
+ * (2.9) 로그인 결과가 「새 가입」인가 — 서버 `isNew`(첫 세션, jcurve-api e98cfb5) → 없으면 `member.needsSignup`(약관 전) → false.
+ * 앱은 새 가입만 온보딩으로 보낸다(대표님 10-03 「가입 회원인데 온보딩으로 감」).
+ */
+function isNewMember(result) {
+    const r = (result ?? {});
+    if (typeof r.isNew === 'boolean')
+        return r.isNew;
+    return r.member?.needsSignup === true;
+}
+/**
+ * (2.9) 화면에 쓸 이름 — 이메일 · 이름이 없을 수 있다(네이버 · 애플은 동의를 안 하면 비어 온다). 빈 값이면 「○○로 가입」.
+ */
+function memberLabel(member) {
+    const m = (member ?? {});
+    const name = typeof m.name === 'string' ? m.name.trim() : '';
+    if (name)
+        return name;
+    const email = typeof m.email === 'string' ? m.email.trim() : '';
+    if (email)
+        return email;
+    const label = { kakao: '카카오', naver: '네이버', google: '구글', apple: 'Apple', toss: '토스', guest: '게스트' };
+    const p = typeof m.provider === 'string' ? m.provider : '';
+    return label[p] ? `${label[p]}로 가입` : '회원';
+}
+/**
  * 로그인이 안 됐을 때 던지는 것.
  *
  * `tag` 는 **어디서 끊겼는지**다 — `open:`(창을 못 띄움) · `win:`(창이 이상하게 닫힘) ·
@@ -25,14 +52,18 @@ const settle_1 = require("./settle");
  * 실패면 `auth_failed` 라 거짓이다 — 태그에 `cancel` 같은 글자가 섞여도 판정이 흔들리지 않는다.
  */
 class AuthError extends Error {
-    constructor(code, tag) {
+    constructor(code, tag, hint) {
         super(code === 'cancelled' ? 'user_cancel' : 'auth_' + code);
         this.name = 'AuthError';
         this.code = code;
         this.tag = tag;
+        if (hint)
+            this.hint = hint;
     }
 }
 exports.AuthError = AuthError;
+/** 카카오톡 없는 기기에서 카카오 계정 로그인 창이 안 열렸을 때 안내(2.9.4) */
+exports.KAKAO_ACCOUNT_HINT = '카카오 계정 로그인 창을 열지 못했어요. 카카오톡을 설치하거나 다른 방법으로 로그인해 주세요.';
 /**
  * 아직 안 채운 값인가 — `.env.example` 의 `여기에_...` 같은 자리표시자.
  *
@@ -326,6 +357,27 @@ function createAuth(deps, env = defaultEnv()) {
      * 웹 로그인이 있으면 SDK 가 안 될 때 `FALL` 을 돌려 그리로 넘긴다. 없으면 1.0 처럼
      * 카카오톡 실패 뒤 카카오 계정 로그인을 한 번 더 해 보고, 그래도 안 되면 던진다.
      */
+    /**
+     * (2.9.1) 카카오 이메일 재동의 — keys.requireEmail 일 때, 받은 토큰의 계정에 이메일 동의가 없으면(me().emailNeedsAgreement)
+     * 이메일 항목만 다시 묻는다. 거절 · 실패면 처음 토큰 그대로(로그인은 막지 않는다).
+     */
+    async function askKakaoEmail(user, token) {
+        if (!keys.requireEmail || typeof user?.me !== 'function')
+            return token;
+        try {
+            const me = await user.me();
+            if (!me?.emailNeedsAgreement)
+                return token;
+            const r = await user.login({ useKakaoAccountLogin: true, scopes: ['account_email'] });
+            const t = String(r?.accessToken ?? '');
+            track('login_email_consent', { provider: 'kakao', code: t ? 'agreed' : 'empty' });
+            return t || token;
+        }
+        catch (e) {
+            track('login_email_consent', { provider: 'kakao', code: (0, exports.isCancel)(errText(e)) ? 'refused' : 'sdk_' + shortCode(e) });
+            return token;
+        }
+    }
     async function kakaoToken() {
         const user = await kakaoApi();
         if (!user?.login) {
@@ -357,30 +409,36 @@ function createAuth(deps, env = defaultEnv()) {
                 throw new Error('kakao_no_token');
             if (talk)
                 track('login_native_ok', { provider: 'kakao' });
-            return token;
+            return askKakaoEmail(user, token);
         }
         catch (e) {
             // 그만둔 것은 넘기지 않는다 — 웹 창이 또 뜨면 놀란다
             if ((0, exports.isCancel)(errText(e)))
                 throw new AuthError('cancelled', 'kakao');
-            track('login_native_fallback', { provider: 'kakao', code: 'sdk_' + shortCode(e) });
+            // (2.9.4) 네이티브가 준 글을 그대로 짧게 남긴다 — 코드만으로는 「창을 못 띄움」인지 「설정 빠짐」인지 못 갈랐다
+            track('login_native_fallback', { provider: 'kakao', code: 'sdk_' + shortCode(e), detail: errText(e).trim().slice(0, 120) });
             if (web)
                 return FALL;
             if (!talk)
-                throw e;
+                throw kakaoAccountError(e);
         }
         // 1.0 방식 — 카카오톡이 실패했으면 카카오 계정 로그인을 한 번 더
         try {
             const token = grab(await user.login({ useKakaoAccountLogin: true }));
             if (!token)
                 throw new Error('kakao_no_token');
-            return token;
+            return askKakaoEmail(user, token);
         }
         catch (e) {
             if ((0, exports.isCancel)(errText(e)))
                 throw new AuthError('cancelled', 'kakao');
-            throw e;
+            track('login_native_fallback', { provider: 'kakao', code: 'acct_' + shortCode(e), detail: errText(e).trim().slice(0, 120) });
+            throw kakaoAccountError(e);
         }
+    }
+    /** 카카오 계정 로그인(카카오톡 없음 · 카카오톡 실패 뒤)이 안 됨 — 화면이 정확히 안내하게 AuthError 로 */
+    function kakaoAccountError(e) {
+        return e instanceof AuthError ? e : new AuthError('failed', 'kakao_account:' + shortCode(e), exports.KAKAO_ACCOUNT_HINT);
     }
     async function googleToken() {
         const g = env.google();
@@ -492,6 +550,90 @@ function createAuth(deps, env = defaultEnv()) {
                 return FALL; // 서버 웹 로그인으로 한 번 더 기회를 준다
             throw e;
         }
+    }
+    /** 이 앱이 네이버 앱 로그인을 붙였는가 — 셋 중 하나도 없으면 예전처럼 조용히 웹으로(기록도 안 남긴다) */
+    const naverWired = () => Boolean(deps.naverSdk || keys.naver || server.naver);
+    let naverInitKey = '';
+    /**
+     * 네이버 토큰(2.8) — 네이버 앱이 깔려 있으면 앱으로, 없으면 SDK 가 자기 화면으로 한다(대표님 10-03 「네이버 앱으로」).
+     * 카카오처럼 **갈래마다 사유를 남긴다.** 취소는 취소다 — 웹 창을 또 열지 않는다.
+     */
+    /**
+     * (2.9.2) 네이버 SDK 초기화 — 이번 실행에서 아직 안 했으면 keys.naver 로 한다. 키가 없거나(iOS 스킴 없음 포함) 실패하면 false.
+     * 안드로이드 네이버 SDK 는 initialize 전에 logout · deleteToken 을 부르면 **앱 프로세스가 죽는다**(10-03 괜찮아 A32 — 네이버로 로그인 안 한 채 로그아웃).
+     */
+    async function ensureNaverInit(sdk) {
+        if (naverInitKey !== '')
+            return true;
+        if (!sdk?.initialize)
+            return false;
+        let k;
+        try {
+            k = await keys.naver?.();
+        }
+        catch {
+            return false;
+        }
+        if (!k || isPlaceholder(k.consumerKey) || isPlaceholder(k.consumerSecret))
+            return false;
+        if (env.os() === 'ios' && isPlaceholder(k.serviceUrlScheme))
+            return false;
+        try {
+            await sdk.initialize({ consumerKey: k.consumerKey, consumerSecret: k.consumerSecret, appName: k.appName || 'app', serviceUrlSchemeIOS: k.serviceUrlScheme ?? '' });
+            naverInitKey = [k.consumerKey, k.consumerSecret, k.appName, k.serviceUrlScheme ?? ''].join('|');
+            return true;
+        }
+        catch {
+            return false;
+        }
+    }
+    async function naverToken() {
+        const fall = (code) => {
+            track('login_native_fallback', { provider: 'naver', code });
+            if (web)
+                return FALL;
+            throw new AuthError('failed', 'naver_' + code);
+        };
+        const raw = mod(() => deps.naverSdk?.());
+        const sdk = raw?.login ? raw : raw?.default;
+        if (!sdk?.login || !sdk?.initialize || !server.naver)
+            return fall('no_sdk');
+        let k;
+        try {
+            k = await keys.naver?.();
+        }
+        catch {
+            k = null;
+        }
+        if (!k || isPlaceholder(k.consumerKey) || isPlaceholder(k.consumerSecret))
+            return fall('no_keys');
+        // iOS 는 URL Scheme 이 없으면 SDK 가 초기화를 조용히 건너뛴다 — 그러면 login() 이 영영 안 끝날 수 있다
+        if (env.os() === 'ios' && isPlaceholder(k.serviceUrlScheme))
+            return fall('no_scheme');
+        let r;
+        try {
+            const sig = [k.consumerKey, k.consumerSecret, k.appName, k.serviceUrlScheme ?? ''].join('|');
+            if (naverInitKey !== sig) {
+                await sdk.initialize({ consumerKey: k.consumerKey, consumerSecret: k.consumerSecret, appName: k.appName || 'app',
+                    serviceUrlSchemeIOS: k.serviceUrlScheme ?? '' });
+                naverInitKey = sig;
+            }
+            r = await sdk.login();
+        }
+        catch (e) {
+            if ((0, exports.isCancel)(errText(e)))
+                throw new AuthError('cancelled', 'naver');
+            return fall('sdk_' + shortCode(e));
+        }
+        const token = String(r?.successResponse?.accessToken ?? '');
+        if (r?.isSuccess && token) {
+            track('login_native_ok', { provider: 'naver' });
+            return token;
+        }
+        const f = r?.failureResponse;
+        if (f?.isCancel === true || (0, exports.isCancel)(String(f?.message ?? '')))
+            throw new AuthError('cancelled', 'naver');
+        return fall('sdk_' + String(f?.lastErrorCodeFromNaverSDK ?? (r?.isSuccess ? 'no_token' : 'failed')).replace(/[^A-Za-z0-9_]/g, '').slice(0, 20));
     }
     async function appleNative() {
         const a = env.apple();
@@ -720,7 +862,8 @@ function createAuth(deps, env = defaultEnv()) {
         const list = deps.providers?.() ?? [];
         // 카카오는 REST 키(kakao)든 앱 키(kakao_native)든 하나만 켜져도 켜진 것이다(2.1.2) — 서버는 앱 키만 있으면
         // kakao_native 만 준다. 'kakao' 만 찾아서, 카카오톡 로그인만 켠 앱(총무님)의 버튼이 서버에 가지도 않고 막혔다
-        const on = list.includes(provider) || (provider === 'kakao' && list.includes('kakao_native'));
+        const on = list.includes(provider) || (provider === 'kakao' && list.includes('kakao_native'))
+            || (provider === 'naver' && list.includes('naver_native'));
         if (list.length > 0 && !on)
             throw new AuthError('disabled', provider);
         /*
@@ -743,6 +886,20 @@ function createAuth(deps, env = defaultEnv()) {
             throw new AuthError('failed', 'apple_unavailable');
         }
         if (provider === 'naver') {
+            if (naverWired()) {
+                // 서버가 네이버 앱 로그인을 안 준다(키 없음)고 **받아 본 결과**일 때만 건너뛴다 — 비어 있으면 모르는 것
+                if (list.length > 0 && !list.includes('naver_native')) {
+                    track('login_native_fallback', { provider: 'naver', code: 'server_off' });
+                }
+                else {
+                    const t = await naverToken();
+                    if (t !== FALL) {
+                        const s = await exchange('naver', () => server.naver(t));
+                        if (s !== FALL)
+                            return s;
+                    }
+                }
+            }
             if (!web)
                 throw new AuthError('failed', 'naver_needs_web');
             return webLogin('naver', alive);
@@ -795,8 +952,81 @@ function createAuth(deps, env = defaultEnv()) {
         lateListeners.add(fn);
         return () => { lateListeners.delete(fn); };
     }
+    /** SDK 하나 정리 — 모듈이 없거나 함수가 없으면 건너뛴다(그 앱이 안 쓰는 SDK) */
+    async function forgetOne(name, run, out) {
+        try {
+            await run();
+        }
+        catch (e) {
+            out[name] = shortCode(e);
+        }
+    }
+    async function forgetSdks(opts = {}) {
+        const out = {};
+        const unlink = opts.unlink === true;
+        const rawNaver = mod(() => deps.naverSdk?.());
+        const naver = rawNaver?.logout ? rawNaver : rawNaver?.default;
+        /*
+         | (2.9.3) 카카오 · 구글도 **이번 실행에서 SDK 를 켠 뒤에만** 정리한다. 안드로이드 카카오 SDK 는 initializeKakaoSDK 전 logout 에서
+         | lateinit hosts 로 앱이 죽었다(10-03 괜찮아 A32 — 구글로 로그인한 실행에서 로그아웃). 카카오는 kakaoApi(키가 있으면 초기화하고 모듈, 없으면 null),
+         | 구글은 웹 클라이언트 ID 가 있으면 configure 를 먼저(이미 했으면 같은 값을 다시 — 무해). 키가 없으면 그 SDK 는 건너뛴다(정리할 로그인도 없다).
+         */
+        const kakao = await kakaoApi().catch(() => null);
+        const g0 = env.google()?.GoogleSignin;
+        let g = null;
+        if (g0 && !isPlaceholder(keys.googleWeb)) {
+            try {
+                g0.configure({ webClientId: keys.googleWeb, iosClientId: isPlaceholder(keys.googleIos) ? undefined : keys.googleIos });
+                g = g0;
+            }
+            catch {
+                g = null;
+            }
+        }
+        await Promise.all([
+            // 네이버는 초기화된 뒤에만(안 됐으면 키로 초기화 — 키가 없으면 정리할 네이버 로그인도 없다고 보고 건너뜀)
+            naver ? (async () => { if (await ensureNaverInit(naver))
+                await forgetOne('naver', () => (unlink && naver.deleteToken ? naver.deleteToken() : naver.logout?.()), out); })() : Promise.resolve(),
+            kakao ? forgetOne('kakao', () => (unlink && kakao.unlink ? kakao.unlink() : kakao.logout?.()), out) : Promise.resolve(),
+            g ? forgetOne('google', async () => {
+                if (unlink && g.revokeAccess)
+                    await g.revokeAccess().catch(() => undefined);
+                await g.signOut?.();
+            }, out) : Promise.resolve(),
+        ]);
+        if (Object.keys(out).length)
+            track('login_sdk_forget_failed', { unlink, ...out });
+        return out;
+    }
+    async function signOut(opts = {}) {
+        try {
+            await server.logout?.();
+        }
+        catch {
+            // 서버 세션은 만료되면 어차피 끝난다 — 기기 정리는 계속
+        }
+        current = null;
+        closeFlow();
+        return forgetSdks(opts);
+    }
+    async function withdraw() {
+        if (server.withdraw) {
+            try {
+                await server.withdraw();
+            }
+            catch (e) {
+                return { ok: false, error: String(e?.message ?? e ?? 'withdraw_failed') || 'withdraw_failed' };
+            }
+        }
+        current = null;
+        closeFlow();
+        return { ok: true, sdk: await forgetSdks({ unlink: true }) };
+    }
     return {
         initKakao,
+        forgetSdks,
+        signOut,
+        withdraw,
         availableProviders,
         kakaoTalkAvailable,
         signIn,
