@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.__resetStoreVersion = exports.cmpVersion = exports.storeLinks = exports.decideStoreUpdate = exports.checkStoreVersion = exports.startupSettled = exports.otaHeaders = exports.onUpdateReady = exports.isRestarting = exports.hasWaiting = exports.canApplyNow = exports.bundleLabel = exports.autoApply = exports.applyUpdate = exports.__reset = void 0;
+exports.__resetStoreVersion = exports.cmpVersion = exports.storeLinks = exports.decideStoreUpdate = exports.checkStoreVersion = exports.startupSettled = exports.RESUME_CHECK_MS = exports.otaHeaders = exports.onUpdateReady = exports.isRestarting = exports.hasWaiting = exports.canApplyNow = exports.bundleLabel = exports.autoApply = exports.applyUpdate = exports.__reset = void 0;
 /**
  * `@jcurve/updates` — 리워드 앱 공용 **OTA 적용하기**(2.0 — 꼬꼬농장 방식).
  *
@@ -76,14 +76,17 @@ exports.__resetStoreVersion = exports.cmpVersion = exports.storeLinks = exports.
  * )}
  * ```
  *
- * ## 2.4 — 앱이 다시 앞으로 올 때도 받기(선택)
+ * ## 2.4 — 앱이 다시 앞으로 올 때도 받기(2.8 부터 기본 10분)
  *
- * 켤 때만 받으면 뒤에 둔 채 몇 시간씩 쓰는 폰은 옛 판에 머문다(머니트리 2026-09-19). `resumeCheckMs` 를 주면 앱이 앞으로
- * 올 때 마지막 확인에서 그만큼 지났으면 묻고 받는다. 받아 둔 것이 있거나 네이티브가 켤 때 확인 중이면 건너뛴다.
- * 적용은 위 규칙 그대로다. 주지 않으면 하지 않는다(2.3 과 같다).
+ * 켤 때만 받으면 뒤에 둔 채 몇 시간씩 쓰는 폰은 옛 판에 머문다(머니트리 2026-09-19). 앱이 앞으로 올 때
+ * 마지막 확인에서 `resumeCheckMs` 만큼 지났으면 묻고 받는다. 받아 둔 것이 있거나 네이티브가 켤 때 확인 중이면 건너뛴다.
+ * 적용은 위 규칙 그대로다(2.7 — 받은 판은 다음에 30초 넘게 나갔다 돌아올 때 · 다음 실행에 적용).
+ * **2.8 부터 값을 안 주면 10분(`RESUME_CHECK_MS` = 600000)으로 켜진다**(대표님 아이폰이 몇 시간째 옛 판, 2026-10-04). 끄려면 0.
  *
  * ```ts
- * autoApply(deps, { resumeCheckMs: 10 * 60_000 });   // 10분 — 앞뒤로 자주 오가도 서버를 두드리지 않게
+ * autoApply(deps);                          // 10분 기본
+ * autoApply(deps, { resumeCheckMs: 60_000 }); // 더 자주
+ * autoApply(deps, { resumeCheckMs: 0 });      // 끔(2.7 이전과 같음)
  * ```
  *
  * ## 2.5 — OTA 판 헤더(`otaHeaders`)
@@ -121,6 +124,7 @@ Object.defineProperty(exports, "hasWaiting", { enumerable: true, get: function (
 Object.defineProperty(exports, "isRestarting", { enumerable: true, get: function () { return updates_1.isRestarting; } });
 Object.defineProperty(exports, "onUpdateReady", { enumerable: true, get: function () { return updates_1.onUpdateReady; } });
 Object.defineProperty(exports, "otaHeaders", { enumerable: true, get: function () { return updates_1.otaHeaders; } });
+Object.defineProperty(exports, "RESUME_CHECK_MS", { enumerable: true, get: function () { return updates_1.RESUME_CHECK_MS; } });
 Object.defineProperty(exports, "startupSettled", { enumerable: true, get: function () { return updates_1.startupSettled; } });
 var storeVersion_1 = require("./storeVersion");
 Object.defineProperty(exports, "checkStoreVersion", { enumerable: true, get: function () { return storeVersion_1.checkStoreVersion; } });

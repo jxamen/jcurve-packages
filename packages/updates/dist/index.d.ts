@@ -73,14 +73,17 @@
  * )}
  * ```
  *
- * ## 2.4 — 앱이 다시 앞으로 올 때도 받기(선택)
+ * ## 2.4 — 앱이 다시 앞으로 올 때도 받기(2.8 부터 기본 10분)
  *
- * 켤 때만 받으면 뒤에 둔 채 몇 시간씩 쓰는 폰은 옛 판에 머문다(머니트리 2026-09-19). `resumeCheckMs` 를 주면 앱이 앞으로
- * 올 때 마지막 확인에서 그만큼 지났으면 묻고 받는다. 받아 둔 것이 있거나 네이티브가 켤 때 확인 중이면 건너뛴다.
- * 적용은 위 규칙 그대로다. 주지 않으면 하지 않는다(2.3 과 같다).
+ * 켤 때만 받으면 뒤에 둔 채 몇 시간씩 쓰는 폰은 옛 판에 머문다(머니트리 2026-09-19). 앱이 앞으로 올 때
+ * 마지막 확인에서 `resumeCheckMs` 만큼 지났으면 묻고 받는다. 받아 둔 것이 있거나 네이티브가 켤 때 확인 중이면 건너뛴다.
+ * 적용은 위 규칙 그대로다(2.7 — 받은 판은 다음에 30초 넘게 나갔다 돌아올 때 · 다음 실행에 적용).
+ * **2.8 부터 값을 안 주면 10분(`RESUME_CHECK_MS` = 600000)으로 켜진다**(대표님 아이폰이 몇 시간째 옛 판, 2026-10-04). 끄려면 0.
  *
  * ```ts
- * autoApply(deps, { resumeCheckMs: 10 * 60_000 });   // 10분 — 앞뒤로 자주 오가도 서버를 두드리지 않게
+ * autoApply(deps);                          // 10분 기본
+ * autoApply(deps, { resumeCheckMs: 60_000 }); // 더 자주
+ * autoApply(deps, { resumeCheckMs: 0 });      // 끔(2.7 이전과 같음)
  * ```
  *
  * ## 2.5 — OTA 판 헤더(`otaHeaders`)
@@ -108,7 +111,7 @@
  * 1.0 은 「스스로 다시 시작하지 않고, 띠를 눌러야 적용」이었다. 적용이 사람 손에 달려 새 버전이 퍼지지
  * 않았고, 쓰는 앱도 없었다. 2.0 은 꼬꼬농장이 실제로 쓰며 다듬은 방식을 **모든 앱이 그대로** 쓴다.
  */
-export { __reset, applyUpdate, autoApply, bundleLabel, canApplyNow, hasWaiting, isRestarting, onUpdateReady, otaHeaders, startupSettled } from './updates';
+export { __reset, applyUpdate, autoApply, bundleLabel, canApplyNow, hasWaiting, isRestarting, onUpdateReady, otaHeaders, RESUME_CHECK_MS, startupSettled } from './updates';
 export type { AutoApplyDeps } from './updates';
 export { checkStoreVersion, decideStoreUpdate, storeLinks, cmpVersion, __resetStoreVersion } from './storeVersion';
 export type { StoreDecision, StorePlatform, StoreVersionDeps, StoreVersionInfo } from './storeVersion';

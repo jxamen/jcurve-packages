@@ -200,6 +200,9 @@ export function applyUpdate(): boolean {
  *     앱이 백그라운드로 갔다가 `resumeApplyMs`(기본 30초) 넘게 있다 돌아오는 순간에만 적용 — 돌아오는 순간이라 깜빡임을 못 느낀다.
  * 어느 경우든 **로그인·가입 중이거나 앱이 뒤로 가 있으면 하지 않는다** — 끝내 기회가 없으면 다음 실행에 저절로 적용된다. 「버튼 없이 자동」 원칙은 그대로.
  */
+/** 앞으로 올 때 새 판을 묻는 기본 간격(2.8) — `resumeCheckMs` 를 안 주면 이 값, 0 이면 끔 */
+export const RESUME_CHECK_MS = 600_000;
+
 export function autoApply(
   deps: AutoApplyDeps,
   opts: { quickMs?: number; everyMs?: number; fetchDelayMs?: number; resumeCheckMs?: number; resumeApplyMs?: number } = {},
@@ -307,9 +310,11 @@ export function autoApply(
    | **앱이 다시 앞으로 올 때도 받는다**(2.4, 선택 — `resumeCheckMs`). 켤 때만 받으면 뒤에 둔 채 몇 시간씩 쓰는
    | 폰은 옛 판에 머문다(머니트리 2026-09-19 「ota 안 되는데?」 — 백그라운드에 둔 아이폰이 몇 시간째 옛 판).
    | 마지막 확인에서 이만큼 지났고, 받아 둔 것이 없고, 네이티브가 켤 때 확인·받는 중이 아닐 때만 묻는다.
-   | 다 받으면 네이티브 상태가 바뀌어 위 구독이 부르고, 적용은 위 규칙 그대로다. 주지 않으면 하지 않는다.
+   | 다 받으면 네이티브 상태가 바뀌어 위 구독이 부르고, 적용은 위 규칙 그대로다.
+   | (2.8) **기본 10분(600000)으로 켠다** — 값을 안 준 앱(디저트나우 · 꿀꿀캐시 · 팩트투자)이 「완전히 껐다 켤 때」만 확인해
+   | 대표님 아이폰이 몇 시간째 옛 판에 머물렀다(2026-10-04 두 번). 끄려면 0 을 준다.
    */
-  const gap = opts.resumeCheckMs ?? 0;
+  const gap = opts.resumeCheckMs ?? RESUME_CHECK_MS;
   if (gap > 0 && U.checkForUpdateAsync && U.fetchUpdateAsync) {
     offActive = env.onActive(() => {
       const c = U.latestContext;

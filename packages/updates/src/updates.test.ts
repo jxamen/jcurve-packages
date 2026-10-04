@@ -408,7 +408,7 @@ describe('2.3 — 재시작 중 표시', () => {
   });
 });
 
-describe('2.4 — 앱이 다시 앞으로 올 때도 받는다(resumeCheckMs, 선택)', () => {
+describe('2.4 — 앱이 다시 앞으로 올 때도 받는다(resumeCheckMs, 2.8 부터 기본 10분)', () => {
   let resume: Array<() => void> = [];
   const comeBack = async (): Promise<void> => { resume.forEach((f) => f()); await vi.advanceTimersByTimeAsync(0); };
   beforeEach(() => {
@@ -430,6 +430,26 @@ describe('2.4 — 앱이 다시 앞으로 올 때도 받는다(resumeCheckMs, �
     expect(U.reloads).toBe(0);
     goAway(31_000);
     expect(U.reloads).toBe(1);
+  });
+
+  it('(2.8) 값을 안 주면 10분 기본으로 켜진다 · 0 이면 끈다', async () => {
+    const { deps } = app({ signedIn: true });
+    const stop = autoApply(deps);
+    vi.advanceTimersByTime(9 * 60_000);
+    await comeBack();
+    expect(U.checks, '10분 안').toBe(0);
+    vi.advanceTimersByTime(61_000);
+    await comeBack();
+    expect(U.checks).toBe(1);
+    stop();
+
+    U = fakeUpdates();
+    __reset({ updates: () => U as any, active: () => active, dev: () => false, onState,
+      onActive: (fn) => { resume.push(fn); return () => { resume = resume.filter((f) => f !== fn); }; } });
+    autoApply(app({ signedIn: true }).deps, { resumeCheckMs: 0 });
+    vi.advanceTimersByTime(60 * 60_000);
+    await comeBack();
+    expect(U.checks, '0 이면 끔').toBe(0);
   });
 
   it('간격 안이면 묻지 않는다 — 앞뒤로 자주 오가도 서버를 두드리지 않는다', async () => {
@@ -469,10 +489,13 @@ describe('2.4 — 앱이 다시 앞으로 올 때도 받는다(resumeCheckMs, �
     expect(U.checks).toBe(1);
   });
 
-  it('주지 않으면 하지 않는다 — 기존 앱은 그대로(앞으로 올 때를 듣지도 않는다)', async () => {
+  it('(2.8) 0 을 주면 앞으로 올 때를 듣지도 않는다 — 주지 않으면 10분 기본으로 듣는다', async () => {
     const { deps } = app({ signedIn: true, atHome: true });
-    autoApply(deps);
+    const stop = autoApply(deps, { resumeCheckMs: 0 });
     expect(resume).toHaveLength(0);
+    stop();
+    autoApply(deps);
+    expect(resume).toHaveLength(1);
   });
 
   it('멈추면 앞으로 올 때 구독도 푼다', () => {

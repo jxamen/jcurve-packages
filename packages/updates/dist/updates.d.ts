@@ -113,6 +113,8 @@ export declare function applyUpdate(): boolean;
  *     앱이 백그라운드로 갔다가 `resumeApplyMs`(기본 30초) 넘게 있다 돌아오는 순간에만 적용 — 돌아오는 순간이라 깜빡임을 못 느낀다.
  * 어느 경우든 **로그인·가입 중이거나 앱이 뒤로 가 있으면 하지 않는다** — 끝내 기회가 없으면 다음 실행에 저절로 적용된다. 「버튼 없이 자동」 원칙은 그대로.
  */
+/** 앞으로 올 때 새 판을 묻는 기본 간격(2.8) — `resumeCheckMs` 를 안 주면 이 값, 0 이면 끔 */
+export declare const RESUME_CHECK_MS = 600000;
 export declare function autoApply(deps: AutoApplyDeps, opts?: {
     quickMs?: number;
     everyMs?: number;
