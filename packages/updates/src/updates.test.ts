@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { __reset, applyUpdate, autoApply, bundleLabel, canApplyNow, hasWaiting, isRestarting, onUpdateReady, startupSettled, type AutoApplyDeps } from './updates';
+import { __reset, applyUpdate, autoApply, bundleLabel, canApplyNow, hasWaiting, isRestarting, launchUpdate, onUpdateReady, startupSettled, type AutoApplyDeps } from './updates';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -504,5 +504,92 @@ describe('2.4 — 앱이 다시 앞으로 올 때도 받는다(resumeCheckMs, 2.
     expect(resume).toHaveLength(1);
     stop();
     expect(resume).toHaveLength(0);
+  });
+});
+
+describe('2.9 — 켤 때 시작 화면 뒤에서 받아 바로 적용(launchUpdate)', () => {
+  const flush = async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); };
+
+  it('켤 때 안 받는 빌드: 물어서 받으면 그 자리에서 다시 시작 — 로그인한 사람도', async () => {
+    U = fakeUpdates({}, 'ON_ERROR_RECOVERY');
+    __reset({ updates: () => U as any, active: () => active, dev: () => false, onState });
+    const r = launchUpdate(4000);
+    await flush();
+    expect(await r).toBe('applied');
+    expect([U.checks, U.fetches, U.reloads]).toEqual([1, 1, 1]);
+    // autoApply 를 같이 불러도 다시 묻지 않고 · 두 번 다시 시작하지 않는다
+    autoApply(app({ signedIn: true }).deps);
+    vi.advanceTimersByTime(3000);
+    await flush();
+    expect([U.checks, U.reloads]).toEqual([1, 1]);
+  });
+
+  it('새 판이 없으면 none · 시간 안에 못 받으면 timeout 으로 지금 판을 연다', async () => {
+    U = fakeUpdates({}, 'ON_ERROR_RECOVERY');
+    U.available = false;
+    __reset({ updates: () => U as any, active: () => active, dev: () => false, onState });
+    expect(await launchUpdate(4000)).toBe('none');
+
+    U = fakeUpdates({}, 'ON_ERROR_RECOVERY');
+    U.fetchUpdateAsync = () => new Promise(() => undefined) as any;   // 끝나지 않는 받기
+    __reset({ updates: () => U as any, active: () => active, dev: () => false, onState });
+    const r = launchUpdate(4000);
+    await flush();
+    vi.advanceTimersByTime(4000);
+    expect(await r).toBe('timeout');
+    expect(U.reloads).toBe(0);
+  });
+
+  it('네이티브가 켤 때 받는 빌드: 겹쳐 묻지 않고 기다렸다가 다 받으면 적용 · 받을 게 없으면 none', async () => {
+    U = fakeUpdates({ isStartupProcedureRunning: true });
+    __reset({ updates: () => U as any, active: () => active, dev: () => false, onState });
+    const r = launchUpdate(4000);
+    vi.advanceTimersByTime(1500);
+    U.emit({ isDownloading: true });
+    U.emit({ isDownloading: false, isUpdatePending: true });
+    expect(await r).toBe('applied');
+    expect([U.checks, U.reloads]).toEqual([0, 1]);
+
+    U = fakeUpdates({ isStartupProcedureRunning: true });
+    __reset({ updates: () => U as any, active: () => active, dev: () => false, onState });
+    const r2 = launchUpdate(4000);
+    U.emit({ isStartupProcedureRunning: false });
+    expect(await r2).toBe('none');
+
+    U = fakeUpdates({ isUpdatePending: true });
+    __reset({ updates: () => U as any, active: () => active, dev: () => false, onState });
+    expect(await launchUpdate()).toBe('applied');   // 이미 받아 둠
+  });
+
+  it('돌아올 때: 오래 나갔다 온 직후(5초 안) 받기가 끝나면 그 자리에서 · 늦게 끝나면 다음 복귀로', async () => {
+    const { s, deps } = app({ signedIn: true, atHome: true });
+    autoApply(deps, { resumeCheckMs: 0 });
+    vi.advanceTimersByTime(7000);
+    goAway(60_000);
+    vi.advanceTimersByTime(2000);
+    U.emit({ isUpdatePending: true });
+    expect(U.reloads, '돌아온 지 2초 — 그 자리에서').toBe(1);
+
+    U = fakeUpdates();
+    __reset({ updates: () => U as any, active: () => active, dev: () => false, onState });
+    stateFns = [];
+    __reset({ updates: () => U as any, active: () => active, dev: () => false, onState });
+    autoApply(app({ signedIn: true, atHome: true }).deps, { resumeCheckMs: 0 });
+    vi.advanceTimersByTime(7000);
+    goAway(60_000);
+    vi.advanceTimersByTime(6000);
+    U.emit({ isUpdatePending: true });
+    expect(U.reloads, '6초 뒤 — 쓰는 중이라 기다림').toBe(0);
+    void s;
+  });
+
+  it('돌아온 직후라도 atHome 을 주는 앱은 메인이 아니면 기다린다', async () => {
+    const { deps } = app({ signedIn: true, atHome: false });
+    autoApply(deps, { resumeCheckMs: 0 });
+    vi.advanceTimersByTime(7000);
+    goAway(60_000);
+    vi.advanceTimersByTime(1000);
+    U.emit({ isUpdatePending: true });
+    expect(U.reloads).toBe(0);
   });
 });

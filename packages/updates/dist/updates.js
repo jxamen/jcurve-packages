@@ -15,6 +15,7 @@ exports.applyUpdate = applyUpdate;
 exports.autoApply = autoApply;
 exports.otaHeaders = otaHeaders;
 exports.startupSettled = startupSettled;
+exports.launchUpdate = launchUpdate;
 exports.bundleLabel = bundleLabel;
 const defaultEnv = () => ({
     updates: () => require('expo-updates'),
@@ -73,6 +74,7 @@ function __reset(fake) {
     env = { ...defaultEnv(), ...fake };
     waiting = false;
     restarting = false;
+    launchAsked = 0;
     current = null;
     readyFns.clear();
     headersCache = null;
@@ -92,6 +94,8 @@ const updates = () => {
  */
 let waiting = false;
 let restarting = false;
+/** (2.9) 켤 때 받기(launchUpdate)가 이번 실행에 새 판을 이미 물었다 — autoApply 의 2초 뒤 받기 · 돌아올 때 받기가 겹쳐 묻지 않게 */
+let launchAsked = 0;
 let current = null;
 /**
  * 지금 새 판으로 다시 시작하는 중인가(2.3) — **로그인·게스트 버튼은 이게 참이면 탭을 무시한다.**
@@ -162,9 +166,12 @@ function autoApply(deps, opts = {}) {
     let offActive = null;
     let offState = null;
     let wentBack = 0; // 백그라운드로 간 시각(2.7)
-    let lastCheck = launchedAt; // 켤 때 네이티브(또는 아래 2.1)가 한 번 본다
+    let resumedAt = 0; // 오래 나갔다 돌아온 시각(2.9) — 그 직후 받기가 끝나면 그 자리에서 적용
+    let lastCheck = launchAsked || launchedAt; // 켤 때 네이티브(또는 launchUpdate · 아래 2.1)가 한 번 본다
     const busy = () => deps.busy() || !env.active();
     const reload = () => {
+        if (restarting)
+            return; // 켤 때 받기(launchUpdate)가 이미 다시 시작 중
         restarting = true;
         // 다시 시작하지 못했으면 표시를 풀어 버튼이 다시 먹게 한다 — 다음 실행에 저절로 적용된다
         try {
@@ -176,6 +183,12 @@ function autoApply(deps, opts = {}) {
     };
     const noticeOn = () => { try {
         return !!deps.notice?.();
+    }
+    catch {
+        return false;
+    } };
+    const homeOk = () => { try {
+        return deps.atHome ? !!deps.atHome() : true;
     }
     catch {
         return false;
@@ -213,6 +226,12 @@ function autoApply(deps, opts = {}) {
                 reload();
                 return;
             }
+            // 2-1. (2.9) 오래 나갔다 돌아온 바로 그때 받기가 끝났다(resumeFreshMs 안) — 돌아오는 순간이라 다시 시작해도 「쓰는 중」이 아니다.
+            //      atHome 을 주는 앱은 메인 화면일 때만(알림을 눌러 다른 화면으로 돌아왔으면 다음 복귀로). 대표님 10-04 「두 번 껐다 켜야 최신판?」
+            if (resumedAt && Date.now() - resumedAt < resumeFreshMs && !busy() && !(!deps.signedIn() && deps.triedAuth()) && homeOk()) {
+                reload();
+                return;
+            }
         }
         // 3. 로그인 전 · 아직 버튼을 안 눌렀다 — 로그인 · 가입 화면이 끝나길 기다린다(쓰기 시작 전이라 깜빡여도 같은 화면)
         if (!deps.signedIn() && !deps.triedAuth()) {
@@ -234,6 +253,7 @@ function autoApply(deps, opts = {}) {
         // 4. 그 밖은 백그라운드에서 돌아올 때만(아래 onState)
     };
     const resumeApplyMs = opts.resumeApplyMs ?? 30000;
+    const resumeFreshMs = opts.resumeFreshMs ?? 5000;
     offState = env.onState ? env.onState((st) => {
         if (st === 'background') {
             wentBack = Date.now();
@@ -243,6 +263,8 @@ function autoApply(deps, opts = {}) {
             return;
         const away = wentBack ? Date.now() - wentBack : 0;
         wentBack = 0;
+        if (away >= resumeApplyMs)
+            resumedAt = Date.now();
         if (!waiting || restarting || noticeOn() || away < resumeApplyMs)
             return;
         try {
@@ -286,6 +308,8 @@ function autoApply(deps, opts = {}) {
              */
             if (env.background ? env.background() : !env.active())
                 return;
+            if (launchAsked)
+                return; // (2.9) 켤 때 받기(launchUpdate)가 이미 물었다
             void fetchNow();
         }, opts.fetchDelayMs ?? 2000); // 첫 화면이 쓸 네트워크를 같이 먹지 않게 잠깐 텀을 둔다
     }
@@ -394,6 +418,99 @@ function startupSettled(maxMs = 3000) {
             resolve();
         }
     });
+}
+/**
+ * (2.9) **켤 때 시작 화면 뒤에서 새 판을 받아 그 자리에서 적용한다** — 대표님 10-04 「사용자들도 두 번을 껐다 켜야만 최신판이 보이겠네?」.
+ * 시작 화면(스플래시)을 내리기 **전에** `await launchUpdate()` 한다. 로그인한 사람 · 안 한 사람 똑같다.
+ *
+ *  - 네이티브가 켤 때 받는 빌드(ON_LOAD · WIFI_ONLY): 네이티브 확인이 끝나길 기다려, 다 받았으면 바로 다시 시작
+ *  - 켤 때 안 받는 빌드(ON_ERROR_RECOVERY · NEVER): 여기서 묻고 받아, 다 받았으면 바로 다시 시작
+ *  - `maxMs`(기본 4000) 안에 못 끝나면 지금 판으로 연다 — 받던 것은 계속 받고, 다음 실행(또는 autoApply 규칙)에 적용
+ *  - 이미 받아 둔 것이 있으면 곧바로 다시 시작
+ *
+ * 돌려주는 값: applied(다시 시작함 — 곧 새 판이 뜬다) · none(새 판 없음) · timeout(시간 넘김) · skipped(개발 · 웹 · 모듈 없음).
+ * 시작 화면 뒤라 깜빡임이 보이지 않는다. autoApply 는 그대로 함께 부른다(늦게 받은 것 · 돌아올 때).
+ */
+async function launchUpdate(maxMs = 4000) {
+    const U = updates();
+    if (!U)
+        return 'skipped';
+    const pending = () => { try {
+        return !!U.latestContext?.isUpdatePending;
+    }
+    catch {
+        return false;
+    } };
+    const apply = () => {
+        if (!restarting) {
+            restarting = true;
+            try {
+                void Promise.resolve(U.reloadAsync()).catch(() => { restarting = false; });
+            }
+            catch {
+                restarting = false;
+            }
+        }
+        waiting = true;
+        return 'applied';
+    };
+    if (pending())
+        return apply();
+    let tid;
+    const timeout = new Promise((res) => { tid = setTimeout(() => res('timeout'), maxMs); });
+    const auto = String(U.checkAutomatically ?? 'ON_LOAD').toUpperCase();
+    if (auto === 'ON_LOAD' || auto === 'WIFI_ONLY') {
+        // 네이티브가 받는다 — 겹쳐 묻지 않고 끝나길 기다린다
+        const c = U.latestContext;
+        if (!c?.isStartupProcedureRunning && !c?.isDownloading)
+            return 'none';
+        if (!U.addUpdatesStateChangeListener)
+            return 'none';
+        let sub;
+        const native = new Promise((res) => {
+            try {
+                sub = U.addUpdatesStateChangeListener((e) => {
+                    const x = e?.context;
+                    if (x?.isUpdatePending)
+                        res('pending');
+                    else if (!x?.isStartupProcedureRunning && !x?.isDownloading)
+                        res('none');
+                    else if (x?.checkError || x?.downloadError)
+                        res('none');
+                });
+            }
+            catch {
+                res('none');
+            }
+        });
+        const r = await Promise.race([native, timeout]);
+        if (tid)
+            clearTimeout(tid);
+        sub?.remove();
+        launchAsked = Date.now();
+        return r === 'pending' ? apply() : r;
+    }
+    if (!U.checkForUpdateAsync || !U.fetchUpdateAsync)
+        return 'none';
+    launchAsked = Date.now();
+    const job = (async () => {
+        try {
+            const found = await U.checkForUpdateAsync();
+            if (!found?.isAvailable)
+                return false;
+            const got = await U.fetchUpdateAsync();
+            return !!got?.isNew || pending();
+        }
+        catch {
+            return false; // 못 받아도 지금 판은 멀쩡하다
+        }
+    })();
+    const r = await Promise.race([job, timeout]);
+    if (tid)
+        clearTimeout(tid);
+    if (r === 'timeout')
+        return 'timeout';
+    return r ? apply() : 'none';
 }
 /** 지금 돌고 있는 판 이름 — 기본 판(스토어에서 받은 그대로)이면 빈 문자열 */
 function bundleLabel() {

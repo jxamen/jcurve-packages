@@ -68,8 +68,8 @@ export type AutoApplyDeps = {
      */
     busy: () => boolean;
     /**
-     * (2.7 부터 쓰지 않음 — 받아도 무시) 예전엔 로그인한 사람이 메인에 있을 때 쓰는 중에도 다시 시작했다.
-     * 대표님 10-03 「쓰고 있는데 자꾸 꿈뻑꿈뻑」 — 이제는 켤 때와 백그라운드에서 돌아올 때만 적용한다. 옛 앱 코드가 깨지지 않게 칸만 남긴다.
+     * 메인 화면인가(선택). 2.7 부터 쓰는 중 재시작에는 쓰지 않는다(대표님 10-03 「쓰고 있는데 자꾸 꿈뻑꿈뻑」).
+     * (2.9) 오래 나갔다 돌아온 **직후**(resumeFreshMs) 받기가 끝났을 때만 본다 — 주면 메인일 때만 그 자리에서 적용, 안 주면 그냥 적용.
      */
     atHome?: () => boolean;
     /**
@@ -121,6 +121,7 @@ export declare function autoApply(deps: AutoApplyDeps, opts?: {
     fetchDelayMs?: number;
     resumeCheckMs?: number;
     resumeApplyMs?: number;
+    resumeFreshMs?: number;
 }): () => void;
 /**
  * 서버가 판별 사용자 수를 세는 헤더(2.5) — 앱의 모든 API 요청에 붙인다. 이름은 jcurve-api `OtaTrack` 이 읽는 그대로.
@@ -137,6 +138,20 @@ export declare function otaHeaders(): Record<string, string>;
  * 시작 화면 뒤에서 끝내면 깜빡임이 보이지 않는다.
  */
 export declare function startupSettled(maxMs?: number): Promise<void>;
+export type LaunchResult = 'applied' | 'none' | 'timeout' | 'skipped';
+/**
+ * (2.9) **켤 때 시작 화면 뒤에서 새 판을 받아 그 자리에서 적용한다** — 대표님 10-04 「사용자들도 두 번을 껐다 켜야만 최신판이 보이겠네?」.
+ * 시작 화면(스플래시)을 내리기 **전에** `await launchUpdate()` 한다. 로그인한 사람 · 안 한 사람 똑같다.
+ *
+ *  - 네이티브가 켤 때 받는 빌드(ON_LOAD · WIFI_ONLY): 네이티브 확인이 끝나길 기다려, 다 받았으면 바로 다시 시작
+ *  - 켤 때 안 받는 빌드(ON_ERROR_RECOVERY · NEVER): 여기서 묻고 받아, 다 받았으면 바로 다시 시작
+ *  - `maxMs`(기본 4000) 안에 못 끝나면 지금 판으로 연다 — 받던 것은 계속 받고, 다음 실행(또는 autoApply 규칙)에 적용
+ *  - 이미 받아 둔 것이 있으면 곧바로 다시 시작
+ *
+ * 돌려주는 값: applied(다시 시작함 — 곧 새 판이 뜬다) · none(새 판 없음) · timeout(시간 넘김) · skipped(개발 · 웹 · 모듈 없음).
+ * 시작 화면 뒤라 깜빡임이 보이지 않는다. autoApply 는 그대로 함께 부른다(늦게 받은 것 · 돌아올 때).
+ */
+export declare function launchUpdate(maxMs?: number): Promise<LaunchResult>;
 /** 지금 돌고 있는 판 이름 — 기본 판(스토어에서 받은 그대로)이면 빈 문자열 */
 export declare function bundleLabel(): string;
 export {};
