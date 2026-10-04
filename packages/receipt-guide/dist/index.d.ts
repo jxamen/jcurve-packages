@@ -42,4 +42,4 @@ export type PlatformChooserProps = Common & Omit<ChooserProps, 'onGuide' | 'onQu
     track?: TrackFn;
 };
 /** 어떤 영수증인가 고르는 칸 — 올리기 화면 첫 자리에 그대로 놓는다 */
-export declare function PlatformChooser({ theme, renderCharacter, track, onGuide, onQuick, ...rest }: PlatformChooserProps): React.JSX.Element;
+export declare function PlatformChooser({ theme, renderCharacter, track, onGuide, onQuick, onPick, ...rest }: PlatformChooserProps): React.JSX.Element;

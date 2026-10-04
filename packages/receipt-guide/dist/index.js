@@ -50,7 +50,7 @@ function ReceiptGuide({ platform, appName, onClose, onUpload, cta, track, ...com
     return ((0, jsx_runtime_1.jsx)(ui_1.GuideProvider, { value: ctx, children: (0, jsx_runtime_1.jsx)(Player_1.Player, { guide: (0, data_1.guideOf)(current), appName: appName, onClose: onClose, onUpload: () => onUpload(current), onDone: () => trackRef.current?.('receipt_guide_done', { app: current }), onSwitch: setCurrent, cta: cta }, current) }));
 }
 /** 어떤 영수증인가 고르는 칸 — 올리기 화면 첫 자리에 그대로 놓는다 */
-function PlatformChooser({ theme, renderCharacter, track, onGuide, onQuick, ...rest }) {
+function PlatformChooser({ theme, renderCharacter, track, onGuide, onQuick, onPick, ...rest }) {
     const ctx = useCtx({ theme, renderCharacter });
-    return ((0, jsx_runtime_1.jsx)(ui_1.GuideProvider, { value: ctx, children: (0, jsx_runtime_1.jsx)(Chooser_1.Chooser, { ...rest, onGuide: (app) => { onGuide(app); track?.('receipt_platform_pick', { platform: app }); }, onQuick: (app) => { onQuick(app); track?.('receipt_platform_pick', { platform: app }); } }) }));
+    return ((0, jsx_runtime_1.jsx)(ui_1.GuideProvider, { value: ctx, children: (0, jsx_runtime_1.jsx)(Chooser_1.Chooser, { ...rest, onGuide: (app) => { onGuide(app); track?.('receipt_platform_pick', { platform: app }); }, onQuick: (app) => { onQuick(app); track?.('receipt_platform_pick', { platform: app }); }, onPick: onPick ? (app) => { onPick(app); track?.('receipt_platform_pick', { platform: app }); } : undefined }) }));
 }

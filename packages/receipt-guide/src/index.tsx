@@ -78,7 +78,7 @@ export type PlatformChooserProps = Common & Omit<ChooserProps, 'onGuide' | 'onQu
 };
 
 /** 어떤 영수증인가 고르는 칸 — 올리기 화면 첫 자리에 그대로 놓는다 */
-export function PlatformChooser({ theme, renderCharacter, track, onGuide, onQuick, ...rest }: PlatformChooserProps) {
+export function PlatformChooser({ theme, renderCharacter, track, onGuide, onQuick, onPick, ...rest }: PlatformChooserProps) {
   const ctx = useCtx({ theme, renderCharacter });
 
   return (
@@ -87,6 +87,7 @@ export function PlatformChooser({ theme, renderCharacter, track, onGuide, onQuic
         {...rest}
         onGuide={(app) => { onGuide(app); track?.('receipt_platform_pick', { platform: app }); }}
         onQuick={(app) => { onQuick(app); track?.('receipt_platform_pick', { platform: app }); }}
+        onPick={onPick ? (app) => { onPick(app); track?.('receipt_platform_pick', { platform: app }); } : undefined}
       />
     </GuideProvider>
   );

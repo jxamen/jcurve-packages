@@ -21,6 +21,7 @@ import { PlatformChooser, ReceiptGuide, pickReceiptImages, type GuideApp, type R
   remembered={last}                       // 지난번 고른 곳(앱이 저장 · 계정별로)
   onGuide={(app) => setGuide(app)}        // 앱 칸 → 안내 열기
   onQuick={(app) => pick(app)}            // [바로 올리기] → 안내 없이 사진첩
+  onPick={(app) => pick(app)}             // (0.3.0, 선택) 앱 칸 → 바로 올리기. 주면 [영수증 확인 방법] 버튼을 켠 뒤에만 앱 칸이 안내를 연다. 안 주면 예전처럼 앱 칸 → 안내
   quickDisabled={!canUpload}
   paper={<MyCameraButtons />}
   theme={{ brand: '#4278CF' }}
