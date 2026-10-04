@@ -1,13 +1,34 @@
 {
   "name": "@jcurve/updates",
-  "version": "2.6.2",
+  "version": "2.9.0",
   "description": "리워드 앱 공용 OTA — 받은 새 버전을 로그인과 겹치지 않는 순간에 적용 (꼬꼬농장 방식) · 스토어 강제·권장 업데이트",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist", "src", "README.md"],
-  "scripts": { "build": "tsc -p tsconfig.json", "test": "vitest run" },
-  "peerDependencies": { "expo-updates": "*", "react-native": ">=0.74" },
-  "peerDependenciesMeta": { "expo-updates": { "optional": true }, "react-native": { "optional": true } },
-  "repository": { "type": "git", "url": "https://github.com/jxamen/jcurve-packages", "directory": "packages/updates" },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "expo-updates": "*",
+    "react-native": ">=0.74"
+  },
+  "peerDependenciesMeta": {
+    "expo-updates": {
+      "optional": true
+    },
+    "react-native": {
+      "optional": true
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jxamen/jcurve-packages",
+    "directory": "packages/updates"
+  },
   "license": "UNLICENSED"
 }

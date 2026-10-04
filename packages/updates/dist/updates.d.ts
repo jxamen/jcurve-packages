@@ -51,6 +51,8 @@ type Env = {
     onActive: (fn: () => void) => () => void;
     /** 플랫폼(2.5) — ios · android · web */
     os: () => string;
+    /** 앱 상태가 바뀔 때마다(2.7) — active · inactive · background. 돌려주는 함수로 끊는다. 없으면 onActive 만 쓴다 */
+    onState?: (fn: (state: string) => void) => () => void;
 };
 /** 시험에서만 쓴다 — 기기 대신 흉내 낸 것을 쓴다. 인자 없이 부르면 원래대로 */
 export declare function __reset(fake?: Partial<Env>): void;
@@ -65,8 +67,11 @@ export type AutoApplyDeps = {
      * 앱이 뒤로 가 있는지는 패키지가 따로 본다.
      */
     busy: () => boolean;
-    /** 로그인한 사람에게 적용해도 되는 자리인가 — 메인 화면(꼬꼬농장: 농장 탭 첫 화면) */
-    atHome: () => boolean;
+    /**
+     * 메인 화면인가(선택). 2.7 부터 쓰는 중 재시작에는 쓰지 않는다(대표님 10-03 「쓰고 있는데 자꾸 꿈뻑꿈뻑」).
+     * (2.9) 오래 나갔다 돌아온 **직후**(resumeFreshMs) 받기가 끝났을 때만 본다 — 주면 메인일 때만 그 자리에서 적용, 안 주면 그냥 적용.
+     */
+    atHome?: () => boolean;
     /**
      * 「새 버전 알려 주기」가 켜져 있는가(2.2) — 켜져 있으면 **스스로 적용하지 않고** 띠를 띄울 수 있게 알린다
      * (`onUpdateReady`). 사람이 띠를 누르면 `applyUpdate()` 가 적용한다. 꺼져 있거나 주지 않으면 위 규칙대로 스스로 적용한다.
@@ -103,14 +108,20 @@ export declare function applyUpdate(): boolean;
  * (`isUpdatePending`) 언제 다시 시작할지만 정한다:
  *  1. 로그인한 사람 — 켠 지 6초 안이면(시작 화면) 바로. 깜빡임이 안 보인다
  *  2. 로그인 전 — **로그인 버튼을 누르기 전이면** 바로. 새로 깐 사람이 스토어 빌드의 옛 코드에 갇히지 않게
- *  3. 그 밖 — 3초마다 보다가, 로그인 전이면 「아직 안 눌렀을 때」, 로그인했으면 「메인에 있을 때」
- * 어느 경우든 **로그인·가입 중이거나 앱이 뒤로 가 있으면 하지 않는다** — 끝내 기회가 없으면 다음 실행에 저절로 적용된다.
+ *  3. 로그인 전 · 아직 버튼 안 누름 — 로그인 · 가입 화면이 끝나길 3초마다 보다가(그 사이 누르면 끝까지 안 함)
+ *  4. 그 밖 — **쓰는 중엔 다시 시작하지 않는다**(2.7, 대표님 10-03 「쓰고 있는데 자꾸 꿈뻑꿈뻑」 · 「화면이 상단으로 붙음」).
+ *     앱이 백그라운드로 갔다가 `resumeApplyMs`(기본 30초) 넘게 있다 돌아오는 순간에만 적용 — 돌아오는 순간이라 깜빡임을 못 느낀다.
+ * 어느 경우든 **로그인·가입 중이거나 앱이 뒤로 가 있으면 하지 않는다** — 끝내 기회가 없으면 다음 실행에 저절로 적용된다. 「버튼 없이 자동」 원칙은 그대로.
  */
+/** 앞으로 올 때 새 판을 묻는 기본 간격(2.8) — `resumeCheckMs` 를 안 주면 이 값, 0 이면 끔 */
+export declare const RESUME_CHECK_MS = 600000;
 export declare function autoApply(deps: AutoApplyDeps, opts?: {
     quickMs?: number;
     everyMs?: number;
     fetchDelayMs?: number;
     resumeCheckMs?: number;
+    resumeApplyMs?: number;
+    resumeFreshMs?: number;
 }): () => void;
 /**
  * 서버가 판별 사용자 수를 세는 헤더(2.5) — 앱의 모든 API 요청에 붙인다. 이름은 jcurve-api `OtaTrack` 이 읽는 그대로.
@@ -127,6 +138,20 @@ export declare function otaHeaders(): Record<string, string>;
  * 시작 화면 뒤에서 끝내면 깜빡임이 보이지 않는다.
  */
 export declare function startupSettled(maxMs?: number): Promise<void>;
+export type LaunchResult = 'applied' | 'none' | 'timeout' | 'skipped';
+/**
+ * (2.9) **켤 때 시작 화면 뒤에서 새 판을 받아 그 자리에서 적용한다** — 대표님 10-04 「사용자들도 두 번을 껐다 켜야만 최신판이 보이겠네?」.
+ * 시작 화면(스플래시)을 내리기 **전에** `await launchUpdate()` 한다. 로그인한 사람 · 안 한 사람 똑같다.
+ *
+ *  - 네이티브가 켤 때 받는 빌드(ON_LOAD · WIFI_ONLY): 네이티브 확인이 끝나길 기다려, 다 받았으면 바로 다시 시작
+ *  - 켤 때 안 받는 빌드(ON_ERROR_RECOVERY · NEVER): 여기서 묻고 받아, 다 받았으면 바로 다시 시작
+ *  - `maxMs`(기본 4000) 안에 못 끝나면 지금 판으로 연다 — 받던 것은 계속 받고, 다음 실행(또는 autoApply 규칙)에 적용
+ *  - 이미 받아 둔 것이 있으면 곧바로 다시 시작
+ *
+ * 돌려주는 값: applied(다시 시작함 — 곧 새 판이 뜬다) · none(새 판 없음) · timeout(시간 넘김) · skipped(개발 · 웹 · 모듈 없음).
+ * 시작 화면 뒤라 깜빡임이 보이지 않는다. autoApply 는 그대로 함께 부른다(늦게 받은 것 · 돌아올 때).
+ */
+export declare function launchUpdate(maxMs?: number): Promise<LaunchResult>;
 /** 지금 돌고 있는 판 이름 — 기본 판(스토어에서 받은 그대로)이면 빈 문자열 */
 export declare function bundleLabel(): string;
 export {};

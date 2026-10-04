@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.__resetStoreVersion = exports.cmpVersion = exports.storeLinks = exports.decideStoreUpdate = exports.checkStoreVersion = exports.startupSettled = exports.otaHeaders = exports.onUpdateReady = exports.isRestarting = exports.hasWaiting = exports.canApplyNow = exports.bundleLabel = exports.autoApply = exports.applyUpdate = exports.__reset = void 0;
+exports.__resetStoreVersion = exports.cmpVersion = exports.storeLinks = exports.decideStoreUpdate = exports.checkStoreVersion = exports.startupSettled = exports.RESUME_CHECK_MS = exports.otaHeaders = exports.onUpdateReady = exports.launchUpdate = exports.isRestarting = exports.hasWaiting = exports.canApplyNow = exports.bundleLabel = exports.autoApply = exports.applyUpdate = exports.__reset = void 0;
 /**
  * `@jcurve/updates` — 리워드 앱 공용 **OTA 적용하기**(2.0 — 꼬꼬농장 방식).
  *
@@ -25,8 +25,9 @@ exports.__resetStoreVersion = exports.cmpVersion = exports.storeLinks = exports.
  *     받았는지조차 알 수 없었다. → 로그인한 사람은 **켠 지 6초 안**(시작 화면)이면 바로,
  *     늦으면 **메인에 있을 때**(`atHome`) 조용히 적용한다. 끝내 기회가 없으면 다음 실행에 저절로.
  *
- *  ④ **로그인 전 사람의 시작 화면은 네이티브 확인이 끝날 때까지 붙잡는다**(`startupSettled`, 최대 3초).
- *     앱 소개가 먼저 뜬 뒤 적용되면 화면이 덜컥 처음으로 돌아간다.
+ *  ④ **(2.9) 켤 때 시작 화면을 붙잡고 새 판을 받아 그 자리에서 적용한다**(`launchUpdate`, 최대 4초) — 로그인한 사람도 똑같이.
+ *     한 번 켜면 최신판이다(전에는 켤 때 받아도 다음 실행에 적용돼 두 번 켜야 했다 — 대표님 10-04).
+ *     예전 `startupSettled`(로그인 전만 붙잡기)도 그대로 있다.
  *
  * ## 쓰는 법
  *
@@ -49,8 +50,8 @@ exports.__resetStoreVersion = exports.cmpVersion = exports.storeLinks = exports.
  *   atHome: () => onMainTab,
  * });
  *
- * // 로그인 전이면 시작 화면을 네이티브 확인이 끝날 때까지 붙잡는다
- * if (!session) await startupSettled();
+ * // (2.9) 시작 화면을 내리기 전에 — 새 판이 있으면 받아서 바로 다시 시작(최대 4초, 넘으면 지금 판으로 연다)
+ * await launchUpdate();
  * SplashScreen.hideAsync();
  * ```
  *
@@ -76,15 +77,29 @@ exports.__resetStoreVersion = exports.cmpVersion = exports.storeLinks = exports.
  * )}
  * ```
  *
- * ## 2.4 — 앱이 다시 앞으로 올 때도 받기(선택)
+ * ## 2.4 — 앱이 다시 앞으로 올 때도 받기(2.8 부터 기본 10분)
  *
- * 켤 때만 받으면 뒤에 둔 채 몇 시간씩 쓰는 폰은 옛 판에 머문다(머니트리 2026-09-19). `resumeCheckMs` 를 주면 앱이 앞으로
- * 올 때 마지막 확인에서 그만큼 지났으면 묻고 받는다. 받아 둔 것이 있거나 네이티브가 켤 때 확인 중이면 건너뛴다.
- * 적용은 위 규칙 그대로다. 주지 않으면 하지 않는다(2.3 과 같다).
+ * 켤 때만 받으면 뒤에 둔 채 몇 시간씩 쓰는 폰은 옛 판에 머문다(머니트리 2026-09-19). 앱이 앞으로 올 때
+ * 마지막 확인에서 `resumeCheckMs` 만큼 지났으면 묻고 받는다. 받아 둔 것이 있거나 네이티브가 켤 때 확인 중이면 건너뛴다.
+ * 적용은 위 규칙 그대로다(2.7 — 받은 판은 다음에 30초 넘게 나갔다 돌아올 때 · 다음 실행에 적용).
+ * **2.8 부터 값을 안 주면 10분(`RESUME_CHECK_MS` = 600000)으로 켜진다**(대표님 아이폰이 몇 시간째 옛 판, 2026-10-04). 끄려면 0.
  *
  * ```ts
- * autoApply(deps, { resumeCheckMs: 10 * 60_000 });   // 10분 — 앞뒤로 자주 오가도 서버를 두드리지 않게
+ * autoApply(deps);                          // 10분 기본
+ * autoApply(deps, { resumeCheckMs: 60_000 }); // 더 자주
+ * autoApply(deps, { resumeCheckMs: 0 });      // 끔(2.7 이전과 같음)
  * ```
+ *
+ * ## 2.9 — 한 번 켜면 최신판 · 돌아온 직후 적용
+ *
+ * - `await launchUpdate(maxMs = 4000)` 을 시작 화면을 내리기 전에 부른다 → `'applied' | 'none' | 'timeout' | 'skipped'`.
+ *   켤 때 받는 빌드(ON_LOAD)는 네이티브가 끝나길 기다리고, 안 받는 빌드(ON_ERROR_RECOVERY)는 여기서 묻고 받는다(autoApply 의 2초 뒤 받기는 건너뜀).
+ * - 돌아올 때: 30초(`resumeApplyMs`) 넘게 나갔다 돌아온 **직후 5초(`resumeFreshMs`) 안에** 받기가 끝나면 그 자리에서 적용한다.
+ *   `atHome` 을 주면 메인일 때만. 그 뒤에 끝나면 지금처럼 다음 복귀 · 다음 실행에.
+ * - `busy` 는 **실제로 로그인 · 가입을 하는 중**만(로그인 버튼 누른 뒤 · 로그인 창 다녀오는 중 · 가입 마무리 · 앱 시작 확인).
+ *   온보딩 · 로그인 화면을 **보고만 있을 때**는 넣지 않는다(디저트나우 fec98cf 기준).
+ * - 빌드에 넣을 것(다음 스토어 빌드부터, OTA 로는 못 바꿈): `app.json` `updates.fallbackToCacheTimeout: 3000` — 네이티브가 켤 때
+ *   3초까지 새 판을 기다려 처음부터 새 판으로 뜬다(그때는 launchUpdate 가 할 일이 없어 'none'). `checkAutomatically` 는 기본(ON_LOAD).
  *
  * ## 2.5 — OTA 판 헤더(`otaHeaders`)
  *
@@ -119,8 +134,10 @@ Object.defineProperty(exports, "bundleLabel", { enumerable: true, get: function 
 Object.defineProperty(exports, "canApplyNow", { enumerable: true, get: function () { return updates_1.canApplyNow; } });
 Object.defineProperty(exports, "hasWaiting", { enumerable: true, get: function () { return updates_1.hasWaiting; } });
 Object.defineProperty(exports, "isRestarting", { enumerable: true, get: function () { return updates_1.isRestarting; } });
+Object.defineProperty(exports, "launchUpdate", { enumerable: true, get: function () { return updates_1.launchUpdate; } });
 Object.defineProperty(exports, "onUpdateReady", { enumerable: true, get: function () { return updates_1.onUpdateReady; } });
 Object.defineProperty(exports, "otaHeaders", { enumerable: true, get: function () { return updates_1.otaHeaders; } });
+Object.defineProperty(exports, "RESUME_CHECK_MS", { enumerable: true, get: function () { return updates_1.RESUME_CHECK_MS; } });
 Object.defineProperty(exports, "startupSettled", { enumerable: true, get: function () { return updates_1.startupSettled; } });
 var storeVersion_1 = require("./storeVersion");
 Object.defineProperty(exports, "checkStoreVersion", { enumerable: true, get: function () { return storeVersion_1.checkStoreVersion; } });

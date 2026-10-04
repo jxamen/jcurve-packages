@@ -48,6 +48,8 @@ type Env = {
   onActive: (fn: () => void) => () => void;
   /** 플랫폼(2.5) — ios · android · web */
   os: () => string;
+  /** 앱 상태가 바뀔 때마다(2.7) — active · inactive · background. 돌려주는 함수로 끊는다. 없으면 onActive 만 쓴다 */
+  onState?: (fn: (state: string) => void) => () => void;
 };
 
 const defaultEnv = (): Env => ({
@@ -68,6 +70,17 @@ const defaultEnv = (): Env => ({
   },
   dev: () => typeof __DEV__ !== 'undefined' && !!__DEV__,
   os: () => { try { return String((require('react-native') as { Platform: { OS: string } }).Platform.OS ?? ''); } catch { return ''; } },
+  onState: (fn) => {
+    try {
+      const sub = (require('react-native') as {
+        AppState: { addEventListener: (e: string, f: (s: string) => void) => { remove?: () => void } };
+      }).AppState.addEventListener('change', (st) => fn(String(st)));
+
+      return () => { try { sub?.remove?.(); } catch { /* 이미 끊겼다 */ } };
+    } catch {
+      return () => undefined;
+    }
+  },
   onActive: (fn) => {
     try {
       const sub = (require('react-native') as {
@@ -88,6 +101,7 @@ export function __reset(fake?: Partial<Env>): void {
   env = { ...defaultEnv(), ...fake };
   waiting = false;
   restarting = false;
+  launchAsked = 0;
   current = null;
   readyFns.clear();
   headersCache = null;
@@ -114,8 +128,11 @@ export type AutoApplyDeps = {
    * 앱이 뒤로 가 있는지는 패키지가 따로 본다.
    */
   busy: () => boolean;
-  /** 로그인한 사람에게 적용해도 되는 자리인가 — 메인 화면(꼬꼬농장: 농장 탭 첫 화면) */
-  atHome: () => boolean;
+  /**
+   * 메인 화면인가(선택). 2.7 부터 쓰는 중 재시작에는 쓰지 않는다(대표님 10-03 「쓰고 있는데 자꾸 꿈뻑꿈뻑」).
+   * (2.9) 오래 나갔다 돌아온 **직후**(resumeFreshMs) 받기가 끝났을 때만 본다 — 주면 메인일 때만 그 자리에서 적용, 안 주면 그냥 적용.
+   */
+  atHome?: () => boolean;
   /**
    * 「새 버전 알려 주기」가 켜져 있는가(2.2) — 켜져 있으면 **스스로 적용하지 않고** 띠를 띄울 수 있게 알린다
    * (`onUpdateReady`). 사람이 띠를 누르면 `applyUpdate()` 가 적용한다. 꺼져 있거나 주지 않으면 위 규칙대로 스스로 적용한다.
@@ -130,6 +147,8 @@ export type AutoApplyDeps = {
  */
 let waiting = false;
 let restarting = false;
+/** (2.9) 켤 때 받기(launchUpdate)가 이번 실행에 새 판을 이미 물었다 — autoApply 의 2초 뒤 받기 · 돌아올 때 받기가 겹쳐 묻지 않게 */
+let launchAsked = 0;
 let current: { deps: AutoApplyDeps; reload: () => void } | null = null;
 
 /**
@@ -179,12 +198,17 @@ export function applyUpdate(): boolean {
  * (`isUpdatePending`) 언제 다시 시작할지만 정한다:
  *  1. 로그인한 사람 — 켠 지 6초 안이면(시작 화면) 바로. 깜빡임이 안 보인다
  *  2. 로그인 전 — **로그인 버튼을 누르기 전이면** 바로. 새로 깐 사람이 스토어 빌드의 옛 코드에 갇히지 않게
- *  3. 그 밖 — 3초마다 보다가, 로그인 전이면 「아직 안 눌렀을 때」, 로그인했으면 「메인에 있을 때」
- * 어느 경우든 **로그인·가입 중이거나 앱이 뒤로 가 있으면 하지 않는다** — 끝내 기회가 없으면 다음 실행에 저절로 적용된다.
+ *  3. 로그인 전 · 아직 버튼 안 누름 — 로그인 · 가입 화면이 끝나길 3초마다 보다가(그 사이 누르면 끝까지 안 함)
+ *  4. 그 밖 — **쓰는 중엔 다시 시작하지 않는다**(2.7, 대표님 10-03 「쓰고 있는데 자꾸 꿈뻑꿈뻑」 · 「화면이 상단으로 붙음」).
+ *     앱이 백그라운드로 갔다가 `resumeApplyMs`(기본 30초) 넘게 있다 돌아오는 순간에만 적용 — 돌아오는 순간이라 깜빡임을 못 느낀다.
+ * 어느 경우든 **로그인·가입 중이거나 앱이 뒤로 가 있으면 하지 않는다** — 끝내 기회가 없으면 다음 실행에 저절로 적용된다. 「버튼 없이 자동」 원칙은 그대로.
  */
+/** 앞으로 올 때 새 판을 묻는 기본 간격(2.8) — `resumeCheckMs` 를 안 주면 이 값, 0 이면 끔 */
+export const RESUME_CHECK_MS = 600_000;
+
 export function autoApply(
   deps: AutoApplyDeps,
-  opts: { quickMs?: number; everyMs?: number; fetchDelayMs?: number; resumeCheckMs?: number } = {},
+  opts: { quickMs?: number; everyMs?: number; fetchDelayMs?: number; resumeCheckMs?: number; resumeApplyMs?: number; resumeFreshMs?: number } = {},
 ): () => void {
   const U = updates();
   if (!U) return () => undefined;
@@ -196,15 +220,20 @@ export function autoApply(
   let fetchTimer: ReturnType<typeof setTimeout> | null = null;
   let sub: { remove: () => void } | undefined;
   let offActive: (() => void) | null = null;
-  let lastCheck = launchedAt;   // 켤 때 네이티브(또는 아래 2.1)가 한 번 본다
+  let offState: (() => void) | null = null;
+  let wentBack = 0;   // 백그라운드로 간 시각(2.7)
+  let resumedAt = 0;  // 오래 나갔다 돌아온 시각(2.9) — 그 직후 받기가 끝나면 그 자리에서 적용
+  let lastCheck = launchAsked || launchedAt;   // 켤 때 네이티브(또는 launchUpdate · 아래 2.1)가 한 번 본다
 
   const busy = (): boolean => deps.busy() || !env.active();
   const reload = (): void => {
+    if (restarting) return;   // 켤 때 받기(launchUpdate)가 이미 다시 시작 중
     restarting = true;
     // 다시 시작하지 못했으면 표시를 풀어 버튼이 다시 먹게 한다 — 다음 실행에 저절로 적용된다
     try { void Promise.resolve(U.reloadAsync()).catch(() => { restarting = false; }); } catch { restarting = false; }
   };
   const noticeOn = (): boolean => { try { return !!deps.notice?.(); } catch { return false; } };
+  const homeOk = (): boolean => { try { return deps.atHome ? !!deps.atHome() : true; } catch { return false; } };
   /** 새 판이 있나 묻고 있으면 받는다 — 적용은 받은 뒤 네이티브 상태 구독이 정한다 */
   const fetchNow = async (): Promise<void> => {
     lastCheck = Date.now();
@@ -227,18 +256,41 @@ export function autoApply(
       if (deps.signedIn() && !busy() && Date.now() - launchedAt < quickMs) { reload(); return; }
       // 2. 로그인 전, 아직 로그인 버튼을 안 눌렀다 — 재시작해도 같은 로그인 화면으로 돌아올 뿐이다
       if (!deps.signedIn() && !deps.triedAuth() && !busy()) { reload(); return; }
+      // 2-1. (2.9) 오래 나갔다 돌아온 바로 그때 받기가 끝났다(resumeFreshMs 안) — 돌아오는 순간이라 다시 시작해도 「쓰는 중」이 아니다.
+      //      atHome 을 주는 앱은 메인 화면일 때만(알림을 눌러 다른 화면으로 돌아왔으면 다음 복귀로). 대표님 10-04 「두 번 껐다 켜야 최신판?」
+      if (resumedAt && Date.now() - resumedAt < resumeFreshMs && !busy() && !(!deps.signedIn() && deps.triedAuth()) && homeOk()) { reload(); return; }
     }
-    // 3. 그 뒤로는 조용한 순간을 기다린다(알려 주기를 켜 둔 동안은 기다리기만 — 끄면 여기서 적용된다)
-    timer = setInterval(() => {
-      if (noticeOn()) return;
-      if (busy()) return;
-      if (!deps.signedIn()) { if (deps.triedAuth()) return; }
-      else if (!deps.atHome()) return;
-      if (timer) clearInterval(timer);
-      timer = null;
-      reload();
-    }, everyMs);
+    // 3. 로그인 전 · 아직 버튼을 안 눌렀다 — 로그인 · 가입 화면이 끝나길 기다린다(쓰기 시작 전이라 깜빡여도 같은 화면)
+    if (!deps.signedIn() && !deps.triedAuth()) {
+      timer = setInterval(() => {
+        if (noticeOn() || busy()) return;
+        if (deps.signedIn() || deps.triedAuth()) {   // 그 사이 로그인했거나 버튼을 눌렀다 — 4번(돌아올 때)으로
+          if (timer) clearInterval(timer);
+          timer = null;
+          return;
+        }
+        if (timer) clearInterval(timer);
+        timer = null;
+        reload();
+      }, everyMs);
+    }
+    // 4. 그 밖은 백그라운드에서 돌아올 때만(아래 onState)
   };
+  const resumeApplyMs = opts.resumeApplyMs ?? 30000;
+  const resumeFreshMs = opts.resumeFreshMs ?? 5000;
+  offState = env.onState ? env.onState((st) => {
+    if (st === 'background') { wentBack = Date.now(); return; }
+    if (st !== 'active') return;
+    const away = wentBack ? Date.now() - wentBack : 0;
+    wentBack = 0;
+    if (away >= resumeApplyMs) resumedAt = Date.now();
+    if (!waiting || restarting || noticeOn() || away < resumeApplyMs) return;
+    try { if (deps.busy()) return; } catch { return; }   // 로그인 창에서 돌아오는 복귀 — 로그인을 끊지 않는다
+    if (!deps.signedIn() && deps.triedAuth()) return;    // 로그인 버튼을 누른 뒤 · 아직 로그인 전 — 돌아올 곳이 사라진다
+    if (timer) clearInterval(timer);
+    timer = null;
+    reload();
+  }) : null;
 
   try {
     if (U.latestContext?.isUpdatePending) onPending();
@@ -261,6 +313,7 @@ export function autoApply(
        | 받기만 한다 — 적용(재시작)은 위 규칙대로 active 에서만 한다(busy()).
        */
       if (env.background ? env.background() : !env.active()) return;
+      if (launchAsked) return;   // (2.9) 켤 때 받기(launchUpdate)가 이미 물었다
       void fetchNow();
     }, opts.fetchDelayMs ?? 2000);   // 첫 화면이 쓸 네트워크를 같이 먹지 않게 잠깐 텀을 둔다
   }
@@ -269,9 +322,11 @@ export function autoApply(
    | **앱이 다시 앞으로 올 때도 받는다**(2.4, 선택 — `resumeCheckMs`). 켤 때만 받으면 뒤에 둔 채 몇 시간씩 쓰는
    | 폰은 옛 판에 머문다(머니트리 2026-09-19 「ota 안 되는데?」 — 백그라운드에 둔 아이폰이 몇 시간째 옛 판).
    | 마지막 확인에서 이만큼 지났고, 받아 둔 것이 없고, 네이티브가 켤 때 확인·받는 중이 아닐 때만 묻는다.
-   | 다 받으면 네이티브 상태가 바뀌어 위 구독이 부르고, 적용은 위 규칙 그대로다. 주지 않으면 하지 않는다.
+   | 다 받으면 네이티브 상태가 바뀌어 위 구독이 부르고, 적용은 위 규칙 그대로다.
+   | (2.8) **기본 10분(600000)으로 켠다** — 값을 안 준 앱(디저트나우 · 꿀꿀캐시 · 팩트투자)이 「완전히 껐다 켤 때」만 확인해
+   | 대표님 아이폰이 몇 시간째 옛 판에 머물렀다(2026-10-04 두 번). 끄려면 0 을 준다.
    */
-  const gap = opts.resumeCheckMs ?? 0;
+  const gap = opts.resumeCheckMs ?? RESUME_CHECK_MS;
   if (gap > 0 && U.checkForUpdateAsync && U.fetchUpdateAsync) {
     offActive = env.onActive(() => {
       const c = U.latestContext;
@@ -290,6 +345,8 @@ export function autoApply(
     sub?.remove();
     offActive?.();
     offActive = null;
+    offState?.();
+    offState = null;
     if (timer) clearInterval(timer);
     timer = null;
     if (fetchTimer) clearTimeout(fetchTimer);
@@ -351,6 +408,82 @@ export function startupSettled(maxMs = 3000): Promise<void> {
       resolve();
     }
   });
+}
+
+export type LaunchResult = 'applied' | 'none' | 'timeout' | 'skipped';
+
+/**
+ * (2.9) **켤 때 시작 화면 뒤에서 새 판을 받아 그 자리에서 적용한다** — 대표님 10-04 「사용자들도 두 번을 껐다 켜야만 최신판이 보이겠네?」.
+ * 시작 화면(스플래시)을 내리기 **전에** `await launchUpdate()` 한다. 로그인한 사람 · 안 한 사람 똑같다.
+ *
+ *  - 네이티브가 켤 때 받는 빌드(ON_LOAD · WIFI_ONLY): 네이티브 확인이 끝나길 기다려, 다 받았으면 바로 다시 시작
+ *  - 켤 때 안 받는 빌드(ON_ERROR_RECOVERY · NEVER): 여기서 묻고 받아, 다 받았으면 바로 다시 시작
+ *  - `maxMs`(기본 4000) 안에 못 끝나면 지금 판으로 연다 — 받던 것은 계속 받고, 다음 실행(또는 autoApply 규칙)에 적용
+ *  - 이미 받아 둔 것이 있으면 곧바로 다시 시작
+ *
+ * 돌려주는 값: applied(다시 시작함 — 곧 새 판이 뜬다) · none(새 판 없음) · timeout(시간 넘김) · skipped(개발 · 웹 · 모듈 없음).
+ * 시작 화면 뒤라 깜빡임이 보이지 않는다. autoApply 는 그대로 함께 부른다(늦게 받은 것 · 돌아올 때).
+ */
+export async function launchUpdate(maxMs = 4000): Promise<LaunchResult> {
+  const U = updates();
+  if (!U) return 'skipped';
+  const pending = (): boolean => { try { return !!U.latestContext?.isUpdatePending; } catch { return false; } };
+  const apply = (): LaunchResult => {
+    if (!restarting) {
+      restarting = true;
+      try { void Promise.resolve(U.reloadAsync()).catch(() => { restarting = false; }); } catch { restarting = false; }
+    }
+    waiting = true;
+
+    return 'applied';
+  };
+  if (pending()) return apply();
+  let tid: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<'timeout'>((res) => { tid = setTimeout(() => res('timeout'), maxMs); });
+  const auto = String(U.checkAutomatically ?? 'ON_LOAD').toUpperCase();
+
+  if (auto === 'ON_LOAD' || auto === 'WIFI_ONLY') {
+    // 네이티브가 받는다 — 겹쳐 묻지 않고 끝나길 기다린다
+    const c = U.latestContext;
+    if (!c?.isStartupProcedureRunning && !c?.isDownloading) return 'none';
+    if (!U.addUpdatesStateChangeListener) return 'none';
+    let sub: { remove: () => void } | undefined;
+    const native = new Promise<'pending' | 'none'>((res) => {
+      try {
+        sub = U.addUpdatesStateChangeListener!((e) => {
+          const x = e?.context;
+          if (x?.isUpdatePending) res('pending');
+          else if (!x?.isStartupProcedureRunning && !x?.isDownloading) res('none');
+          else if (x?.checkError || x?.downloadError) res('none');
+        });
+      } catch { res('none'); }
+    });
+    const r = await Promise.race([native, timeout]);
+    if (tid) clearTimeout(tid);
+    sub?.remove();
+    launchAsked = Date.now();
+
+    return r === 'pending' ? apply() : r;
+  }
+
+  if (!U.checkForUpdateAsync || !U.fetchUpdateAsync) return 'none';
+  launchAsked = Date.now();
+  const job = (async (): Promise<boolean> => {
+    try {
+      const found = await U.checkForUpdateAsync!();
+      if (!found?.isAvailable) return false;
+      const got = await U.fetchUpdateAsync!();
+
+      return !!got?.isNew || pending();
+    } catch {
+      return false;   // 못 받아도 지금 판은 멀쩡하다
+    }
+  })();
+  const r = await Promise.race([job, timeout]);
+  if (tid) clearTimeout(tid);
+  if (r === 'timeout') return 'timeout';
+
+  return r ? apply() : 'none';
 }
 
 /** 지금 돌고 있는 판 이름 — 기본 판(스토어에서 받은 그대로)이면 빈 문자열 */
