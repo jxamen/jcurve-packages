@@ -126,6 +126,13 @@ export type AuthDeps<T> = {
     /** 서버 웹 로그인(2.0). 없으면 SDK 로만 한다 */
     web?: WebLogin<T>;
     /**
+     * (2.10) 앱 로그인(SDK)이 안 되면 **웹으로 넘기지 않고 그대로 실패**로 돌릴 제공자(기본 없음 = 지금처럼 웹으로 넘김).
+     * 예: `nativeOnly: ['kakao', 'naver', 'google']`. 실패는 `AuthError('failed', '<제공자>_native:<사유>')` 라
+     * 화면이 `e.tag` 를 `login_fail` 에 실으면 사유가 남는다(카카오 계정 창까지 실패하면 예전처럼 `kakao_account:…`).
+     * 애플(안드로이드 apple_web) · 게스트 잇기 · 늦게 온 웹 복귀는 이 값과 상관없다.
+     */
+    nativeOnly?: readonly AnyProvider[];
+    /**
      * 어드민이 켠 로그인 — 서버의 제공자 목록(`kakao`·`kakao_native`·`google`·`naver`·`naver_native`·`apple`·`apple_web`).
      *
      * **비어 있으면 「아직 모른다」로 읽는다**(막지 않는다). 목록은 앱이 뜬 뒤 따로 받아 오는데,
