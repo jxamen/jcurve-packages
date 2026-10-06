@@ -67,6 +67,8 @@ function setup(o: {
   /** (2.8) 네이버 앱 로그인 — SDK 모듈 · 키 */
   naverSdk?: () => any;
   naverKeys?: () => any;
+  /** (2.10) 웹으로 넘기지 않을 제공자 */
+  nativeOnly?: AuthDeps<Session>['nativeOnly'];
 } = {}) {
   const tracked: Array<[string, any]> = [];
   const server: string[] = [];
@@ -101,6 +103,7 @@ function setup(o: {
   const auth = createAuth<Session>({
     keys: { kakaoNative: 'realkey123', googleWeb: 'web.apps.googleusercontent.com', ...(o.naverKeys ? { naver: o.naverKeys } : {}) },
     naverSdk: o.naverSdk,
+    nativeOnly: o.nativeOnly,
     server: {
       kakao: o.server?.kakao ?? (async (t) => { server.push('kakao:' + t); return { s: 'K' }; }),
       google: o.server?.google ?? (async (t) => { server.push('google:' + t); return { s: 'G' }; }),
@@ -1136,5 +1139,125 @@ describe('네이버 앱 로그인 (2.8)', () => {
     const { auth, tracked } = setup({ browser: b, providers: ['naver'] });
     expect(await auth.signIn('naver')).toEqual({ s: 'W' });
     expect(codes(tracked)).toEqual([]);
+  });
+});
+
+describe('nativeOnly — 앱 로그인이 안 되면 웹으로 넘기지 않는다 (2.10)', () => {
+  const ALL = ['kakao', 'naver', 'google'] as const;
+  const okBrowser = () => browserFake({ type: 'success', url: RET + '?ticket=T' });
+  const googleFail = { GoogleSignin: { configure: () => undefined, hasPlayServices: async () => true, signIn: async () => { throw Object.assign(new Error('DEVELOPER_ERROR'), { code: '10' }); }, signOut: async () => undefined } };
+
+  it('기본값(없음)은 지금처럼 웹으로 넘어간다', async () => {
+    const b = okBrowser();
+    const { auth } = setup({ kakao: null, browser: b });
+    expect(await auth.signIn('kakao')).toEqual({ s: 'W' });
+    expect(b.opened.length).toBe(1);
+  });
+
+  it('카카오 모듈이 없으면 kakao_native:no_sdk 로 실패, 웹 창은 안 연다', async () => {
+    const b = okBrowser();
+    const { auth, tracked } = setup({ kakao: null, browser: b, nativeOnly: [...ALL] });
+    const e = await auth.signIn('kakao').catch((x) => x);
+    expect(e).toBeInstanceOf(AuthError);
+    expect(e.code).toBe('failed');
+    expect(e.tag).toBe('kakao_native:no_sdk');
+    expect(b.opened).toEqual([]);
+    expect(codes(tracked)).toEqual(['no_sdk']);
+  });
+
+  it('카카오 계정 로그인(카카오톡 없음)이 실패하면 kakao_account: 로 실패', async () => {
+    const b = okBrowser();
+    const k = kakaoFake({ talk: false, login: async () => { throw new Error('ActivityNotFound'); } });
+    const { auth } = setup({ kakao: k, browser: b, nativeOnly: ['kakao'] });
+    const e = await auth.signIn('kakao').catch((x) => x);
+    expect(e.tag).toMatch(/^kakao_account:/);
+    expect(b.opened).toEqual([]);
+  });
+
+  it('카카오톡이 실패하면 1.0 처럼 계정 로그인을 한 번 더 — 웹은 안 연다', async () => {
+    let n = 0;
+    const b = okBrowser();
+    const k = kakaoFake({ talk: true, login: async () => { if (n++ === 0) throw new Error('KakaoTalkError'); return { accessToken: 'K2' }; } });
+    const { auth, server } = setup({ kakao: k, browser: b, nativeOnly: ['kakao'] });
+    expect(await auth.signIn('kakao')).toEqual({ s: 'K' });
+    expect(server).toEqual(['kakao:K2']);
+    expect(b.opened).toEqual([]);
+  });
+
+  it('카카오 취소는 그대로 취소', async () => {
+    const k = kakaoFake({ talk: true, login: async () => { throw Object.assign(new Error('user denied'), { code: 'AccessDenied' }); } });
+    const { auth } = setup({ kakao: k, browser: okBrowser(), nativeOnly: ['kakao'] });
+    const e = await auth.signIn('kakao').catch((x) => x);
+    expect(e.code).toBe('cancelled');
+  });
+
+  it('서버가 카카오 앱 로그인을 안 주면 kakao_native:server_off', async () => {
+    const b = okBrowser();
+    const { auth } = setup({ browser: b, providers: ['kakao'], nativeOnly: ['kakao'] });
+    const e = await auth.signIn('kakao').catch((x) => x);
+    expect(e.tag).toBe('kakao_native:server_off');
+    expect(b.opened).toEqual([]);
+  });
+
+  it('서버가 토큰을 거절하면 <제공자>_native:server_reject:<코드>', async () => {
+    const b = okBrowser();
+    const { auth } = setup({ browser: b, nativeOnly: ['kakao'], server: { kakao: async () => { throw Object.assign(new Error('invalid_token'), { status: 401 }); } } });
+    const e = await auth.signIn('kakao').catch((x) => x);
+    expect(e.tag).toMatch(/^kakao_native:server_reject:/);
+    expect(b.opened).toEqual([]);
+  });
+
+  it('구글 SDK 실패는 google_native:sdk_…', async () => {
+    const b = okBrowser();
+    const { auth, tracked } = setup({ google: googleFail, browser: b, nativeOnly: ['google'] });
+    const e = await auth.signIn('google').catch((x) => x);
+    expect(e.tag).toMatch(/^google_native:sdk_/);
+    expect(b.opened).toEqual([]);
+    expect(codes(tracked)[0]).toMatch(/^sdk_/);
+  });
+
+  it('구글 모듈이 없으면 google_native:no_sdk', async () => {
+    const b = okBrowser();
+    const { auth } = setup({ browser: b, nativeOnly: ['google'] });
+    const e = await auth.signIn('google').catch((x) => x);
+    expect(e.tag).toBe('google_native:no_sdk');
+    expect(b.opened).toEqual([]);
+  });
+
+  it('구글만 켜면 카카오는 그대로 웹으로', async () => {
+    const b = okBrowser();
+    const { auth } = setup({ kakao: null, browser: b, nativeOnly: ['google'] });
+    expect(await auth.signIn('kakao')).toEqual({ s: 'W' });
+  });
+
+  it('네이버 SDK 실패는 naver_native:sdk_…', async () => {
+    const b = okBrowser();
+    const n = naverFake({ isSuccess: false, failureResponse: { message: 'x', isCancel: false, lastErrorCodeFromNaverSDK: 'E42' } });
+    const { auth } = setup({ browser: b, naverSdk: n.sdk, naverKeys: () => NKEYS, nativeOnly: ['naver'] });
+    const e = await auth.signIn('naver').catch((x) => x);
+    expect(e.tag).toBe('naver_native:sdk_E42');
+    expect(b.opened).toEqual([]);
+  });
+
+  it('네이버 앱 로그인을 안 붙인 빌드는 naver_native:no_sdk', async () => {
+    const b = okBrowser();
+    const { auth } = setup({ browser: b, nativeOnly: ['naver'] });
+    const e = await auth.signIn('naver').catch((x) => x);
+    expect(e.tag).toBe('naver_native:no_sdk');
+    expect(b.opened).toEqual([]);
+  });
+
+  it('서버가 네이버 앱 로그인을 안 주면 naver_native:server_off', async () => {
+    const b = okBrowser();
+    const { auth } = setup({ browser: b, naverSdk: naverFake().sdk, naverKeys: () => NKEYS, providers: ['naver'], nativeOnly: ['naver'] });
+    const e = await auth.signIn('naver').catch((x) => x);
+    expect(e.tag).toBe('naver_native:server_off');
+  });
+
+  it('애플(안드로이드 apple_web)은 그대로 웹', async () => {
+    const b = okBrowser();
+    const { auth } = setup({ os: 'android', browser: b, providers: ['apple', 'apple_web'], nativeOnly: [...ALL] });
+    expect(await auth.signIn('apple')).toEqual({ s: 'W' });
+    expect(b.opened.length).toBe(1);
   });
 });
