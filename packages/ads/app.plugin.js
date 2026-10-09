@@ -1,7 +1,7 @@
 /**
  * @jcurve/ads config plugin(1.7) — 앱 app.json `plugins: ["@jcurve/ads"]`.
  *
- * 1.9 — AdMob 미디에이션 어댑터(앱러빈 · 유니티 · 민티그럴 · 팽글 · 메타)를 기본으로 넣는다(@jcurve/mediation 0.2 를 그대로 부름,
+ * 1.9 — AdMob 미디에이션 어댑터(앱러빈 · 유니티 · 민티그럴 · 팽글 · 메타)를 기본으로 넣는다(1.9.1 부터 이 패키지 안 mediation.plugin.js — 따로 쓰던 @jcurve/mediation 은 없앰,
  *   대표님 10-09 「광고회사 5개 더 붙이는 걸 패키지에 넣으면 안 돼?」). 판을 올리고 prebuild → 새 스토어 빌드, 키는 AdMob 웹 매핑에만.
  *   끄기: `["@jcurve/ads", { "mediation": false }]` · 일부만: `{ "mediation": { "networks": ["applovin","meta"] } }` · 팽글만 빼기: `{ "mediation": { "pangle": false } }`.
  *   앱이 @jcurve/mediation 플러그인을 따로 적어 두었어도 괜찮다 — 표시 사이만 다시 써서 두 번 돌아도 같다.
@@ -32,7 +32,7 @@ module.exports = function withJcurveAds(config, props) {
   });
   const mediation = props && props.mediation;
   if (mediation === false) return config;
-  const withMediation = require('@jcurve/mediation/app.plugin');
+  const withMediation = require('./mediation.plugin');
   return withMediation(config, typeof mediation === 'object' && mediation ? mediation : {});
 };
 module.exports.addJitpack = addJitpack;
