@@ -25,14 +25,29 @@ function readAppGma(projectRoot) {
   }
 }
 
-/** @jcurve/ads 1.7+ 의 틱톡 네이티브 모듈이 들었는지(팽글과 틱톡 SDK 가 겹친다 — src/patch.ts pangleWithTikTok) */
+/**
+ * 틱톡 비즈니스 SDK 가 앱에 들었는지(팽글과 틱톡 SDK 가 겹친다 — src/patch.ts pangleWithTikTok).
+ * ① @jcurve/ads 1.7+ 의 틱톡 네이티브 모듈 ② 앱 안 로컬 Expo 모듈(modules/<이름>) 이 틱톡 SDK 를 끌어오는 것
+ *    (안드 com.github.tiktok:tiktok-business-android-sdk · iOS TikTokBusinessSDK pod — 10-09 당근캐시 안드 빌드가
+ *    checkReleaseDuplicateClasses 로 멈춘 원인: 앱 모듈의 1.7.1 과 팽글의 tiktok-business-android-sdk-comp 1.6.0).
+ */
 function hasTikTokModule(projectRoot) {
   try {
     const dir = path.dirname(require.resolve('@jcurve/ads/package.json', { paths: [projectRoot] }));
-    return fs.existsSync(path.join(dir, 'ios', 'JcurveTikTok.podspec')) || fs.existsSync(path.join(dir, 'android', 'build.gradle'));
-  } catch {
-    return false;
-  }
+    if (fs.existsSync(path.join(dir, 'ios', 'JcurveTikTok.podspec')) || fs.existsSync(path.join(dir, 'android', 'build.gradle'))) return true;
+  } catch {}
+  try {
+    const mods = path.join(projectRoot, 'modules');
+    for (const name of fs.existsSync(mods) ? fs.readdirSync(mods) : []) {
+      const gradle = path.join(mods, name, 'android', 'build.gradle');
+      if (fs.existsSync(gradle) && /tiktok-business-android-sdk|com\.github\.tiktok/.test(fs.readFileSync(gradle, 'utf8'))) return true;
+      const ios = path.join(mods, name, 'ios');
+      for (const f of fs.existsSync(ios) ? fs.readdirSync(ios).filter((x) => x.endsWith('.podspec')) : []) {
+        if (/TikTokBusinessSDK/.test(fs.readFileSync(path.join(ios, f), 'utf8'))) return true;
+      }
+    }
+  } catch {}
+  return false;
 }
 
 /** ATT 문구를 누가 넣는지 — plugin 은 늦게 적힌 것부터 돌아서 우리 차례엔 아직 Info.plist 에 없을 수 있다 */
@@ -56,7 +71,7 @@ function withJcurveMediation(config, props = {}) {
   const hasTikTok = hasTikTokModule(root);
   const wantsPangle = !opts.networks || !opts.networks.length || opts.networks.includes('pangle');
   if (hasTikTok && wantsPangle && !opts.pangleWithTikTok) {
-    const msg = '@jcurve/ads 틱톡 모듈이 있어 팽글을 뺐다 — 팽글 SDK 가 틱톡 SDK 를 따로 들고 와 겹친다(README 「팽글과 틱톡」)';
+    const msg = '틱톡 비즈니스 SDK(@jcurve/ads 1.7+ 또는 앱 modules/*)가 있어 팽글을 뺐다 — 팽글 SDK 가 틱톡 SDK 를 따로 들고 와 겹친다(README 「팽글과 틱톡」)';
     WarningAggregator.addWarningAndroid(TAG, msg);
     WarningAggregator.addWarningIOS(TAG, msg);
   }

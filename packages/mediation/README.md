@@ -1,5 +1,8 @@
 # @jcurve/mediation
 
+
+> **0.1.1 (10-09)** — 앱 안 로컬 모듈(`modules/<이름>`)이 틱톡 비즈니스 SDK(안드 `com.github.tiktok:tiktok-business-android-sdk` · iOS `TikTokBusinessSDK` pod)를 끌어와도 틱톡이 있다고 보고 팽글을 뺀다. 0.1.0 은 `@jcurve/ads` 의 틱톡만 봐서 당근캐시 안드 빌드가 `checkReleaseDuplicateClasses`(앱 1.7.1 × 팽글 tiktok-business-android-sdk-comp 1.6.0)로 멈췄다.
+
 리워드 앱 공용 **AdMob 미디에이션 어댑터** — 앱러빈 · 유니티 · 민티그럴 · 팽글 · 메타(Audience Network)를
 앱에 넣는 **Expo 설정 플러그인**. 런타임 코드는 없다(`import` 할 것이 없다).
 
@@ -23,7 +26,7 @@ AdMob 보상형 광고 요청이 AdMob 한 곳이 아니라 여러 망의 입찰
 ## 2. 설치
 
 ```bash
-npm i https://github.com/jxamen/jcurve-packages/releases/download/mediation-v0.1.0/jcurve-mediation-0.1.0.tgz
+npm i https://github.com/jxamen/jcurve-packages/releases/download/mediation-v0.1.1/jcurve-mediation-0.1.1.tgz
 ```
 
 `app.json` 의 `plugins` 에 — **`react-native-google-mobile-ads` 뒤에** 적는다(앞에 적어도 결과는 같다. SKAdNetwork 는 어느 쪽이든 합친다).
