@@ -1,0 +1,24 @@
+{
+  "name": "@jcurve/mediation",
+  "version": "0.1.0",
+  "description": "리워드 앱 공용 AdMob 미디에이션 어댑터 — 앱러빈 · 유니티 · 민티그럴 · 팽글 · 메타를 넣는 Expo 설정 플러그인(런타임 코드 없음)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist", "src", "README.md", "app.plugin.js"],
+  "scripts": { "build": "tsc -p tsconfig.json", "test": "vitest run" },
+  "peerDependencies": {
+    "expo": "*",
+    "react-native-google-mobile-ads": ">=16"
+  },
+  "peerDependenciesMeta": {
+    "expo": { "optional": true },
+    "react-native-google-mobile-ads": { "optional": true }
+  },
+  "devDependencies": {
+    "typescript": "~5.9.2",
+    "vitest": "^3.2.4",
+    "@types/node": "^22.10.2"
+  },
+  "repository": { "type": "git", "url": "https://github.com/jxamen/jcurve-packages", "directory": "packages/mediation" },
+  "license": "UNLICENSED"
+}
