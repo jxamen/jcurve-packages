@@ -1,11 +1,14 @@
 {
   "name": "@jcurve/ads",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "description": "리워드 앱 공용 광고 — AdMob 보상형(꼬꼬농장 방식, 화면 없음) · ATT · 틱톡 광고 전환(TikTok Business SDK)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": ["dist", "src", "README.md", "ios", "android", "expo-module.config.json", "app.plugin.js"],
   "scripts": { "build": "tsc -p tsconfig.json", "test": "vitest run" },
+  "dependencies": {
+    "@jcurve/mediation": "https://github.com/jxamen/jcurve-packages/releases/download/mediation-v0.2.0/jcurve-mediation-0.2.0.tgz"
+  },
   "peerDependencies": {
     "react-native-google-mobile-ads": ">=16",
     "expo-tracking-transparency": "*",
