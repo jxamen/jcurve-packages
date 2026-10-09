@@ -21,20 +21,31 @@ export interface MediationOptions {
         ios?: string;
         android?: string;
     };
+    /** false 면 팽글을 뺀다(`networks` 에서 빼는 것과 같다) */
+    pangle?: boolean;
     /**
-     * 팽글을 틱톡 SDK(@jcurve/ads 1.7+ 의 JcurveTikTok) 와 같이 넣을지 — 기본 끔.
-     * 팽글 SDK 는 틱톡 비즈니스 SDK 를 **자기 안에 또 들고 온다**(안드 com.pangle.global:tiktok-business-android-sdk-comp ·
-     * iOS Ads-Global/TikTokBusinessSDK.xcframework). @jcurve/ads 의 틱톡(안드 JitPack 1.7.1 · iOS pod 1.7.2)과 같은 클래스라
-     * 겹친다(안드 클래스 125개 같은 이름 — Duplicate class 빌드 실패). 그래서 틱톡이 있는 앱에서는 팽글을 뺀다.
+     * 틱톡 SDK 가 있을 때 팽글을 같이 넣을지 — 0.2.0 부터 기본 켬. false 면 0.1 처럼 팽글을 뺀다.
+     * 팽글 PAG SDK 는 틱톡 비즈니스 SDK 를 **자기 안에 또 들고 온다**(안드 com.pangle.global:tiktok-business-android-sdk-comp 1.6.x).
+     * 앱의 틱톡(JitPack com.github.tiktok:tiktok-business-android-sdk 1.7.1)과 같은 com.tiktok.* 클래스라 Duplicate class 로 빌드가 멈춘다.
+     * 그래서 틱톡이 있으면 팽글 어댑터 줄에서 comp 를 뺀다(PANGLE_TIKTOK_COMP) — PAG 는 com.tiktok.* 를 직접 부르지 않고(7.9.0.9 · 7.9.1.1 ·
+     * 8.3.0.4 확인), 1.7.1 은 comp 1.6.0 의 공개 API 를 다 가진다. iOS 는 고칠 것이 없다(README 「팽글과 틱톡」).
      */
     pangleWithTikTok?: boolean;
-    /** 앱에 @jcurve/ads 틱톡 모듈이 있는지 — 플러그인이 채운다 */
+    /** 앱에 틱톡 비즈니스 SDK(@jcurve/ads 1.7+ 또는 앱 modules/*)가 있는지 — 플러그인이 채운다 */
     hasTikTok?: boolean;
 }
+export interface AndroidExclude {
+    group: string;
+    module: string;
+}
+/** 팽글 PAG SDK 가 끌어오는 틱톡 비즈니스 SDK 사본 — 앱의 틱톡(com.github.tiktok 1.7.1)과 com.tiktok.* 가 겹친다 */
+export declare const PANGLE_TIKTOK_COMP: AndroidExclude;
 export interface Picked {
     network: Network;
     /** app/build.gradle 에 넣을 좌표들(어댑터 + 필요하면 망 SDK) */
     androidDeps: string[];
+    /** 어댑터 줄에서 뺄 전이 의존성(틱톡과 겹치는 팽글 comp) */
+    androidExcludes?: AndroidExclude[];
     androidVersion: string;
     pod: string;
     iosVersion: string;

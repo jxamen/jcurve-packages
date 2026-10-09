@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.PANGLE_TIKTOK_COMP = void 0;
 exports.cmpVersion = cmpVersion;
 exports.podSatisfies = podSatisfies;
 exports.pickVersions = pickVersions;
@@ -15,6 +16,8 @@ exports.mergeSkAdNetworkItems = mergeSkAdNetworkItems;
  * (`expo prebuild` 를 --clean 없이 다시 돌려도 줄이 늘지 않고, 판을 바꾸면 그 판으로 바뀐다)
  */
 const catalog_1 = require("./catalog");
+/** 팽글 PAG SDK 가 끌어오는 틱톡 비즈니스 SDK 사본 — 앱의 틱톡(com.github.tiktok 1.7.1)과 com.tiktok.* 가 겹친다 */
+exports.PANGLE_TIKTOK_COMP = { group: 'com.pangle.global', module: 'tiktok-business-android-sdk-comp' };
 /** 점으로 나뉜 판 비교 — 모자란 자리는 0 */
 function cmpVersion(a, b) {
     const x = a.split('.').map(Number);
@@ -52,7 +55,7 @@ function podSatisfies(requirement, version) {
 /** 앱의 GMA 판에 맞는 어댑터 중 가장 새 것 — 맞는 게 없으면 멈춘다(조용히 빼면 망이 안 붙은 줄 모른다) */
 function pickVersions(opts = {}) {
     let networks = opts.networks && opts.networks.length ? opts.networks : [...catalog_1.NETWORKS];
-    if (opts.hasTikTok && !opts.pangleWithTikTok)
+    if (opts.pangle === false || (opts.hasTikTok && opts.pangleWithTikTok === false))
         networks = networks.filter((n) => n !== 'pangle');
     const gmaAndroid = opts.gma?.android || catalog_1.DEFAULT_GMA.android;
     const gmaIos = opts.gma?.ios || catalog_1.DEFAULT_GMA.ios;
@@ -70,7 +73,8 @@ function pickVersions(opts = {}) {
         const androidDeps = [`com.google.ads.mediation:${spec.artifact}:${androidVersion}`];
         if (spec.androidSdk)
             androidDeps.push(spec.androidSdk(androidVersion));
-        return { network, androidDeps, androidVersion, pod: spec.pod, iosVersion, maven: spec.maven };
+        const androidExcludes = network === 'pangle' && opts.hasTikTok ? [exports.PANGLE_TIKTOK_COMP] : undefined;
+        return { network, androidDeps, ...(androidExcludes && { androidExcludes }), androidVersion, pod: spec.pod, iosVersion, maven: spec.maven };
     });
 }
 const BEGIN = '@jcurve/mediation 시작 — prebuild 가 다시 쓴다, 손으로 고치지 말 것';
@@ -93,7 +97,11 @@ function patchAppBuildGradle(src, picked) {
     if (!m || m.index === undefined)
         throw new Error('@jcurve/mediation: android/app/build.gradle 에서 dependencies { 를 못 찾음');
     const at = m.index + m[0].length;
-    const lines = picked.flatMap((p) => p.androidDeps.map((d) => `implementation "${d}"`));
+    const lines = picked.flatMap((p) => p.androidDeps.map((d, i) => 
+    // 어댑터(첫 줄)에만 — 팽글이면 PAG SDK 가 끌어오는 틱톡 comp 를 뺀다
+    i === 0 && p.androidExcludes?.length
+        ? `implementation("${d}") { ${p.androidExcludes.map((e) => `exclude group: '${e.group}', module: '${e.module}'`).join('; ')} }`
+        : `implementation "${d}"`));
     return out.slice(0, at) + block(lines, '    ', '//') + out.slice(at);
 }
 const normUrl = (u) => u.trim().replace(/\/+$/, '').toLowerCase();

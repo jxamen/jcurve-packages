@@ -1,5 +1,5 @@
 /**
- * @jcurve/mediation 설정 플러그인(0.1) — app.json `plugins: ["@jcurve/mediation"]`
+ * @jcurve/mediation 설정 플러그인(0.2) — app.json `plugins: ["@jcurve/mediation"]`
  * (망을 고를 때 `["@jcurve/mediation", { "networks": ["applovin", "pangle"] }]`).
  *
  * - 안드: android/app/build.gradle 에 어댑터 implementation, android/build.gradle 의 allprojects.repositories 에
@@ -26,7 +26,7 @@ function readAppGma(projectRoot) {
 }
 
 /**
- * 틱톡 비즈니스 SDK 가 앱에 들었는지(팽글과 틱톡 SDK 가 겹친다 — src/patch.ts pangleWithTikTok).
+ * 틱톡 비즈니스 SDK 가 앱에 들었는지 — 있으면 팽글 어댑터 줄에서 PAG SDK 의 틱톡 사본(comp)을 뺀다(src/patch.ts pangleWithTikTok).
  * ① @jcurve/ads 1.7+ 의 틱톡 네이티브 모듈 ② 앱 안 로컬 Expo 모듈(modules/<이름>) 이 틱톡 SDK 를 끌어오는 것
  *    (안드 com.github.tiktok:tiktok-business-android-sdk · iOS TikTokBusinessSDK pod — 10-09 당근캐시 안드 빌드가
  *    checkReleaseDuplicateClasses 로 멈춘 원인: 앱 모듈의 1.7.1 과 팽글의 tiktok-business-android-sdk-comp 1.6.0).
@@ -69,9 +69,9 @@ function withJcurveMediation(config, props = {}) {
   const found = readAppGma(root);
   if (!found) WarningAggregator.addWarningAndroid(TAG, 'react-native-google-mobile-ads 를 못 찾아 GMA 판을 iOS 13.1.0 · 안드 25.0.0 으로 보고 골랐다');
   const hasTikTok = hasTikTokModule(root);
-  const wantsPangle = !opts.networks || !opts.networks.length || opts.networks.includes('pangle');
-  if (hasTikTok && wantsPangle && !opts.pangleWithTikTok) {
-    const msg = '틱톡 비즈니스 SDK(@jcurve/ads 1.7+ 또는 앱 modules/*)가 있어 팽글을 뺐다 — 팽글 SDK 가 틱톡 SDK 를 따로 들고 와 겹친다(README 「팽글과 틱톡」)';
+  const wantsPangle = opts.pangle !== false && (!opts.networks || !opts.networks.length || opts.networks.includes('pangle'));
+  if (hasTikTok && wantsPangle && opts.pangleWithTikTok === false) {
+    const msg = 'pangleWithTikTok: false — 틱톡 비즈니스 SDK 가 있어 팽글을 뺐다(README 「팽글과 틱톡」)';
     WarningAggregator.addWarningAndroid(TAG, msg);
     WarningAggregator.addWarningIOS(TAG, msg);
   }

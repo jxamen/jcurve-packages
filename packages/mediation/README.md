@@ -1,6 +1,9 @@
 # @jcurve/mediation
 
 
+> **0.2.0 (10-09)** — 틱톡 비즈니스 SDK 가 있는 앱에도 **팽글을 넣는다**(기본). 안드는 팽글 어댑터 줄에서 PAG SDK 가 끌어오는 틱톡 사본
+> `com.pangle.global:tiktok-business-android-sdk-comp` 를 빼서 앱의 틱톡 1.7.1 하나만 남긴다(5절). 빼려면 `"pangle": false`.
+>
 > **0.1.1 (10-09)** — 앱 안 로컬 모듈(`modules/<이름>`)이 틱톡 비즈니스 SDK(안드 `com.github.tiktok:tiktok-business-android-sdk` · iOS `TikTokBusinessSDK` pod)를 끌어와도 틱톡이 있다고 보고 팽글을 뺀다. 0.1.0 은 `@jcurve/ads` 의 틱톡만 봐서 당근캐시 안드 빌드가 `checkReleaseDuplicateClasses`(앱 1.7.1 × 팽글 tiktok-business-android-sdk-comp 1.6.0)로 멈췄다.
 
 리워드 앱 공용 **AdMob 미디에이션 어댑터** — 앱러빈 · 유니티 · 민티그럴 · 팽글 · 메타(Audience Network)를
@@ -26,7 +29,7 @@ AdMob 보상형 광고 요청이 AdMob 한 곳이 아니라 여러 망의 입찰
 ## 2. 설치
 
 ```bash
-npm i https://github.com/jxamen/jcurve-packages/releases/download/mediation-v0.1.1/jcurve-mediation-0.1.1.tgz
+npm i https://github.com/jxamen/jcurve-packages/releases/download/mediation-v0.2.0/jcurve-mediation-0.2.0.tgz
 ```
 
 `app.json` 의 `plugins` 에 — **`react-native-google-mobile-ads` 뒤에** 적는다(앞에 적어도 결과는 같다. SKAdNetwork 는 어느 쪽이든 합친다).
@@ -43,6 +46,8 @@ npm i https://github.com/jxamen/jcurve-packages/releases/download/mediation-v0.1
 ```jsonc
 ["@jcurve/mediation", {
   "networks": ["applovin", "unity", "mintegral", "pangle", "meta"],   // 넣을 망 — 기본 다섯 개 다
+  "pangle": false,                                                     // 팽글만 뺄 때(networks 에서 빼는 것과 같다)
+  "pangleWithTikTok": false,                                           // 틱톡 SDK 가 있는 앱에서만 팽글을 뺄 때(0.1 동작)
   "versions": { "pangle": { "android": "7.9.1.1.0", "ios": "7.9.1.1.0" } },   // 판을 손으로 정할 때만
   "skadnetwork": true                                                  // false 면 Info.plist 는 안 건드린다
 }]
@@ -101,13 +106,27 @@ RNGMA 가 그 판을 고정하는 날 표에 이미 있으니 자동으로 올�
 추가 Maven 저장소(Google 문서 그대로): 민티그럴 `https://dl-maven-android.mintegral.com/repository/mbridge_android_sdk_oversea`,
 팽글 `https://artifact.bytedance.com/repository/pangle/`. 나머지는 google() · mavenCentral() 에 있다.
 
-## 5. ⚠ 팽글과 틱톡(@jcurve/ads 1.7+)
+## 5. 팽글과 틱톡
 
-팽글 SDK 는 **틱톡 비즈니스 SDK 를 자기 안에 또 들고 온다** — 안드 `com.pangle.global:tiktok-business-android-sdk-comp:1.6.x`,
-iOS `Ads-Global/TikTokBusinessSDK.xcframework`. `@jcurve/ads` 1.7+ 의 틱톡 모듈(안드 JitPack 1.7.1 · iOS pod `TikTokBusinessSDK` 1.7.2)과
-**같은 클래스**다(안드 `com.tiktok.*` 클래스 125개가 같은 이름 → Duplicate class 빌드 실패, iOS 는 같은 이름 모듈 두 개).
-그래서 앱에 `@jcurve/ads` 틱톡 모듈이 있으면 **플러그인이 팽글을 빼고 경고를 띄운다.** 억지로 넣으려면 `"pangleWithTikTok": true`
-(시험 안 됨 — 빌드가 깨질 가능성이 높다).
+팽글 SDK 는 **틱톡 비즈니스 SDK 를 자기 안에 또 들고 온다** — 안드 `com.pangle.global:tiktok-business-android-sdk-comp`
+(PAG 7.9.0.9 ~ 8.1 은 1.6.0, 8.3 은 1.6.1), iOS `Ads-Global/TikTokBusinessSDK.xcframework`(1.6.0, 정적 라이브러리).
+앱의 틱톡(앱 `modules/tiktok-business` 또는 `@jcurve/ads` 1.7+ — 안드 JitPack `com.github.tiktok:tiktok-business-android-sdk:1.7.1` ·
+iOS pod `TikTokBusinessSDK` 1.7.2)과 **같은 `com.tiktok.*` 클래스**라, 그냥 두면 안드 `checkReleaseDuplicateClasses` 가 멈춘다.
+
+0.2.0 부터 플러그인이 틱톡을 찾으면 **팽글은 넣고, 팽글 어댑터 줄에서 comp 만 뺀다**(틱톡이 없는 앱은 그대로):
+
+```groovy
+implementation("com.google.ads.mediation:pangle:7.9.1.1.0") { exclude group: 'com.pangle.global', module: 'tiktok-business-android-sdk-comp' }
+```
+
+- 왜 앱의 1.7.1 을 남기나: PAG SDK(7.9.0.9 · 7.9.1.1 · 8.3.0.4 의 classes.jar · 매니페스트 · .so)는 `com.tiktok.*` 를 **한 번도 직접 부르지 않는다**
+  (comp 에는 R8 keep 규칙도 없어 틱톡 없는 앱의 릴리스에서는 통째로 지워진다). 1.7.1 은 comp 1.6.0 의 공개 API 를 다 가진다
+  (빠진 것은 내부 결제 프록시 `V5_V8BillingProxy` 뿐). 반대로 comp 를 남기면 우리 모듈이 1.6.0 으로 내려가 1.7 기능을 잃는다.
+- iOS 는 고칠 것이 없다: 두 사본 모두 `-framework TikTokBusinessSDK` 하나로 링크되어 **먼저 찾은 하나만** 들어간다(당근캐시 iOS 빌드 · 업로드 통과).
+  어느 쪽이 들어가도 우리 모듈이 쓰는 API(`TikTokConfig` · `initializeSdk` · `trackTTEvent` · `identify` · `logout` · `updateAccessToken` ·
+  `getTestEventCode`)는 1.6.0 · 1.7.2 헤더에 똑같이 있다.
+- 남은 위험: 팽글이 실행 중 내려받는 코드가 틱톡 SDK 를 리플렉션으로 부를 가능성(확인 안 됨 — 1.7.1 이 1.6.0 의 상위 집합이라 깨질 일은 적다).
+  팽글이 틱톡 SDK 를 자기 앱 ID 로 켜는 일은 찾지 못했다. 이상하면 `"pangle": false` 로 빼고 비교한다.
 
 ## 6. 처음 광고 직전 켜기 · 미리 안 받기와 미디에이션
 
@@ -148,6 +167,9 @@ iOS `Ads-Global/TikTokBusinessSDK.xcframework`. `@jcurve/ads` 1.7+ 의 틱톡 �
 ```bash
 cd packages/mediation && npx tsc -p tsconfig.json && npx vitest run
 ```
+
+0.2.0 은 당근캐시(앱 틱톡 1.7.1 + 팽글 7.9.1.1.0) 새 클론에서 `expo prebuild --platform android --clean` 뒤
+`./gradlew :app:checkReleaseDuplicateClasses` 와 릴리스 빌드로 확인했다(dex 에 `com.tiktok.*` 한 벌 · `com.bytedance.sdk.openadsdk` 같이 있음).
 
 당근캐시(RNGMA 16.3.4) · 꼬꼬농장(16.0.3) 새 클론에서 `expo prebuild --clean` 결과 build.gradle · Podfile · Info.plist 를 확인했고,
 두 번 더 돌려도 같았다. CocoaPods 의존성 풀이(다운로드 없이)도 두 앱 모두 통과(GMA 13.1.0 · 12.14.0 그대로).

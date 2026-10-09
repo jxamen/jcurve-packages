@@ -1,10 +1,10 @@
 /**
- * 미디에이션 플러그인(0.1) — 판 고르기(앱 GMA 판 기준) · build.gradle · Podfile · Info.plist 고치기가
+ * 미디에이션 플러그인(0.2) — 판 고르기(앱 GMA 판 기준) · build.gradle · Podfile · Info.plist 고치기가
  * 두 번 돌려도 같고(prebuild 재실행), 있던 SKAdNetwork 를 지우지 않는지.
  */
 import { describe, expect, it } from 'vitest';
 import { NETWORKS, SKADNETWORK_IDS, SPECS } from './catalog';
-import { cmpVersion, mergeSkAdNetworkItems, patchAppBuildGradle, patchPodfile, patchProjectBuildGradle, pickVersions, podSatisfies } from './patch';
+import { PANGLE_TIKTOK_COMP, cmpVersion, mergeSkAdNetworkItems, patchAppBuildGradle, patchPodfile, patchProjectBuildGradle, pickVersions, podSatisfies } from './patch';
 
 const APP_GRADLE = `apply plugin: "com.android.application"
 
@@ -83,10 +83,19 @@ describe('판 고르기', () => {
     const p = pickVersions({ networks: ['pangle'], versions: { pangle: { ios: '7.9.0.8.0' } } });
     expect(p.map((x) => [x.network, x.androidVersion, x.iosVersion])).toEqual([['pangle', '7.9.1.1.0', '7.9.0.8.0']]);
   });
-  it('틱톡(@jcurve/ads 1.7+)이 있으면 팽글을 뺀다 — pangleWithTikTok 로만 넣는다', () => {
-    expect(pickVersions({ hasTikTok: true }).map((x) => x.network)).toEqual(['applovin', 'unity', 'mintegral', 'meta']);
-    expect(pickVersions({ hasTikTok: true, networks: ['pangle'] })).toEqual([]);
-    expect(pickVersions({ hasTikTok: true, pangleWithTikTok: true }).map((x) => x.network)).toContain('pangle');
+  it('틱톡이 있어도 팽글을 넣고, 팽글 어댑터에서 틱톡 comp 를 뺀다(0.2.0)', () => {
+    const p = pickVersions({ hasTikTok: true });
+    expect(p.map((x) => x.network)).toEqual([...NETWORKS]);
+    expect(p.find((x) => x.network === 'pangle')!.androidExcludes).toEqual([PANGLE_TIKTOK_COMP]);
+    expect(p.filter((x) => x.androidExcludes).map((x) => x.network)).toEqual(['pangle']);
+    // 틱톡이 없으면 comp 는 그대로(팽글이 원래 끌어오는 대로)
+    expect(pickVersions().find((x) => x.network === 'pangle')!.androidExcludes).toBeUndefined();
+  });
+  it('팽글 빼기 — pangle: false · networks · pangleWithTikTok: false(틱톡 있을 때만)', () => {
+    expect(pickVersions({ pangle: false }).map((x) => x.network)).toEqual(['applovin', 'unity', 'mintegral', 'meta']);
+    expect(pickVersions({ hasTikTok: true, pangleWithTikTok: false }).map((x) => x.network)).not.toContain('pangle');
+    expect(pickVersions({ pangleWithTikTok: false }).map((x) => x.network)).toContain('pangle');
+    expect(pickVersions({ hasTikTok: true, networks: ['meta'] }).map((x) => x.network)).toEqual(['meta']);
   });
   it('맞는 판이 없으면 멈춘다', () => {
     expect(() => pickVersions({ gma: { ios: '11.0.0', android: '25.0.0' } })).toThrow(/iOS/);
@@ -115,6 +124,20 @@ describe('build.gradle · Podfile', () => {
     const other = patchAppBuildGradle(once, pickVersions({ networks: ['meta'] }));
     expect(other.match(/com\.google\.ads\.mediation/g)).toHaveLength(1);
     expect(patchAppBuildGradle(once, [])).toBe(APP_GRADLE);
+  });
+
+  it('app/build.gradle — 틱톡이 있으면 팽글 어댑터 줄에만 exclude, 두 번 돌려도 같다', () => {
+    const withTikTok = pickVersions({ hasTikTok: true });
+    const once = patchAppBuildGradle(APP_GRADLE, withTikTok);
+    expect(once).toContain(
+      `    implementation("com.google.ads.mediation:pangle:7.9.1.1.0") { exclude group: 'com.pangle.global', module: 'tiktok-business-android-sdk-comp' }`,
+    );
+    expect(once.match(/exclude group/g)).toHaveLength(1);
+    expect(once).toContain('    implementation "com.unity3d.ads:unity-ads:4.17.0"');
+    expect(patchAppBuildGradle(once, withTikTok)).toBe(once);
+    // 틱톡을 빼면 exclude 도 빠진다
+    expect(patchAppBuildGradle(once, picked)).toBe(patchAppBuildGradle(APP_GRADLE, picked));
+    expect(patchAppBuildGradle(APP_GRADLE, picked)).not.toContain('exclude');
   });
 
   it('build.gradle — allprojects.repositories 에 민티그럴 · 팽글, 두 번 돌려도 같다', () => {

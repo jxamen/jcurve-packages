@@ -6,4 +6,4 @@
  * 쓰는 법은 README, 앱이 부르는 것은 app.plugin.js 뿐이다. 여기 내보내는 것은 시험 · 확인용이다.
  */
 export { NETWORKS, SPECS, DEFAULT_GMA, SKADNETWORK_IDS, type Network, type NetworkSpec } from './catalog';
-export { cmpVersion, podSatisfies, pickVersions, patchAppBuildGradle, patchProjectBuildGradle, patchPodfile, mergeSkAdNetworkItems, type MediationOptions, type Picked, type SkanItem, } from './patch';
+export { cmpVersion, podSatisfies, pickVersions, PANGLE_TIKTOK_COMP, patchAppBuildGradle, patchProjectBuildGradle, patchPodfile, mergeSkAdNetworkItems, type MediationOptions, type Picked, type AndroidExclude, type SkanItem, } from './patch';

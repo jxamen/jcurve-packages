@@ -10,11 +10,13 @@ export {
   cmpVersion,
   podSatisfies,
   pickVersions,
+  PANGLE_TIKTOK_COMP,
   patchAppBuildGradle,
   patchProjectBuildGradle,
   patchPodfile,
   mergeSkAdNetworkItems,
   type MediationOptions,
   type Picked,
+  type AndroidExclude,
   type SkanItem,
 } from './patch';
