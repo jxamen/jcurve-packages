@@ -7,6 +7,7 @@
  * 서버 웹 로그인으로 넘어가기, 늦게 오는 복귀 주소, 게스트 농장 잇기, 어드민이 켠 로그인만,
  * 로그인 중 재시작 막기. 전부 **선택**이라 1.0 처럼 셋(키·서버·기록)만 줘도 그대로 돈다.
  */
+import { t, tf, type Lang } from './i18n';
 import { createSettle } from './settle';
 
 export type Provider = 'kakao' | 'google' | 'apple';
@@ -50,8 +51,9 @@ export function isNewMember(result: unknown): boolean {
 
 /**
  * (2.9) 화면에 쓸 이름 — 이메일 · 이름이 없을 수 있다(네이버 · 애플은 동의를 안 하면 비어 온다). 빈 값이면 「○○로 가입」.
+ * (2.9.5) `lang` 이 없거나 'ko' 면 지금과 같은 한국어, 'en' 이면 영어(예 Signed up with Naver).
  */
-export function memberLabel(member: unknown): string {
+export function memberLabel(member: unknown, lang?: Lang): string {
   const m = (member ?? {}) as { name?: unknown; email?: unknown; provider?: unknown };
   const name = typeof m.name === 'string' ? m.name.trim() : '';
   if (name) return name;
@@ -60,7 +62,7 @@ export function memberLabel(member: unknown): string {
   const label: Record<string, string> = { kakao: '카카오', naver: '네이버', google: '구글', apple: 'Apple', toss: '토스', guest: '게스트' };
   const p = typeof m.provider === 'string' ? m.provider : '';
 
-  return label[p] ? `${label[p]}로 가입` : '회원';
+  return label[p] ? tf('{0}로 가입', lang, t(label[p], lang)) : t('회원', lang);
 }
 
 /**
@@ -171,6 +173,11 @@ export type AuthDeps<T> = {
   random?: (bytes: Uint8Array) => void;
   /** 로그인이 끝나고 조용해져야 하는 시간(밀리초, 기본 1000) — `afterLoginSettled` 가 쓴다(2.6) */
   settleMs?: number;
+  /**
+   * (2.9.5) 사용자에게 보이는 안내(`AuthError.hint`) 언어 — 앱이 정해 넘긴다(패키지는 기기 언어를 읽지 않는다).
+   * 없거나 'ko' 면 지금과 같은 한국어.
+   */
+  lang?: Lang;
 };
 
 /**
@@ -207,7 +214,7 @@ export class AuthError extends Error {
   }
 }
 
-/** 카카오톡 없는 기기에서 카카오 계정 로그인 창이 안 열렸을 때 안내(2.9.4) */
+/** 카카오톡 없는 기기에서 카카오 계정 로그인 창이 안 열렸을 때 안내(2.9.4) — 한국어 원문. 다른 언어는 `createAuth({ lang })` 가 `hint` 에 바꿔 싣는다(2.9.5) */
 export const KAKAO_ACCOUNT_HINT = '카카오 계정 로그인 창을 열지 못했어요. 카카오톡을 설치하거나 다른 방법으로 로그인해 주세요.';
 
 export type Auth<T> = {
@@ -766,7 +773,7 @@ export function createAuth<T>(deps: AuthDeps<T>, env: AuthEnv = defaultEnv()): A
 
   /** 카카오 계정 로그인(카카오톡 없음 · 카카오톡 실패 뒤)이 안 됨 — 화면이 정확히 안내하게 AuthError 로 */
   function kakaoAccountError(e: unknown): AuthError {
-    return e instanceof AuthError ? e : new AuthError('failed', 'kakao_account:' + shortCode(e), KAKAO_ACCOUNT_HINT);
+    return e instanceof AuthError ? e : new AuthError('failed', 'kakao_account:' + shortCode(e), t(KAKAO_ACCOUNT_HINT, deps.lang));
   }
 
   async function googleToken(): Promise<string | typeof FALL> {

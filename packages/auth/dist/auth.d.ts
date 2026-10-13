@@ -1,3 +1,13 @@
+/**
+ * 소셜 로그인 본체 — 왜 이렇게 생겼는지는 `index.ts` 머리말에 있다.
+ *
+ * 이 파일은 **앱을 모른다.** 키·서버 호출·기록을 받아서 쓸 뿐이다.
+ *
+ * 2.0 에서 1.0 의 SDK 로그인 위에 **꼬꼬농장이 실기기에서 쌓은 장치**를 얹었다 —
+ * 서버 웹 로그인으로 넘어가기, 늦게 오는 복귀 주소, 게스트 농장 잇기, 어드민이 켠 로그인만,
+ * 로그인 중 재시작 막기. 전부 **선택**이라 1.0 처럼 셋(키·서버·기록)만 줘도 그대로 돈다.
+ */
+import { type Lang } from './i18n';
 export type Provider = 'kakao' | 'google' | 'apple';
 /** 서버 웹 로그인으로도 되는 제공자까지 — 네이버는 앱이 SDK 를 주면 네이버 앱으로(2.8), 아니면 웹으로 간다 */
 export type AnyProvider = Provider | 'naver';
@@ -37,8 +47,9 @@ export type SdkForgetResult = {
 export declare function isNewMember(result: unknown): boolean;
 /**
  * (2.9) 화면에 쓸 이름 — 이메일 · 이름이 없을 수 있다(네이버 · 애플은 동의를 안 하면 비어 온다). 빈 값이면 「○○로 가입」.
+ * (2.9.5) `lang` 이 없거나 'ko' 면 지금과 같은 한국어, 'en' 이면 영어(예 Signed up with Naver).
  */
-export declare function memberLabel(member: unknown): string;
+export declare function memberLabel(member: unknown, lang?: Lang): string;
 /**
  * 계측에 실을 수 있는 값 — **스칼라만**.
  *
@@ -144,6 +155,11 @@ export type AuthDeps<T> = {
     random?: (bytes: Uint8Array) => void;
     /** 로그인이 끝나고 조용해져야 하는 시간(밀리초, 기본 1000) — `afterLoginSettled` 가 쓴다(2.6) */
     settleMs?: number;
+    /**
+     * (2.9.5) 사용자에게 보이는 안내(`AuthError.hint`) 언어 — 앱이 정해 넘긴다(패키지는 기기 언어를 읽지 않는다).
+     * 없거나 'ko' 면 지금과 같은 한국어.
+     */
+    lang?: Lang;
 };
 /**
  * `busy` — 다른 로그인이 이미 도는 중이다. **화면은 무시하면 된다**(오류창을 띄우지 않는다).
@@ -170,7 +186,7 @@ export declare class AuthError extends Error {
     readonly hint?: string;
     constructor(code: AuthErrorCode, tag: string, hint?: string);
 }
-/** 카카오톡 없는 기기에서 카카오 계정 로그인 창이 안 열렸을 때 안내(2.9.4) */
+/** 카카오톡 없는 기기에서 카카오 계정 로그인 창이 안 열렸을 때 안내(2.9.4) — 한국어 원문. 다른 언어는 `createAuth({ lang })` 가 `hint` 에 바꿔 싣는다(2.9.5) */
 export declare const KAKAO_ACCOUNT_HINT = "\uCE74\uCE74\uC624 \uACC4\uC815 \uB85C\uADF8\uC778 \uCC3D\uC744 \uC5F4\uC9C0 \uBABB\uD588\uC5B4\uC694. \uCE74\uCE74\uC624\uD1A1\uC744 \uC124\uCE58\uD558\uAC70\uB098 \uB2E4\uB978 \uBC29\uBC95\uC73C\uB85C \uB85C\uADF8\uC778\uD574 \uC8FC\uC138\uC694.";
 export type Auth<T> = {
     /** 카카오 SDK 초기화 — 여러 번 불러도 한 번만 한다 */

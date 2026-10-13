@@ -218,6 +218,18 @@ const headers = { ...base, ...(DEVICE_PATHS.includes(path) ? await funnel.device
 - **네이버** — SDK(@react-native-seoul/naver-login)에 재동의 옵션이 없다. 네이버 개발자 콘솔에서 이메일을 **필수**로 두는 것이 전부이고, 서버는 로그인 때 비어 있던 이메일을 채운다(jcurve-api AuthController upsertMember).
 - 카카오 콘솔 「동의항목」에서 카카오계정(이메일)이 선택 · 필수 동의로 켜져 있어야 묻는다.
 
+## 2.9.5 — 언어(`lang`)
+
+패키지가 사용자에게 보이는 글은 `AuthError.hint`(카카오 계정 창 안내)와 `memberLabel` 뿐이다(로그인 화면은 앱 것).
+
+```ts
+const auth = createAuth({ …, lang: 'en' });   // hint 가 영어로
+memberLabel(member, 'en');                    // 「Signed up with Naver」 · 「Member」
+```
+
+**언어는 앱이 넘긴다** — 패키지는 기기 언어를 읽지 않는다. 없거나 `'ko'` 면 지금과 바이트까지 같은 한국어.
+언어 추가는 `src/i18n/locales/<언어>.ts` 표 하나 + `locales/index.ts` 한 줄(열쇠는 한국어 원문).
+
 ## 2.9 — 로그아웃 · 탈퇴 정리 · 새 가입 구분(`signOut` · `withdraw` · `isNewMember`)
 
 대표님 10-03 「이건 당연한 건데… 패키지화 가능?」 — 로그아웃 뒤 네이버를 다시 누르면 계정 선택 없이 바로 들어가고(SDK 토큰이 남음), 가입 회원이 온보딩으로 가던 것.

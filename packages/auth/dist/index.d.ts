@@ -121,9 +121,16 @@
  * 로그인 창이 **닫히는 중에** RN `Modal` 을 열면 iOS 에서 보이지 않는 막만 남아 화면이 전부 안 눌린다(머니트리 2026-09-23).
  * 로그인 직후 여는 Modal · 시스템 창(가이드 · ATT · 알림 권한)은 `auth.runAfterLogin(fn)` 으로 차례로 연다.
  * 기다리기만 할 때 `auth.afterLoginSettled()`, Modal 안전장치는 `visible={want && auth.loginSettled()}`(README 2.6).
+ *
+ * ## 2.9.5 — 언어
+ *
+ * 패키지가 사용자에게 보이는 글은 `AuthError.hint`(카카오 계정 창 안내)와 `memberLabel` 뿐이다(로그인 화면은 앱 것).
+ * `createAuth({ …, lang: 'en' })` · `memberLabel(member, 'en')`. **언어는 앱이 넘긴다**(패키지는 기기 언어를 읽지 않는다).
+ * 없거나 'ko' 면 지금과 같은 한국어. 언어 추가는 `src/i18n/locales/<언어>.ts` 표 하나 + `locales/index.ts` 한 줄.
  */
 export { AuthError, KAKAO_ACCOUNT_HINT, createAuth, createReturnWatch, isCancel, isNewMember, memberLabel, parseReturn, PLACEHOLDER } from './auth';
 export type { AnyProvider, Auth, AuthDeps, AuthEnv, AuthErrorCode, Guest, NaverKeys, Provider, SdkForgetResult, ServerLogin, TrackParams, WebLogin } from './auth';
+export type { Lang } from './i18n';
 export { createFunnel, FUNNEL_EVENTS, looksPersonal, referrerKeys } from './funnel';
 export type { Funnel, FunnelDeps, FunnelEnv, KeyValue } from './funnel';
 export { createTrack, propOf, standardEvent } from './track';

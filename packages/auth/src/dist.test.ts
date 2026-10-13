@@ -12,7 +12,7 @@
  * 그래서 `npm test` 가 그걸 잡는다.
  */
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -22,6 +22,10 @@ const OUT = mkdtempSync(join(tmpdir(), 'jcauth-'));
 
 afterAll(() => { rmSync(OUT, { recursive: true, force: true }); });
 
+/** 하위 폴더(2.9.5 의 i18n/ 등)까지 파일만 — 'i18n/index.js' 꼴의 상대 경로 */
+const files = (dir: string, pre = ''): string[] => readdirSync(dir).flatMap((n) =>
+  statSync(join(dir, n)).isDirectory() ? files(join(dir, n), pre + n + '/') : [pre + n]);
+
 describe('커밋된 dist 가 소스와 같다', () => {
   it('지금 빌드한 것과 글자까지 같다', () => {
     execFileSync('npx', ['tsc', '-p', 'tsconfig.json', '--outDir', OUT], {
@@ -30,8 +34,8 @@ describe('커밋된 dist 가 소스와 같다', () => {
       stdio: 'pipe',
     });
 
-    const fresh = readdirSync(OUT).sort();
-    const kept = readdirSync(join(ROOT, 'dist')).sort();
+    const fresh = files(OUT).sort();
+    const kept = files(join(ROOT, 'dist')).sort();
     expect(kept, '파일 목록이 다르다 — `npm run build` 를 돌려 커밋하라').toEqual(fresh);
 
     for (const f of fresh) {
