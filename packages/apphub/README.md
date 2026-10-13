@@ -59,6 +59,16 @@ const hub = useAppHub({ base: API_BASE, token: APP_TOKEN });   // 한 번만 부
 - 받는 계측 이름은 `apphub_open` · `apphub_tap`(`{ slug }`) 둘뿐이다. 패키지는 아무 데도 보내지 않는다.
 - 색만 받는다. **문구·순서·동작은 받지 않는다** — 열어 두면 앱마다 달라지고, 패키지로 만든 이유가 없어진다.
 
+## 언어 — `lang`(1.1.1)
+
+```tsx
+const hub = useAppHub({ base, token, lang: 'en' });   // section 제목 · 설명이 표에 있으면 영어(예 「추천 앱 둘러보기」)
+<AppHubSheet open={open} onClose={close} items={hub.items} section={hub.section} lang="en" />
+```
+
+**언어는 앱이 넘긴다** — 패키지는 기기 언어를 읽지 않는다. 없거나 `'ko'` 면 지금과 바이트까지 같은 한국어(훅의 `section` 도 같은 객체).
+앱 이름 · 소개(서버 `/family` 목록)는 바꾸지 않는다. 언어 추가는 `src/i18n/locales/<언어>.ts` + `locales/index.ts` 한 줄.
+
 ## 넣는 법 (EAS 클라우드 빌드까지 되게)
 
 비공개 저장소를 그대로 물리면 EAS 가 못 받는 일이 있다. **tgz 를 앱 저장소에 넣는다.**

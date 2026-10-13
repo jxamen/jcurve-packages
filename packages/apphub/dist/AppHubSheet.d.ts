@@ -15,6 +15,7 @@
 import React from 'react';
 import { type FamilyApp } from './pick';
 import { type FamilySection, type Loader } from './load';
+import { type Lang } from './i18n';
 export type AppHubTheme = {
     /** 화면 바탕 */
     bg?: string;
@@ -45,5 +46,10 @@ export type AppHubSheetProps = {
     section?: FamilySection;
     /** 계측 — 앱의 `track()` 을 그대로 넘긴다(패키지는 아무 데도 보내지 않는다) */
     onEvent?: (name: string, props?: Record<string, string | number | boolean | null>) => void;
+    /**
+     * (1.1.1) 시트 문구 언어 — 앱이 정해 넘긴다(패키지는 기기 언어를 읽지 않는다). 없거나 'ko' 면 지금과 같은 한국어.
+     * 어드민 제목 · 설명(`section`)도 표에 있는 문구면 바꾼다(없으면 그대로).
+     */
+    lang?: Lang;
 };
-export declare function AppHubSheet({ open, onClose, base, token, load, theme, items, section, onEvent }: AppHubSheetProps): React.JSX.Element | null;
+export declare function AppHubSheet({ open, onClose, base, token, load, theme, items, section, onEvent, lang }: AppHubSheetProps): React.JSX.Element | null;

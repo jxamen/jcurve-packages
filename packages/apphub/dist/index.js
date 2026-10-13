@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.useAppHub = exports.DEFAULT_SECTION = exports.parseHub = exports.hubLoader = exports.storeLoader = exports.tintOf = exports.familyRows = exports.AppHubSheet = void 0;
+exports.localizeSection = exports.useAppHub = exports.DEFAULT_SECTION = exports.parseHub = exports.hubLoader = exports.storeLoader = exports.tintOf = exports.familyRows = exports.AppHubSheet = void 0;
 /**
  * `@jcurve/apphub` — 리워드 앱 공용 「앱 모아보기」.
  *
@@ -19,3 +19,4 @@ Object.defineProperty(exports, "parseHub", { enumerable: true, get: function () 
 Object.defineProperty(exports, "DEFAULT_SECTION", { enumerable: true, get: function () { return load_1.DEFAULT_SECTION; } });
 var hook_1 = require("./hook");
 Object.defineProperty(exports, "useAppHub", { enumerable: true, get: function () { return hook_1.useAppHub; } });
+Object.defineProperty(exports, "localizeSection", { enumerable: true, get: function () { return hook_1.localizeSection; } });
