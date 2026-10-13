@@ -1,15 +1,16 @@
 "use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.needsResend = exports.codeLooksValid = exports.looksValid = exports.digits = exports.CODE_LEN = void 0;
+exports.format = format;
+exports.message = message;
+exports.createPhone = createPhone;
 /**
  * 번호 인증 본체 — 왜 이렇게 생겼는지는 `index.ts` 머리말에 있다.
  *
  * 이 파일은 **앱도 화면도 모른다.** 주소와 헤더를 받아 서버를 부르고, 화면이 그릴 값만 돌려준다.
  * 그래서 앱마다 다른 디자인을 그대로 둘 수 있다.
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.needsResend = exports.codeLooksValid = exports.looksValid = exports.digits = exports.CODE_LEN = void 0;
-exports.format = format;
-exports.message = message;
-exports.createPhone = createPhone;
+const i18n_1 = require("./i18n");
 /** 인증번호 자릿수 — 서버가 정한 값이다. 화면의 `maxLength` 도 이것을 쓴다 */
 exports.CODE_LEN = 6;
 /** 숫자만 남긴다 — 서버로는 항상 이 모양으로 보낸다 */
@@ -40,25 +41,26 @@ exports.codeLooksValid = codeLooksValid;
  * **무엇을 하면 되는지까지 적는다.** 「실패했어요」로 끝내면 그 사람이 할 수 있는 일이 없다.
  * 앱마다 다시 쓰면 같은 오류가 앱마다 다른 말로 나와서, 문의가 오면 어느 앱인지부터 묻게 된다.
  */
-function message(error, extra) {
+function message(error, extra, lang) {
+    // (1.2.1) 문구는 t()/tf() 로 감싼다 — lang 이 없거나 'ko' 면 예전과 같은 한국어 글자
     switch (error) {
-        case 'phone_taken': return '이미 다른 계정에서 쓰고 있는 번호예요.';
+        case 'phone_taken': return (0, i18n_1.t)('이미 다른 계정에서 쓰고 있는 번호예요.', lang);
         // 확인해 둔 내 번호로 다시 받기(서버 409, jcurve-api 209e8ba) — 문자를 보내지 않는다
-        case 'same_phone': return '지금 확인된 번호와 같아요. 다른 번호를 넣어 주세요.';
-        case 'signup_required': return '가입한 뒤에 번호를 인증할 수 있어요.';
-        case 'sms_off': return '문자 인증을 준비하고 있어요. 조금만 기다려 주세요.';
-        case 'bad_phone': return '휴대폰 번호를 다시 확인해 주세요.';
+        case 'same_phone': return (0, i18n_1.t)('지금 확인된 번호와 같아요. 다른 번호를 넣어 주세요.', lang);
+        case 'signup_required': return (0, i18n_1.t)('가입한 뒤에 번호를 인증할 수 있어요.', lang);
+        case 'sms_off': return (0, i18n_1.t)('문자 인증을 준비하고 있어요. 조금만 기다려 주세요.', lang);
+        case 'bad_phone': return (0, i18n_1.t)('휴대폰 번호를 다시 확인해 주세요.', lang);
         case 'too_soon': return extra?.waitMs
-            ? `잠시 후에 다시 보낼 수 있어요. (${Math.ceil(extra.waitMs / 1000)}초)`
-            : '잠시 후에 다시 보낼 수 있어요.';
-        case 'too_many': return '너무 여러 번 틀렸어요. 번호를 다시 받아 주세요.';
-        case 'daily_max': return '오늘은 더 보낼 수 없어요. 내일 다시 시도해 주세요.';
-        case 'expired': return '인증 시간이 지났어요. 번호를 다시 받아 주세요.';
-        case 'not_sent': return '먼저 인증번호를 받아 주세요.';
+            ? (0, i18n_1.tf)('잠시 후에 다시 보낼 수 있어요. ({0}초)', lang, Math.ceil(extra.waitMs / 1000))
+            : (0, i18n_1.t)('잠시 후에 다시 보낼 수 있어요.', lang);
+        case 'too_many': return (0, i18n_1.t)('너무 여러 번 틀렸어요. 번호를 다시 받아 주세요.', lang);
+        case 'daily_max': return (0, i18n_1.t)('오늘은 더 보낼 수 없어요. 내일 다시 시도해 주세요.', lang);
+        case 'expired': return (0, i18n_1.t)('인증 시간이 지났어요. 번호를 다시 받아 주세요.', lang);
+        case 'not_sent': return (0, i18n_1.t)('먼저 인증번호를 받아 주세요.', lang);
         case 'wrong': return extra?.left
-            ? `인증번호가 맞지 않아요. (${extra.left}번 남음)`
-            : '인증번호가 맞지 않아요.';
-        default: return '잠시 후에 다시 시도해 주세요.';
+            ? (0, i18n_1.tf)('인증번호가 맞지 않아요. ({0}번 남음)', lang, extra.left)
+            : (0, i18n_1.t)('인증번호가 맞지 않아요.', lang);
+        default: return (0, i18n_1.t)('잠시 후에 다시 시도해 주세요.', lang);
     }
 }
 /**
@@ -93,6 +95,7 @@ function createPhone(deps) {
         }
     };
     return {
+        message: (error, extra) => message(error, extra, deps.lang),
         async status() {
             const j = await call('/me/profile');
             if (!j?.ok)

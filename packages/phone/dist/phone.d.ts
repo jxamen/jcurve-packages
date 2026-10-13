@@ -4,6 +4,7 @@
  * 이 파일은 **앱도 화면도 모른다.** 주소와 헤더를 받아 서버를 부르고, 화면이 그릴 값만 돌려준다.
  * 그래서 앱마다 다른 디자인을 그대로 둘 수 있다.
  */
+import { type Lang } from './i18n';
 /** 인증번호 자릿수 — 서버가 정한 값이다. 화면의 `maxLength` 도 이것을 쓴다 */
 export declare const CODE_LEN = 6;
 /** 서버가 돌려주는 오류 코드 — 여기 없는 값은 `unknown` 으로 다룬다 */
@@ -58,7 +59,7 @@ export declare const codeLooksValid: (v: string) => boolean;
 export declare function message(error: PhoneError | string, extra?: {
     waitMs?: number;
     left?: number;
-}): string;
+}, lang?: Lang): string;
 /**
  * 틀린 뒤 처음부터 다시 받아야 하는가.
  *
@@ -92,11 +93,18 @@ export type PhoneDeps = {
     }) => Promise<{
         json: () => Promise<unknown>;
     }>;
+    /** (1.2.1) 안내 문구 언어 — 앱이 정해 넘긴다. 없거나 'ko' 면 지금과 같은 한국어. `phone.message` 가 쓴다 */
+    lang?: Lang;
 };
 export type Phone = {
     /** 지금 상태 — 화면이 「인증하기」를 띄울지 정한다. 못 읽으면 `null` */
     status: () => Promise<PhoneStatus | null>;
     send: (phone: string) => Promise<SendResult>;
     verify: (phone: string, code: string) => Promise<VerifyResult>;
+    /** (1.2.1) 오류 → 안내 문구 — `createPhone({ lang })` 의 언어로. `message(error, extra, lang)` 와 같다 */
+    message: (error: PhoneError | string, extra?: {
+        waitMs?: number;
+        left?: number;
+    }) => string;
 };
 export declare function createPhone(deps: PhoneDeps): Phone;

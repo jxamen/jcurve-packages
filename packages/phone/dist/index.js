@@ -48,6 +48,12 @@ exports.needsResend = exports.message = exports.looksValid = exports.format = ex
  *
  * 화면이 들고 있어야 하는 것은 **남은 시간과 재전송 대기**뿐이다. 값은 `send()` 가
  * `ttlMs` 로 주고, 재전송 대기는 60초다(`too_soon` 이면 `waitMs` 가 온다).
+ *
+ * ## 언어(1.2.1)
+ *
+ * 안내 문구는 `message(error, extra, 'en')` 또는 `createPhone({ …, lang: 'en' })` → `phone.message(error, extra)`.
+ * **언어는 앱이 넘긴다**(패키지는 기기 언어를 읽지 않는다). 없거나 'ko' 면 지금과 같은 한국어.
+ * 언어 추가는 `src/i18n/locales/<언어>.ts` 표 하나 + `locales/index.ts` 한 줄.
  */
 var phone_1 = require("./phone");
 Object.defineProperty(exports, "CODE_LEN", { enumerable: true, get: function () { return phone_1.CODE_LEN; } });
