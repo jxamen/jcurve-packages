@@ -6,6 +6,7 @@ import { isAllowedOrigin, isEntryUrl } from './entry';
 import { isWebUrl, resolveTarget } from './policy';
 import { bridgeShim } from './shim';
 import { DEFAULT_THEME, MissionLoading, MissionState, type MissionTheme, type StateKind } from './states';
+import type { Lang } from './i18n';
 
 export type MissionEvent = 'mission_open' | 'mission_loaded' | 'mission_error' | 'mission_target_open' | 'mission_target_blocked' | 'mission_overlay_request' | 'mission_floating_popup' | 'mission_external_link';
 
@@ -24,6 +25,8 @@ export type MissionWebViewProps = {
   onOverlayRequest?: () => void;
   /** 네이티브 오버레이가 들어간 빌드면 true(hasOverlayPermission 응답) */
   overlayReady?: boolean;
+  /** (0.2.1) 오류 · 점검 · 로딩 화면 문구 언어 — 앱이 넘긴다(패키지는 기기 언어를 읽지 않는다). 없거나 'ko' 면 한국어. 웹 페이지 안 글은 APIHUB 것 */
+  lang?: Lang;
 };
 
 export type MissionNavigation = { canGoBack: boolean; goBack: () => void };
@@ -40,7 +43,7 @@ const MAX_RECOVER = 2;
 const nonceOf = () => Math.random().toString(36).slice(2) + Date.now().toString(36) + Math.random().toString(36).slice(2);
 
 /** 주소가 바뀌었거나 다시 시도할 때마다 상태를 처음부터 */
-export function MissionWebView({ url, theme = DEFAULT_THEME, onClose, onEvent, onFloatingPopup, onOverlayRequest, overlayReady = false, onNavigationChange }: MissionWebViewProps) {
+export function MissionWebView({ url, theme = DEFAULT_THEME, onClose, onEvent, onFloatingPopup, onOverlayRequest, overlayReady = false, onNavigationChange, lang }: MissionWebViewProps) {
   const valid = isEntryUrl(url);
   const [state, setState] = useState<'loading' | 'ok' | StateKind>('loading');
   const [retryKey, setRetryKey] = useState(0);     // 사용자가 다시 시도(처음부터)
@@ -135,8 +138,8 @@ export function MissionWebView({ url, theme = DEFAULT_THEME, onClose, onEvent, o
     // hasOverlayPermission 은 shim 이 바로 답한다(동기) — 여기는 올 일이 없다
   };
 
-  if (state !== 'loading' && state !== 'ok') return <MissionState kind={state} theme={theme} onRetry={retry} onClose={onClose} />;
-  if (!valid) return <MissionState kind="error" theme={theme} onClose={onClose} />;
+  if (state !== 'loading' && state !== 'ok') return <MissionState kind={state} theme={theme} onRetry={retry} onClose={onClose} lang={lang} />;
+  if (!valid) return <MissionState kind="error" theme={theme} onClose={onClose} lang={lang} />;
 
   return <View style={{ flex: 1, backgroundColor: theme.bg }}>
     <WebView
@@ -196,6 +199,6 @@ export function MissionWebView({ url, theme = DEFAULT_THEME, onClose, onEvent, o
         return false;
       }}
     />
-    {state === 'loading' ? <View style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }} pointerEvents="none"><MissionLoading theme={theme} /></View> : null}
+    {state === 'loading' ? <View style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }} pointerEvents="none"><MissionLoading theme={theme} lang={lang} /></View> : null}
   </View>;
 }

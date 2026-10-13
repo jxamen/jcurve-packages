@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ShoppingMission = exports.MissionCards = exports.fetchCards = exports.parseCardsResponse = exports.normalizeCards = exports.MissionState = exports.MissionLoading = exports.DEFAULT_THEME = exports.MissionWebView = exports.isEntryUrl = exports.isAllowedOrigin = exports.fetchEntry = exports.ALLOWED_ORIGINS = exports.bridgeShim = exports.parseBridgeMessage = exports.openAppTarget = exports.schemeOf = exports.resolveTarget = exports.isWebUrl = exports.isBlocked = exports.BLOCKED_SCHEMES = void 0;
+exports.ShoppingMission = exports.MissionCards = exports.fetchCards = exports.parseCardsResponse = exports.normalizeCards = exports.stateCopy = exports.MissionState = exports.MissionLoading = exports.DEFAULT_THEME = exports.MissionWebView = exports.isEntryUrl = exports.isAllowedOrigin = exports.fetchEntry = exports.ALLOWED_ORIGINS = exports.bridgeShim = exports.parseBridgeMessage = exports.openAppTarget = exports.schemeOf = exports.resolveTarget = exports.isWebUrl = exports.isBlocked = exports.BLOCKED_SCHEMES = void 0;
 var policy_1 = require("./policy");
 Object.defineProperty(exports, "BLOCKED_SCHEMES", { enumerable: true, get: function () { return policy_1.BLOCKED_SCHEMES; } });
 Object.defineProperty(exports, "isBlocked", { enumerable: true, get: function () { return policy_1.isBlocked; } });
@@ -23,6 +23,8 @@ var states_1 = require("./states");
 Object.defineProperty(exports, "DEFAULT_THEME", { enumerable: true, get: function () { return states_1.DEFAULT_THEME; } });
 Object.defineProperty(exports, "MissionLoading", { enumerable: true, get: function () { return states_1.MissionLoading; } });
 Object.defineProperty(exports, "MissionState", { enumerable: true, get: function () { return states_1.MissionState; } });
+var copy_1 = require("./copy");
+Object.defineProperty(exports, "stateCopy", { enumerable: true, get: function () { return copy_1.stateCopy; } });
 var cards_1 = require("./cards");
 Object.defineProperty(exports, "normalizeCards", { enumerable: true, get: function () { return cards_1.normalizeCards; } });
 Object.defineProperty(exports, "parseCardsResponse", { enumerable: true, get: function () { return cards_1.parseCardsResponse; } });

@@ -1,6 +1,7 @@
 import React from 'react';
 import { type BridgeMessage } from './bridge';
 import { type MissionTheme } from './states';
+import type { Lang } from './i18n';
 export type MissionEvent = 'mission_open' | 'mission_loaded' | 'mission_error' | 'mission_target_open' | 'mission_target_blocked' | 'mission_overlay_request' | 'mission_floating_popup' | 'mission_external_link';
 export type MissionWebViewProps = {
     /** 서버 apihub/entry 가 준 웹뷰 주소(fetchEntry 결과) — 승인된 APIHUB 주소가 아니면 열지 않고 오류 화면 */
@@ -19,10 +20,12 @@ export type MissionWebViewProps = {
     onOverlayRequest?: () => void;
     /** 네이티브 오버레이가 들어간 빌드면 true(hasOverlayPermission 응답) */
     overlayReady?: boolean;
+    /** (0.2.1) 오류 · 점검 · 로딩 화면 문구 언어 — 앱이 넘긴다(패키지는 기기 언어를 읽지 않는다). 없거나 'ko' 면 한국어. 웹 페이지 안 글은 APIHUB 것 */
+    lang?: Lang;
 };
 export type MissionNavigation = {
     canGoBack: boolean;
     goBack: () => void;
 };
 /** 주소가 바뀌었거나 다시 시도할 때마다 상태를 처음부터 */
-export declare function MissionWebView({ url, theme, onClose, onEvent, onFloatingPopup, onOverlayRequest, overlayReady, onNavigationChange }: MissionWebViewProps): React.JSX.Element;
+export declare function MissionWebView({ url, theme, onClose, onEvent, onFloatingPopup, onOverlayRequest, overlayReady, onNavigationChange, lang }: MissionWebViewProps): React.JSX.Element;

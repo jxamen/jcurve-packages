@@ -7,8 +7,11 @@ const react_native_1 = require("react-native");
 const entry_1 = require("./entry");
 const MissionWebView_1 = require("./MissionWebView");
 const states_1 = require("./states");
+const i18n_1 = require("./i18n");
 /** 앱이 Modal 또는 내비게이션 화면 안에 넣는 쇼핑 미션 화면. */
-function ShoppingMission({ fetchJson, onClose, title = '일주일 쇼핑 미션', adId, safeAreaInsets, theme = states_1.DEFAULT_THEME, ...webViewProps }) {
+/** (0.2.1) `lang` — 머리글 · 상태 화면 문구 언어(앱이 넘긴다). 없거나 'ko' 면 지금과 같은 한국어. `title` 을 주면 그 글 그대로 */
+function ShoppingMission({ fetchJson, onClose, title, adId, safeAreaInsets, theme = states_1.DEFAULT_THEME, lang, ...webViewProps }) {
+    const heading = title === undefined ? (0, i18n_1.t)('일주일 쇼핑 미션', lang) : title;
     const [result, setResult] = (0, react_1.useState)(null);
     const [attempt, setAttempt] = (0, react_1.useState)(0);
     const [canGoBack, setCanGoBack] = (0, react_1.useState)(false);
@@ -26,9 +29,9 @@ function ShoppingMission({ fetchJson, onClose, title = '일주일 쇼핑 미션'
             setResult(r); });
         return () => { live = false; };
     }, [fetchJson, adId, attempt]);
-    return (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: [s.screen, { backgroundColor: theme.bg, paddingTop: safeAreaInsets.top, paddingBottom: safeAreaInsets.bottom, paddingLeft: safeAreaInsets.left ?? 0, paddingRight: safeAreaInsets.right ?? 0 }], children: [(0, jsx_runtime_1.jsxs)(react_native_1.View, { style: [s.bar, { backgroundColor: theme.bg, borderBottomColor: theme.line }], children: [(0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: "\uB2EB\uAE30", onPress: onClose, hitSlop: 12, style: s.button, children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.buttonText, { color: theme.text }], children: "\uB2EB\uAE30" }) }), (0, jsx_runtime_1.jsx)(react_native_1.Text, { numberOfLines: 1, style: [s.title, { color: theme.text }], children: title }), (0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: "\uB4A4\uB85C\uAC00\uAE30", accessibilityState: { disabled: !canGoBack }, disabled: !canGoBack, onPress: () => goBack.current?.(), hitSlop: 12, style: [s.button, { opacity: canGoBack ? 1 : 0.35 }], children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.buttonText, { color: theme.text }], children: "\uB4A4\uB85C\uAC00\uAE30" }) })] }), (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.body, children: result?.ok ? (0, jsx_runtime_1.jsx)(MissionWebView_1.MissionWebView, { ...webViewProps, url: result.url, theme: theme, onClose: onClose, onNavigationChange: navigationChanged })
-                    : result ? (0, jsx_runtime_1.jsx)(states_1.MissionState, { kind: result.reason === 'off' ? 'off' : result.reason === 'not_ready' ? 'notReady' : 'error', theme: theme, onClose: onClose, onRetry: () => setAttempt(n => n + 1) })
-                        : (0, jsx_runtime_1.jsx)(states_1.MissionLoading, { theme: theme }) })] });
+    return (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: [s.screen, { backgroundColor: theme.bg, paddingTop: safeAreaInsets.top, paddingBottom: safeAreaInsets.bottom, paddingLeft: safeAreaInsets.left ?? 0, paddingRight: safeAreaInsets.right ?? 0 }], children: [(0, jsx_runtime_1.jsxs)(react_native_1.View, { style: [s.bar, { backgroundColor: theme.bg, borderBottomColor: theme.line }], children: [(0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: (0, i18n_1.t)('닫기', lang), onPress: onClose, hitSlop: 12, style: s.button, children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.buttonText, { color: theme.text }], children: (0, i18n_1.t)('닫기', lang) }) }), (0, jsx_runtime_1.jsx)(react_native_1.Text, { numberOfLines: 1, style: [s.title, { color: theme.text }], children: heading }), (0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: (0, i18n_1.t)('뒤로가기', lang), accessibilityState: { disabled: !canGoBack }, disabled: !canGoBack, onPress: () => goBack.current?.(), hitSlop: 12, style: [s.button, { opacity: canGoBack ? 1 : 0.35 }], children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.buttonText, { color: theme.text }], children: (0, i18n_1.t)('뒤로가기', lang) }) })] }), (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.body, children: result?.ok ? (0, jsx_runtime_1.jsx)(MissionWebView_1.MissionWebView, { ...webViewProps, url: result.url, theme: theme, onClose: onClose, onNavigationChange: navigationChanged, lang: lang })
+                    : result ? (0, jsx_runtime_1.jsx)(states_1.MissionState, { kind: result.reason === 'off' ? 'off' : result.reason === 'not_ready' ? 'notReady' : 'error', theme: theme, onClose: onClose, onRetry: () => setAttempt(n => n + 1), lang: lang })
+                        : (0, jsx_runtime_1.jsx)(states_1.MissionLoading, { theme: theme, lang: lang }) })] });
 }
 const s = react_native_1.StyleSheet.create({
     screen: { flex: 1 },

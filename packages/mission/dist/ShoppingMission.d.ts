@@ -15,4 +15,5 @@ export type ShoppingMissionProps = Omit<MissionWebViewProps, 'url' | 'onClose' |
     };
 };
 /** 앱이 Modal 또는 내비게이션 화면 안에 넣는 쇼핑 미션 화면. */
-export declare function ShoppingMission({ fetchJson, onClose, title, adId, safeAreaInsets, theme, ...webViewProps }: ShoppingMissionProps): React.JSX.Element;
+/** (0.2.1) `lang` — 머리글 · 상태 화면 문구 언어(앱이 넘긴다). 없거나 'ko' 면 지금과 같은 한국어. `title` 을 주면 그 글 그대로 */
+export declare function ShoppingMission({ fetchJson, onClose, title, adId, safeAreaInsets, theme, lang, ...webViewProps }: ShoppingMissionProps): React.JSX.Element;

@@ -3,6 +3,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View, type ImageSourceP
 import { fetchCards, normalizeCards, type MissionCard, type MissionCardType } from './cards';
 import type { Requester } from './entry';
 import { DEFAULT_THEME, type MissionTheme } from './states';
+import { t, type Lang } from './i18n';
 
 export type MissionCardsTheme = { colors?: Partial<MissionTheme>; radius?: number };
 export type MissionCardsProps = {
@@ -16,6 +17,8 @@ export type MissionCardsProps = {
   renderAfterCards?: () => ReactNode;
   onOpenShopping: (card: MissionCard) => void;
   onOpenStamps: (card: MissionCard) => void;
+  /** (0.2.1) 기본 제목 · 부제 언어 — 앱이 넘긴다. 없거나 'ko' 면 한국어. 카드 제목 · 설명은 서버(mission/cards) 글 그대로 */
+  lang?: Lang;
 };
 
 const EMPTY: readonly MissionCard[] = [];
@@ -27,7 +30,9 @@ function renderIcon(icon: ReactNode | ImageSourcePropType) {
 }
 
 /** 모든 앱이 같은 머리글·카드 목록·광고 슬롯 구조를 쓴다. */
-export function MissionCards({ fetchJson, fallbackCards = EMPTY, title = '미션', subtitle = '미션에 참여하고 포인트를 받아요', theme, icons, character, renderAfterCards, onOpenShopping, onOpenStamps }: MissionCardsProps) {
+export function MissionCards({ fetchJson, fallbackCards = EMPTY, title, subtitle, theme, icons, character, renderAfterCards, onOpenShopping, onOpenStamps, lang }: MissionCardsProps) {
+  const heading = title === undefined ? t('미션', lang) : title;
+  const sub = subtitle === undefined ? t('미션에 참여하고 포인트를 받아요', lang) : subtitle;
   const colors = { ...DEFAULT_THEME, ...theme?.colors };
   const [cards, setCards] = useState(() => normalizeCards(fallbackCards));
   useEffect(() => {
@@ -39,8 +44,8 @@ export function MissionCards({ fetchJson, fallbackCards = EMPTY, title = '미션
   return <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={s.content}>
     <View style={s.header}>
       <View style={s.texts}>
-        <Text accessibilityRole="header" style={[s.heading, { color: colors.text }]}>{title}</Text>
-        <Text style={[s.subtitle, { color: colors.sub }]}>{subtitle}</Text>
+        <Text accessibilityRole="header" style={[s.heading, { color: colors.text }]}>{heading}</Text>
+        <Text style={[s.subtitle, { color: colors.sub }]}>{sub}</Text>
       </View>
       {character}
     </View>
