@@ -177,13 +177,15 @@ describe('보상형 광고가 열리면 틱톡 광고 열람(InAppADImpr)', () =
     const listeners = new Map<string, (x?: any) => void>();
     const ad = { addAdEventListener: (t: string, fn: any) => { listeners.set(t, fn); return () => undefined; }, load: () => undefined, show: () => Promise.resolve() };
     const sdk = {
+      AdsConsent: { gatherConsent: async () => ({ canRequestAds: true }), getConsentInfo: async () => ({ canRequestAds: true }) },
       default: () => ({ initialize: async () => undefined, setRequestConfiguration: async () => undefined }),
       RewardedAd: { createForAdRequest: () => ad },
       TestIds: { REWARDED: 'T' },
       RewardedAdEventType: { LOADED: 'loaded', EARNED_REWARD: 'earned' },
       AdEventType: { OPENED: 'opened', CLOSED: 'closed', ERROR: 'error' },
     };
-    const env: AdsEnv = { sdk: () => sdk, tracking: () => null, os: () => 'android', appState: () => null, dev: () => false };
+    const appState = { currentState: 'active', addEventListener: () => ({ remove: () => undefined }) };
+    const env: AdsEnv = { sdk: () => sdk, tracking: () => null, os: () => 'android', appState: () => appState, dev: () => false };
     const seen: string[] = [];
     const ads = createRewarded({ units: { rewarded: { android: 'U' } }, test: false, tiktok: { adImpression: () => { seen.push('a'); } } }, env);
     await ads.show({ onEarned: () => undefined, onFail: () => undefined });

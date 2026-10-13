@@ -1,9 +1,10 @@
+import { type RequestPolicy } from './runtime';
 /** 플랫폼마다 따로인 광고 단위 ID */
 export type AdUnits = {
     android?: string;
     ios?: string;
 };
-export type AdsOptions = {
+export type AdsOptions = RequestPolicy & {
     units: {
         /** 보상형 — 「광고 보고 받기」 */
         rewarded: AdUnits;
@@ -80,7 +81,7 @@ export type PlayResult = {
     opened: boolean;
     /** 이미 다른 광고가 도는 중이라 시작하지 못했다(횟수도 깎지 않는다) */
     busy: boolean;
-    /** 열리지도 않았다(재고 없음 · 로드 실패 · 시간 초과 · 그만두기) — 「다시 시도」 안내 */
+    /** 표시 요청 전 실패/취소 또는 네이티브 실패로 안 열렸음을 확인했다. 표시 중 미확정 상태는 false. */
     noAd: boolean;
     /** 못 봤을 때 보여 줄 문구 */
     message?: string;
@@ -141,6 +142,7 @@ export type AdsEnv = {
     appState: () => AppStateLike | null;
     dev: () => boolean;
 };
+export declare const defaultAdsEnv: () => AdsEnv;
 /** ATT 를 물은 결과 — timedOut 이면 창이 아직 떠 있을 수 있다(다음 권한 창 전에 앱이 앞으로 돌아오길 기다린다) */
 export type TrackingResult = {
     status: string;
