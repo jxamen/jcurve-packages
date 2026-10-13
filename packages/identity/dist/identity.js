@@ -1,13 +1,14 @@
 "use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.identityMessage = identityMessage;
+exports.parseQuery = parseQuery;
+exports.createIdentity = createIdentity;
 /**
  * 간편인증 본체 — 왜 이렇게 생겼는지는 `index.ts` 머리말에 있다.
  *
  * **이 파일은 앱을 모른다.** 스킴·세션·저장은 앱이 주입한다.
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.identityMessage = identityMessage;
-exports.parseQuery = parseQuery;
-exports.createIdentity = createIdentity;
+const i18n_1 = require("./i18n");
 const REASON = {
     CANCELED: '인증을 취소했어요.',
     NO_SESSION: '로그인한 뒤 다시 시도해 주세요.',
@@ -23,9 +24,10 @@ const REASON = {
     RESULT_LOST: '인증 결과를 받지 못했어요. 다시 시도해 주세요.',
     NEED_UPDATE: '앱을 최신 버전으로 업데이트해 주세요.',
 };
-/** 사유 → 사람이 읽는 말. 모르는 사유도 빈 문자열을 내지 않는다 */
-function identityMessage(reason) {
-    return REASON[reason] ?? `본인인증에 실패했어요. 다시 시도해 주세요. (${reason})`;
+/** 사유 → 사람이 읽는 말. 모르는 사유도 빈 문자열을 내지 않는다. `lang` 이 없거나 'ko' 면 한국어 원문 */
+function identityMessage(reason, lang) {
+    const ko = REASON[reason];
+    return ko !== undefined ? (0, i18n_1.t)(ko, lang) : (0, i18n_1.tf)('본인인증에 실패했어요. 다시 시도해 주세요. ({0})', lang, reason);
 }
 /**
  * 복귀 URL 의 쿼리를 읽는다 — **RN 의 `URLSearchParams` 폴리필을 믿지 않는다.**
@@ -52,6 +54,7 @@ function createIdentity(deps) {
         return h;
     };
     return {
+        message: (reason) => identityMessage(reason, deps.lang),
         async enabled() {
             try {
                 // **앱 토큰을 빼먹으면 늘 「꺼짐」으로 읽힌다** — 공용 API 가 unauthorized 를 주는데

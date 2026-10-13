@@ -1,6 +1,6 @@
 {
   "name": "@jcurve/identity",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "리워드 앱 공용 간편인증(KICA) 본인확인",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

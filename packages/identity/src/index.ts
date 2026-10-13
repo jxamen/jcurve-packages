@@ -44,6 +44,12 @@
  * ```
  *
  * **화면은 없다.** 본인인증 화면은 앱마다 그 앱답게 생겨야 한다.
+ *
+ * ## 언어(1.0.1)
+ *
+ * 안내 문구는 `createIdentity({ …, lang: 'en' })` → `identity.message(reason)`, 또는 `identityMessage(reason, 'en')`.
+ * **언어는 앱이 넘긴다**(패키지는 기기 언어를 읽지 않는다). 없거나 'ko' 면 지금과 같은 한국어.
+ * 언어 추가는 `src/i18n/locales/<언어>.ts` 표 하나 + `locales/index.ts` 한 줄.
  */
 export {
   createIdentity,
@@ -53,3 +59,4 @@ export {
   type IdentityDeps,
   type IdentityResult,
 } from './identity';
+export type { Lang } from './i18n';

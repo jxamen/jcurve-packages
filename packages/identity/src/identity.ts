@@ -3,6 +3,7 @@
  *
  * **이 파일은 앱을 모른다.** 스킴·세션·저장은 앱이 주입한다.
  */
+import { t, tf, type Lang } from './i18n';
 
 /**
  * 앱이 주는 것.
@@ -23,6 +24,8 @@ export type IdentityDeps = {
   keep?: (v: { name: string; phone: string; provider: string }) => void | Promise<void>;
   /** 이미 인증한 회원일 때 서버 회원 정보를 읽는다 — 기기를 바꾼 사람을 이어 준다 */
   me?: () => Promise<{ name?: string; phone?: string } | null>;
+  /** (1.0.1) 안내 문구 언어 — 앱이 정해 넘긴다. 없거나 'ko' 면 지금과 같은 한국어 */
+  lang?: Lang;
 };
 
 export type IdentityResult =
@@ -45,9 +48,11 @@ const REASON: Record<string, string> = {
   NEED_UPDATE: '앱을 최신 버전으로 업데이트해 주세요.',
 };
 
-/** 사유 → 사람이 읽는 말. 모르는 사유도 빈 문자열을 내지 않는다 */
-export function identityMessage(reason: string): string {
-  return REASON[reason] ?? `본인인증에 실패했어요. 다시 시도해 주세요. (${reason})`;
+/** 사유 → 사람이 읽는 말. 모르는 사유도 빈 문자열을 내지 않는다. `lang` 이 없거나 'ko' 면 한국어 원문 */
+export function identityMessage(reason: string, lang?: Lang): string {
+  const ko = REASON[reason];
+
+  return ko !== undefined ? t(ko, lang) : tf('본인인증에 실패했어요. 다시 시도해 주세요. ({0})', lang, reason);
 }
 
 /**
@@ -70,6 +75,8 @@ export type Identity = {
   enabled: () => Promise<boolean>;
   /** 인증 실행 — 브라우저를 열고 결과를 회수한다 */
   verify: () => Promise<IdentityResult>;
+  /** (1.0.1) 사유 → 안내 문구 — `createIdentity({ lang })` 의 언어로. `identityMessage(reason, lang)` 와 같다 */
+  message: (reason: string) => string;
 };
 
 export function createIdentity(deps: IdentityDeps): Identity {
@@ -83,6 +90,8 @@ export function createIdentity(deps: IdentityDeps): Identity {
   };
 
   return {
+    message: (reason) => identityMessage(reason, deps.lang),
+
     async enabled() {
       try {
         // **앱 토큰을 빼먹으면 늘 「꺼짐」으로 읽힌다** — 공용 API 가 unauthorized 를 주는데
