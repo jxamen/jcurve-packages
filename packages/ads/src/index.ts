@@ -74,9 +74,17 @@
  * tiktok.track('signup_done');                 // 가입 · 'login_done'
  * tiktok.identify(memberId); tiktok.logout();
  * ```
+ *
+ * ## 언어(1.9.2)
+ *
+ * 실패 안내(`onFail` · `play()` 의 `message`)는 `createRewarded({ …, lang: 'en' })` 또는 `ads.setLang('en')` 의 언어로.
+ * **언어는 앱이 넘긴다**(패키지는 기기 언어를 읽지 않는다). 없거나 'ko' 면 지금과 같은 한국어 —
+ * 안내 글자를 비교하는 앱 코드가 있다면 영어에서는 글자가 달라지니 `noAd` · `earned` 같은 값으로 가른다.
+ * 언어 추가는 `src/i18n/locales/<언어>.ts` 표 하나 + `locales/index.ts` 한 줄.
  */
 export { createRewarded } from './ads';
 export type { AdsEnv, AdsOptions, AdUnits, PlayResult, Rewarded, ShowOptions, TrackingResult } from './ads';
+export type { Lang } from './i18n';
 export { isTestAds, readUpdateChannel, ssvRequestOptions, useTestAdUnit } from './mode';
 export { createTikTok } from './tiktok';
 export type { TikTok, TikTokEnv, TikTokNative, TikTokOptions } from './tiktok';

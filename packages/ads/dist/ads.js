@@ -10,6 +10,7 @@ exports.createRewarded = createRewarded;
  * ⚠ `require` 안의 이름은 **글자 그대로** 쓴다 — Metro 는 require 를 빌드 때 찾고, 변수로 주면 실행 때 던지는
  * 코드로 바꿔 모듈이 늘 없는 것처럼 돈다(`@jcurve/notify` 1.1.0 사고).
  */
+const i18n_1 = require("./i18n");
 const mode_1 = require("./mode");
 const defaultEnv = () => ({
     // 네이티브 모듈이 없으면(Expo Go) 여기서 예외가 나고 목업으로 넘어간다
@@ -51,6 +52,7 @@ const MUTE_AFTER = 3;
 const MUTE_MS = 30 * 60 * 1000;
 function createRewarded(opts, env = defaultEnv()) {
     let tiktok = opts.tiktok ?? null;
+    let lang = opts.lang;
     const mod = env.sdk();
     const os = env.os();
     const test = env.dev() || opts.test;
@@ -251,7 +253,7 @@ function createRewarded(opts, env = defaultEnv()) {
     const warmReady = (_userId, _customData, _interstitial = false) => false;
     async function show({ userId, customData, interstitial = false, onEarned, onFail, onClosed, onOpened, onAbort }) {
         if (!nativeReady) {
-            onFail('이 빌드에서는 광고를 재생할 수 없어요', true);
+            onFail((0, i18n_1.t)('이 빌드에서는 광고를 재생할 수 없어요', lang), true);
             return false;
         }
         const appState = env.appState();
@@ -322,7 +324,7 @@ function createRewarded(opts, env = defaultEnv()) {
                 const got = earned;
                 cleanup();
                 if (!got)
-                    safe(onFail, '광고를 끝까지 보지 않았어요', false); // 열렸다가 중간에 닫았다
+                    safe(onFail, (0, i18n_1.t)('광고를 끝까지 보지 않았어요', lang), false); // 열렸다가 중간에 닫았다
             }, 1200));
         };
         const fail = (msg) => {
@@ -343,13 +345,13 @@ function createRewarded(opts, env = defaultEnv()) {
                 p = ad.show();
             }
             catch (e) {
-                fail('광고를 열지 못했어요 (' + String(e?.message ?? e ?? '원인 불명') + ')');
+                fail((0, i18n_1.tf)('광고를 열지 못했어요 ({0})', lang, String(e?.message ?? e ?? (0, i18n_1.t)('원인 불명', lang))));
                 return;
             }
             if (p && typeof p.then === 'function') {
                 p.catch((e) => {
                     if (!opened)
-                        fail('광고를 열지 못했어요 (' + String(e?.message ?? e ?? '원인 불명') + ')');
+                        fail((0, i18n_1.tf)('광고를 열지 못했어요 ({0})', lang, String(e?.message ?? e ?? (0, i18n_1.t)('원인 불명', lang))));
                 });
             }
         };
@@ -371,8 +373,8 @@ function createRewarded(opts, env = defaultEnv()) {
         offs.push(ad.addAdEventListener(AdEventType.ERROR, (err) => {
             const code = String(err?.code ?? err?.message ?? '');
             fail(/no.?fill/i.test(code)
-                ? '지금은 볼 수 있는 광고가 없어요. 잠시 후 다시 시도해 주세요'
-                : '광고를 불러오지 못했어요 (' + (code || '원인 불명') + ')');
+                ? (0, i18n_1.t)('지금은 볼 수 있는 광고가 없어요. 잠시 후 다시 시도해 주세요', lang)
+                : (0, i18n_1.tf)('광고를 불러오지 못했어요 ({0})', lang, code || (0, i18n_1.t)('원인 불명', lang)));
         }));
         // 닫힘 이벤트를 못 받는 기기 — 앱이 뒤로 갔다 돌아오면 닫힌 것으로 본다
         try {
@@ -392,7 +394,7 @@ function createRewarded(opts, env = defaultEnv()) {
             ad.load();
         }
         catch (e) {
-            fail('광고를 열지 못했어요 (' + String(e?.message ?? e ?? '원인 불명') + ')');
+            fail((0, i18n_1.tf)('광고를 열지 못했어요 ({0})', lang, String(e?.message ?? e ?? (0, i18n_1.t)('원인 불명', lang))));
             return false;
         }
         /*
@@ -401,7 +403,7 @@ function createRewarded(opts, env = defaultEnv()) {
          */
         timers.push(setTimeout(() => {
             if (!opened && !finished)
-                fail('광고를 불러오지 못했어요. 잠시 후 다시 시도해 주세요 (' + stage + ')');
+                fail((0, i18n_1.tf)('광고를 불러오지 못했어요. 잠시 후 다시 시도해 주세요 ({0})', lang, stage));
         }, 15000));
         return true;
     }
@@ -430,11 +432,11 @@ function createRewarded(opts, env = defaultEnv()) {
                 finish({ earned: true, opened: true, busy: false, noAd: false }); },
             onFail: (message, noAd) => finish({ earned: false, opened, busy: false, noAd: !!noAd, message }),
             // 그만두기 · 걸림 풀기 — 이미 보상이 왔으면 본 것으로(서버 SSV 는 그대로 온다)
-            onAbort: () => finish(earned ? { earned: true, opened, busy: false, noAd: false } : { earned: false, opened, busy: false, noAd: !opened, message: '광고를 그만뒀어요' }),
+            onAbort: () => finish(earned ? { earned: true, opened, busy: false, noAd: false } : { earned: false, opened, busy: false, noAd: !opened, message: (0, i18n_1.t)('광고를 그만뒀어요', lang) }),
         }).then((started) => {
             if (!started && !done)
                 finish({ earned: false, opened: false, busy: true, noAd: false });
-        }, () => finish({ earned: false, opened, busy: false, noAd: !opened, message: '광고를 열지 못했어요' }));
+        }, () => finish({ earned: false, opened, busy: false, noAd: !opened, message: (0, i18n_1.t)('광고를 열지 못했어요', lang) }));
     });
     return {
         available: nativeReady && unitReady,
@@ -447,6 +449,7 @@ function createRewarded(opts, env = defaultEnv()) {
         mutedMs: () => Math.max(0, mutedUntil - Date.now()),
         requestTracking,
         advertisingId,
-        setTikTok: (t) => { tiktok = t; },
+        setTikTok: (tk) => { tiktok = tk; },
+        setLang: (l) => { lang = l; },
     };
 }

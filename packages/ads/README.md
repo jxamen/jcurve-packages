@@ -78,6 +78,18 @@ else toast(r.message ?? '광고를 보지 못했어요');   // r.noAd 면 「잠
 
 `show()` 와 콜백은 그대로 있다(옛 앱 그대로 돈다).
 
+## 언어 — `lang`(1.9.2)
+
+실패 안내(`onFail` 의 글 · `play()` 의 `message`)를 앱이 정한 언어로 낸다.
+
+```ts
+export const ads = createRewarded({ units, test, lang: 'en' });
+ads.setLang('en');   // 켠 뒤 바꿀 때 — 다음 광고부터
+```
+
+**언어는 앱이 넘긴다** — 패키지는 기기 언어를 읽지 않는다. 없거나 `'ko'` 면 지금과 바이트까지 같은 한국어.
+안내 글자를 비교하는 앱 코드는 영어에서 어긋나니 `noAd` · `earned` 로 가른다. 언어 추가는 `src/i18n/locales/<언어>.ts` + `locales/index.ts` 한 줄.
+
 ## 틱톡 값표
 
 | 어디 | 칸 | 값 | 비면 |
