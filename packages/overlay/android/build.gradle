@@ -3,12 +3,12 @@ apply plugin: 'com.android.library'
 apply plugin: 'expo-module-gradle-plugin'
 
 group = 'kr.co.jcurve.overlay'
-version = '0.1.0'
+version = '0.1.1'
 
 android {
   namespace "kr.co.jcurve.overlay"
   defaultConfig {
     versionCode 1
-    versionName "0.1.0"
+    versionName "0.1.1"
   }
 }
