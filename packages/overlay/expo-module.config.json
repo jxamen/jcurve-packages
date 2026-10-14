@@ -1,9 +1,5 @@
 {
-  "platforms": ["android", "ios"],
-  "android": {
-    "modules": ["kr.co.jcurve.overlay.JcurveOverlayModule"]
-  },
-  "ios": {
-    "modules": ["JcurveOverlayModule"]
-  }
+  "platforms": ["apple", "android"],
+  "apple": { "modules": ["JcurveOverlayModule"] },
+  "android": { "modules": ["kr.co.jcurve.overlay.JcurveOverlayModule"] }
 }

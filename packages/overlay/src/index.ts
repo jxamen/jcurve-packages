@@ -7,25 +7,28 @@ export type FloatingPopupParams = {
   durationSec: number;
 };
 
-let JcurveOverlayModule: {
+type NativeModule = {
   hasPermission: () => boolean;
   requestPermission: () => void;
   show: (params: FloatingPopupParams) => Promise<boolean>;
   hide: () => void;
-} | null = null;
+};
 
+/** 네이티브 모듈(Expo Module `JcurveOverlay`) — 이 패키지가 든 빌드가 아니면 null(OTA 만 받은 옛 빌드 · 웹 · 시험) */
+let JcurveOverlayModule: NativeModule | null = null;
 try {
-  if (Platform.OS === 'android' || Platform.OS === 'ios') {
-    JcurveOverlayModule = require('jcurve-overlay-module');
+  if (Platform.OS === 'android') {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { requireNativeModule } = require('expo-modules-core') as { requireNativeModule: (name: string) => NativeModule };
+    JcurveOverlayModule = requireNativeModule('JcurveOverlay');
   }
-} catch (e) {
-  // Module not available (likely during testing or in web environment)
-  JcurveOverlayModule = null;
+} catch {
+  JcurveOverlayModule = null;   // 모듈이 없는 빌드 — 모든 함수가 false · 아무 일 안 함
 }
 
 /** Check if overlay module is available on this platform. */
 export function isAvailable(): boolean {
-  return JcurveOverlayModule !== null && (Platform.OS === 'android' || Platform.OS === 'ios');
+  return JcurveOverlayModule !== null && Platform.OS === 'android';
 }
 
 /** Check if device has overlay permission (Android only; always false on iOS). */

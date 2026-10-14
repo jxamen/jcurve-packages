@@ -28,12 +28,15 @@ class JcurveOverlayModule : Module() {
       requestOverlayPermission()
     }
 
-    AsyncFunction("show") { params: Map<String, Any> ->
-      showFloatingPopup(params)
+    // 창(WindowManager)은 메인 스레드에서만 — AsyncFunction 은 다른 스레드라 메인으로 넘겨 결과를 promise 로
+    AsyncFunction("show") { params: Map<String, Any>, promise: expo.modules.kotlin.Promise ->
+      Handler(Looper.getMainLooper()).post {
+        promise.resolve(try { showFloatingPopup(params) } catch (e: Exception) { e.printStackTrace(); false })
+      }
     }
 
     Function("hide") {
-      hideFloatingPopup()
+      Handler(Looper.getMainLooper()).post { hideFloatingPopup() }
     }
   }
 
@@ -71,9 +74,11 @@ class JcurveOverlayModule : Module() {
     val name = params["name"] as? String ?: return false
     val price = params["price"] as? String ?: return false
     val durationSec = when (val d = params["durationSec"]) {
-      is Number -> maxOf(1, d.toInt().coerceAtLeast(1))
+      is Number -> d.toInt().coerceIn(1, 3600)
       else -> 300
     }
+    val dp = context.resources.displayMetrics.density
+    fun px(v: Int) = (v * dp).toInt()
 
     windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
@@ -86,11 +91,11 @@ class JcurveOverlayModule : Module() {
       format = PixelFormat.TRANSLUCENT
       flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
         WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-      width = 200
-      height = 120
-      x = 20
-      y = 100
-      gravity = Gravity.TOP or Gravity.LEFT
+      width = px(240)
+      height = WindowManager.LayoutParams.WRAP_CONTENT
+      x = px(12)
+      y = px(80)
+      gravity = Gravity.TOP or Gravity.START
     }
 
     val container = LinearLayout(context).apply {
@@ -99,13 +104,29 @@ class JcurveOverlayModule : Module() {
         LinearLayout.LayoutParams.MATCH_PARENT
       )
       orientation = LinearLayout.HORIZONTAL
-      setBackgroundColor(0xFFFFFFFF.toInt())
+      background = android.graphics.drawable.GradientDrawable().apply { setColor(0xFFFFFFFF.toInt()); cornerRadius = px(14).toFloat(); setStroke(px(1), 0xFFE5E5E5.toInt()) }
       elevation = 8f
+      clipToOutline = true
     }
+    // 손가락으로 끌어 옮기기 — 미션 중 쇼핑 화면을 가리면 치울 수 있게
+    container.setOnTouchListener(object : android.view.View.OnTouchListener {
+      var sx = 0; var sy = 0; var tx = 0f; var ty = 0f
+      override fun onTouch(v: android.view.View, ev: android.view.MotionEvent): Boolean {
+        when (ev.action) {
+          android.view.MotionEvent.ACTION_DOWN -> { sx = params_.x; sy = params_.y; tx = ev.rawX; ty = ev.rawY; return false }
+          android.view.MotionEvent.ACTION_MOVE -> {
+            params_.x = sx + (ev.rawX - tx).toInt(); params_.y = sy + (ev.rawY - ty).toInt()
+            try { windowManager?.updateViewLayout(container, params_) } catch (e: Exception) {}
+            return true
+          }
+        }
+        return false
+      }
+    })
 
     // 이미지 (왼쪽)
     val imageView = ImageView(context).apply {
-      layoutParams = LinearLayout.LayoutParams(60, 120)
+      layoutParams = LinearLayout.LayoutParams(px(64), px(64))
       scaleType = ImageView.ScaleType.CENTER_CROP
       // 실제 로드는 백그라운드 스레드에서 — 지금은 빈 칸(실패 처리)
       setBackgroundColor(0xFFEEEEEE.toInt())
@@ -117,7 +138,7 @@ class JcurveOverlayModule : Module() {
     val textContainer = LinearLayout(context).apply {
       layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
       orientation = LinearLayout.VERTICAL
-      setPadding(8, 8, 8, 8)
+      setPadding(px(8), px(8), px(4), px(8))
     }
 
     val nameText = TextView(context).apply {
@@ -150,7 +171,7 @@ class JcurveOverlayModule : Module() {
       text = "✕"
       textSize = 16f
       setTextColor(0xFF999999.toInt())
-      layoutParams = LinearLayout.LayoutParams(30, LinearLayout.LayoutParams.MATCH_PARENT)
+      layoutParams = LinearLayout.LayoutParams(px(32), LinearLayout.LayoutParams.MATCH_PARENT)
       gravity = Gravity.CENTER
       setOnClickListener { hideFloatingPopup() }
     }

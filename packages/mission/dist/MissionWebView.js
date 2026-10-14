@@ -10,6 +10,14 @@ const entry_1 = require("./entry");
 const policy_1 = require("./policy");
 const shim_1 = require("./shim");
 const states_1 = require("./states");
+// Try to load overlay module (optional peer dependency)
+let JcurveOverlay = null;
+try {
+    JcurveOverlay = require('@jcurve/overlay');
+}
+catch {
+    // Module not available
+}
 const WebView = react_native_webview_1.WebView;
 /** 웹뷰가 이 시간 안에 첫 화면을 못 띄우면 에러 화면 */
 const LOAD_TIMEOUT_MS = 20000;
@@ -17,7 +25,7 @@ const LOAD_TIMEOUT_MS = 20000;
 const MAX_RECOVER = 2;
 const nonceOf = () => Math.random().toString(36).slice(2) + Date.now().toString(36) + Math.random().toString(36).slice(2);
 /** 주소가 바뀌었거나 다시 시도할 때마다 상태를 처음부터 */
-function MissionWebView({ url, theme = states_1.DEFAULT_THEME, onClose, onEvent, onFloatingPopup, onOverlayRequest, overlayReady = false, onNavigationChange, lang }) {
+function MissionWebView({ url, theme = states_1.DEFAULT_THEME, onClose, onEvent, onFloatingPopup, onOverlayRequest, overlayReady: overlayReadyProp, onNavigationChange, lang }) {
     const valid = (0, entry_1.isEntryUrl)(url);
     const [state, setState] = (0, react_1.useState)('loading');
     const [retryKey, setRetryKey] = (0, react_1.useState)(0); // 사용자가 다시 시도(처음부터)
@@ -38,7 +46,24 @@ function MissionWebView({ url, theme = states_1.DEFAULT_THEME, onClose, onEvent,
                 handle.current?.goBack(); } });
     }, []);
     const platform = react_native_1.Platform.OS === 'ios' ? 'ios' : 'android';
-    const shim = (0, react_1.useMemo)(() => (0, shim_1.bridgeShim)(platform, overlayReady, secret), [platform, overlayReady, secret]);
+    // Overlay integration: use prop if provided, otherwise get from module
+    const actualOverlayReady = overlayReadyProp !== undefined
+        ? overlayReadyProp
+        : (JcurveOverlay?.hasPermission?.() ?? false);
+    // Default overlay handlers (if not provided in props)
+    const handleOverlayRequest = (0, react_1.useCallback)(() => {
+        onOverlayRequest?.();
+        if (!onOverlayRequest && JcurveOverlay?.requestPermission) {
+            JcurveOverlay.requestPermission();
+        }
+    }, [onOverlayRequest]);
+    const handleFloatingPopup = (0, react_1.useCallback)((params) => {
+        onFloatingPopup?.(params);
+        if (!onFloatingPopup && JcurveOverlay?.show) {
+            void JcurveOverlay.show(params);
+        }
+    }, [onFloatingPopup]);
+    const shim = (0, react_1.useMemo)(() => (0, shim_1.bridgeShim)(platform, actualOverlayReady, secret), [platform, actualOverlayReady, secret]);
     const setSt = (0, react_1.useCallback)((v) => { stateRef.current = v; setState(v); }, []);
     const disarm = (0, react_1.useCallback)(() => {
         if (timer.current) {
@@ -131,11 +156,11 @@ function MissionWebView({ url, theme = states_1.DEFAULT_THEME, onClose, onEvent,
         }
         else if (m.method === 'showFloatingPopup') {
             onEvent?.('mission_floating_popup');
-            onFloatingPopup?.(m.params);
+            handleFloatingPopup(m.params);
         }
         else if (m.method === 'requestOverlayPermission') {
             onEvent?.('mission_overlay_request');
-            onOverlayRequest?.();
+            handleOverlayRequest();
         }
         // hasOverlayPermission 은 shim 이 바로 답한다(동기) — 여기는 올 일이 없다
     };

@@ -1,0 +1,14 @@
+// @jcurve/overlay 0.1 — 쇼핑 미션 중 다른 앱 위에 미션 안내 카드(SYSTEM_ALERT_WINDOW). 권한은 app.plugin.js 가 매니페스트에 넣는다.
+apply plugin: 'com.android.library'
+apply plugin: 'expo-module-gradle-plugin'
+
+group = 'kr.co.jcurve.overlay'
+version = '0.1.0'
+
+android {
+  namespace "kr.co.jcurve.overlay"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+}

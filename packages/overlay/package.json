@@ -18,10 +18,14 @@
     "test": "vitest run"
   },
   "peerDependencies": {
-    "react-native": ">=0.74"
+    "react-native": ">=0.74",
+    "expo-modules-core": "*"
   },
   "peerDependenciesMeta": {
     "react-native": {
+      "optional": true
+    },
+    "expo-modules-core": {
       "optional": true
     }
   },

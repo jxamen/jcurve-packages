@@ -1,54 +1,18 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { isAvailable, hasPermission, requestPermission, show, hide } from './index';
+import { describe, expect, it, vi } from 'vitest';
 
-describe('JcurveOverlay', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+// 네이티브 모듈이 없는 환경(OTA 만 받은 옛 빌드 · 시험)에서는 모든 함수가 조용히 false · 아무 일 없음이어야 한다
+vi.mock('react-native', () => ({ Platform: { OS: 'android' } }));
+vi.mock('expo-modules-core', () => ({ requireNativeModule: () => { throw new Error('no native module'); } }));
+
+describe('@jcurve/overlay — 네이티브 모듈이 없을 때', async () => {
+  const m = await import('./index');
+  it('isAvailable · hasPermission 은 false', () => {
+    expect(m.isAvailable()).toBe(false);
+    expect(m.hasPermission()).toBe(false);
   });
-
-  describe('isAvailable', () => {
-    it('should return false when module is not available', () => {
-      expect(isAvailable()).toBe(false); // In test environment, module is not available
-    });
-  });
-
-  describe('hasPermission', () => {
-    it('should return false when module is not available', () => {
-      expect(hasPermission()).toBe(false);
-    });
-  });
-
-  describe('requestPermission', () => {
-    it('should not throw when module is not available', () => {
-      expect(() => requestPermission()).not.toThrow();
-    });
-  });
-
-  describe('show', () => {
-    it('should return false when module is not available', async () => {
-      const result = await show({
-        imageUrl: 'https://example.com/image.jpg',
-        name: 'Product Name',
-        price: '₩10,000',
-        durationSec: 5,
-      });
-      expect(result).toBe(false);
-    });
-
-    it('should handle missing parameters gracefully', async () => {
-      const result = await show({
-        imageUrl: '',
-        name: '',
-        price: '',
-        durationSec: 0,
-      });
-      expect(result).toBe(false);
-    });
-  });
-
-  describe('hide', () => {
-    it('should not throw when module is not available', () => {
-      expect(() => hide()).not.toThrow();
-    });
+  it('requestPermission · hide 는 아무 일 없이 끝나고 show 는 false', async () => {
+    expect(() => m.requestPermission()).not.toThrow();
+    expect(() => m.hide()).not.toThrow();
+    await expect(m.show({ imageUrl: 'https://x/y.png', name: '상품', price: '1,000원', durationSec: 5 })).resolves.toBe(false);
   });
 });
