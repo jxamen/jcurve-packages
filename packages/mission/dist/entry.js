@@ -4,6 +4,7 @@ exports.ALLOWED_ORIGINS = void 0;
 exports.isAllowedOrigin = isAllowedOrigin;
 exports.isEntryUrl = isEntryUrl;
 exports.fetchEntry = fetchEntry;
+exports.traceEntry = traceEntry;
 const OK_HOSTS = ['service.mocation.co.kr', 'test.mocation.co.kr'];
 /** 허용 origin(스킴 + 호스트, 포트 없음) */
 exports.ALLOWED_ORIGINS = OK_HOSTS.map(h => 'https://' + h);
@@ -59,4 +60,14 @@ async function fetchEntry(request, adId) {
     if (j?.error === 'not_ready')
         return { ok: false, reason: 'not_ready' };
     return { ok: false, reason: 'invalid' };
+}
+async function traceEntry(request, params) {
+    if (!request)
+        return;
+    try {
+        await request('apihub/trace', { method: 'POST', body: params });
+    }
+    catch {
+        // 조용히 무시 — 기록 실패가 화면에 영향을 주지 않는다
+    }
 }

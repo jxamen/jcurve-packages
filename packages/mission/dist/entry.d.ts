@@ -20,3 +20,10 @@ export declare function isAllowedOrigin(url: unknown): boolean;
  */
 export declare function isEntryUrl(url: unknown): url is string;
 export declare function fetchEntry(request: Requester, adId?: string): Promise<EntryResult>;
+export declare function traceEntry(request: Requester, params: {
+    stage: 'entry' | 'load_ok' | 'load_fail' | 'close' | 'reward';
+    source: 'popup' | 'push' | 'tab' | 'card' | 'other';
+    code?: number | string;
+    url?: string;
+    ms?: number;
+}): Promise<void>;

@@ -17,7 +17,7 @@ const LOAD_TIMEOUT_MS = 20000;
 const MAX_RECOVER = 2;
 const nonceOf = () => Math.random().toString(36).slice(2) + Date.now().toString(36) + Math.random().toString(36).slice(2);
 /** 주소가 바뀌었거나 다시 시도할 때마다 상태를 처음부터 */
-function MissionWebView({ url, theme = states_1.DEFAULT_THEME, onClose, onEvent, onFloatingPopup, onOverlayRequest, overlayReady = false, onNavigationChange, lang }) {
+function MissionWebView({ url, theme = states_1.DEFAULT_THEME, onClose, onEvent, onFloatingPopup, onOverlayRequest, overlayReady = false, onNavigationChange, traceStage, lang }) {
     const valid = (0, entry_1.isEntryUrl)(url);
     const [state, setState] = (0, react_1.useState)('loading');
     const [retryKey, setRetryKey] = (0, react_1.useState)(0); // 사용자가 다시 시도(처음부터)
@@ -161,9 +161,14 @@ function MissionWebView({ url, theme = states_1.DEFAULT_THEME, onClose, onEvent,
                             return;
                         setSt('ok');
                         onEvent?.('mission_loaded');
+                        traceStage?.('load_ok');
                     }, 600);
-                }, onError: () => fail('error', { why: 'load' }), onHttpError: e => {
+                }, onError: () => {
+                    traceStage?.('load_fail', { code: 0 });
+                    fail('error', { why: 'load' });
+                }, onHttpError: e => {
                     const code = e.nativeEvent.statusCode;
+                    traceStage?.('load_fail', { code });
                     if (code === 503)
                         fail('maintenance', { why: 'http', status: code });
                     else if (code === 401 || code === 403 || code === 410 || code === 419)

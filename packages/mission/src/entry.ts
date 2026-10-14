@@ -50,3 +50,12 @@ export async function fetchEntry(request: Requester, adId?: string): Promise<Ent
   if (j?.error === 'not_ready') return { ok: false, reason: 'not_ready' };
   return { ok: false, reason: 'invalid' };
 }
+
+export async function traceEntry(request: Requester, params: { stage: 'entry' | 'load_ok' | 'load_fail' | 'close' | 'reward'; source: 'popup' | 'push' | 'tab' | 'card' | 'other'; code?: number | string; url?: string; ms?: number }): Promise<void> {
+  if (!request) return;
+  try {
+    await request('apihub/trace', { method: 'POST', body: params });
+  } catch {
+    // 조용히 무시 — 기록 실패가 화면에 영향을 주지 않는다
+  }
+}

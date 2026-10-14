@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BackHandler, Linking, Platform, View } from 'react-native';
 import { WebView as RNWebView, type WebViewMessageEvent, type WebViewProps } from 'react-native-webview';
 import { openAppTarget, parseBridgeMessage, type BridgeMessage } from './bridge';
-import { isAllowedOrigin, isEntryUrl } from './entry';
+import { isAllowedOrigin, isEntryUrl, traceEntry, type Requester } from './entry';
 import { isWebUrl, resolveTarget } from './policy';
 import { bridgeShim } from './shim';
 import { DEFAULT_THEME, MissionLoading, MissionState, type MissionTheme, type StateKind } from './states';
@@ -17,6 +17,8 @@ export type MissionWebViewProps = {
   onNavigationChange?: (navigation: MissionNavigation) => void;
   theme?: MissionTheme;
   onClose?: () => void;
+  /** 단계 기록 함수 */
+  traceStage?: (stage: 'entry' | 'load_ok' | 'load_fail' | 'close' | 'reward', params?: { code?: number; url?: string; ms?: number }) => void;
   /** 계측 — 패키지는 아무 데도 보내지 않는다(앱이 자기 track 으로) */
   onEvent?: (name: MissionEvent, props?: Record<string, unknown>) => void;
   /** 페이지가 showFloatingPopup 을 불렀을 때(오버레이는 네이티브 빌드에서만 — 이 판은 알리기만) */
@@ -25,7 +27,7 @@ export type MissionWebViewProps = {
   onOverlayRequest?: () => void;
   /** 네이티브 오버레이가 들어간 빌드면 true(hasOverlayPermission 응답) */
   overlayReady?: boolean;
-  /** (0.2.1) 오류 · 점검 · 로딩 화면 문구 언어 — 앱이 넘긴다(패키지는 기기 언어를 읽지 않는다). 없거나 'ko' 면 한국어. 웹 페이지 안 글은 APIHUB 것 */
+  /** (0.3.0) 오류 · 점검 · 로딩 화면 문구 언어 — 앱이 넘긴다(패키지는 기기 언어를 읽지 않는다). 없거나 'ko' 면 한국어. 웹 페이지 안 글은 APIHUB 것 */
   lang?: Lang;
 };
 
@@ -43,7 +45,7 @@ const MAX_RECOVER = 2;
 const nonceOf = () => Math.random().toString(36).slice(2) + Date.now().toString(36) + Math.random().toString(36).slice(2);
 
 /** 주소가 바뀌었거나 다시 시도할 때마다 상태를 처음부터 */
-export function MissionWebView({ url, theme = DEFAULT_THEME, onClose, onEvent, onFloatingPopup, onOverlayRequest, overlayReady = false, onNavigationChange, lang }: MissionWebViewProps) {
+export function MissionWebView({ url, theme = DEFAULT_THEME, onClose, onEvent, onFloatingPopup, onOverlayRequest, overlayReady = false, onNavigationChange, traceStage, lang }: MissionWebViewProps) {
   const valid = isEntryUrl(url);
   const [state, setState] = useState<'loading' | 'ok' | StateKind>('loading');
   const [retryKey, setRetryKey] = useState(0);     // 사용자가 다시 시도(처음부터)
@@ -172,11 +174,16 @@ export function MissionWebView({ url, theme = DEFAULT_THEME, onClose, onEvent, o
           loadedTimer.current = null;
           if (failedRef.current) return;
           setSt('ok'); onEvent?.('mission_loaded');
+          traceStage?.('load_ok');
         }, 600);
       }}
-      onError={() => fail('error', { why: 'load' })}
+      onError={() => {
+        traceStage?.('load_fail', { code: 0 });
+        fail('error', { why: 'load' });
+      }}
       onHttpError={e => {
         const code = e.nativeEvent.statusCode;
+        traceStage?.('load_fail', { code });
         if (code === 503) fail('maintenance', { why: 'http', status: code });
         else if (code === 401 || code === 403 || code === 410 || code === 419) fail('session', { why: 'http', status: code });
         else if (code >= 400) fail('error', { why: 'http', status: code });
