@@ -8,6 +8,14 @@ import { bridgeShim } from './shim';
 import { DEFAULT_THEME, MissionLoading, MissionState, type MissionTheme, type StateKind } from './states';
 import type { Lang } from './i18n';
 
+// Try to load overlay module (optional peer dependency)
+let JcurveOverlay: any = null;
+try {
+  JcurveOverlay = require('@jcurve/overlay');
+} catch {
+  // Module not available
+}
+
 export type MissionEvent = 'mission_open' | 'mission_loaded' | 'mission_error' | 'mission_target_open' | 'mission_target_blocked' | 'mission_overlay_request' | 'mission_floating_popup' | 'mission_external_link';
 
 export type MissionWebViewProps = {
@@ -45,7 +53,7 @@ const MAX_RECOVER = 2;
 const nonceOf = () => Math.random().toString(36).slice(2) + Date.now().toString(36) + Math.random().toString(36).slice(2);
 
 /** 주소가 바뀌었거나 다시 시도할 때마다 상태를 처음부터 */
-export function MissionWebView({ url, theme = DEFAULT_THEME, onClose, onEvent, onFloatingPopup, onOverlayRequest, overlayReady = false, onNavigationChange, traceStage, lang }: MissionWebViewProps) {
+export function MissionWebView({ url, theme = DEFAULT_THEME, onClose, onEvent, onFloatingPopup, onOverlayRequest, overlayReady: overlayReadyProp, onNavigationChange, traceStage, lang }: MissionWebViewProps) {
   const valid = isEntryUrl(url);
   const [state, setState] = useState<'loading' | 'ok' | StateKind>('loading');
   const [retryKey, setRetryKey] = useState(0);     // 사용자가 다시 시도(처음부터)
@@ -65,7 +73,28 @@ export function MissionWebView({ url, theme = DEFAULT_THEME, onClose, onEvent, o
     navigationCallback.current?.({ canGoBack: back, goBack: () => { if (canGoBack.current) handle.current?.goBack(); } });
   }, []);
   const platform = Platform.OS === 'ios' ? 'ios' : 'android';
-  const shim = useMemo(() => bridgeShim(platform, overlayReady, secret), [platform, overlayReady, secret]);
+
+  // Overlay integration: use prop if provided, otherwise get from module
+  const actualOverlayReady = overlayReadyProp !== undefined
+    ? overlayReadyProp
+    : (JcurveOverlay?.hasPermission?.() ?? false);
+
+  // Default overlay handlers (if not provided in props)
+  const handleOverlayRequest = useCallback(() => {
+    onOverlayRequest?.();
+    if (!onOverlayRequest && JcurveOverlay?.requestPermission) {
+      JcurveOverlay.requestPermission();
+    }
+  }, [onOverlayRequest]);
+
+  const handleFloatingPopup = useCallback((params: Extract<BridgeMessage, { method: 'showFloatingPopup' }>['params']) => {
+    onFloatingPopup?.(params);
+    if (!onFloatingPopup && JcurveOverlay?.show) {
+      void JcurveOverlay.show(params);
+    }
+  }, [onFloatingPopup]);
+
+  const shim = useMemo(() => bridgeShim(platform, actualOverlayReady, secret), [platform, actualOverlayReady, secret]);
 
   const setSt = useCallback((v: 'loading' | 'ok' | StateKind) => { stateRef.current = v; setState(v); }, []);
   const disarm = useCallback(() => {
@@ -132,10 +161,10 @@ export function MissionWebView({ url, theme = DEFAULT_THEME, onClose, onEvent, o
       void openAppTarget(m.params, u => Linking.openURL(u)).then(opened => onEvent?.('mission_target_open', { opened }));
     } else if (m.method === 'showFloatingPopup') {
       onEvent?.('mission_floating_popup');
-      onFloatingPopup?.(m.params);
+      handleFloatingPopup(m.params);
     } else if (m.method === 'requestOverlayPermission') {
       onEvent?.('mission_overlay_request');
-      onOverlayRequest?.();
+      handleOverlayRequest();
     }
     // hasOverlayPermission 은 shim 이 바로 답한다(동기) — 여기는 올 일이 없다
   };

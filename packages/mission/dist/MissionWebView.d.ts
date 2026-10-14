@@ -34,4 +34,4 @@ export type MissionNavigation = {
     goBack: () => void;
 };
 /** 주소가 바뀌었거나 다시 시도할 때마다 상태를 처음부터 */
-export declare function MissionWebView({ url, theme, onClose, onEvent, onFloatingPopup, onOverlayRequest, overlayReady, onNavigationChange, traceStage, lang }: MissionWebViewProps): React.JSX.Element;
+export declare function MissionWebView({ url, theme, onClose, onEvent, onFloatingPopup, onOverlayRequest, overlayReady: overlayReadyProp, onNavigationChange, traceStage, lang }: MissionWebViewProps): React.JSX.Element;
