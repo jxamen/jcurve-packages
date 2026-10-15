@@ -21,6 +21,7 @@ import { createPhone, format, looksValid, message } from '@jcurve/phone';
 
 | 이름 | 무엇 | 화면 |
 |---|---|---|
+| `@jcurve/offerwall` | 애드팝콘 서버 보상 오퍼월 — Expo 설정 · 회원 고정 별칭 · 적립 가능량 · 닫힘 훅(0.1, 새 스토어 빌드 필요) | SDK 화면, 입구 버튼은 앱마다 |
 | `@jcurve/auth` | 소셜 로그인 + 가입 퍼널 기록 — 카카오·구글·애플 SDK, 안 되면 서버 웹 로그인 (2.7 — 로그인 요청에 기기 ID `deviceHeaders` · 2.6 로그인 직후 안전 시점 `runAfterLogin`) | 없음 |
 | `@jcurve/apphub` | 앱 모아보기 — 계열 앱 목록 시트 | 시트만 공용, 입구 버튼은 앱마다 |
 | `@jcurve/phone` | 휴대폰 번호 인증 — 서버 호출·번호 검증·오류 문구 (1.2) | 없음 |
