@@ -3,28 +3,62 @@ export type OfferwallResult = { ok: true } | { ok: false; reason: 'not_ready' | 
 export type RewardInfo = { queryResult: boolean; totalCount: number; totalReward: string };
 export type OfferwallConfig = { appKey?: string; hashKey?: string; title?: string; color?: string };
 const pending = (): OfferwallResult => ({ ok: false, reason: 'not_ready', message: '준비 중' });
+export type OfferwallServerConfig = { android?: { mediaKey?: string; hashKey?: string }; ios?: { mediaKey?: string; hashKey?: string } };
 let config: OfferwallConfig | undefined;
+let serverConfig: OfferwallServerConfig | undefined;
+let generation = 0;
+/** Call on logout/app switch before fetching the next app's settings. */
+export function resetOfferwall(): void { generation++; config = undefined; serverConfig = undefined; }
+/** Fetch the authenticated app content API. Keys stay in memory and must never be logged. */
+export async function initializeOfferwall({ configUrl, headers }: { configUrl: string; headers: Record<string, string> }): Promise<OfferwallResult> {
+  resetOfferwall();
+  const current = generation;
+  try {
+    const response = await fetch(configUrl, { headers, cache: 'no-store' });
+    if (!response.ok) return pending();
+    const data = await response.json();
+    if (current !== generation || data?.ok !== true || !data.config || typeof data.config !== 'object') return pending();
+    const clean: OfferwallServerConfig = {};
+    for (const os of ['android', 'ios'] as const) {
+      const value = data.config[os];
+      clean[os] = {
+        mediaKey: typeof value?.mediaKey === 'string' ? value.mediaKey.trim() : '',
+        hashKey: typeof value?.hashKey === 'string' ? value.hashKey.trim() : '',
+      };
+    }
+    serverConfig = clean;
+    return sdk() ? { ok: true } : pending();
+  } catch { return pending(); }
+}
 
-/** Optional override for bare RN. Expo apps read config-plugin's extra automatically. */
-export function configureOfferwall(options: OfferwallConfig): void { config = { ...options }; }
+/** Explicit injection of fetched SDK keys. Only Android reads bundled plugin keys. */
+export function configureOfferwall(options: OfferwallConfig): void { generation++; serverConfig = undefined; config = { ...options }; }
 function options(): OfferwallConfig {
+  const os = require('react-native').Platform.OS;
+  if (serverConfig && os === 'ios') {
+    const keys = serverConfig.ios;
+    return { ...config, appKey: keys?.mediaKey, hashKey: keys?.hashKey };
+  }
   if (config) return config;
   try {
     const constants = require('expo-constants').default;
     const expo = constants.expoConfig;
     // Metro/dev manifests can evaluate app.json without running config plugins.
     const entry = expo?.plugins?.find((item: unknown) => Array.isArray(item) && item[0] === '@jcurve/offerwall');
-    return expo?.extra?.jcurveOfferwall ?? entry?.[1] ?? {};
+    return os === 'android' ? (expo?.extra?.jcurveOfferwall ?? entry?.[1] ?? {}) : {};
   } catch { return {}; }
 }
 function sdk(): any | null {
-  const c = options();
-  if (!c.appKey?.trim() || !c.hashKey?.trim()) return null;
   try {
+    const c = options();
+    if (!c.appKey?.trim() || !c.hashKey?.trim()) return null;
     const rn = require('react-native');
     if (!rn.NativeModules?.RNAdPopcornRewardModule || !['ios', 'android'].includes(rn.Platform.OS)) return null;
     const native = require('react-native-adpopcorn-reward').default;
-    if (rn.Platform.OS === 'ios') native.setAppKey(c.appKey, c.hashKey);
+    if (rn.Platform.OS === 'ios') {
+      native.setLogEnable(false);
+      native.setAppKey(c.appKey, c.hashKey);
+    }
     return native;
   } catch { return null; }
 }

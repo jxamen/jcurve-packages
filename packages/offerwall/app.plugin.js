@@ -4,18 +4,17 @@ module.exports = function withOfferwall(config, options = {}) {
   const appKey = typeof options.appKey === 'string' ? options.appKey.trim() : '';
   const hashKey = typeof options.hashKey === 'string' ? options.hashKey.trim() : '';
   const ready = Boolean(appKey && hashKey);
-  // The SDK needs iOS keys at runtime. Expo extra is bundled in the app; these SDK keys
-  // are also embedded in AndroidManifest by vendor design. Keep them out of logs/source.
+  // Android bridge reads manifest keys. iOS fetches its keys from the server at runtime.
   config.extra = { ...config.extra, jcurveOfferwall: { appKey, hashKey } };
   config = withInfoPlist(config, mod => {
-    if (ready) {
+    {
       mod.modResults.NSUserTrackingUsageDescription = options.trackingPermission ||
         mod.modResults.NSUserTrackingUsageDescription || '맞춤형 광고와 참여 보상 확인을 위해 광고 식별자를 사용합니다.';
     }
     return mod;
   });
   config = withAppDelegate(config, mod => {
-    mod.modResults.contents = setServerMode(mod.modResults.contents, mod.modResults.language, ready);
+    mod.modResults.contents = setServerMode(mod.modResults.contents, mod.modResults.language, true);
     return mod;
   });
   return withAndroidManifest(config, mod => {

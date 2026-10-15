@@ -6,6 +6,7 @@ let native, events, loads;
 function setup(config = {}, os = 'ios', linked = true) {
   events = new Map(); loads = 0;
   native = {
+    setLogEnable(enable) { this.logEnabled = enable; },
     setAppKey(...args) { this.keys = args; },
     setUserId(usn) { this.usn = usn; },
     openOfferwall() { this.opened = this.usn; },
@@ -19,7 +20,9 @@ function setup(config = {}, os = 'ios', linked = true) {
     return original.call(this, id, ...args);
   };
   delete require.cache[require.resolve('../dist')];
-  return require('../dist');
+  const api = require('../dist');
+  if (os === 'ios' && (config.appKey || config.hashKey)) api.configureOfferwall(config);
+  return api;
 }
 afterEach(() => { Module._load = original; });
 const keys = { appKey: 'test-app', hashKey: 'test-hash' };
@@ -70,4 +73,39 @@ test('close subscription unsubscribes', () => {
   remove();
   assert.equal(count, 1);
   assert.equal(events.size, 0);
+});
+
+test('server iOS keys initialize without bundled keys and failures clear old keys', async () => {
+  const api = setup();
+  const before = global.fetch;
+  try {
+    global.fetch = async (url, options) => {
+      assert.equal(url, 'https://api.test/v1/carrot/content/config/adpopcorn');
+      assert.equal(options.headers['X-App-Token'], 'test-token');
+      return { ok: true, json: async () => ({ ok: true, config: {
+        android: { mediaKey: 'android-media', hashKey: 'android-hash' },
+        ios: { mediaKey: 'ios-media', hashKey: 'ios-hash' },
+      } }) };
+    };
+    assert.deepEqual(await api.initializeOfferwall({ configUrl: 'https://api.test/v1/carrot/content/config/adpopcorn', headers: { 'X-App-Token': 'test-token' } }), { ok: true });
+    assert.deepEqual(api.openOfferwall({ usn }), { ok: true });
+    assert.deepEqual(native.keys, ['ios-media', 'ios-hash']);
+    assert.equal(native.logEnabled, false);
+    global.fetch = async () => { throw new Error('offline'); };
+    assert.equal((await api.initializeOfferwall({ configUrl: 'https://api.test', headers: {} })).reason, 'not_ready');
+    assert.equal(api.openOfferwall({ usn }).reason, 'not_ready');
+  } finally { global.fetch = before; }
+});
+test('reset discards an in-flight configuration response', async () => {
+  const api = setup();
+  const before = global.fetch;
+  let resolve;
+  try {
+    global.fetch = () => new Promise(r => { resolve = r; });
+    const loading = api.initializeOfferwall({ configUrl: 'https://api.test', headers: {} });
+    api.resetOfferwall();
+    resolve({ ok: true, json: async () => ({ ok: true, config: { ios: { mediaKey: 'old-app', hashKey: 'old-hash' } } }) });
+    assert.equal((await loading).reason, 'not_ready');
+    assert.equal(api.openOfferwall({ usn }).reason, 'not_ready');
+  } finally { global.fetch = before; }
 });

@@ -30,12 +30,15 @@ test('Android keys and server mode are idempotent and preserve other metadata', 
   mods.withInfoPlist(ios);
   assert.ok(ios.modResults.NSUserTrackingUsageDescription);
 });
-test('no keys adds no native settings', () => {
+test('no Android keys still configures iOS server mode and ATT', () => {
   const { app } = manifest(false);
   assert.equal(app['meta-data'].length, 1);
   const ios = { modResults: {} };
   mods.withInfoPlist(ios);
-  assert.deepEqual(ios.modResults, {});
+  assert.ok(ios.modResults.NSUserTrackingUsageDescription);
+  const delegate = { modResults: { language: 'swift', contents: 'return super.application(application)' } };
+  mods.withAppDelegate(delegate);
+  assert.match(delegate.modResults.contents, /useAdPopcornRewardServer = false/);
 });
 test('Swift and ObjC server mode inserted once and removable', () => {
   for (const [language, source] of [

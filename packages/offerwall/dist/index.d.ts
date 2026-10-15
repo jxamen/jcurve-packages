@@ -17,7 +17,24 @@ export type OfferwallConfig = {
     title?: string;
     color?: string;
 };
-/** Optional override for bare RN. Expo apps read config-plugin's extra automatically. */
+export type OfferwallServerConfig = {
+    android?: {
+        mediaKey?: string;
+        hashKey?: string;
+    };
+    ios?: {
+        mediaKey?: string;
+        hashKey?: string;
+    };
+};
+/** Call on logout/app switch before fetching the next app's settings. */
+export declare function resetOfferwall(): void;
+/** Fetch the authenticated app content API. Keys stay in memory and must never be logged. */
+export declare function initializeOfferwall({ configUrl, headers }: {
+    configUrl: string;
+    headers: Record<string, string>;
+}): Promise<OfferwallResult>;
+/** Explicit injection of fetched SDK keys. Only Android reads bundled plugin keys. */
 export declare function configureOfferwall(options: OfferwallConfig): void;
 export declare function openOfferwall({ usn }: {
     usn: string;
