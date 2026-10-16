@@ -1,4 +1,4 @@
-# @jcurve/naver-rank 1.0.1
+# @jcurve/naver-rank 1.0.2
 
 기존 React Native WebView 안에서 네이버 플레이스(오가닉 최대 300위), 쇼핑(기존 빌드 6 수집기) 순위를 수집한다. 페이지가 발급한 토큰·쿠키는 WebView 문서 밖으로 보내지 않는다. 캡차는 사용자가 `네이버 화면 보기`로 확인한다.
 
@@ -7,16 +7,16 @@
 다른 jcurve-packages 패키지와 동일하게 dist를 커밋하고 release tgz를 설치한다.
 
 ```json
-"@jcurve/naver-rank": "https://github.com/jxamen/jcurve-packages/releases/download/naver-rank-v1.0.1/jcurve-naver-rank-1.0.1.tgz"
+"@jcurve/naver-rank": "https://github.com/jxamen/jcurve-packages/releases/download/naver-rank-v1.0.2/jcurve-naver-rank-1.0.2.tgz"
 ```
 
 ```sh
 npm run build
 npm test
 npm pack
-git tag naver-rank-v1.0.1
+git tag naver-rank-v1.0.2
 # 저장소 branch/tag push 뒤:
-gh release create naver-rank-v1.0.1 jcurve-naver-rank-1.0.1.tgz
+gh release create naver-rank-v1.0.2 jcurve-naver-rank-1.0.2.tgz
 ```
 
 react, react-native, react-native-webview는 peer다. 새 네이티브 모듈은 없다. 빌드 6처럼 WebView와 보안 저장소가 이미 포함된 앱은 JS OTA로 적용할 수 있다.
@@ -27,6 +27,7 @@ react, react-native, react-native-webview는 peer다. 새 네이티브 모듈은
 import {configure,NaverRankHost,checkPlaceRank,checkShoppingRank} from '@jcurve/naver-rank';
 import * as SecureStore from 'expo-secure-store'; // 호스트 앱에 이미 있는 보안 저장소
 configure({
+ license:'required', // 생략해도 required
  apiKey:process.env.EXPO_PUBLIC_RANKFREE_SDK_API_KEY ?? '',
  appId:'kr.co.jcurve.selfmarketing', // 실제 bundleIdentifier / Android package
  storage:{getItem:SecureStore.getItemAsync,setItem:SecureStore.setItemAsync},
@@ -41,6 +42,8 @@ const shopping=await checkShoppingRank('운동화',{productId:'123'});
 
 `storage`는 **암호화된 기기 저장소**여야 한다. 라이선스 캐시에 키·앱 결합 정보를 저장하므로 AsyncStorage를 그대로 연결하지 않는다. 키는 소스·테스트에 넣지 않는다. configure는 시작할 때 한 번 호출한다. 앱별 정식 URL 정리·매칭은 normalizeTargetUrl, targetUrlId, validateTargetUrl을 사용한다. 플레이스 상세 정보 보강 API는 호스트 앱의 기존 서버 경로를 사용한다.
 
+`license: 'off' | 'required'`의 기본값은 `'required'`다. **off는 셀프마케팅 시험용이며, 키 API 준비되면 required로 변경한다.** off에서는 빈 키여도 키 확인·라이선스 캐시·사용량 기록/보고·키 한도 확인을 건너뛰고 바로 수집한다. 공통 큐·네이버 제한 판정·90초 상한·실패 표시는 동일하다. storage 어댑터는 수집기의 기존 저장 동작에 계속 필요하다.
+
 공통 큐는 작업 사이 20~40초, 플레이스 페이지 사이는 3초 대기한다. HTTP 429는 두 채널 공통 일일 기록을 남긴 후 30~90초 뒤 한 번만 재시도한다. 405는 3초 뒤 한 번 재시도한다. 앱 백그라운드/Host 해제 시 작업을 중단한다. OS headless에서는 WebView를 사용할 수 없다.
 
 ## 오류
@@ -51,7 +54,7 @@ CollectorError.code: `license_invalid`(미설정·키/앱/scope/만료 거절), 
 
 ## 랭크프리 연동 계약 — 서버 구현 필요
 
-현재 rankfree 저장소에는 ApiKey의 활성/만료/허용 IP/scope/일일 호출 제한이 있으나 **sdk_rank, 허용 앱 목록, 아래 API가 없다**. 서버는 수정하지 않았다. API가 배포되고 키가 발급되기 전에는 수집이 license_invalid로 거절된다.
+현재 rankfree 저장소에는 ApiKey의 활성/만료/허용 IP/scope/일일 호출 제한이 있으나 **sdk_rank, 허용 앱 목록, 아래 API가 없다**. 서버는 수정하지 않았다. 기본 `license:'required'`에서는 API가 배포되고 키가 발급되기 전에는 수집이 license_invalid로 거절된다.
 
 모든 요청은 `https://rankfree.kr/api/v1/sdk`로 POST, `Authorization: Bearer <env key>`, JSON이다. 리다이렉트 없이 이 정식 도메인에서 제공해야 한다.
 
@@ -69,7 +72,7 @@ CollectorError.code: `license_invalid`(미설정·키/앱/scope/만료 거절), 
 
 클라이언트 앱 ID와 배포된 JS/env 키는 추출·위조할 수 있으므로 이 방식은 정식 SDK의 사용을 제어한다. 복제/변조 앱까지 차단하려면 서버가 플랫폼 앱 무결성 증명을 추가로 검증해야 한다. 오프라인 유예 중 사용량은 사후 집계이므로 서버의 실시간 전역 한도는 보장하지 않는다.
 
-## 1.0.1 수집 제한과 화면 연동
+## 1.0.2 수집 제한과 화면 연동
 
 수집 함수 호출부터 큐 대기·키 확인·429 재시도·수동 네이버 화면까지 **최대 90초**다. 초과하면 `timeout` 오류로 종료하고 WebView와 예약 재시도를 제거한다. `blocked_limit`은 「쇼핑 서비스 접속이 일시적으로 제한되었습니다」도 포함한다. 차단 화면은 순위 밖 결과로 기록하지 않는다.
 

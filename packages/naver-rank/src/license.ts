@@ -1,11 +1,11 @@
 import { CollectorError } from './webQueue';
 export interface Storage {getItem(key:string):Promise<string|null>;setItem(key:string,value:string):Promise<void>}
-export interface Configuration {apiKey:string;appId:string;storage:Storage}
+export interface Configuration {apiKey:string;appId:string;storage:Storage;license?:'off'|'required'}
 const base='https://rankfree.kr/api/v1/sdk';
 const dayMs=86400000;
 let config:Configuration|undefined;
 let serial:Promise<unknown>=Promise.resolve();
-export function configure(value:Configuration){config={...value};}
+export function configure(value:Configuration){config={...value,license:value.license??'required'};}
 export function storage():Storage {if(!config)throw new CollectorError('license_invalid');return config.storage;}
 function current(){if(!config?.apiKey.trim()||!config.appId.trim())throw new CollectorError('license_invalid');return config;}
 async function post(c:Configuration,path:string,body:unknown){
@@ -15,6 +15,7 @@ async function post(c:Configuration,path:string,body:unknown){
 const day=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Seoul'});
 function exclusive<T>(fn:()=>Promise<T>):Promise<T>{const task=serial.catch(()=>{}).then(fn);serial=task;return task;}
 export function authorize(){return exclusive(async()=>{
+ if(config?.license==='off')return;
  const c=current(),key='naver.rank.license.'+c.appId;
  let cached:{apiKey:string;appId:string;checkedAt:number;day:string;expiresAt:number}|undefined;
  try{const raw=await c.storage.getItem(key);cached=raw?JSON.parse(raw):undefined;}catch{throw new CollectorError('license_invalid');}
@@ -32,6 +33,7 @@ export function authorize(){return exclusive(async()=>{
 });}
 type Counts={date:string;place:number;shopping:number};
 export function recordUsage(channel:'place'|'shopping'){return exclusive(async()=>{
+ if(config?.license==='off')return;
  const c=current(),key='naver.rank.usage.'+c.appId;
  const quotaKey='naver.rank.quota.'+c.appId;
  const quota=JSON.parse(await c.storage.getItem(quotaKey)||'null');

@@ -9,7 +9,7 @@ const base = 'https://rankfree.kr/api/v1/sdk';
 const dayMs = 86400000;
 let config;
 let serial = Promise.resolve();
-function configure(value) { config = { ...value }; }
+function configure(value) { config = { ...value, license: value.license ?? 'required' }; }
 function storage() { if (!config)
     throw new webQueue_1.CollectorError('license_invalid'); return config.storage; }
 function current() { if (!config?.apiKey.trim() || !config.appId.trim())
@@ -28,6 +28,8 @@ const day = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul
 function exclusive(fn) { const task = serial.catch(() => { }).then(fn); serial = task; return task; }
 function authorize() {
     return exclusive(async () => {
+        if (config?.license === 'off')
+            return;
         const c = current(), key = 'naver.rank.license.' + c.appId;
         let cached;
         try {
@@ -73,6 +75,8 @@ function authorize() {
 }
 function recordUsage(channel) {
     return exclusive(async () => {
+        if (config?.license === 'off')
+            return;
         const c = current(), key = 'naver.rank.usage.' + c.appId;
         const quotaKey = 'naver.rank.quota.' + c.appId;
         const quota = JSON.parse(await c.storage.getItem(quotaKey) || 'null');

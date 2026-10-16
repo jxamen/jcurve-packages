@@ -6,6 +6,7 @@ export interface Configuration {
     apiKey: string;
     appId: string;
     storage: Storage;
+    license?: 'off' | 'required';
 }
 export declare function configure(value: Configuration): void;
 export declare function storage(): Storage;

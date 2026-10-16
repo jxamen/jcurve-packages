@@ -1,6 +1,6 @@
 import {it,expect,vi,beforeEach,afterEach} from 'vitest';
 import {configure,authorize,recordUsage} from './license';
-import {collectWeb} from './webQueue';
+import {collectWeb,attachCollector} from './webQueue';
 let data:Map<string,string>;
 const fetcher=vi.fn();
 const apiKey=Array.from({length:32},()=>Math.random().toString(36).slice(2,3)).join('');
@@ -45,4 +45,21 @@ it('does not reuse license or usage state after key rotation',async()=>{
  fetcher.mockImplementation(async()=>ok());await authorize();await recordUsage('place');
  configure({apiKey:apiKey+'x',appId,storage:{getItem:async k=>data.get(k)??null,setItem:async(k,v)=>{data.set(k,v);}}});
  fetcher.mockRejectedValue(Error('offline'));await expect(authorize()).rejects.toMatchObject({code:'license_invalid'});
+});
+
+it('off collects without a key or license storage or HTTP, and required restores enforcement',async()=>{
+ const getItem=vi.fn(async()=>{throw Error('unexpected license read');});
+ const setItem=vi.fn(async()=>{throw Error('unexpected license write');});
+ configure({license:'off',apiKey:'',appId,storage:{getItem,setItem}});
+ const handler=vi.fn(job=>job.resolve([]));const detach=attachCollector(handler);
+ try{
+  await expect(collectWeb('place','검색','123')).resolves.toEqual([]);
+  await authorize();await recordUsage('shopping');
+  expect(handler).toHaveBeenCalledTimes(1);expect(fetcher).not.toHaveBeenCalled();
+  expect(getItem).not.toHaveBeenCalled();expect(setItem).not.toHaveBeenCalled();
+  await vi.runAllTimersAsync();
+  configure({license:'required',apiKey:'',appId,storage:{getItem,setItem}});
+  await expect(collectWeb('shopping','검색')).rejects.toMatchObject({code:'license_invalid'});
+  expect(handler).toHaveBeenCalledTimes(1);
+ }finally{detach();}
 });
