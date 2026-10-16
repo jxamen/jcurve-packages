@@ -1,0 +1,12 @@
+apply plugin: 'com.android.library'
+apply plugin: 'org.jetbrains.kotlin.android'
+android {
+  namespace 'kr.co.jcurve.offerwall'
+  compileSdkVersion rootProject.ext.has('compileSdkVersion') ? rootProject.ext.compileSdkVersion : 36
+  defaultConfig { minSdkVersion 23 }
+}
+dependencies {
+  implementation 'com.facebook.react:react-android'
+  implementation platform('com.buzzvil:buzzvil-bom:6.9.3')
+  implementation 'com.buzzvil:buzzvil-sdk'
+}

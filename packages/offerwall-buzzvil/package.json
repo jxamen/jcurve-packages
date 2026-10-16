@@ -1,0 +1,32 @@
+{
+  "name": "@jcurve/offerwall-buzzvil",
+  "version": "0.1.0",
+  "description": "BuzzBenefit v6 native offerwall adapter (local preparation)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "react-native": "src/index.ts",
+  "files": [
+    "src",
+    "dist",
+    "android",
+    "ios",
+    "*.podspec",
+    "react-native.config.js",
+    "app.plugin.js",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test test/*.test.cjs"
+  },
+  "peerDependencies": {
+    "react-native": ">=0.74",
+    "expo": "*"
+  },
+  "peerDependenciesMeta": {
+    "expo": {
+      "optional": true
+    }
+  },
+  "license": "UNLICENSED"
+}
