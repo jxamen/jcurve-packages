@@ -1,3 +1,4 @@
+import { backgroundGrace } from './backgroundGrace';
 import { PlaceWebView } from './placeWebView';
 import { useEffect,useRef,useState } from 'react';
 import { AppState,Pressable,Text,View } from 'react-native';
@@ -38,13 +39,13 @@ export function NaverRankHost(){
   reportCollectorFailure(error);setFailure(error);
  };
  useEffect(()=>attachCollector(next=>{cancelWait();retried.current=false;rows.current=[];page.current=1;route.current=next.channel==='shopping'?nextShoppingRoute:0;attempts.current=1;prepared.current=false;manual.current=false;setFailure(undefined);setVisible(false);setJob(next);}),[]);
- useEffect(()=>{if(!job)return;const abort=()=>finish(new CollectorError('timeout'));job.signal.addEventListener('abort',abort);if(job.signal.aborted)abort();const sub=AppState.addEventListener('change',s=>{if(s!=='active'&&!manual.current)finish(new CollectorError('background'));});return()=>{job.signal.removeEventListener('abort',abort);sub.remove();};},[job]);
+ useEffect(()=>{if(!job)return;const abort=()=>finish(new CollectorError('timeout'));job.signal.addEventListener('abort',abort);if(job.signal.aborted)abort();const grace=backgroundGrace(()=>finish(new CollectorError('background')));const sub=AppState.addEventListener('change',grace.change);grace.change(AppState.currentState);return()=>{grace.dispose();job.signal.removeEventListener('abort',abort);sub.remove();};},[job]);
  useEffect(()=>()=>{cancelWait();active.current?.reject(new CollectorError('unmounted'));},[]);
  if(!job)return null;
  if(job.channel==='place')return <PlaceWebView key={job.keyword+job.placeId} job={job} onDone={()=>{active.current=undefined;setJob(undefined);}}/>;
  return <><View pointerEvents={visible?'auto':'none'} style={visible?{position:'absolute',top:0,bottom:0,left:0,right:0,zIndex:1000,backgroundColor:'white',paddingTop:60,paddingBottom:30}:{position:'absolute',width:1,height:1,opacity:0,overflow:'hidden'}}>
  {visible&&<Pressable accessibilityRole="button" style={{padding:16}} onPress={()=>{setVisible(false);manual.current=false;setFailure(undefined);ref.current?.injectJavaScript(script);}}><Text>닫기 · 현재 페이지로 순위 다시 확인</Text></Pressable>}
- <WebView ref={ref} style={{flex:1}} source={{uri:'https://shopping.naver.com/ns/home'}} applicationNameForUserAgent="Version/18.0 Mobile/15E148 Safari/604.1" sharedCookiesEnabled thirdPartyCookiesEnabled javaScriptEnabled
+ <WebView geolocationEnabled={false} ref={ref} style={{flex:1}} source={{uri:'https://shopping.naver.com/ns/home'}} applicationNameForUserAgent="Version/18.0 Mobile/15E148 Safari/604.1" sharedCookiesEnabled thirdPartyCookiesEnabled javaScriptEnabled
  onShouldStartLoadWithRequest={request=>{try{const u=new URL(request.url);return u.protocol==='https:'&&(u.hostname==='naver.com'||u.hostname.endsWith('.naver.com'));}catch{return request.url==='about:blank';}}}
  onLoadStart={()=>{navigation.current=false;http.current=200;}}
  onLoadEnd={()=>{if(navigation.current||waiting.current)return;if(!prepared.current){prepared.current=true;later(2500,navigate);return;}if(!manual.current&&!waiting.current)ref.current?.injectJavaScript(script);}}

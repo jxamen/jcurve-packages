@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
-import {AppState,Pressable,Text,View} from 'react-native';
+import {Pressable,Text,View} from 'react-native';
 import {WebView} from 'react-native-webview';
 import {CollectorError,reportCollectorFailure,blockReason,type Job} from './webQueue';
 import {placeRows,scanPlacePages,placeCategory,type PlaceCategory} from './placeInApp';
@@ -24,10 +24,10 @@ export function PlaceWebView({job,onDone}:{job:Job;onDone:()=>void}){
   return response;
  };
  const run=async()=>{if(running.current||!alive.current)return;running.current=true;try{let result=await scanPlacePages(job.keyword,job.placeId!,category.current,request,wait);if(result.rank==null&&category.current!=='place'){category.current='place';await wait(3000);result=await scanPlacePages(job.keyword,job.placeId!,'place',request,wait);}finish(undefined,placeRows(result,job.placeId!));}catch(e){running.current=false;fail(e);}};
- useEffect(()=>{const timer=setTimeout(()=>fail(new CollectorError('token_timeout')),210000);const sub=AppState.addEventListener('change',state=>{if(state!=='active')finish(new CollectorError('background'));});return()=>{alive.current=false;clearTimeout(timer);clearTimeout(pending.current?.timer);pending.current?.reject(new CollectorError('unmounted'));sub.remove();};},[]);
+ useEffect(()=>{const timer=setTimeout(()=>fail(new CollectorError('token_timeout')),210000);return()=>{alive.current=false;clearTimeout(timer);clearTimeout(pending.current?.timer);pending.current?.reject(new CollectorError('unmounted'));};},[]);
  return <><View pointerEvents={visible?'auto':'none'} style={visible?{position:'absolute',top:0,bottom:0,left:0,right:0,zIndex:1000,backgroundColor:'white',paddingTop:60}:{position:'absolute',width:1,height:1,opacity:0,overflow:'hidden'}}>
  {visible&&<Pressable onPress={()=>{setVisible(false);setError(undefined);ref.current?.reload();}} style={{padding:16}}><Text>닫기 · 현재 페이지로 순위 다시 확인</Text></Pressable>}
- <WebView ref={ref} source={{uri:url}} sharedCookiesEnabled thirdPartyCookiesEnabled javaScriptEnabled injectedJavaScriptBeforeContentLoaded={placeTokenScript}
+ <WebView geolocationEnabled={false} ref={ref} source={{uri:url}} sharedCookiesEnabled thirdPartyCookiesEnabled javaScriptEnabled injectedJavaScriptBeforeContentLoaded={placeTokenScript}
  onShouldStartLoadWithRequest={r=>{try{const u=new URL(r.url);return u.protocol==='https:'&&(u.hostname==='naver.com'||u.hostname.endsWith('.naver.com'));}catch{return r.url==='about:blank';}}}
  onLoadEnd={()=>!throttling.current&&ref.current?.injectJavaScript(`window.ReactNativeWebView.postMessage(JSON.stringify({kind:'page',url:location.href,category:Object.values(window.__APOLLO_STATE__||{}).filter(function(v){return v&&v.__typename==='PlaceDetailBase';}).map(function(v){return v.category;})[0]||'',text:(document.body?document.body.innerText:'').slice(0,4000)}));if(location.hostname==='pcmap.place.naver.com'&&!window.__placeScroll){window.__placeScroll=1;var count=0,t=setInterval(function(){if(window.__placeTokenReady){clearInterval(t);return;}window.scrollBy(0,900);if(++count>=4){clearInterval(t);var next=Array.from(document.querySelectorAll('a')).find(function(a){return a.textContent.trim()==='2';});if(next)next.click();}},1500);}true;`)}
  onHttpError={e=>{if((e.nativeEvent as typeof e.nativeEvent & {isTopFrame?:boolean}).isTopFrame===false)return;if(e.nativeEvent.statusCode===429){if(throttling.current)return;throttling.current=true;ref.current?.stopLoading();void (async()=>{const action=await recordLimit(retried.current,'place');if(action==='stop'){fail(new CollectorError('blocked_limit'));return;}retried.current=true;await wait(randomDelay(30,90));if(alive.current){throttling.current=false;ref.current?.reload();}})();}else if(e.nativeEvent.statusCode>=400)fail(new CollectorError('http_4xx'));}}

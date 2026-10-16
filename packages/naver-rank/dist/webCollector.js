@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NaverRankHost = NaverRankHost;
 const jsx_runtime_1 = require("react/jsx-runtime");
+const backgroundGrace_1 = require("./backgroundGrace");
 const placeWebView_1 = require("./placeWebView");
 const react_1 = require("react");
 const react_native_1 = require("react-native");
@@ -75,14 +76,13 @@ function NaverRankHost() {
     (0, react_1.useEffect)(() => (0, webQueue_1.attachCollector)(next => { cancelWait(); retried.current = false; rows.current = []; page.current = 1; route.current = next.channel === 'shopping' ? nextShoppingRoute : 0; attempts.current = 1; prepared.current = false; manual.current = false; setFailure(undefined); setVisible(false); setJob(next); }), []);
     (0, react_1.useEffect)(() => { if (!job)
         return; const abort = () => finish(new webQueue_1.CollectorError('timeout')); job.signal.addEventListener('abort', abort); if (job.signal.aborted)
-        abort(); const sub = react_native_1.AppState.addEventListener('change', s => { if (s !== 'active' && !manual.current)
-        finish(new webQueue_1.CollectorError('background')); }); return () => { job.signal.removeEventListener('abort', abort); sub.remove(); }; }, [job]);
+        abort(); const grace = (0, backgroundGrace_1.backgroundGrace)(() => finish(new webQueue_1.CollectorError('background'))); const sub = react_native_1.AppState.addEventListener('change', grace.change); grace.change(react_native_1.AppState.currentState); return () => { grace.dispose(); job.signal.removeEventListener('abort', abort); sub.remove(); }; }, [job]);
     (0, react_1.useEffect)(() => () => { cancelWait(); active.current?.reject(new webQueue_1.CollectorError('unmounted')); }, []);
     if (!job)
         return null;
     if (job.channel === 'place')
         return (0, jsx_runtime_1.jsx)(placeWebView_1.PlaceWebView, { job: job, onDone: () => { active.current = undefined; setJob(undefined); } }, job.keyword + job.placeId);
-    return (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)(react_native_1.View, { pointerEvents: visible ? 'auto' : 'none', style: visible ? { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, zIndex: 1000, backgroundColor: 'white', paddingTop: 60, paddingBottom: 30 } : { position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden' }, children: [visible && (0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", style: { padding: 16 }, onPress: () => { setVisible(false); manual.current = false; setFailure(undefined); ref.current?.injectJavaScript(script); }, children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { children: "\uB2EB\uAE30 \u00B7 \uD604\uC7AC \uD398\uC774\uC9C0\uB85C \uC21C\uC704 \uB2E4\uC2DC \uD655\uC778" }) }), (0, jsx_runtime_1.jsx)(react_native_webview_1.WebView, { ref: ref, style: { flex: 1 }, source: { uri: 'https://shopping.naver.com/ns/home' }, applicationNameForUserAgent: "Version/18.0 Mobile/15E148 Safari/604.1", sharedCookiesEnabled: true, thirdPartyCookiesEnabled: true, javaScriptEnabled: true, onShouldStartLoadWithRequest: request => { try {
+    return (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)(react_native_1.View, { pointerEvents: visible ? 'auto' : 'none', style: visible ? { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, zIndex: 1000, backgroundColor: 'white', paddingTop: 60, paddingBottom: 30 } : { position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden' }, children: [visible && (0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", style: { padding: 16 }, onPress: () => { setVisible(false); manual.current = false; setFailure(undefined); ref.current?.injectJavaScript(script); }, children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { children: "\uB2EB\uAE30 \u00B7 \uD604\uC7AC \uD398\uC774\uC9C0\uB85C \uC21C\uC704 \uB2E4\uC2DC \uD655\uC778" }) }), (0, jsx_runtime_1.jsx)(react_native_webview_1.WebView, { geolocationEnabled: false, ref: ref, style: { flex: 1 }, source: { uri: 'https://shopping.naver.com/ns/home' }, applicationNameForUserAgent: "Version/18.0 Mobile/15E148 Safari/604.1", sharedCookiesEnabled: true, thirdPartyCookiesEnabled: true, javaScriptEnabled: true, onShouldStartLoadWithRequest: request => { try {
                             const u = new URL(request.url);
                             return u.protocol === 'https:' && (u.hostname === 'naver.com' || u.hostname.endsWith('.naver.com'));
                         }
