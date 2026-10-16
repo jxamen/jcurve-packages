@@ -49,6 +49,16 @@ function NaverRankHost() {
             finish(new webQueue_1.CollectorError('blocked_limit', 'HTTP 429 · 잠시 뒤 다시 확인해 주세요. 다음 예약 시간에 재개합니다.'));
             return;
         }
+        if (active.current && ['blocked_limit', 'captcha'].includes(code)) {
+            const current = active.current;
+            waiting.current = true;
+            await (0, webThrottle_1.stopToday)(current.channel);
+            if (active.current === current) {
+                (0, webQueue_1.reportCollectorFailure)(error);
+                finish(error);
+            }
+            return;
+        }
         if (active.current?.channel === 'shopping' && attempts.current < 2 && !manual.current && !['blocked_limit', 'captcha', 'blocked_login'].includes(code)) {
             attempts.current++;
             route.current = (route.current + 1) % 3;
@@ -115,7 +125,7 @@ function NaverRankHost() {
                                 }
                                 const blocked = (0, webQueue_1.blockReason)(data.text, data.url);
                                 // A rendered result wins over incidental footer/login/CAPTCHA words.
-                                if (blocked === 'blocked_limit') {
+                                if (blocked === 'blocked_limit' || blocked === 'captcha') {
                                     void fail(blocked, data.title, data.text);
                                     return;
                                 }

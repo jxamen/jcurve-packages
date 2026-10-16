@@ -18,7 +18,7 @@ it('classifies CAPTCHA, login and limits separately from normal results',()=>{
  expect(blockReason('','https://nid.naver.com/nidlogin.login')).toBe('blocked_login');
  expect(blockReason('보안문자 입력','')).toBe('captcha');
  expect(blockReason('검색 결과','https://m.place.naver.com')).toBeUndefined();
- expect(new CollectorError('captcha').message).toBe('네이버가 잠시 막았어요 [captcha]');
+ expect(new CollectorError('captcha').message).toBe('네이버가 잠시 막았어요. 내일 다시 확인돼요 [captcha]');
 });
 
 

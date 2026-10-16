@@ -1,8 +1,8 @@
 import { authorize, recordUsage } from './license';
-import { randomDelay } from './webThrottle';
+import { randomDelay,isStopped,stopToday } from './webThrottle';
 export type Channel='shopping'|'place';
 export type WebRow={id:string;link:string;title:string;mallName:string;rank:number;total?:number;photo?:string|null;reviews?:number|null};
-export class CollectorError extends Error { constructor(public code:string,public evidence=''){super((code==='timeout'?'90초 안에 확인하지 못했어요. 잠시 후 다시 시도해 주세요':code==='blocked_limit'?'네이버 서비스 접속이 일시적으로 제한되었습니다. 잠시 후 다시 확인해 주세요': ['captcha','blocked_login','blocked_limit'].includes(code)?'네이버가 잠시 막았어요': '네이버 검색 결과를 확인할 수 없어요')+' ['+code+']');} }
+export class CollectorError extends Error { constructor(public code:string,public evidence=''){super((code==='timeout'?'90초 안에 확인하지 못했어요. 잠시 후 다시 시도해 주세요':['blocked_limit','captcha'].includes(code)?'네이버가 잠시 막았어요. 내일 다시 확인돼요': ['captcha','blocked_login','blocked_limit'].includes(code)?'네이버가 잠시 막았어요': '네이버 검색 결과를 확인할 수 없어요')+' ['+code+']');} }
 export type Job={channel:Channel;keyword:string;placeId?:string;signal:AbortSignal;resolve:(rows:WebRow[])=>void;reject:(e:Error)=>void};
 let collector:((job:Job)=>void)|undefined;
 let queue=Promise.resolve();
@@ -16,9 +16,10 @@ export function collectWeb(channel:Channel,keyword:string,placeId?:string):Promi
   if(controller.signal.aborted)throw new CollectorError('timeout');
   await authorize();
   if(controller.signal.aborted)throw new CollectorError('timeout');
+  if(await isStopped(channel))throw new CollectorError('blocked_limit');
   await recordUsage(channel);
   if(controller.signal.aborted)throw new CollectorError('timeout');
-  return new Promise<WebRow[]>((resolve,reject)=>{if(!collector)return reject(new CollectorError('unavailable'));started=true;collector({channel,keyword,placeId,signal:controller.signal,resolve,reject});});
+  return new Promise<WebRow[]>((resolve,reject)=>{if(!collector)return reject(new CollectorError('unavailable'));started=true;collector({channel,keyword,placeId,signal:controller.signal,resolve,reject:e=>{if(e instanceof CollectorError&&['blocked_limit','captcha'].includes(e.code)){void stopToday(channel).then(()=>reject(e));}else reject(e);}});});
  });
  const result=Promise.race([task,deadline]).finally(()=>clearTimeout(timer));
  queue=result.then(()=>{},()=>{}).then(()=>started?new Promise<void>(r=>setTimeout(r,randomDelay(20,40))):undefined);return result;

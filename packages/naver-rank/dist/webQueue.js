@@ -10,7 +10,7 @@ const license_1 = require("./license");
 const webThrottle_1 = require("./webThrottle");
 class CollectorError extends Error {
     constructor(code, evidence = '') {
-        super((code === 'timeout' ? '90초 안에 확인하지 못했어요. 잠시 후 다시 시도해 주세요' : code === 'blocked_limit' ? '네이버 서비스 접속이 일시적으로 제한되었습니다. 잠시 후 다시 확인해 주세요' : ['captcha', 'blocked_login', 'blocked_limit'].includes(code) ? '네이버가 잠시 막았어요' : '네이버 검색 결과를 확인할 수 없어요') + ' [' + code + ']');
+        super((code === 'timeout' ? '90초 안에 확인하지 못했어요. 잠시 후 다시 시도해 주세요' : ['blocked_limit', 'captcha'].includes(code) ? '네이버가 잠시 막았어요. 내일 다시 확인돼요' : ['captcha', 'blocked_login', 'blocked_limit'].includes(code) ? '네이버가 잠시 막았어요' : '네이버 검색 결과를 확인할 수 없어요') + ' [' + code + ']');
         this.code = code;
         this.evidence = evidence;
     }
@@ -30,11 +30,17 @@ function collectWeb(channel, keyword, placeId) {
         await (0, license_1.authorize)();
         if (controller.signal.aborted)
             throw new CollectorError('timeout');
+        if (await (0, webThrottle_1.isStopped)(channel))
+            throw new CollectorError('blocked_limit');
         await (0, license_1.recordUsage)(channel);
         if (controller.signal.aborted)
             throw new CollectorError('timeout');
         return new Promise((resolve, reject) => { if (!collector)
-            return reject(new CollectorError('unavailable')); started = true; collector({ channel, keyword, placeId, signal: controller.signal, resolve, reject }); });
+            return reject(new CollectorError('unavailable')); started = true; collector({ channel, keyword, placeId, signal: controller.signal, resolve, reject: e => { if (e instanceof CollectorError && ['blocked_limit', 'captcha'].includes(e.code)) {
+                void (0, webThrottle_1.stopToday)(channel).then(() => reject(e));
+            }
+            else
+                reject(e); } }); });
     });
     const result = Promise.race([task, deadline]).finally(() => clearTimeout(timer));
     queue = result.then(() => { }, () => { }).then(() => started ? new Promise(r => setTimeout(r, (0, webThrottle_1.randomDelay)(20, 40))) : undefined);

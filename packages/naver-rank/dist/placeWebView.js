@@ -12,6 +12,7 @@ const webThrottle_1 = require("./webThrottle");
 const placeTokenScript_1 = require("./placeTokenScript");
 function PlaceWebView({ job, onDone }) {
     const ref = (0, react_1.useRef)(null), alive = (0, react_1.useRef)(true), running = (0, react_1.useRef)(false), retried = (0, react_1.useRef)(false), sequence = (0, react_1.useRef)(0);
+    const throttling = (0, react_1.useRef)(false);
     const category = (0, react_1.useRef)('place');
     const [url, setUrl] = (0, react_1.useState)('https://m.place.naver.com/place/' + job.placeId + '/home');
     const [visible, setVisible] = (0, react_1.useState)(false), [error, setError] = (0, react_1.useState)();
@@ -19,7 +20,10 @@ function PlaceWebView({ job, onDone }) {
     const finish = (e, rows = []) => { if (!alive.current)
         return; alive.current = false; clearTimeout(pending.current?.timer); pending.current?.reject(e || new webQueue_1.CollectorError('cancelled')); pending.current = undefined; e ? job.reject(e) : job.resolve(rows); onDone(); };
     const fail = (e) => { if (!alive.current)
-        return; const reason = e instanceof webQueue_1.CollectorError ? e : new webQueue_1.CollectorError('network'); if (reason.code === 'captcha' || reason.code === 'blocked_login') {
+        return; const reason = e instanceof webQueue_1.CollectorError ? e : new webQueue_1.CollectorError('network'); if (reason.code === 'captcha' || reason.code === 'blocked_limit') {
+        void (0, webThrottle_1.stopToday)('place').then(() => { (0, webQueue_1.reportCollectorFailure)(reason); finish(reason); });
+    }
+    else if (reason.code === 'blocked_login') {
         (0, webQueue_1.reportCollectorFailure)(reason);
         setError(reason);
     }
@@ -31,14 +35,16 @@ function PlaceWebView({ job, onDone }) {
             return reject(new webQueue_1.CollectorError('cancelled')); const id = ++sequence.current; const timer = setTimeout(() => { pending.current = undefined; reject(new webQueue_1.CollectorError('timeout')); }, 25000); pending.current = { id, resolve, reject, timer }; ref.current?.injectJavaScript('window.__placeRequest(' + [id, body, job.keyword, category.current].map(v => JSON.stringify(v)).join(',') + ');true;'); });
         let response = await once();
         if (response.status === 429) {
-            const action = await (0, webThrottle_1.recordLimit)(retried.current);
+            const action = await (0, webThrottle_1.recordLimit)(retried.current, 'place');
             if (action === 'stop')
                 throw new webQueue_1.CollectorError('blocked_limit');
             retried.current = true;
             await wait((0, webThrottle_1.randomDelay)(30, 90));
             response = await once();
-            if (response.status === 429)
+            if (response.status === 429) {
+                await (0, webThrottle_1.recordLimit)(true, 'place');
                 throw new webQueue_1.CollectorError('blocked_limit');
+            }
         }
         if (response.status === 405) {
             await wait(3000);
@@ -68,16 +74,23 @@ function PlaceWebView({ job, onDone }) {
                         }
                         catch {
                             return r.url === 'about:blank';
-                        } }, onLoadEnd: () => ref.current?.injectJavaScript(`window.ReactNativeWebView.postMessage(JSON.stringify({kind:'page',url:location.href,category:Object.values(window.__APOLLO_STATE__||{}).filter(function(v){return v&&v.__typename==='PlaceDetailBase';}).map(function(v){return v.category;})[0]||'',text:(document.body?document.body.innerText:'').slice(0,4000)}));if(location.hostname==='pcmap.place.naver.com'&&!window.__placeScroll){window.__placeScroll=1;var count=0,t=setInterval(function(){if(window.__placeTokenReady){clearInterval(t);return;}window.scrollBy(0,900);if(++count>=4){clearInterval(t);var next=Array.from(document.querySelectorAll('a')).find(function(a){return a.textContent.trim()==='2';});if(next)next.click();}},1500);}true;`), onHttpError: e => { if (e.nativeEvent.isTopFrame === false)
+                        } }, onLoadEnd: () => !throttling.current && ref.current?.injectJavaScript(`window.ReactNativeWebView.postMessage(JSON.stringify({kind:'page',url:location.href,category:Object.values(window.__APOLLO_STATE__||{}).filter(function(v){return v&&v.__typename==='PlaceDetailBase';}).map(function(v){return v.category;})[0]||'',text:(document.body?document.body.innerText:'').slice(0,4000)}));if(location.hostname==='pcmap.place.naver.com'&&!window.__placeScroll){window.__placeScroll=1;var count=0,t=setInterval(function(){if(window.__placeTokenReady){clearInterval(t);return;}window.scrollBy(0,900);if(++count>=4){clearInterval(t);var next=Array.from(document.querySelectorAll('a')).find(function(a){return a.textContent.trim()==='2';});if(next)next.click();}},1500);}true;`), onHttpError: e => { if (e.nativeEvent.isTopFrame === false)
                             return; if (e.nativeEvent.statusCode === 429) {
-                            void (async () => { const action = await (0, webThrottle_1.recordLimit)(retried.current); if (action === 'stop') {
+                            if (throttling.current)
+                                return;
+                            throttling.current = true;
+                            ref.current?.stopLoading();
+                            void (async () => { const action = await (0, webThrottle_1.recordLimit)(retried.current, 'place'); if (action === 'stop') {
                                 fail(new webQueue_1.CollectorError('blocked_limit'));
                                 return;
-                            } retried.current = true; await wait((0, webThrottle_1.randomDelay)(30, 90)); if (alive.current)
-                                ref.current?.reload(); })();
+                            } retried.current = true; await wait((0, webThrottle_1.randomDelay)(30, 90)); if (alive.current) {
+                                throttling.current = false;
+                                ref.current?.reload();
+                            } })();
                         }
                         else if (e.nativeEvent.statusCode >= 400)
-                            fail(new webQueue_1.CollectorError('http_4xx')); }, onError: () => fail(new webQueue_1.CollectorError('network')), onMessage: e => { try {
+                            fail(new webQueue_1.CollectorError('http_4xx')); }, onError: () => fail(new webQueue_1.CollectorError('network')), onMessage: e => { if (throttling.current)
+                            return; try {
                             const data = JSON.parse(e.nativeEvent.data);
                             if (data.kind === 'page') {
                                 const reason = (0, webQueue_1.blockReason)(data.text, data.url);

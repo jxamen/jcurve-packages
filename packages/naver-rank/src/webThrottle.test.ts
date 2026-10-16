@@ -16,12 +16,14 @@ it('allows exactly one retry and suppresses same-day repeated 429s',()=>{
  expect(limitAction(null,'2026-10-16',true)).toBe('stop');
 });
 it('persists the day before retry and fails closed on persistence errors',async()=>{
+ vi.useFakeTimers();vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
  storage.getItem.mockResolvedValue(null);storage.setItem.mockResolvedValue(undefined);
  expect(await recordLimit(false)).toBe('retry');
  const day=storage.setItem.mock.calls[0][1];storage.getItem.mockResolvedValue(day);
  expect(await recordLimit(false)).toBe('stop');
  storage.getItem.mockRejectedValue(Error('disk'));
  expect(await recordLimit(false)).toBe('stop');
+ vi.useRealTimers();
 });
 
 import {attachCollector,collectWeb} from './webQueue';

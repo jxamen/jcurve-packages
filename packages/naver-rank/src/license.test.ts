@@ -48,7 +48,7 @@ it('does not reuse license or usage state after key rotation',async()=>{
 });
 
 it('off collects without a key or license storage or HTTP, and required restores enforcement',async()=>{
- const getItem=vi.fn(async()=>{throw Error('unexpected license read');});
+ const getItem=vi.fn(async(key:string)=>{if(key.startsWith('rank.'))return null;throw Error('unexpected license read');});
  const setItem=vi.fn(async()=>{throw Error('unexpected license write');});
  configure({license:'off',apiKey:'',appId,storage:{getItem,setItem}});
  const handler=vi.fn(job=>job.resolve([]));const detach=attachCollector(handler);
@@ -56,7 +56,7 @@ it('off collects without a key or license storage or HTTP, and required restores
   await expect(collectWeb('place','검색','123')).resolves.toEqual([]);
   await authorize();await recordUsage('shopping');
   expect(handler).toHaveBeenCalledTimes(1);expect(fetcher).not.toHaveBeenCalled();
-  expect(getItem).not.toHaveBeenCalled();expect(setItem).not.toHaveBeenCalled();
+  expect(getItem).toHaveBeenCalledExactlyOnceWith('rank.place.last429');expect(setItem).not.toHaveBeenCalled();
   await vi.runAllTimersAsync();
   configure({license:'required',apiKey:'',appId,storage:{getItem,setItem}});
   await expect(collectWeb('shopping','검색')).rejects.toMatchObject({code:'license_invalid'});

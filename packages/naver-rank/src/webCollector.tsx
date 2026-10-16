@@ -6,7 +6,7 @@ import { attachCollector,reportCollectorFailure,blockReason,CollectorError,type 
 import { parseCollectorHtml,shoppingLinkId } from './webParser';
 import { targetUrlId } from './naverUrl';
 import { safeEvidence,shoppingUrl } from './webDiagnostics';
-import { randomDelay,recordLimit } from './webThrottle';
+import { randomDelay,recordLimit,stopToday } from './webThrottle';
 
 // A navigation gets one six-second observation window. Never send raw text to logs.
 const script=`(function(){if(window.__rankTimer)return;var start=Date.now(),scrolled=false;window.__rankTimer=setInterval(function(){var text=document.body?document.body.innerText:'';var links=Array.from(document.querySelectorAll('a[data-nlog-area*="shp_tli"][href], [data-product-id] a[href], a[data-product-id], [class*="product_item"] a[href], [class*="productItem"] a[href], [class*="shopping_item"] a[href], li.VLTHu a[href], li.UEzoS a[href]')).map(function(a){return {href:a.href,title:a.innerText,id:(a.closest('[data-product-id]')||a).getAttribute('data-product-id')};});var elapsed=Date.now()-start;if(elapsed<6000&&!/접속.{0,12}제한|서비스 이용이 제한/.test(text)){if(!scrolled){scrolled=true;window.scrollTo(0,document.body?document.body.scrollHeight:0);}return;}clearInterval(window.__rankTimer);window.__rankTimer=null;window.ReactNativeWebView.postMessage(JSON.stringify({url:location.href,title:document.title,text:text,html:document.documentElement.outerHTML,links:links}));},400);})();true;`;
@@ -32,6 +32,7 @@ export function NaverRankHost(){
    if(action==='retry'){retried.current=true;later(randomDelay(30,90),navigate);return;}
    nextShoppingRoute=(route.current+1)%3;finish(new CollectorError('blocked_limit','HTTP 429 · 잠시 뒤 다시 확인해 주세요. 다음 예약 시간에 재개합니다.'));return;
   }
+  if(active.current&&['blocked_limit','captcha'].includes(code)){const current=active.current;waiting.current=true;await stopToday(current.channel);if(active.current===current){reportCollectorFailure(error);finish(error);}return;}
   if(active.current?.channel==='shopping'&&attempts.current<2&&!manual.current&&!['blocked_limit','captcha','blocked_login'].includes(code)){attempts.current++;route.current=(route.current+1)%3;page.current=1;rows.current=[];later(10000,navigate);return;}
   if(active.current?.channel==='shopping')nextShoppingRoute=(route.current+1)%3;
   reportCollectorFailure(error);setFailure(error);
@@ -58,7 +59,7 @@ export function NaverRankHost(){
    }
    const blocked=blockReason(data.text,data.url);
    // A rendered result wins over incidental footer/login/CAPTCHA words.
-   if(blocked==='blocked_limit'){void fail(blocked,data.title,data.text);return;}
+   if(blocked==='blocked_limit'||blocked==='captcha'){void fail(blocked,data.title,data.text);return;}
    if(http.current===429){void fail('blocked_limit',data.title,data.text);return;}
    if(!parsed.length){fail(blocked||(http.current>=400?'http_4xx':'empty'),data.title,data.text);return;}
    if(rows.current.some(old=>parsed.some(row=>row.id===old.id))){fail('empty',data.title,data.text);return;}

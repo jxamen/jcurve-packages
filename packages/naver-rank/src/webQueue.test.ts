@@ -1,5 +1,5 @@
 import {afterEach,expect,it,vi} from 'vitest';
-vi.mock('./license',()=>({authorize:vi.fn(async()=>{}),recordUsage:vi.fn(async()=>{})}));
+vi.mock('./license',()=>({storage:()=>({getItem:async()=>null,setItem:async()=>{}}),authorize:vi.fn(async()=>{}),recordUsage:vi.fn(async()=>{})}));
 import {collectWeb,attachCollector} from './webQueue';
 afterEach(()=>vi.useRealTimers());
 it('aborts an active collection at 90 seconds including manual or retry waits',async()=>{
