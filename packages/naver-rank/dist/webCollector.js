@@ -12,7 +12,7 @@ const naverUrl_1 = require("./naverUrl");
 const webDiagnostics_1 = require("./webDiagnostics");
 const webThrottle_1 = require("./webThrottle");
 // A navigation gets one six-second observation window. Never send raw text to logs.
-const script = `(function(){if(window.__rankTimer)return;var start=Date.now(),scrolled=false;window.__rankTimer=setInterval(function(){var text=document.body?document.body.innerText:'';var links=Array.from(document.querySelectorAll('a[data-nlog-area*="shp_tli"][href], [data-product-id] a[href], a[data-product-id], [class*="product_item"] a[href], [class*="productItem"] a[href], [class*="shopping_item"] a[href], li.VLTHu a[href], li.UEzoS a[href]')).map(function(a){return {href:a.href,title:a.innerText,id:(a.closest('[data-product-id]')||a).getAttribute('data-product-id')};});var elapsed=Date.now()-start;if(elapsed<6000&&!/접속.{0,5}제한|서비스 이용이 제한/.test(text)){if(!scrolled){scrolled=true;window.scrollTo(0,document.body?document.body.scrollHeight:0);}return;}clearInterval(window.__rankTimer);window.__rankTimer=null;window.ReactNativeWebView.postMessage(JSON.stringify({url:location.href,title:document.title,text:text,html:document.documentElement.outerHTML,links:links}));},400);})();true;`;
+const script = `(function(){if(window.__rankTimer)return;var start=Date.now(),scrolled=false;window.__rankTimer=setInterval(function(){var text=document.body?document.body.innerText:'';var links=Array.from(document.querySelectorAll('a[data-nlog-area*="shp_tli"][href], [data-product-id] a[href], a[data-product-id], [class*="product_item"] a[href], [class*="productItem"] a[href], [class*="shopping_item"] a[href], li.VLTHu a[href], li.UEzoS a[href]')).map(function(a){return {href:a.href,title:a.innerText,id:(a.closest('[data-product-id]')||a).getAttribute('data-product-id')};});var elapsed=Date.now()-start;if(elapsed<6000&&!/접속.{0,12}제한|서비스 이용이 제한/.test(text)){if(!scrolled){scrolled=true;window.scrollTo(0,document.body?document.body.scrollHeight:0);}return;}clearInterval(window.__rankTimer);window.__rankTimer=null;window.ReactNativeWebView.postMessage(JSON.stringify({url:location.href,title:document.title,text:text,html:document.documentElement.outerHTML,links:links}));},400);})();true;`;
 let nextShoppingRoute = 0;
 function NaverRankHost() {
     const [job, setJob] = (0, react_1.useState)();
@@ -49,7 +49,7 @@ function NaverRankHost() {
             finish(new webQueue_1.CollectorError('blocked_limit', 'HTTP 429 · 잠시 뒤 다시 확인해 주세요. 다음 예약 시간에 재개합니다.'));
             return;
         }
-        if (active.current?.channel === 'shopping' && attempts.current < 2 && !manual.current) {
+        if (active.current?.channel === 'shopping' && attempts.current < 2 && !manual.current && !['blocked_limit', 'captcha', 'blocked_login'].includes(code)) {
             attempts.current++;
             route.current = (route.current + 1) % 3;
             page.current = 1;
@@ -59,19 +59,20 @@ function NaverRankHost() {
         }
         if (active.current?.channel === 'shopping')
             nextShoppingRoute = (route.current + 1) % 3;
+        (0, webQueue_1.reportCollectorFailure)(error);
         setFailure(error);
     };
     (0, react_1.useEffect)(() => (0, webQueue_1.attachCollector)(next => { cancelWait(); retried.current = false; rows.current = []; page.current = 1; route.current = next.channel === 'shopping' ? nextShoppingRoute : 0; attempts.current = 1; prepared.current = false; manual.current = false; setFailure(undefined); setVisible(false); setJob(next); }), []);
-    (0, react_1.useEffect)(() => { if (!job || job.channel === 'place')
-        return; const timer = setTimeout(() => { if (!manual.current && !waiting.current)
-        fail('empty'); }, 240000); const sub = react_native_1.AppState.addEventListener('change', s => { if (s !== 'active' && !manual.current)
-        finish(new webQueue_1.CollectorError('background')); }); return () => { clearTimeout(timer); sub.remove(); }; }, [job]);
+    (0, react_1.useEffect)(() => { if (!job)
+        return; const abort = () => finish(new webQueue_1.CollectorError('timeout')); job.signal.addEventListener('abort', abort); if (job.signal.aborted)
+        abort(); const sub = react_native_1.AppState.addEventListener('change', s => { if (s !== 'active' && !manual.current)
+        finish(new webQueue_1.CollectorError('background')); }); return () => { job.signal.removeEventListener('abort', abort); sub.remove(); }; }, [job]);
     (0, react_1.useEffect)(() => () => { cancelWait(); active.current?.reject(new webQueue_1.CollectorError('unmounted')); }, []);
     if (!job)
         return null;
     if (job.channel === 'place')
         return (0, jsx_runtime_1.jsx)(placeWebView_1.PlaceWebView, { job: job, onDone: () => { active.current = undefined; setJob(undefined); } }, job.keyword + job.placeId);
-    return (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)(react_native_1.View, { pointerEvents: visible ? 'auto' : 'none', style: visible ? { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, zIndex: 1000, backgroundColor: 'white', paddingTop: 60, paddingBottom: 30 } : { position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden' }, children: [visible && (0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", style: { padding: 16 }, onPress: () => { setVisible(false); manual.current = false; setFailure(undefined); ref.current?.injectJavaScript(script); }, children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { children: "\uB2EB\uAE30 \u00B7 \uD604\uC7AC \uD398\uC774\uC9C0\uB85C \uC21C\uC704 \uB2E4\uC2DC \uD655\uC778" }) }), (0, jsx_runtime_1.jsx)(react_native_webview_1.WebView, { ref: ref, style: { flex: 1 }, source: { uri: 'https://m.naver.com/' }, applicationNameForUserAgent: "Version/18.0 Mobile/15E148 Safari/604.1", sharedCookiesEnabled: true, thirdPartyCookiesEnabled: true, javaScriptEnabled: true, onShouldStartLoadWithRequest: request => { try {
+    return (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)(react_native_1.View, { pointerEvents: visible ? 'auto' : 'none', style: visible ? { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, zIndex: 1000, backgroundColor: 'white', paddingTop: 60, paddingBottom: 30 } : { position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden' }, children: [visible && (0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", style: { padding: 16 }, onPress: () => { setVisible(false); manual.current = false; setFailure(undefined); ref.current?.injectJavaScript(script); }, children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { children: "\uB2EB\uAE30 \u00B7 \uD604\uC7AC \uD398\uC774\uC9C0\uB85C \uC21C\uC704 \uB2E4\uC2DC \uD655\uC778" }) }), (0, jsx_runtime_1.jsx)(react_native_webview_1.WebView, { ref: ref, style: { flex: 1 }, source: { uri: 'https://shopping.naver.com/ns/home' }, applicationNameForUserAgent: "Version/18.0 Mobile/15E148 Safari/604.1", sharedCookiesEnabled: true, thirdPartyCookiesEnabled: true, javaScriptEnabled: true, onShouldStartLoadWithRequest: request => { try {
                             const u = new URL(request.url);
                             return u.protocol === 'https:' && (u.hostname === 'naver.com' || u.hostname.endsWith('.naver.com'));
                         }
@@ -80,7 +81,7 @@ function NaverRankHost() {
                         } }, onLoadStart: () => { navigation.current = false; http.current = 200; }, onLoadEnd: () => { if (navigation.current || waiting.current)
                             return; if (!prepared.current) {
                             prepared.current = true;
-                            navigate();
+                            later(2500, navigate);
                             return;
                         } if (!manual.current && !waiting.current)
                             ref.current?.injectJavaScript(script); }, onHttpError: event => { if (event.nativeEvent.isTopFrame === false)
@@ -114,6 +115,10 @@ function NaverRankHost() {
                                 }
                                 const blocked = (0, webQueue_1.blockReason)(data.text, data.url);
                                 // A rendered result wins over incidental footer/login/CAPTCHA words.
+                                if (blocked === 'blocked_limit') {
+                                    void fail(blocked, data.title, data.text);
+                                    return;
+                                }
                                 if (http.current === 429) {
                                     void fail('blocked_limit', data.title, data.text);
                                     return;

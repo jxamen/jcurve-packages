@@ -1,7 +1,7 @@
 import {useEffect,useRef,useState} from 'react';
 import {AppState,Pressable,Text,View} from 'react-native';
 import {WebView} from 'react-native-webview';
-import {CollectorError,blockReason,type Job} from './webQueue';
+import {CollectorError,reportCollectorFailure,blockReason,type Job} from './webQueue';
 import {placeRows,scanPlacePages,placeCategory,type PlaceCategory} from './placeInApp';
 import {randomDelay,recordLimit} from './webThrottle';
 // Capture only successful page-owned GraphQL requests. Tokens/cookies stay in this page.
@@ -13,7 +13,7 @@ export function PlaceWebView({job,onDone}:{job:Job;onDone:()=>void}){
  const [visible,setVisible]=useState(false),[error,setError]=useState<CollectorError>();
  const pending=useRef<{id:number;resolve:(v:{status:number;body:unknown})=>void;reject:(e:Error)=>void;timer:ReturnType<typeof setTimeout>}|undefined>(undefined);
  const finish=(e?:Error,rows:Parameters<Job['resolve']>[0]=[])=>{if(!alive.current)return;alive.current=false;clearTimeout(pending.current?.timer);pending.current?.reject(e||new CollectorError('cancelled'));pending.current=undefined;e?job.reject(e):job.resolve(rows);onDone();};
- const fail=(e:unknown)=>{if(!alive.current)return;const reason=e instanceof CollectorError?e:new CollectorError('network');if(reason.code==='captcha'||reason.code==='blocked_login')setError(reason);else finish(reason);};
+ const fail=(e:unknown)=>{if(!alive.current)return;const reason=e instanceof CollectorError?e:new CollectorError('network');if(reason.code==='captcha'||reason.code==='blocked_login'){reportCollectorFailure(reason);setError(reason);}else finish(reason);};
  const wait=(ms:number)=>new Promise<void>(resolve=>setTimeout(resolve,ms));
  const request=async(body:unknown):Promise<{status:number;body:unknown}>=>{
   const once=()=>new Promise<{status:number;body:unknown}>((resolve,reject)=>{if(!alive.current)return reject(new CollectorError('cancelled'));const id=++sequence.current;const timer=setTimeout(()=>{pending.current=undefined;reject(new CollectorError('timeout'));},25000);pending.current={id,resolve,reject,timer};ref.current?.injectJavaScript('window.__placeRequest('+[id,body,job.keyword,category.current].map(v=>JSON.stringify(v)).join(',')+');true;');});

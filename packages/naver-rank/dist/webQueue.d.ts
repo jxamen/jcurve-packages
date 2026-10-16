@@ -18,9 +18,12 @@ export type Job = {
     channel: Channel;
     keyword: string;
     placeId?: string;
+    signal: AbortSignal;
     resolve: (rows: WebRow[]) => void;
     reject: (e: Error) => void;
 };
 export declare function attachCollector(handler: (job: Job) => void): () => void;
 export declare function collectWeb(channel: Channel, keyword: string, placeId?: string): Promise<WebRow[]>;
 export declare function blockReason(text: string, url: string): "blocked_limit" | "captcha" | "blocked_login" | undefined;
+export declare function subscribeCollectorFailure(listener: (error: CollectorError) => void): () => void;
+export declare function reportCollectorFailure(error: CollectorError): void;

@@ -32,7 +32,7 @@ import { createPhone, format, looksValid, message } from '@jcurve/phone';
 | `@jcurve/notify` | 로컬 알림(문구는 어드민) + 원격 푸시 받기 — 기기 토큰 등록·열람 보고·실패 알림(서버가 FCM·APNs 로 직접 발송, 1.2) — **권한을 묻는 곳(`ask()`)이 앱에 없으면 `register()` 가 조용히 끝나 토큰이 영영 안 올라간다** | 없음 |
 | `@jcurve/ads` | AdMob 보상형 광고 — 안전하게 띄우고 끝까지 봤는지 알려 준다(꼬꼬농장 방식, 1.5 — 미리 받지 않음 · ATT 는 켤 때 · 기기 ID(`device`)와 광고 식별자(`adid`, 켠 앱만)를 SSV 에 싣는다) | 없음 (대기·목업 화면은 앱마다) |
 
-- `@jcurve/naver-rank` 1.0.0: 플레이스·쇼핑 WebView 수집, 공통 큐, SDK 키 검증·일일 사용량. [설치 및 서버 API 계약](packages/naver-rank/README.md)
+- `@jcurve/naver-rank` 1.0.1: 플레이스·쇼핑 WebView 수집, 공통 큐, SDK 키 검증·일일 사용량. [설치 및 서버 API 계약](packages/naver-rank/README.md)
 
 ## 새 판 내기
 

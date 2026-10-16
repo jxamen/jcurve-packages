@@ -19,8 +19,10 @@ function PlaceWebView({ job, onDone }) {
     const finish = (e, rows = []) => { if (!alive.current)
         return; alive.current = false; clearTimeout(pending.current?.timer); pending.current?.reject(e || new webQueue_1.CollectorError('cancelled')); pending.current = undefined; e ? job.reject(e) : job.resolve(rows); onDone(); };
     const fail = (e) => { if (!alive.current)
-        return; const reason = e instanceof webQueue_1.CollectorError ? e : new webQueue_1.CollectorError('network'); if (reason.code === 'captcha' || reason.code === 'blocked_login')
+        return; const reason = e instanceof webQueue_1.CollectorError ? e : new webQueue_1.CollectorError('network'); if (reason.code === 'captcha' || reason.code === 'blocked_login') {
+        (0, webQueue_1.reportCollectorFailure)(reason);
         setError(reason);
+    }
     else
         finish(reason); };
     const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));

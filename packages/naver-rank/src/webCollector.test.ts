@@ -13,6 +13,8 @@ it('parses place HTML and rejects unknown result schemas',()=>{
 });
 it('classifies CAPTCHA, login and limits separately from normal results',()=>{
  expect(blockReason('접속이 제한되었습니다','')).toBe('blocked_limit');
+ expect(blockReason('쇼핑 서비스 접속이 일시적으로 제한되었습니다','')).toBe('blocked_limit');
+ expect(blockReason('쇼핑 서비스 접속이 일시적으로 제한되었습니다. 로그인','')).toBe('blocked_limit');
  expect(blockReason('','https://nid.naver.com/nidlogin.login')).toBe('blocked_login');
  expect(blockReason('보안문자 입력','')).toBe('captcha');
  expect(blockReason('검색 결과','https://m.place.naver.com')).toBeUndefined();

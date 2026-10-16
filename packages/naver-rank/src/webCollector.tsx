@@ -2,14 +2,14 @@ import { PlaceWebView } from './placeWebView';
 import { useEffect,useRef,useState } from 'react';
 import { AppState,Pressable,Text,View } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { attachCollector,blockReason,CollectorError,type WebRow } from './webQueue';
+import { attachCollector,reportCollectorFailure,blockReason,CollectorError,type WebRow } from './webQueue';
 import { parseCollectorHtml,shoppingLinkId } from './webParser';
 import { targetUrlId } from './naverUrl';
 import { safeEvidence,shoppingUrl } from './webDiagnostics';
 import { randomDelay,recordLimit } from './webThrottle';
 
 // A navigation gets one six-second observation window. Never send raw text to logs.
-const script=`(function(){if(window.__rankTimer)return;var start=Date.now(),scrolled=false;window.__rankTimer=setInterval(function(){var text=document.body?document.body.innerText:'';var links=Array.from(document.querySelectorAll('a[data-nlog-area*="shp_tli"][href], [data-product-id] a[href], a[data-product-id], [class*="product_item"] a[href], [class*="productItem"] a[href], [class*="shopping_item"] a[href], li.VLTHu a[href], li.UEzoS a[href]')).map(function(a){return {href:a.href,title:a.innerText,id:(a.closest('[data-product-id]')||a).getAttribute('data-product-id')};});var elapsed=Date.now()-start;if(elapsed<6000&&!/접속.{0,5}제한|서비스 이용이 제한/.test(text)){if(!scrolled){scrolled=true;window.scrollTo(0,document.body?document.body.scrollHeight:0);}return;}clearInterval(window.__rankTimer);window.__rankTimer=null;window.ReactNativeWebView.postMessage(JSON.stringify({url:location.href,title:document.title,text:text,html:document.documentElement.outerHTML,links:links}));},400);})();true;`;
+const script=`(function(){if(window.__rankTimer)return;var start=Date.now(),scrolled=false;window.__rankTimer=setInterval(function(){var text=document.body?document.body.innerText:'';var links=Array.from(document.querySelectorAll('a[data-nlog-area*="shp_tli"][href], [data-product-id] a[href], a[data-product-id], [class*="product_item"] a[href], [class*="productItem"] a[href], [class*="shopping_item"] a[href], li.VLTHu a[href], li.UEzoS a[href]')).map(function(a){return {href:a.href,title:a.innerText,id:(a.closest('[data-product-id]')||a).getAttribute('data-product-id')};});var elapsed=Date.now()-start;if(elapsed<6000&&!/접속.{0,12}제한|서비스 이용이 제한/.test(text)){if(!scrolled){scrolled=true;window.scrollTo(0,document.body?document.body.scrollHeight:0);}return;}clearInterval(window.__rankTimer);window.__rankTimer=null;window.ReactNativeWebView.postMessage(JSON.stringify({url:location.href,title:document.title,text:text,html:document.documentElement.outerHTML,links:links}));},400);})();true;`;
 let nextShoppingRoute=0;
 export function NaverRankHost(){
  const [job,setJob]=useState<Parameters<Parameters<typeof attachCollector>[0]>[0]>();
@@ -32,21 +32,21 @@ export function NaverRankHost(){
    if(action==='retry'){retried.current=true;later(randomDelay(30,90),navigate);return;}
    nextShoppingRoute=(route.current+1)%3;finish(new CollectorError('blocked_limit','HTTP 429 · 잠시 뒤 다시 확인해 주세요. 다음 예약 시간에 재개합니다.'));return;
   }
-  if(active.current?.channel==='shopping'&&attempts.current<2&&!manual.current){attempts.current++;route.current=(route.current+1)%3;page.current=1;rows.current=[];later(10000,navigate);return;}
+  if(active.current?.channel==='shopping'&&attempts.current<2&&!manual.current&&!['blocked_limit','captcha','blocked_login'].includes(code)){attempts.current++;route.current=(route.current+1)%3;page.current=1;rows.current=[];later(10000,navigate);return;}
   if(active.current?.channel==='shopping')nextShoppingRoute=(route.current+1)%3;
-  setFailure(error);
+  reportCollectorFailure(error);setFailure(error);
  };
  useEffect(()=>attachCollector(next=>{cancelWait();retried.current=false;rows.current=[];page.current=1;route.current=next.channel==='shopping'?nextShoppingRoute:0;attempts.current=1;prepared.current=false;manual.current=false;setFailure(undefined);setVisible(false);setJob(next);}),[]);
- useEffect(()=>{if(!job||job.channel==='place')return;const timer=setTimeout(()=>{if(!manual.current&&!waiting.current)fail('empty');},240000);const sub=AppState.addEventListener('change',s=>{if(s!=='active'&&!manual.current)finish(new CollectorError('background'));});return()=>{clearTimeout(timer);sub.remove();};},[job]);
+ useEffect(()=>{if(!job)return;const abort=()=>finish(new CollectorError('timeout'));job.signal.addEventListener('abort',abort);if(job.signal.aborted)abort();const sub=AppState.addEventListener('change',s=>{if(s!=='active'&&!manual.current)finish(new CollectorError('background'));});return()=>{job.signal.removeEventListener('abort',abort);sub.remove();};},[job]);
  useEffect(()=>()=>{cancelWait();active.current?.reject(new CollectorError('unmounted'));},[]);
  if(!job)return null;
  if(job.channel==='place')return <PlaceWebView key={job.keyword+job.placeId} job={job} onDone={()=>{active.current=undefined;setJob(undefined);}}/>;
  return <><View pointerEvents={visible?'auto':'none'} style={visible?{position:'absolute',top:0,bottom:0,left:0,right:0,zIndex:1000,backgroundColor:'white',paddingTop:60,paddingBottom:30}:{position:'absolute',width:1,height:1,opacity:0,overflow:'hidden'}}>
  {visible&&<Pressable accessibilityRole="button" style={{padding:16}} onPress={()=>{setVisible(false);manual.current=false;setFailure(undefined);ref.current?.injectJavaScript(script);}}><Text>닫기 · 현재 페이지로 순위 다시 확인</Text></Pressable>}
- <WebView ref={ref} style={{flex:1}} source={{uri:'https://m.naver.com/'}} applicationNameForUserAgent="Version/18.0 Mobile/15E148 Safari/604.1" sharedCookiesEnabled thirdPartyCookiesEnabled javaScriptEnabled
+ <WebView ref={ref} style={{flex:1}} source={{uri:'https://shopping.naver.com/ns/home'}} applicationNameForUserAgent="Version/18.0 Mobile/15E148 Safari/604.1" sharedCookiesEnabled thirdPartyCookiesEnabled javaScriptEnabled
  onShouldStartLoadWithRequest={request=>{try{const u=new URL(request.url);return u.protocol==='https:'&&(u.hostname==='naver.com'||u.hostname.endsWith('.naver.com'));}catch{return request.url==='about:blank';}}}
  onLoadStart={()=>{navigation.current=false;http.current=200;}}
- onLoadEnd={()=>{if(navigation.current||waiting.current)return;if(!prepared.current){prepared.current=true;navigate();return;}if(!manual.current&&!waiting.current)ref.current?.injectJavaScript(script);}}
+ onLoadEnd={()=>{if(navigation.current||waiting.current)return;if(!prepared.current){prepared.current=true;later(2500,navigate);return;}if(!manual.current&&!waiting.current)ref.current?.injectJavaScript(script);}}
  onHttpError={event=>{if((event.nativeEvent as typeof event.nativeEvent & {isTopFrame?:boolean}).isTopFrame===false)return;http.current=event.nativeEvent.statusCode;if(http.current===429&&!manual.current){prepared.current=true;ref.current?.stopLoading();void fail('blocked_limit','', '요청이 너무 많');}}}
  onError={()=>{if(!prepared.current){prepared.current=true;navigate();}else fail('empty');}}
  onMessage={event=>{
@@ -58,6 +58,7 @@ export function NaverRankHost(){
    }
    const blocked=blockReason(data.text,data.url);
    // A rendered result wins over incidental footer/login/CAPTCHA words.
+   if(blocked==='blocked_limit'){void fail(blocked,data.title,data.text);return;}
    if(http.current===429){void fail('blocked_limit',data.title,data.text);return;}
    if(!parsed.length){fail(blocked||(http.current>=400?'http_4xx':'empty'),data.title,data.text);return;}
    if(rows.current.some(old=>parsed.some(row=>row.id===old.id))){fail('empty',data.title,data.text);return;}
