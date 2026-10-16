@@ -12,9 +12,9 @@ const webParser_1 = require("./webParser");
 const naverUrl_1 = require("./naverUrl");
 const webDiagnostics_1 = require("./webDiagnostics");
 const webThrottle_1 = require("./webThrottle");
+const shoppingPolicy_1 = require("./shoppingPolicy");
 // A navigation gets one six-second observation window. Never send raw text to logs.
 const script = `(function(){if(window.__rankTimer)return;var start=Date.now(),scrolled=false;window.__rankTimer=setInterval(function(){var text=document.body?document.body.innerText:'';var links=Array.from(document.querySelectorAll('a[data-nlog-area*="shp_tli"][href], [data-product-id] a[href], a[data-product-id], [class*="product_item"] a[href], [class*="productItem"] a[href], [class*="shopping_item"] a[href], li.VLTHu a[href], li.UEzoS a[href]')).map(function(a){return {href:a.href,title:a.innerText,id:(a.closest('[data-product-id]')||a).getAttribute('data-product-id')};});var elapsed=Date.now()-start;if(elapsed<6000&&!/접속.{0,12}제한|서비스 이용이 제한/.test(text)){if(!scrolled){scrolled=true;window.scrollTo(0,document.body?document.body.scrollHeight:0);}return;}clearInterval(window.__rankTimer);window.__rankTimer=null;window.ReactNativeWebView.postMessage(JSON.stringify({url:location.href,title:document.title,text:text,html:document.documentElement.outerHTML,links:links}));},400);})();true;`;
-let nextShoppingRoute = 0;
 function NaverRankHost() {
     const [job, setJob] = (0, react_1.useState)();
     const [visible, setVisible] = (0, react_1.useState)(false), [failure, setFailure] = (0, react_1.useState)();
@@ -35,22 +35,6 @@ function NaverRankHost() {
         const error = new webQueue_1.CollectorError(code, (0, webDiagnostics_1.safeEvidence)(title, text));
         (0, webQueue_1.withCollectorDiagnostic)(error, active.current?.diagnostic);
         console.info('[rank.web]', JSON.stringify({ code, titleAndExcerpt: error.evidence, route: route.current, page: page.current, status: http.current }));
-        if (active.current?.channel === 'shopping' && http.current === 429 && !manual.current) {
-            waiting.current = true;
-            const current = active.current;
-            const action = await (0, webThrottle_1.recordLimit)(retried.current);
-            if (active.current !== current)
-                return;
-            waiting.current = false;
-            if (action === 'retry') {
-                retried.current = true;
-                later((0, webThrottle_1.randomDelay)(30, 90), navigate);
-                return;
-            }
-            nextShoppingRoute = (route.current + 1) % 3;
-            finish(new webQueue_1.CollectorError('blocked_limit', 'HTTP 429 · 잠시 뒤 다시 확인해 주세요. 다음 예약 시간에 재개합니다.'));
-            return;
-        }
         if (active.current && ['blocked_limit', 'captcha'].includes(code)) {
             const current = active.current;
             waiting.current = true;
@@ -61,7 +45,7 @@ function NaverRankHost() {
             }
             return;
         }
-        if (active.current?.channel === 'shopping' && attempts.current < 2 && !manual.current && !['blocked_limit', 'captcha', 'blocked_login'].includes(code)) {
+        if (active.current?.channel === 'shopping' && (0, shoppingPolicy_1.shoppingFallback)(code, page.current, attempts.current, manual.current)) {
             attempts.current++;
             route.current = (route.current + 1) % 3;
             page.current = 1;
@@ -69,12 +53,10 @@ function NaverRankHost() {
             later(10000, navigate);
             return;
         }
-        if (active.current?.channel === 'shopping')
-            nextShoppingRoute = (route.current + 1) % 3;
         (0, webQueue_1.reportCollectorFailure)(error);
         setFailure(error);
     };
-    (0, react_1.useEffect)(() => (0, webQueue_1.attachCollector)(next => { cancelWait(); retried.current = false; rows.current = []; page.current = 1; route.current = next.channel === 'shopping' ? nextShoppingRoute : 0; attempts.current = 1; prepared.current = false; manual.current = false; setFailure(undefined); setVisible(false); next.diagnostic = next.channel === 'place' ? '경로 1/3 · 상세 페이지 로드' : '경로 ' + (route.current + 1) + '/3 · 쇼핑 초기 페이지 로드'; setJob(next); }), []);
+    (0, react_1.useEffect)(() => (0, webQueue_1.attachCollector)(next => { cancelWait(); retried.current = false; rows.current = []; page.current = 1; route.current = 0; attempts.current = 1; prepared.current = true; manual.current = false; setFailure(undefined); setVisible(false); next.diagnostic = next.channel === 'place' ? '경로 1/3 · 상세 페이지 로드' : '경로 ' + (route.current + 1) + '/3 · 쇼핑 초기 페이지 로드'; setJob(next); }), []);
     (0, react_1.useEffect)(() => { if (!job)
         return; const abort = () => finish(new webQueue_1.CollectorError('timeout')); job.signal.addEventListener('abort', abort); if (job.signal.aborted)
         abort(); const grace = (0, backgroundGrace_1.backgroundGrace)(() => finish(new webQueue_1.CollectorError('background'))); const sub = react_native_1.AppState.addEventListener('change', grace.change); grace.change(react_native_1.AppState.currentState); return () => { grace.dispose(); job.signal.removeEventListener('abort', abort); sub.remove(); }; }, [job]);
@@ -83,7 +65,7 @@ function NaverRankHost() {
         return null;
     if (job.channel === 'place')
         return (0, jsx_runtime_1.jsx)(placeWebView_1.PlaceWebView, { job: job, onDone: () => { active.current = undefined; setJob(undefined); } }, job.keyword + job.placeId);
-    return (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)(react_native_1.View, { pointerEvents: visible ? 'auto' : 'none', style: visible ? { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, zIndex: 1000, backgroundColor: 'white', paddingTop: 60, paddingBottom: 30 } : { position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden' }, children: [visible && (0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", style: { padding: 16 }, onPress: () => { setVisible(false); manual.current = false; setFailure(undefined); ref.current?.injectJavaScript(script); }, children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { children: "\uB2EB\uAE30 \u00B7 \uD604\uC7AC \uD398\uC774\uC9C0\uB85C \uC21C\uC704 \uB2E4\uC2DC \uD655\uC778" }) }), (0, jsx_runtime_1.jsx)(react_native_webview_1.WebView, { geolocationEnabled: false, ref: ref, style: { flex: 1 }, source: { uri: 'https://shopping.naver.com/ns/home' }, applicationNameForUserAgent: "Version/18.0 Mobile/15E148 Safari/604.1", sharedCookiesEnabled: true, thirdPartyCookiesEnabled: true, javaScriptEnabled: true, onShouldStartLoadWithRequest: request => { try {
+    return (0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)(react_native_1.View, { pointerEvents: visible ? 'auto' : 'none', style: visible ? { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, zIndex: 1000, backgroundColor: 'white', paddingTop: 60, paddingBottom: 30 } : { position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden' }, children: [visible && (0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", style: { padding: 16 }, onPress: () => { setVisible(false); manual.current = false; setFailure(undefined); ref.current?.injectJavaScript(script); }, children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { children: "\uB2EB\uAE30 \u00B7 \uD604\uC7AC \uD398\uC774\uC9C0\uB85C \uC21C\uC704 \uB2E4\uC2DC \uD655\uC778" }) }), (0, jsx_runtime_1.jsx)(react_native_webview_1.WebView, { geolocationEnabled: false, ref: ref, style: { flex: 1 }, source: { uri: (0, webDiagnostics_1.shoppingUrl)(job.keyword, 1, 0) }, applicationNameForUserAgent: "Version/18.0 Mobile/15E148 Safari/604.1", sharedCookiesEnabled: true, thirdPartyCookiesEnabled: true, javaScriptEnabled: true, onShouldStartLoadWithRequest: request => { try {
                             const u = new URL(request.url);
                             return u.protocol === 'https:' && (u.hostname === 'naver.com' || u.hostname.endsWith('.naver.com'));
                         }
@@ -101,12 +83,7 @@ function NaverRankHost() {
                             prepared.current = true;
                             ref.current?.stopLoading();
                             void fail('blocked_limit', '', '요청이 너무 많');
-                        } }, onError: () => { if (!prepared.current) {
-                            prepared.current = true;
-                            navigate();
-                        }
-                        else
-                            fail('empty'); }, onMessage: event => {
+                        } }, onError: () => { void fail('network'); }, onMessage: event => {
                             if (manual.current || navigation.current || waiting.current || failure)
                                 return;
                             try {
@@ -144,9 +121,18 @@ function NaverRankHost() {
                                     return;
                                 }
                                 setFailure(undefined);
-                                const max = job.channel === 'shopping' ? 200 : 100;
+                                const max = shoppingPolicy_1.SHOPPING_MAX_RANK;
                                 rows.current.push(...parsed.filter(row => row.rank <= max));
-                                if (job.channel === 'shopping' || rows.current.length >= max || parsed.length < 30)
+                                if (job.channel === 'shopping') {
+                                    const next = (0, shoppingPolicy_1.shoppingNextPage)(page.current, job.shoppingMatch?.(rows.current) ?? false);
+                                    if (next === undefined)
+                                        finish();
+                                    else {
+                                        page.current = next;
+                                        later((0, shoppingPolicy_1.shoppingPageDelay)(), navigate);
+                                    }
+                                }
+                                else if (rows.current.length >= max || parsed.length < 30)
                                     finish();
                                 else {
                                     page.current++;

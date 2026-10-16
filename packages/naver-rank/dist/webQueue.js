@@ -22,7 +22,7 @@ function withCollectorDiagnostic(error, diagnostic) { if (diagnostic && !error.m
 let collector;
 let queue = Promise.resolve();
 function attachCollector(handler) { collector = handler; return () => { collector = undefined; }; }
-function collectWeb(channel, keyword, placeId) {
+function collectWeb(channel, keyword, placeId, shoppingMatch) {
     let started = false;
     const controller = new AbortController();
     let timer;
@@ -39,7 +39,7 @@ function collectWeb(channel, keyword, placeId) {
         if (controller.signal.aborted)
             throw new CollectorError('timeout');
         return new Promise((resolve, reject) => { if (!collector)
-            return reject(new CollectorError('unavailable')); started = true; collector({ channel, keyword, placeId, signal: controller.signal, resolve, reject: e => { if (e instanceof CollectorError && ['blocked_limit', 'captcha'].includes(e.code)) {
+            return reject(new CollectorError('unavailable')); started = true; collector({ channel, keyword, placeId, shoppingMatch, signal: controller.signal, resolve, reject: e => { if (e instanceof CollectorError && ['blocked_limit', 'captcha'].includes(e.code)) {
                 void (0, webThrottle_1.stopToday)(channel).then(() => reject(e));
             }
             else
