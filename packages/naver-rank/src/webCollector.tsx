@@ -3,7 +3,7 @@ import { PlaceWebView } from './placeWebView';
 import { useEffect,useRef,useState } from 'react';
 import { AppState,Pressable,Text,View } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { attachCollector,reportCollectorFailure,blockReason,CollectorError,type WebRow } from './webQueue';
+import { attachCollector,reportCollectorFailure,blockReason,CollectorError,withCollectorDiagnostic,type WebRow } from './webQueue';
 import { parseCollectorHtml,shoppingLinkId } from './webParser';
 import { targetUrlId } from './naverUrl';
 import { safeEvidence,shoppingUrl } from './webDiagnostics';
@@ -21,11 +21,11 @@ export function NaverRankHost(){
  const pending=useRef<ReturnType<typeof setTimeout>|undefined>(undefined),waiting=useRef(false),retried=useRef(false);
  const cancelWait=()=>{clearTimeout(pending.current);pending.current=undefined;waiting.current=false;};
  const later=(ms:number,action:()=>void)=>{cancelWait();waiting.current=true;pending.current=setTimeout(()=>{waiting.current=false;if(active.current)action();},ms);};
- const finish=(error?:Error)=>{const current=active.current;if(!current)return;cancelWait();active.current=undefined;error?current.reject(error):current.resolve(rows.current);setJob(undefined);setVisible(false);setFailure(undefined);};
- const navigate=()=>{const current=active.current;if(!current)return;http.current=200;navigation.current=true;const url=current.channel==='shopping'?shoppingUrl(current.keyword,page.current,route.current):'https://m.place.naver.com/place/list?query='+encodeURIComponent(current.keyword)+'&page='+page.current;ref.current?.injectJavaScript('location.href='+JSON.stringify(url)+';true;');};
+ const finish=(error?:Error)=>{const current=active.current;if(!current)return;cancelWait();active.current=undefined;error?current.reject(withCollectorDiagnostic(error,current.diagnostic)):current.resolve(rows.current);setJob(undefined);setVisible(false);setFailure(undefined);};
+ const navigate=()=>{const current=active.current;if(!current)return;http.current=200;navigation.current=true;current.diagnostic='경로 '+(route.current+1)+'/3 · 검색 페이지 '+page.current+' 로드';const url=current.channel==='shopping'?shoppingUrl(current.keyword,page.current,route.current):'https://m.place.naver.com/place/list?query='+encodeURIComponent(current.keyword)+'&page='+page.current;ref.current?.injectJavaScript('location.href='+JSON.stringify(url)+';true;');};
  const fail=async(code:string,title='',text='')=>{
   if(waiting.current||failure)return;
-  const error=new CollectorError(code,safeEvidence(title,text));
+  const error=new CollectorError(code,safeEvidence(title,text));withCollectorDiagnostic(error,active.current?.diagnostic);
   console.info('[rank.web]',JSON.stringify({code,titleAndExcerpt:error.evidence,route:route.current,page:page.current,status:http.current}));
   if(active.current?.channel==='shopping'&&http.current===429&&!manual.current){
    waiting.current=true;const current=active.current;const action=await recordLimit(retried.current);
@@ -38,7 +38,7 @@ export function NaverRankHost(){
   if(active.current?.channel==='shopping')nextShoppingRoute=(route.current+1)%3;
   reportCollectorFailure(error);setFailure(error);
  };
- useEffect(()=>attachCollector(next=>{cancelWait();retried.current=false;rows.current=[];page.current=1;route.current=next.channel==='shopping'?nextShoppingRoute:0;attempts.current=1;prepared.current=false;manual.current=false;setFailure(undefined);setVisible(false);setJob(next);}),[]);
+ useEffect(()=>attachCollector(next=>{cancelWait();retried.current=false;rows.current=[];page.current=1;route.current=next.channel==='shopping'?nextShoppingRoute:0;attempts.current=1;prepared.current=false;manual.current=false;setFailure(undefined);setVisible(false);next.diagnostic=next.channel==='place'?'경로 1/3 · 상세 페이지 로드':'경로 '+(route.current+1)+'/3 · 쇼핑 초기 페이지 로드';setJob(next);}),[]);
  useEffect(()=>{if(!job)return;const abort=()=>finish(new CollectorError('timeout'));job.signal.addEventListener('abort',abort);if(job.signal.aborted)abort();const grace=backgroundGrace(()=>finish(new CollectorError('background')));const sub=AppState.addEventListener('change',grace.change);grace.change(AppState.currentState);return()=>{grace.dispose();job.signal.removeEventListener('abort',abort);sub.remove();};},[job]);
  useEffect(()=>()=>{cancelWait();active.current?.reject(new CollectorError('unmounted'));},[]);
  if(!job)return null;
@@ -48,7 +48,7 @@ export function NaverRankHost(){
  <WebView geolocationEnabled={false} ref={ref} style={{flex:1}} source={{uri:'https://shopping.naver.com/ns/home'}} applicationNameForUserAgent="Version/18.0 Mobile/15E148 Safari/604.1" sharedCookiesEnabled thirdPartyCookiesEnabled javaScriptEnabled
  onShouldStartLoadWithRequest={request=>{try{const u=new URL(request.url);return u.protocol==='https:'&&(u.hostname==='naver.com'||u.hostname.endsWith('.naver.com'));}catch{return request.url==='about:blank';}}}
  onLoadStart={()=>{navigation.current=false;http.current=200;}}
- onLoadEnd={()=>{if(navigation.current||waiting.current)return;if(!prepared.current){prepared.current=true;later(2500,navigate);return;}if(!manual.current&&!waiting.current)ref.current?.injectJavaScript(script);}}
+ onLoadEnd={()=>{if(active.current)active.current.diagnostic='경로 '+(route.current+1)+'/3 · '+(prepared.current?'검색 결과 추출':'쇼핑 초기 페이지 준비');if(navigation.current||waiting.current)return;if(!prepared.current){prepared.current=true;later(2500,navigate);return;}if(!manual.current&&!waiting.current)ref.current?.injectJavaScript(script);}}
  onHttpError={event=>{if((event.nativeEvent as typeof event.nativeEvent & {isTopFrame?:boolean}).isTopFrame===false)return;http.current=event.nativeEvent.statusCode;if(http.current===429&&!manual.current){prepared.current=true;ref.current?.stopLoading();void fail('blocked_limit','', '요청이 너무 많');}}}
  onError={()=>{if(!prepared.current){prepared.current=true;navigate();}else fail('empty');}}
  onMessage={event=>{

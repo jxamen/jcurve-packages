@@ -3,7 +3,8 @@ import { randomDelay,isStopped,stopToday } from './webThrottle';
 export type Channel='shopping'|'place';
 export type WebRow={id:string;link:string;title:string;mallName:string;rank:number;total?:number;photo?:string|null;reviews?:number|null};
 export class CollectorError extends Error { constructor(public code:string,public evidence=''){super((code==='timeout'?'90초 안에 확인하지 못했어요. 잠시 후 다시 시도해 주세요':['blocked_limit','captcha'].includes(code)?'네이버가 잠시 막았어요. 내일 다시 확인돼요': ['captcha','blocked_login','blocked_limit'].includes(code)?'네이버가 잠시 막았어요': '네이버 검색 결과를 확인할 수 없어요')+' ['+code+']');} }
-export type Job={channel:Channel;keyword:string;placeId?:string;signal:AbortSignal;resolve:(rows:WebRow[])=>void;reject:(e:Error)=>void};
+export function withCollectorDiagnostic(error:Error,diagnostic?:string){if(diagnostic&&!error.message.includes(' · 경로 '))error.message+=' · '+diagnostic;return error;}
+export type Job={channel:Channel;keyword:string;placeId?:string;signal:AbortSignal;diagnostic?:string;resolve:(rows:WebRow[])=>void;reject:(e:Error)=>void};
 let collector:((job:Job)=>void)|undefined;
 let queue=Promise.resolve();
 export function attachCollector(handler:(job:Job)=>void){collector=handler;return()=>{collector=undefined;};}

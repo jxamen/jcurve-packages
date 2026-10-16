@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CollectorError = void 0;
+exports.withCollectorDiagnostic = withCollectorDiagnostic;
 exports.attachCollector = attachCollector;
 exports.collectWeb = collectWeb;
 exports.blockReason = blockReason;
@@ -16,6 +17,8 @@ class CollectorError extends Error {
     }
 }
 exports.CollectorError = CollectorError;
+function withCollectorDiagnostic(error, diagnostic) { if (diagnostic && !error.message.includes(' · 경로 '))
+    error.message += ' · ' + diagnostic; return error; }
 let collector;
 let queue = Promise.resolve();
 function attachCollector(handler) { collector = handler; return () => { collector = undefined; }; }

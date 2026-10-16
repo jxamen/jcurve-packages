@@ -14,11 +14,13 @@ export declare class CollectorError extends Error {
     evidence: string;
     constructor(code: string, evidence?: string);
 }
+export declare function withCollectorDiagnostic(error: Error, diagnostic?: string): Error;
 export type Job = {
     channel: Channel;
     keyword: string;
     placeId?: string;
     signal: AbortSignal;
+    diagnostic?: string;
     resolve: (rows: WebRow[]) => void;
     reject: (e: Error) => void;
 };

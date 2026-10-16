@@ -26,13 +26,14 @@ function NaverRankHost() {
     const later = (ms, action) => { cancelWait(); waiting.current = true; pending.current = setTimeout(() => { waiting.current = false; if (active.current)
         action(); }, ms); };
     const finish = (error) => { const current = active.current; if (!current)
-        return; cancelWait(); active.current = undefined; error ? current.reject(error) : current.resolve(rows.current); setJob(undefined); setVisible(false); setFailure(undefined); };
+        return; cancelWait(); active.current = undefined; error ? current.reject((0, webQueue_1.withCollectorDiagnostic)(error, current.diagnostic)) : current.resolve(rows.current); setJob(undefined); setVisible(false); setFailure(undefined); };
     const navigate = () => { const current = active.current; if (!current)
-        return; http.current = 200; navigation.current = true; const url = current.channel === 'shopping' ? (0, webDiagnostics_1.shoppingUrl)(current.keyword, page.current, route.current) : 'https://m.place.naver.com/place/list?query=' + encodeURIComponent(current.keyword) + '&page=' + page.current; ref.current?.injectJavaScript('location.href=' + JSON.stringify(url) + ';true;'); };
+        return; http.current = 200; navigation.current = true; current.diagnostic = '경로 ' + (route.current + 1) + '/3 · 검색 페이지 ' + page.current + ' 로드'; const url = current.channel === 'shopping' ? (0, webDiagnostics_1.shoppingUrl)(current.keyword, page.current, route.current) : 'https://m.place.naver.com/place/list?query=' + encodeURIComponent(current.keyword) + '&page=' + page.current; ref.current?.injectJavaScript('location.href=' + JSON.stringify(url) + ';true;'); };
     const fail = async (code, title = '', text = '') => {
         if (waiting.current || failure)
             return;
         const error = new webQueue_1.CollectorError(code, (0, webDiagnostics_1.safeEvidence)(title, text));
+        (0, webQueue_1.withCollectorDiagnostic)(error, active.current?.diagnostic);
         console.info('[rank.web]', JSON.stringify({ code, titleAndExcerpt: error.evidence, route: route.current, page: page.current, status: http.current }));
         if (active.current?.channel === 'shopping' && http.current === 429 && !manual.current) {
             waiting.current = true;
@@ -73,7 +74,7 @@ function NaverRankHost() {
         (0, webQueue_1.reportCollectorFailure)(error);
         setFailure(error);
     };
-    (0, react_1.useEffect)(() => (0, webQueue_1.attachCollector)(next => { cancelWait(); retried.current = false; rows.current = []; page.current = 1; route.current = next.channel === 'shopping' ? nextShoppingRoute : 0; attempts.current = 1; prepared.current = false; manual.current = false; setFailure(undefined); setVisible(false); setJob(next); }), []);
+    (0, react_1.useEffect)(() => (0, webQueue_1.attachCollector)(next => { cancelWait(); retried.current = false; rows.current = []; page.current = 1; route.current = next.channel === 'shopping' ? nextShoppingRoute : 0; attempts.current = 1; prepared.current = false; manual.current = false; setFailure(undefined); setVisible(false); next.diagnostic = next.channel === 'place' ? '경로 1/3 · 상세 페이지 로드' : '경로 ' + (route.current + 1) + '/3 · 쇼핑 초기 페이지 로드'; setJob(next); }), []);
     (0, react_1.useEffect)(() => { if (!job)
         return; const abort = () => finish(new webQueue_1.CollectorError('timeout')); job.signal.addEventListener('abort', abort); if (job.signal.aborted)
         abort(); const grace = (0, backgroundGrace_1.backgroundGrace)(() => finish(new webQueue_1.CollectorError('background'))); const sub = react_native_1.AppState.addEventListener('change', grace.change); grace.change(react_native_1.AppState.currentState); return () => { grace.dispose(); job.signal.removeEventListener('abort', abort); sub.remove(); }; }, [job]);
@@ -88,7 +89,8 @@ function NaverRankHost() {
                         }
                         catch {
                             return request.url === 'about:blank';
-                        } }, onLoadStart: () => { navigation.current = false; http.current = 200; }, onLoadEnd: () => { if (navigation.current || waiting.current)
+                        } }, onLoadStart: () => { navigation.current = false; http.current = 200; }, onLoadEnd: () => { if (active.current)
+                            active.current.diagnostic = '경로 ' + (route.current + 1) + '/3 · ' + (prepared.current ? '검색 결과 추출' : '쇼핑 초기 페이지 준비'); if (navigation.current || waiting.current)
                             return; if (!prepared.current) {
                             prepared.current = true;
                             later(2500, navigate);

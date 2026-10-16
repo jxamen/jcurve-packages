@@ -1,6 +1,6 @@
 import { expect,it,vi } from 'vitest';
 vi.mock('../api/mock',()=>({USE_ANALYSIS_MOCK:false}));
-import { blockReason,collectWeb,attachCollector,CollectorError } from './webQueue';
+import { blockReason,collectWeb,attachCollector,CollectorError,withCollectorDiagnostic } from './webQueue';
 import { parseCollectorHtml } from './webParser';
 it('parses shopping HTML preserving canonical product links and page offsets',()=>{
  const data={props:{pageProps:{shoppingResult:{products:[{productId:'999',productTitle:'상품',productUrl:'https://smartstore.naver.com/store/products/123'}]}}}};
@@ -42,4 +42,13 @@ it('only retains provider diagnostic phrases from first 120 characters',()=>{
 it('parses observed integrated search bridge anchors without counting the shopping tab',()=>{
  const html='<a href="https://msearch.shopping.naver.com/search/all?query=x">쇼핑</a><a href="https://cr3.shopping.naver.com/v2/bridge/searchGate?nv_mid=53901522023&amp;query=x" data-nlog-area="shp_tli.none.item"><span>상품</span></a>';
  expect(parseCollectorHtml(html,'shopping',1)).toMatchObject([{id:'53901522023',rank:1}]);
+});
+
+it('preserves error code and evidence with diagnostics visible without release logs',()=>{
+ const error=new CollectorError('background','safe');
+ expect(withCollectorDiagnostic(error,'경로 2/3 · 검색 페이지 토큰 대기')).toBe(error);
+ expect(error.message).toContain('[background] · 경로 2/3 · 검색 페이지 토큰 대기');
+ expect(error.code).toBe('background');expect(error.evidence).toBe('safe');
+ withCollectorDiagnostic(error,'경로 3/3 · 순위 데이터 요청');
+ expect(error.message.match(/경로/g)).toHaveLength(1);
 });

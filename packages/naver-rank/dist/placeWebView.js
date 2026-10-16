@@ -18,9 +18,9 @@ function PlaceWebView({ job, onDone }) {
     const [visible, setVisible] = (0, react_1.useState)(false), [error, setError] = (0, react_1.useState)();
     const pending = (0, react_1.useRef)(undefined);
     const finish = (e, rows = []) => { if (!alive.current)
-        return; alive.current = false; clearTimeout(pending.current?.timer); pending.current?.reject(e || new webQueue_1.CollectorError('cancelled')); pending.current = undefined; e ? job.reject(e) : job.resolve(rows); onDone(); };
+        return; alive.current = false; clearTimeout(pending.current?.timer); pending.current?.reject(e || new webQueue_1.CollectorError('cancelled')); pending.current = undefined; e ? job.reject((0, webQueue_1.withCollectorDiagnostic)(e, job.diagnostic)) : job.resolve(rows); onDone(); };
     const fail = (e) => { if (!alive.current)
-        return; const reason = e instanceof webQueue_1.CollectorError ? e : new webQueue_1.CollectorError('network'); if (reason.code === 'captcha' || reason.code === 'blocked_limit') {
+        return; const reason = e instanceof webQueue_1.CollectorError ? e : new webQueue_1.CollectorError('network'); (0, webQueue_1.withCollectorDiagnostic)(reason, job.diagnostic); if (reason.code === 'captcha' || reason.code === 'blocked_limit') {
         void (0, webThrottle_1.stopToday)('place').then(() => { (0, webQueue_1.reportCollectorFailure)(reason); finish(reason); });
     }
     else if (reason.code === 'blocked_login') {
@@ -31,6 +31,7 @@ function PlaceWebView({ job, onDone }) {
         finish(reason); };
     const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
     const request = async (body) => {
+        job.diagnostic = '경로 3/3 · 순위 데이터 요청';
         const once = () => new Promise((resolve, reject) => { if (!alive.current)
             return reject(new webQueue_1.CollectorError('cancelled')); const id = ++sequence.current; const timer = setTimeout(() => { pending.current = undefined; reject(new webQueue_1.CollectorError('timeout')); }, 25000); pending.current = { id, resolve, reject, timer }; ref.current?.injectJavaScript('window.__placeRequest(' + [id, body, job.keyword, category.current].map(v => JSON.stringify(v)).join(',') + ');true;'); });
         let response = await once();
@@ -98,6 +99,7 @@ function PlaceWebView({ job, onDone }) {
                                     return;
                                 }
                                 if (new URL(data.url).hostname === 'm.place.naver.com') {
+                                    job.diagnostic = '경로 2/3 · 검색 페이지 토큰 대기';
                                     category.current = (0, placeInApp_1.placeCategory)(new URL(data.url).pathname, data.category);
                                     setUrl('https://pcmap.place.naver.com/' + category.current + '/list?query=' + encodeURIComponent(job.keyword));
                                 }

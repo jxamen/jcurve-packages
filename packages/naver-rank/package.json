@@ -1,6 +1,6 @@
 {
   "name": "@jcurve/naver-rank",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Naver place and shopping ranks in an existing React Native WebView",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
