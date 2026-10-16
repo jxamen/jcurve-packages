@@ -1,0 +1,28 @@
+{
+  "name": "@jcurve/naver-rank",
+  "version": "1.0.0",
+  "description": "Naver place and shopping ranks in an existing React Native WebView",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-native": ">=0.73",
+    "react-native-webview": ">=13"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.2",
+    "vitest": "^3.2.4",
+    "@types/react": "~19.2.2"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}
