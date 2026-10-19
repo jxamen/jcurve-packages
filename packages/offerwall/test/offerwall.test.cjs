@@ -2,7 +2,7 @@ const { test, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const Module = require('node:module');
 const original = Module._load;
-let native, events, loads;
+let native, events, loads, reactHooks, viewLinked = true;
 function setup(config = {}, os = 'ios', linked = true) {
   events = new Map(); loads = 0;
   native = {
@@ -14,8 +14,9 @@ function setup(config = {}, os = 'ios', linked = true) {
     addListener(name, cb) { events.set(name, cb); return { remove() { events.delete(name); } }; },
   };
   Module._load = function(id, ...args) {
+    if (id === 'react' && reactHooks) return reactHooks;
     if (id === 'expo-constants') return { default: { expoConfig: { extra: { jcurveOfferwall: config } } } };
-    if (id === 'react-native') return { Platform: { OS: os }, NativeModules: linked ? { RNAdPopcornRewardModule: {} } : {} };
+    if (id === 'react-native') return { UIManager: { getViewManagerConfig() { return viewLinked ? {} : null; } }, requireNativeComponent: () => 'EmbeddedNativeView', Platform: { OS: os }, NativeModules: linked ? { RNAdPopcornRewardModule: {} } : {} };
     if (id === 'react-native-adpopcorn-reward') { loads++; return { default: native }; }
     return original.call(this, id, ...args);
   };
@@ -24,7 +25,7 @@ function setup(config = {}, os = 'ios', linked = true) {
   if (os === 'ios' && (config.appKey || config.hashKey)) api.configureOfferwall(config);
   return api;
 }
-afterEach(() => { Module._load = original; });
+afterEach(() => { Module._load = original; reactHooks = undefined; viewLinked = true; });
 const keys = { appKey: 'test-app', hashKey: 'test-hash' };
 const usn = 'a'.repeat(64);
 test('empty or partial keys return 준비 중 without loading SDK', async () => {
@@ -108,4 +109,43 @@ test('reset discards an in-flight configuration response', async () => {
     assert.equal((await loading).reason, 'not_ready');
     assert.equal(api.openOfferwall({ usn }).reason, 'not_ready');
   } finally { global.fetch = before; }
+});
+
+function viewHarness(api) {
+  let state = null, effect;
+  reactHooks = {
+    useState: () => [state, value => { state = value; }],
+    useRef: value => ({ current: value }),
+    useEffect: callback => { effect = callback; },
+    createElement: (type, props) => ({ type, props }),
+  };
+  return props => {
+    api.OfferwallView(props);
+    effect();
+    return api.OfferwallView(props);
+  };
+}
+test('embedded view uses the server alias without opening a modal', () => {
+  const api = setup(keys);
+  const render = viewHarness(api);
+  const view = render({ usn });
+  assert.equal(view.type, 'EmbeddedNativeView');
+  assert.equal(view.props.usn, usn);
+  assert.equal(native.usn, usn);
+  assert.equal(native.opened, undefined);
+  // A changed identity must never render the previous alias while effects are pending.
+  assert.equal(api.OfferwallView({ usn: 'b'.repeat(64) }), null);
+});
+test('embedded view fails closed on invalid alias, missing keys or old binary', () => {
+  for (const mode of ['invalid', 'keys', 'binary', 'native-error']) {
+    const api = setup(mode === 'keys' ? {} : keys);
+    viewLinked = mode !== 'binary';
+    if (mode === 'native-error') native.setUserId = () => { throw Error('native'); };
+    const failures = [];
+    const view = viewHarness(api)({ usn: mode === 'invalid' ? 'raw-member' : usn, onError: e => failures.push(e) });
+    assert.equal(view, null);
+    assert.equal(failures.length, 1);
+    assert.equal(failures[0].ok, false);
+    assert.equal(native.opened, undefined);
+  }
 });

@@ -49,3 +49,11 @@ export declare function getOfferwallTotalRewardInfo({ usn, timeoutMs }: {
 export declare function onOfferwallClosed(callback: () => void): () => void;
 /** Stable callback recommended. Closing the SDK is a good time to refresh server balance. */
 export declare function useOfferwallClosed(callback: () => void): void;
+export type OfferwallViewProps = {
+    usn: string;
+    style?: import('react-native').StyleProp<import('react-native').ViewStyle>;
+    onLoaded?: () => void;
+    onError?: (result: OfferwallResult) => void;
+};
+/** SDK ViewType list. Mount only after initializeOfferwall succeeds; unmount on exit/logout. */
+export declare function OfferwallView({ usn, style, onLoaded, onError }: OfferwallViewProps): import('react').ReactElement | null;

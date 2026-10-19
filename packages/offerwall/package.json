@@ -1,14 +1,18 @@
 {
   "name": "@jcurve/offerwall",
-  "version": "0.1.0",
-  "description": "AdPopcorn \uc11c\ubc84 \ubcf4\uc0c1 \uc624\ud37c\uc6d4 \u00b7 Expo \uc124\uc815 \u00b7 \ud68c\uc6d0 \ubcc4\uce6d",
+  "version": "0.2.0",
+  "description": "AdPopcorn 서버 보상 오퍼월 · Expo 설정 · 회원 별칭",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
     "dist",
     "src",
     "app.plugin.js",
-    "README.md"
+    "README.md",
+    "ios",
+    "android",
+    "JCurveOfferwall.podspec",
+    "react-native.config.js"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",

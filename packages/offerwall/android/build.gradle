@@ -1,0 +1,15 @@
+apply plugin: 'com.android.library'
+android {
+    namespace 'kr.co.jcurve.offerwall'
+    compileSdkVersion rootProject.ext.has('compileSdkVersion') ? rootProject.ext.compileSdkVersion : 36
+    defaultConfig { minSdkVersion 24 }
+}
+repositories {
+    google()
+    mavenCentral()
+    maven { url 'https://repository.igaworks.com/maven' }
+}
+dependencies {
+    implementation 'com.facebook.react:react-android:+'
+    implementation 'com.igaworks.offerwall:AdPopcornOfferwall:9.2.6'
+}

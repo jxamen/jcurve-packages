@@ -7,6 +7,7 @@ exports.openOfferwall = openOfferwall;
 exports.getOfferwallTotalRewardInfo = getOfferwallTotalRewardInfo;
 exports.onOfferwallClosed = onOfferwallClosed;
 exports.useOfferwallClosed = useOfferwallClosed;
+exports.OfferwallView = OfferwallView;
 const pending = () => ({ ok: false, reason: 'not_ready', message: '준비 중' });
 let config;
 let serverConfig;
@@ -152,4 +153,39 @@ function useOfferwallClosed(callback) {
     const latest = useRef(callback);
     latest.current = callback;
     useEffect(() => onOfferwallClosed(() => latest.current()), []);
+}
+let embeddedView;
+/** SDK ViewType list. Mount only after initializeOfferwall succeeds; unmount on exit/logout. */
+function OfferwallView({ usn, style, onLoaded, onError }) {
+    const React = require('react');
+    const [readyUsn, setReadyUsn] = React.useState(null);
+    const error = React.useRef(onError);
+    error.current = onError;
+    React.useEffect(() => {
+        setReadyUsn(null);
+        try {
+            const native = sdk();
+            if (!native) {
+                error.current?.(pending());
+                return;
+            }
+            if (!user(native, usn)) {
+                error.current?.({ ok: false, reason: 'invalid_usn', message: '회원 정보를 확인해 주세요' });
+                return;
+            }
+            const rn = require('react-native');
+            if (!rn.UIManager.getViewManagerConfig('JCurveOfferwallView')) {
+                error.current?.(pending());
+                return;
+            }
+            embeddedView ?? (embeddedView = rn.requireNativeComponent('JCurveOfferwallView'));
+            setReadyUsn(usn);
+        }
+        catch {
+            error.current?.({ ok: false, reason: 'sdk_error', message: '잠시 후 다시 시도해 주세요' });
+        }
+    }, [usn]);
+    if (readyUsn !== usn || !embeddedView)
+        return null;
+    return React.createElement(embeddedView, { usn, style: [{ flex: 1 }, style], onLoaded });
 }
