@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.BenefitQuickList = exports.ShoppingMission = exports.MissionCards = exports.fetchCards = exports.parseCardsResponse = exports.normalizeCards = exports.stateCopy = exports.MissionState = exports.MissionLoading = exports.DEFAULT_THEME = exports.MissionWebView = exports.isEntryUrl = exports.isAllowedOrigin = exports.fetchEntry = exports.ALLOWED_ORIGINS = exports.bridgeShim = exports.parseBridgeMessage = exports.openAppTarget = exports.schemeOf = exports.resolveTarget = exports.isWebUrl = exports.isBlocked = exports.BLOCKED_SCHEMES = void 0;
+exports.FloatingRewardChip = exports.BenefitQuickList = exports.ShoppingMission = exports.MissionCards = exports.fetchCards = exports.parseCardsResponse = exports.normalizeCards = exports.stateCopy = exports.MissionState = exports.MissionLoading = exports.DEFAULT_THEME = exports.MissionWebView = exports.isEntryUrl = exports.isAllowedOrigin = exports.fetchEntry = exports.ALLOWED_ORIGINS = exports.bridgeShim = exports.parseBridgeMessage = exports.openAppTarget = exports.schemeOf = exports.resolveTarget = exports.isWebUrl = exports.isBlocked = exports.BLOCKED_SCHEMES = void 0;
 var policy_1 = require("./policy");
 Object.defineProperty(exports, "BLOCKED_SCHEMES", { enumerable: true, get: function () { return policy_1.BLOCKED_SCHEMES; } });
 Object.defineProperty(exports, "isBlocked", { enumerable: true, get: function () { return policy_1.isBlocked; } });
@@ -35,3 +35,5 @@ var ShoppingMission_1 = require("./ShoppingMission");
 Object.defineProperty(exports, "ShoppingMission", { enumerable: true, get: function () { return ShoppingMission_1.ShoppingMission; } });
 var BenefitQuickList_1 = require("./BenefitQuickList");
 Object.defineProperty(exports, "BenefitQuickList", { enumerable: true, get: function () { return BenefitQuickList_1.BenefitQuickList; } });
+var FloatingRewardChip_1 = require("./FloatingRewardChip");
+Object.defineProperty(exports, "FloatingRewardChip", { enumerable: true, get: function () { return FloatingRewardChip_1.FloatingRewardChip; } });

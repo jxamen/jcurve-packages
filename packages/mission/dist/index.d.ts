@@ -11,3 +11,4 @@ export { MissionCards, type MissionCardsProps, type MissionCardsTheme } from './
 export { ShoppingMission, type ShoppingMissionProps } from './ShoppingMission';
 export type { MissionNavigation } from './MissionWebView';
 export { BenefitQuickList, type BenefitQuickListProps, type BenefitQuickItem, type BenefitQuickIcon } from './BenefitQuickList';
+export { FloatingRewardChip, type FloatingRewardChipProps } from './FloatingRewardChip';
