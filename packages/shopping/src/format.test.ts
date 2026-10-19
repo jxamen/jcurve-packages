@@ -15,6 +15,7 @@ describe('쇼핑 글', () => {
     expect(partnerLine({ id: 'toss', name: '토스쇼핑', rateText: '3%', rewardKind: 'point' }, theme)).toBe('구매 금액의 3%를 포인트로 드려요');
     expect(partnerLine({ id: 'c', name: '쿠팡', rateText: '1.2%', rewardKind: 'coupon' }, theme)).toBe('구매 금액의 1.2%를 할인권으로 드려요');
     expect(rewardName('point', theme)).toBe('포인트');
+    expect(partnerLine({ id: 'c', name: '쿠팡', rateText: '2%', rewardKind: 'coupon', rewardLabel: '캐시' }, theme)).toBe('구매 금액의 2%를 캐시로 드려요');   // 서버 설정값이 먼저
     expect(won(14900)).toBe('14,900원');
   });
   it('적립 기록 띠는 실제 기록만 — 이름이나 금액이 없으면 버린다(가짜 문구 금지)', () => {

@@ -26,6 +26,10 @@ const api = useMemo(() => createHttpShoppingApi((path, init) => request(path, in
 `createHttpShoppingApi` 가 부르는 경로: `shopping/home` · `categories` · `products` · `deals` · `coupon-info` · `notice` (GET, `partner=` · `category=` · `cursor=`), `shopping/link` (POST `{partner, product}` → `{url}`). 모양은 `src/types.ts`.
 서버가 붙기 전엔 `createMockShoppingApi()` — 모든 글에 「[목업]」이 붙는다.
 
+## 0.1.3 (2026-10-19) — 숫자 · 이름 · 켜짐은 전부 서버 설정값
+
+- 대표님 10-19 「제공 수수료같은것도 어디 설정에서 할 수 있게」: 적립률(`rateText`) · 지급 형태 이름(`rewardLabel`, 새로) · 보여 줄 제휴처(`partners` 목록 = 켜진 것만)는 모두 서버(어드민 설정)에서 받는다. 패키지에 숫자 하드코딩 없음(목업 제외). `rewardLabel` 이 없을 때만 테마 이름(포인트 · 할인권)
+
 ## 0.1.2 (2026-10-19)
 
 - 할인권 안내(coupon-info)가 null 이면 「할인권이란?」 링크를 숨긴다(정책 전 서버는 null)

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { countdown, num, partnerLine, rewardName } from './format';
+import { countdown, num, partnerLine, partnerRewardName } from './format';
 import { Chips, Disclosures, Notice, ProductCard, ProductGrid, RecentTicker } from './parts';
 import { CouponInfoScreen } from './CouponInfo';
 import { DEFAULT_THEME, type Category, type Deals, type NoticeSection, type Partner, type PartnerId, type Product, type ShoppingApi, type ShoppingHome, type ShoppingTheme } from './types';
@@ -154,7 +154,7 @@ function PartnerView({ api, partner, theme, onProduct, onCouponInfo }: { api: Sh
     <View style={[st.info, { backgroundColor: theme.card }]}>
       <Text style={[st.infoMark, { backgroundColor: coupon ? theme.text : theme.primary, color: theme.onPrimary }]}>{coupon ? '할' : (theme.pointMark ?? 'P').slice(0, 1)}</Text>
       <Text style={[st.infoText, { color: theme.text }]}>{partnerLine(partner, theme)}</Text>
-      {coupon && hasInfo ? <Pressable accessibilityRole="link" onPress={onCouponInfo} hitSlop={8}><Text style={[st.infoLink, { color: theme.sub }]}>{rewardName('coupon', theme)}이란?</Text></Pressable> : null}
+      {coupon && hasInfo ? <Pressable accessibilityRole="link" onPress={onCouponInfo} hitSlop={8}><Text style={[st.infoLink, { color: theme.sub }]}>{partnerRewardName(partner, theme)}이란?</Text></Pressable> : null}
     </View>
     {deals && left && deals.items.length ? <View>
       <Text style={[st.h2, { color: theme.text, marginBottom: 2 }]}>{deals.title ?? '오늘만 이 가격에 팔아요'}</Text>
@@ -163,7 +163,7 @@ function PartnerView({ api, partner, theme, onProduct, onCouponInfo }: { api: Sh
         {deals.items.map(p => <ProductCard key={p.id} product={p} theme={theme} onPress={onProduct} width={136} />)}
       </ScrollView>
     </View> : null}
-    <Text style={[st.h2, { color: theme.text }]}>{coupon ? '인기 상품 구경하기' : <>구매하면 <Text style={{ color: theme.primary }}>{rewardName('point', theme)} {partner.rateText}</Text> 드려요</>}</Text>
+    <Text style={[st.h2, { color: theme.text }]}>{coupon ? '인기 상품 구경하기' : <>구매하면 <Text style={{ color: theme.primary }}>{partnerRewardName(partner, theme)} {partner.rateText}</Text> 드려요</>}</Text>
     <Chips items={cats} value={cat} onChange={setCat} theme={theme} />
     {items ? <ProductGrid items={items} theme={theme} onPress={onProduct} /> : <View style={st.center}><ActivityIndicator color={theme.primary} /></View>}
     <Notice sections={notice} theme={theme} />

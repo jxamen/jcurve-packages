@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { rewardName } from './format';
+import { partnerRewardName } from './format';
 import { Disclosures, Notice } from './parts';
 import type { CouponInfo, Partner, ShoppingApi, ShoppingTheme } from './types';
 
@@ -8,7 +8,7 @@ import type { CouponInfo, Partner, ShoppingApi, ShoppingTheme } from './types';
 export function CouponInfoScreen({ api, partner, theme, topInset = 0, onBack, onGo }: { api: ShoppingApi; partner: Partner; theme: ShoppingTheme; topInset?: number; onBack: () => void; onGo: () => void }) {
   const [info, setInfo] = useState<CouponInfo | null | undefined>(undefined);
   useEffect(() => { api.couponInfo(partner.id).then(setInfo).catch(() => setInfo(null)); }, [api, partner.id]);
-  const name = rewardName('coupon', theme);
+  const name = partnerRewardName(partner, theme);
   const cta = info?.cta || `${partner.name} 쇼핑하고 ${partner.rateText} ${name} 받기`;
   return <View style={[cs.wrap, { backgroundColor: theme.bg, paddingTop: topInset }]}>
     <View style={cs.bar}>

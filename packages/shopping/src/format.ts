@@ -18,8 +18,19 @@ export const rewardName = (kind: RewardKind, theme: ShoppingTheme): string =>
   kind === 'coupon' ? theme.couponName || '할인권' : theme.pointName;
 
 /** 제휴처 안내 한 줄 — 「구매 금액의 3%를 P로 드려요」 */
-export const partnerLine = (p: Partner, theme: ShoppingTheme): string =>
-  `구매 금액의 ${p.rateText}를 ${rewardName(p.rewardKind, theme)}${p.rewardKind === 'coupon' ? '으로' : '로'} 드려요`;
+/** 제휴처 지급 형태 이름 — 서버 설정(rewardLabel)이 있으면 그것, 없으면 테마 이름 */
+export const partnerRewardName = (p: Partner, theme: ShoppingTheme): string => (p.rewardLabel ?? '').trim() || rewardName(p.rewardKind, theme);
+
+/** 받침이 있으면 「으로」 */
+const ro = (word: string): string => {
+  const c = word.charCodeAt(word.length - 1);
+  return c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 !== 0 && (c - 0xac00) % 28 !== 8 ? '으로' : '로';
+};
+
+export const partnerLine = (p: Partner, theme: ShoppingTheme): string => {
+  const name = partnerRewardName(p, theme);
+  return `구매 금액의 ${p.rateText}를 ${name}${ro(name)} 드려요`;
+};
 
 /** 띠에 보일 실제 적립 기록 — 서버가 준 것 중 금액 · 이름이 있는 것만. 없으면 띠를 안 그린다(가짜 문구 금지) */
 export const realRecent = (list?: RecentReward[] | null): RecentReward[] =>
