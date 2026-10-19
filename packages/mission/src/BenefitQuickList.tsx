@@ -22,6 +22,8 @@ export type BenefitQuickListProps = {
   title?: string;
   doneLabel?: string;
   buttonWidth?: number;
+  /** 버튼 높이(기본 40) — 당근 대표님 10-19 「버튼 사이즈 좀 더 작게」 */
+  buttonHeight?: number;
   seeAllLabel?: string;
   onSeeAll?: () => void;
   accentColor?: string;
@@ -49,7 +51,7 @@ function Icon({ icon }: { icon: BenefitQuickItem['icon'] }) {
   </View>;
 }
 
-export function BenefitQuickList({ title = '바로 받는 혜택', seeAllLabel, onSeeAll, accentColor = '#EE7A33', items, footer, doneLabel = '완료', buttonWidth = 100 }: BenefitQuickListProps) {
+export function BenefitQuickList({ title = '바로 받는 혜택', seeAllLabel, onSeeAll, accentColor = '#EE7A33', items, footer, doneLabel = '완료', buttonWidth = 100, buttonHeight = 40 }: BenefitQuickListProps) {
   const visible = items.filter(item => !item.hidden);
   return <View style={s.root}>
     {/* 제목도 「전체보기」도 없으면 머리 줄을 그리지 않는다(2026-10-19 당근 대표님 「바로 받는 혜택 · 혜택 전체보기 제거」) */}
@@ -65,7 +67,7 @@ export function BenefitQuickList({ title = '바로 받는 혜택', seeAllLabel, 
           : <Text style={s.subtitle} numberOfLines={1} adjustsFontSizeToFit>{item.subtitle}</Text>}</View>
         <Pressable accessibilityRole="button" accessibilityLabel={item.title + ', ' + (item.done ? doneLabel : item.ctaLabel)} accessibilityState={{ disabled: !!item.done }} disabled={item.done}
           onPress={() => { if (!item.done) item.onPress(); }}
-          style={({ pressed }) => [s.button, { width: buttonWidth, backgroundColor: item.done ? '#D3D7DD' : accentColor }, pressed && !item.done && { opacity: 0.8 }]}>
+          style={({ pressed }) => [s.button, { width: buttonWidth, height: buttonHeight, backgroundColor: item.done ? '#D3D7DD' : accentColor }, pressed && !item.done && { opacity: 0.8 }]}>
           <Text style={s.cta} numberOfLines={1} adjustsFontSizeToFit>{item.done ? doneLabel : item.ctaLabel}</Text>
         </Pressable>
       </View>)}
