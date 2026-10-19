@@ -34,6 +34,8 @@ describe('쇼핑 글', () => {
     const api = createHttpShoppingApi(async <T,>(path: string, init?: { method?: string; body?: unknown }) => { calls.push([path, init?.body ?? null]); return ({ items: [], url: 'https://x', home: {}, deals: null, info: null, sections: [] } as unknown) as T; });
     await api.products({ partnerId: 'coupang', categoryId: 'food' });
     await api.link({ partnerId: 'toss', productId: 'p1' });
+    const bad = createHttpShoppingApi(async <T,>() => ({ ok: false, error: 'signup_required' } as unknown as T));
+    await expect(bad.link({ partnerId: 'coupang' })).rejects.toMatchObject({ code: 'signup_required' });
     expect(calls).toEqual([['shopping/products?partner=coupang&category=food', null], ['shopping/link', { partner: 'toss', product: 'p1' }]]);
   });
 });

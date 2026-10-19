@@ -21,6 +21,8 @@ export type Partner = {
   rewardKind: RewardKind;
   /** 제휴처 로고 그림 주소(없으면 이름 첫 글자) */
   logo?: string | null;
+  /** 제휴 활동 고지(예: 수수료 안내) — 서버 글 그대로 화면 아래에 늘 그린다(패키지에 고정 글 없음) */
+  disclosure?: string | null;
 };
 
 export type Product = {
@@ -32,7 +34,7 @@ export type Product = {
   price: number;
   /** 할인율(%) — 없으면 표시 안 함 */
   discountRate?: number | null;
-  /** 이 상품을 사면 받는 적립(포인트 수 · 할인권 수) — 서버 계산 */
+  /** **예상** 적립(포인트 수 · 할인권 금액) — 확정 때 수수료 · 하루 상한으로 줄 수 있어 화면은 「약」으로 쓴다 */
   reward: number;
   rewardKind: RewardKind;
   rating?: number | null;
@@ -93,7 +95,10 @@ export type ShoppingApi = {
   deals(partnerId: PartnerId): Promise<Deals | null>;
   couponInfo(partnerId: PartnerId): Promise<CouponInfo | null>;
   notice(partnerId: PartnerId | 'all'): Promise<NoticeSection[]>;
-  /** 이동 링크 — 적립 추적이 붙은 주소를 서버가 만든다. 상품이 없으면 제휴처 첫 화면 */
+  /**
+   * 이동 링크 — 적립 추적이 붙은 주소를 서버가 만든다. 상품이 없으면 제휴처 첫 화면.
+   * 실패는 Error 의 `code` 로 준다(createHttpShoppingApi 는 서버 error 를 그대로): signup_required(게스트 · 로그인 필요) · too_often · provider_not_ready · product_not_found
+   */
   link(target: { partnerId: PartnerId; productId?: string | null }): Promise<{ url: string }>;
 };
 

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { rewardName } from './format';
-import { Notice } from './parts';
+import { Disclosures, Notice } from './parts';
 import type { CouponInfo, Partner, ShoppingApi, ShoppingTheme } from './types';
 
 /** ⑤ 할인권 안내 — 글은 모두 서버(couponInfo). 아래 고정 버튼은 제휴처로 이동(적립 추적 링크) */
@@ -58,6 +58,7 @@ export function CouponInfoScreen({ api, partner, theme, topInset = 0, onBack, on
           </View>)}
         </View> : null}
         <Notice sections={info.notice ?? []} theme={theme} />
+        <Disclosures texts={[partner.disclosure ?? '']} theme={theme} />
       </ScrollView>}
     <View style={[cs.ctaWrap, { backgroundColor: theme.bg }]}>
       <Pressable accessibilityRole="button" onPress={onGo} style={[cs.cta, { backgroundColor: theme.primary }]}><Text style={[cs.ctaText, { color: theme.onPrimary }]}>{cta}</Text></Pressable>

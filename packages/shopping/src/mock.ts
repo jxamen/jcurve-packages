@@ -43,7 +43,7 @@ export function createMockShoppingApi(delayMs = 150): ShoppingApi {
       totalBenefit: 0,
       partners: [
         { id: 'toss', name: '토스쇼핑', rateText: '3%', rewardKind: 'point' },
-        { id: 'coupang', name: '쿠팡', rateText: '1.2%', rewardKind: 'coupon' },
+        { id: 'coupang', name: '쿠팡', rateText: '1.2%', rewardKind: 'coupon', disclosure: '[목업] 제휴 활동 고지 — 실제 글은 서버가 줘요.' },
       ],
       hero: { label: '판매 1위', title: '[목업] 생수 2L × 12병', partnerId: 'toss', productId: 'toss-1' },
       recent: [],

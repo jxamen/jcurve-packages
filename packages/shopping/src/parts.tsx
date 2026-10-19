@@ -8,7 +8,7 @@ export function RewardBadge({ product, theme }: { product: Product; theme: Shopp
   const coupon = product.rewardKind === 'coupon';
   return <View style={[s.badge, { backgroundColor: coupon ? theme.text : theme.primary }]}>
     <Text style={[s.badgeMark, { color: coupon ? theme.text : theme.primary, backgroundColor: theme.onPrimary }]}>{coupon ? '할' : (theme.pointMark ?? 'P').slice(0, 1)}</Text>
-    <Text style={[s.badgeText, { color: theme.onPrimary }]}>{num(product.reward)}</Text>
+    <Text style={[s.badgeText, { color: theme.onPrimary }]}>약 {num(product.reward)}</Text>
   </View>;
 }
 
@@ -90,7 +90,16 @@ export function RecentTicker({ list, theme }: { list?: RecentReward[] | null; th
   </View>;
 }
 
+/** 제휴 활동 고지 — 서버가 준 제휴처별 글을 모두 그린다 */
+export function Disclosures({ texts, theme }: { texts: string[]; theme: ShoppingTheme }) {
+  const rows = texts.map(t => (t ?? '').trim()).filter(Boolean);
+  if (!rows.length) return null;
+  return <View style={s.disc}>{rows.map(t => <Text key={t} style={[s.discText, { color: theme.sub }]}>{t}</Text>)}</View>;
+}
+
 export const s = StyleSheet.create({
+  disc: { paddingHorizontal: 20, paddingVertical: 16, gap: 6 },
+  discText: { fontSize: 12, lineHeight: 18 },
   badge: { flexDirection: 'row', alignItems: 'center', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 3, gap: 4 },
   badgeMark: { width: 16, height: 16, borderRadius: 8, textAlign: 'center', fontSize: 10, lineHeight: 16, fontWeight: '800', overflow: 'hidden' },
   badgeText: { fontSize: 13, fontWeight: '700' },

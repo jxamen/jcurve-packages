@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { countdown, num, partnerLine, rewardName } from './format';
-import { Chips, Notice, ProductCard, ProductGrid, RecentTicker } from './parts';
+import { Chips, Disclosures, Notice, ProductCard, ProductGrid, RecentTicker } from './parts';
 import { CouponInfoScreen } from './CouponInfo';
 import { DEFAULT_THEME, type Category, type Deals, type NoticeSection, type Partner, type PartnerId, type Product, type ShoppingApi, type ShoppingHome, type ShoppingTheme } from './types';
 
@@ -12,6 +12,8 @@ export type ShoppingTabProps = {
   onOpenUrl: (url: string, ctx: { partnerId: PartnerId; productId?: string | null }) => void;
   /** 계측 — 패키지는 아무 데도 보내지 않는다 */
   onEvent?: (name: string, props?: Record<string, unknown>) => void;
+  /** 이동 링크를 못 받았을 때 — code: signup_required(로그인 필요) · too_often · provider_not_ready · product_not_found · network. 앱이 로그인 창 · 안내를 띄운다 */
+  onLinkError?: (code: string, ctx: { partnerId: PartnerId; productId?: string | null }) => void;
   /** 머리 위 여백(상태 표시줄) — 앱이 safe area 값을 넘긴다 */
   topInset?: number;
 };
@@ -19,7 +21,7 @@ export type ShoppingTabProps = {
 type TabKey = 'all' | PartnerId;
 
 /** 쇼핑 탭 — ① 머리 · 누적 혜택 · 상단 탭 ② 전체 ③ 포인트형 제휴처 ④ 할인권형 제휴처 ⑤ 할인권 안내 */
-export function ShoppingTab({ api, theme: themeIn, onOpenUrl, onEvent, topInset = 0 }: ShoppingTabProps) {
+export function ShoppingTab({ api, theme: themeIn, onOpenUrl, onEvent, onLinkError, topInset = 0 }: ShoppingTabProps) {
   const theme: ShoppingTheme = { ...DEFAULT_THEME, ...themeIn };
   const [home, setHome] = useState<ShoppingHome | null>(null);
   const [failed, setFailed] = useState(false);
@@ -37,10 +39,12 @@ export function ShoppingTab({ api, theme: themeIn, onOpenUrl, onEvent, topInset 
     try {
       const { url } = await api.link({ partnerId, productId });
       if (url) onOpenUrl(url, { partnerId, productId });
-    } catch {
-      onEvent?.('shopping_link_error', { partnerId });
+    } catch (e) {
+      const code = String((e as { code?: string })?.code || 'network');
+      onEvent?.('shopping_link_error', { partnerId, code });
+      onLinkError?.(code, { partnerId, productId });
     }
-  }, [api, onOpenUrl, onEvent]);
+  }, [api, onOpenUrl, onEvent, onLinkError]);
 
   if (couponFor) return <CouponInfoScreen api={api} partner={couponFor} theme={theme} topInset={topInset} onBack={() => setCouponFor(null)} onGo={() => open(couponFor.id)} />;
 
@@ -130,6 +134,7 @@ function AllView({ api, home, theme, onPartner, onOpen }: { api: ShoppingApi; ho
     <Chips items={cats} value={cat} onChange={setCat} theme={theme} />
     {items ? <ProductGrid items={items} theme={theme} onPress={onProduct} /> : <View style={st.center}><ActivityIndicator color={theme.primary} /></View>}
     <Notice sections={notice} theme={theme} />
+    <Disclosures texts={home.partners.map(p => p.disclosure ?? '')} theme={theme} />
   </ScrollView>;
 }
 
@@ -159,6 +164,7 @@ function PartnerView({ api, partner, theme, onProduct, onCouponInfo }: { api: Sh
     <Chips items={cats} value={cat} onChange={setCat} theme={theme} />
     {items ? <ProductGrid items={items} theme={theme} onPress={onProduct} /> : <View style={st.center}><ActivityIndicator color={theme.primary} /></View>}
     <Notice sections={notice} theme={theme} />
+    <Disclosures texts={[partner.disclosure ?? '']} theme={theme} />
   </ScrollView>;
 }
 
