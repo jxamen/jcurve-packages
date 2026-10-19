@@ -84,7 +84,7 @@ export function createMockShoppingApi(delayMs = 150): ShoppingApi {
     }),
     categories: () => wait([{ id: 'best', name: '베스트' }, { id: 'food', name: '식품' }, { id: 'living', name: '생활용품' }, { id: 'kitchen', name: '주방용품' }, { id: 'home', name: '가구/홈데코' }]),
     products: q => wait({ items: q.partnerId === 'coupang' ? COUPANG : q.partnerId === 'toss' ? TOSS : [...TOSS, ...COUPANG.slice(0, 2)], next: null }),
-    deals: partnerId => wait(partnerId === 'toss' ? { endsAt: Date.now() + 3 * 3600_000, items: TOSS.slice(0, 3) } : null),
+    deals: partnerId => wait(partnerId === 'toss' ? { items: TOSS.slice(0, 4) } : null),
     couponInfo: partnerId => wait(partnerId === 'coupang' ? COUPON : null),
     notice: () => wait(NOTICE),
     link: t => wait({ url: t.partnerId === 'coupang' ? 'https://www.coupang.com/' : 'https://shopping.toss.im/' }),

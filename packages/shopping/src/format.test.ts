@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { proofDday, countdown, partnerLine, realRecent, rewardName, num, won } from './format';
+import { proofDday, dealEndsAt, countdown, partnerLine, realRecent, rewardName, num, won } from './format';
 import { createHttpShoppingApi, parseProofInfo } from './http';
 import { DEFAULT_THEME } from './types';
 
@@ -126,5 +126,37 @@ describe('0.1.6 서버 계약', () => {
     const api = createHttpShoppingApi(async () => { throw error; });
     await expect(api.notice('all')).rejects.toBe(error);
     await expect(api.couponInfo('partner')).rejects.toBe(error);
+  });
+});
+
+
+describe('하루특가 종료 시각', () => {
+  const now = Date.parse('2026-10-20T14:59:58Z'); // 한국 23:59:58
+  const midnight = Date.parse('2026-10-20T15:00:00Z');
+  it.each([undefined, null, NaN, Infinity, -Infinity, 0, now - 1, now])('없는 · 잘못된 · 지난 시각 %s는 다음 한국 자정', endsAt => {
+    expect(dealEndsAt(endsAt, now)).toBe(midnight);
+  });
+  it('런타임에서 숫자가 아닌 값도 한국 자정으로 처리한다', () => {
+    expect(dealEndsAt('123' as unknown as number, now)).toBe(midnight);
+  });
+  it('유효한 미래 시각은 유지하고 자정 경계에서 다음 날로 넘어간다', () => {
+    expect(dealEndsAt(now + 1000, now)).toBe(now + 1000);
+    expect(dealEndsAt(undefined, midnight)).toBe(midnight + 86_400_000);
+    expect(dealEndsAt(null, Date.parse('2026-12-31T15:00:00Z'))).toBe(Date.parse('2027-01-01T15:00:00Z'));
+  });
+  it('확정한 종료 시각은 만료 때 0으로 끝난다', () => {
+    const end = dealEndsAt(undefined, now);
+    expect(countdown(end, now)).toBe('00:00:02');
+    expect(countdown(end, end)).toBeNull();
+    expect(countdown(end, end + 1000)).toBeNull();
+  });
+  it('deals의 경로 · 원본 응답과 빈 응답 계약을 유지한다', async () => {
+    const deals = { items: [] };
+    const paths: string[] = [];
+    const api = createHttpShoppingApi(async <T,>(path: string) => { paths.push(path); return { deals } as T; });
+    expect(await api.deals('a b')).toBe(deals);
+    expect(paths).toEqual(['shopping/deals?partner=a%20b']);
+    const empty = createHttpShoppingApi(async <T,>() => ({}) as T);
+    expect(await empty.deals('toss')).toBeNull();
   });
 });

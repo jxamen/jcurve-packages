@@ -70,7 +70,7 @@ export type ShoppingHome = {
 
 export type ProductPage = { items: Product[]; next?: string | null };
 
-export type Deals = { title?: string; endsAt: number; items: Product[] };
+export type Deals = { title?: string; endsAt?: number | null; items: Product[] };
 
 export type NoticeSection = { title: string; items: Array<string | { text: string; sub?: string[] }> };
 

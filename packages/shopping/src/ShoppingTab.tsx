@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { countdown, num, partnerLine, partnerRewardName } from './format';
-import { Chips, DisclosureNote, Disclosures, ThemeRow, Notice, ProductCard, ProductGrid, RecentTicker } from './parts';
+import { dealEndsAt, num, partnerLine, partnerRewardName } from './format';
+import { Chips, DisclosureNote, Disclosures, DealRow, ThemeRow, Notice, ProductGrid, RecentTicker } from './parts';
 import { ProofScreen } from './Proof';
 import { CouponInfoScreen } from './CouponInfo';
 import { DEFAULT_THEME, type PickedImage, type ProofInfo, type Category, type Deals, type NoticeSection, type Partner, type PartnerId, type Product, type ShoppingApi, type ShoppingHome, type ShoppingTheme, type ThemeSection } from './types';
@@ -124,12 +124,51 @@ function useNotice(api: ShoppingApi, partnerId: PartnerId | 'all') {
   return n;
 }
 
+/** 화면이 마운트된 동안만 조회 · 타이머를 유지한다. 첫 유효한 제휴처 순서를 따른다. */
+function useDeals(api: ShoppingApi, partnerIds: PartnerId[]) {
+  const ids = JSON.stringify(partnerIds);
+  const [result, setResult] = useState<{ deals: Deals; partnerId: PartnerId } | null>(null);
+  const [now, setNow] = useState(Date.now);
+  const [revision, setRevision] = useState(0);
+  const onExpired = useCallback(() => { setResult(null); setRevision(v => v + 1); }, []);
+  useEffect(() => {
+    let active = true;
+    setResult(null);
+    async function load() {
+      for (const partnerId of JSON.parse(ids) as PartnerId[]) {
+        let deals: Deals | null;
+        try { deals = await api.deals(partnerId); } catch { deals = null; }
+        if (!active) return;
+        if (deals?.items.length) {
+          const receivedAt = Date.now();
+          setNow(receivedAt);
+          setResult({ partnerId, deals: { ...deals, endsAt: dealEndsAt(deals.endsAt, receivedAt) } });
+          return;
+        }
+      }
+    }
+    void load();
+    return () => { active = false; };
+  }, [api, ids, revision]);
+  useEffect(() => {
+    if (!result) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [result]);
+  return { result, now, onExpired };
+}
+
 function AllView({ api, home, theme, onPartner, onOpen }: { api: ShoppingApi; home: ShoppingHome; theme: ShoppingTheme; onPartner: (id: PartnerId) => void; onOpen: (partnerId: PartnerId, productId?: string | null) => void }) {
   const onProduct = (p: Product) => onOpen(p.partnerId, p.id);
   const lead = home.partners.find(p => p.rewardKind !== 'none');
   const { cats, cat, setCat, items } = useProducts(api, 'all');
   const notice = useNotice(api, 'all');
+  const { result, now, onExpired } = useDeals(api, home.partners.map(p => p.id));
   return <ScrollView contentContainerStyle={st.body} showsVerticalScrollIndicator={false}>
+    {result ? <>
+      <DisclosureNote text={home.partners.find(p => p.id === result.partnerId)?.disclosure} theme={theme} />
+      <DealRow deals={result.deals} theme={theme} now={now} onPress={onProduct} onExpired={onExpired} />
+    </> : null}
     {home.hero ? <Pressable accessibilityRole="button" onPress={() => { if (home.hero?.partnerId) onOpen(home.hero.partnerId, home.hero.productId); }}
       style={[st.hero, { backgroundColor: theme.primarySoft }]}>
       <View style={{ flex: 1, gap: 6 }}>
@@ -183,14 +222,7 @@ function PartnerView({ api, partner, theme, onProduct, onCouponInfo, pickImage, 
   const themes = themeResult?.api === api && themeResult.partnerId === partner.id ? themeResult.sections : [];
   const { cats, cat, setCat, items } = useProducts(api, partner.id);
   const notice = useNotice(api, partner.id);
-  const [deals, setDeals] = useState<Deals | null>(null);
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    let active = true;
-    setDeals(null);
-    if (!coupon) api.deals(partner.id).then(d => { if (active) setDeals(d); }).catch(() => { if (active) setDeals(null); });
-    return () => { active = false; };
-  }, [api, partner.id, coupon]);
+  const { result, now, onExpired } = useDeals(api, [partner.id]);
   // 할인권 안내 글이 아직 없으면(정책 전 서버는 null) 「할인권이란?」 링크를 숨긴다
   const [hasInfo, setHasInfo] = useState(false);
   useEffect(() => {
@@ -199,8 +231,6 @@ function PartnerView({ api, partner, theme, onProduct, onCouponInfo, pickImage, 
     if (coupon) api.couponInfo(partner.id).then(i => { if (active) setHasInfo(!!i); }).catch(() => { if (active) setHasInfo(false); });
     return () => { active = false; };
   }, [api, partner.id, coupon]);
-  useEffect(() => { if (!deals) return; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, [deals]);
-  const left = deals ? countdown(deals.endsAt, now) : null;
   return <ScrollView contentContainerStyle={st.body} showsVerticalScrollIndicator={false}>
     <View style={[st.info, { backgroundColor: theme.chipBg ?? '#F2F4F6' }]}>
       <View style={[st.infoMark, { backgroundColor: theme.primary }]}>{partner.logo ? <Image source={{ uri: partner.logo }} resizeMode="contain" style={{ width: 22, height: 22 }} /> : <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '800' }}>{partner.name.slice(0, 1)}</Text>}</View>
@@ -208,14 +238,8 @@ function PartnerView({ api, partner, theme, onProduct, onCouponInfo, pickImage, 
       {coupon && hasInfo ? <Pressable accessibilityRole="link" onPress={onCouponInfo} hitSlop={8}><Text style={[st.infoLink, { color: theme.sub }]}>{partnerRewardName(partner, theme)}이란?</Text></Pressable> : null}
     </View>
     <DisclosureNote text={partner.disclosure} theme={theme} />
+    {result ? <DealRow deals={result.deals} theme={theme} now={now} onPress={onProduct} onExpired={onExpired} /> : null}
     {proofInfo ? <Pressable accessibilityRole="button" onPress={() => onProof(proofInfo)} style={[st.info, { backgroundColor: theme.primarySoft, marginTop: 12 }]}><Text style={{ color: theme.primary, fontWeight: '700' }}>구매했다면 인증하고 포인트 받기 ›</Text></Pressable> : null}
-    {deals && left && deals.items.length ? <View>
-      <Text style={[st.h2, { color: theme.text, marginBottom: 2 }]}>{deals.title ?? '오늘만 이 가격에 팔아요'}</Text>
-      <Text style={[st.left, { color: theme.danger }]}>{left} 동안만 특가</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.deals}>
-        {deals.items.map(p => <ProductCard key={p.id} product={p} theme={theme} onPress={onProduct} width={128} />)}
-      </ScrollView>
-    </View> : null}
     {themes.length ? themes.map(section => <ThemeRow key={section.id} section={section} theme={theme} onPress={onProduct} />) : <>
     {!noReward ? <Text style={[st.h2, { color: theme.text }]}>{coupon ? '인기 상품 구경하기' : <>구매하면 <Text style={{ color: theme.primary }}>{partnerRewardName(partner, theme)} {partner.rateText}</Text> 드려요</>}</Text> : null}
     <Chips items={cats} value={cat} onChange={setCat} theme={theme} />
@@ -258,7 +282,5 @@ const st = StyleSheet.create({
   infoMark: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   infoText: { flex: 1, fontSize: 15, fontWeight: '500' },
   infoLink: { fontSize: 14, textDecorationLine: 'underline' },
-  left: { fontSize: 16, fontWeight: '600', paddingHorizontal: 20, marginBottom: 12 },
-  deals: { paddingHorizontal: 20, gap: 12 },
   tickerAt: { position: 'absolute', left: 0, right: 0, bottom: 12 },
 });

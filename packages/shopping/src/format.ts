@@ -6,6 +6,14 @@ export const num = (n: unknown): string => isFiniteNumber(n) ? Math.max(0, Math.
 
 export const won = (n: unknown): string => isFiniteNumber(n) ? num(n) + '원' : '';
 
+/** 유효한 종료 시각이 없으면 다음 한국 시각(UTC+9) 자정. */
+export function dealEndsAt(endsAt: number | null | undefined, now: number): number {
+  if (isFiniteNumber(endsAt) && endsAt > now) return endsAt;
+  const day = 86_400_000;
+  const korea = 9 * 3_600_000;
+  return (Math.floor((now + korea) / day) + 1) * day - korea;
+}
+
 /** 남은 시간 hh:mm:ss — 끝났으면 null(특가 줄을 안 그린다) */
 export function countdown(endsAt: number, now: number): string | null {
   const left = Math.floor((endsAt - now) / 1000);

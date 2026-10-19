@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { isFiniteNumber, num, realRecent, won } from './format';
-import type { Category, NoticeSection, Product, RecentReward, ShoppingTheme, ThemeSection } from './types';
+import { countdown, isFiniteNumber, num, realRecent, won } from './format';
+import type { Deals, Category, NoticeSection, Product, RecentReward, ShoppingTheme, ThemeSection } from './types';
 
 /** 적립 딱지 — 포인트형은 「P 447」, 할인권형은 번개 모양 대신 「할인권 7」(그림은 앱마다 다르니 글로) */
 export function RewardBadge({ product, theme }: { product: Product; theme: ShoppingTheme }) {
@@ -36,6 +36,28 @@ export function ProductCard({ product, theme, onPress, width }: { product: Produ
     </View> : null}
     {product.rating ? <Text style={[s.rating, { color: theme.sub }]}><Text style={{ color: '#FFB800' }}>★</Text> {product.rating.toFixed(1)}{product.reviews ? ` (${num(product.reviews)})` : ''}</Text> : null}
   </Pressable>;
+}
+
+/** 종료 시각은 부모가 응답을 받을 때 dealEndsAt으로 확정한다. */
+export function DealRow({ deals, theme, now, onPress, onExpired }: { deals: Deals; theme: ShoppingTheme; now: number; onPress: (p: Product) => void; onExpired: () => void }) {
+  const left = countdown(deals.endsAt ?? NaN, now);
+  const expired = useRef<Deals | null>(null);
+  useEffect(() => {
+    if (left === null && expired.current !== deals) {
+      expired.current = deals;
+      onExpired();
+    }
+  }, [deals, left, onExpired]);
+  if (!left || !deals.items.length) return null;
+  return <View style={{ marginTop: 24 }}>
+    <View style={{ paddingHorizontal: 20 }}>
+      <Text accessibilityRole="header" style={{ fontSize: 20, fontWeight: '800', color: theme.text }}>{deals.title || '오늘만 이 가격에 살 수 있는 하루특가'}</Text>
+      <Text style={{ alignSelf: 'flex-start', marginTop: 6, backgroundColor: '#FFF0F0', color: theme.danger, fontSize: 14, fontWeight: '800', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 }}>⏰ {left} 남음</Text>
+    </View>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 12, paddingTop: 14 }}>
+      {deals.items.map(p => <ProductCard key={p.id} product={p} theme={theme} onPress={onPress} width={156} />)}
+    </ScrollView>
+  </View>;
 }
 
 /** 주제 제목과 수동으로 넘기는 상품 줄 */
