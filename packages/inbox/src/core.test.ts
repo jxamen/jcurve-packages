@@ -42,3 +42,39 @@ describe('screen state', () => {
  it('rolls back a failed optimistic read', async () => { const {api,store}=setup(); await store.load(); api.read.mockRejectedValueOnce(Error()); await store.markRead(item); expect(store.getSnapshot()).toMatchObject({unread:1,error:true}); expect(store.getSnapshot().items[0]).toEqual(item); });
  it('ignores stale pages after a refresh', async () => { const {api,store}=setup(); let resolve!: (v:any)=>void; api.list.mockImplementationOnce(()=>new Promise(r=>resolve=r)); const first=store.load(); await store.load(); resolve({ok:true,items:[],unread:0}); await first; expect(store.getSnapshot().items).toHaveLength(1); });
 });
+
+const missingErrors = [
+ ...['status', 'statusCode'].flatMap(key => [404, 501, 405].map(status => ({ [key]: status }))),
+ ...[404, 501, 405].map(status => ({ response: { status } })),
+ ...['http_404', 'http_501', 'not_found'].map(code => ({ code })),
+ new Error('HTTP 404 missing'), new Error('HTTP 501 missing'),
+ { ok: false, error: 'not_found' }, { response: { data: { ok: false, error: 'not_found' } } },
+];
+describe('missing routes', () => {
+ it.each(missingErrors)('returns empty list and zero unread for %j', async err => {
+  const api = createInboxApi(vi.fn().mockRejectedValue(err));
+  expect(await api.list()).toEqual({ok:true,items:[],unread:0});
+  expect(await api.unread()).toBe(0);
+  const store = createInboxStore(api); await store.load();
+  expect(store.getSnapshot()).toMatchObject({items:[],unread:0,error:false,loading:false});
+ });
+ it.each(missingErrors)('handles directly implemented APIs for %j', async err => {
+  const {api,store}=setup(); await store.load();
+  api.list.mockRejectedValue(err); await store.load();
+  expect(store.getSnapshot()).toMatchObject({items:[],expanded:[],unread:0,next:undefined,error:false,loading:false});
+ });
+ it.each(missingErrors)('preserves last unread when read route is missing for %j', async err => {
+  const fetch = vi.fn().mockResolvedValueOnce({ok:true,items:[],unread:7}).mockRejectedValue(err);
+  const api = createInboxApi(fetch); await api.list(); expect(await api.read([1])).toBe(7);
+ });
+ it('handles parsed not_found responses on every endpoint', async () => {
+  const api = createInboxApi(async () => ({ok:false,error:'not_found'}));
+  expect(await api.list()).toEqual({ok:true,items:[],unread:0});
+  expect(await api.unread()).toBe(0); expect(await api.read([1])).toBe(0);
+ });
+ it.each([{status:500},{status:502},{status:401},{status:403},new Error('Network request failed'),new Error('1404 5010')])('preserves real errors for %j', async err => {
+  const api = createInboxApi(vi.fn().mockRejectedValue(err));
+  await expect(api.list()).rejects.toBe(err); await expect(api.unread()).rejects.toBe(err); await expect(api.read([1])).rejects.toBe(err);
+  const store=createInboxStore(api); await store.load(); expect(store.getSnapshot().error).toBe(true);
+ });
+});

@@ -1,6 +1,6 @@
 {
   "name": "@jcurve/inbox",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "공용 받은 알림함 — 순수 JS, 새 네이티브 0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

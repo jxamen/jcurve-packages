@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { AppState, FlatList, Pressable, Text, View } from 'react-native';
-import { createInboxStore, defaultStrings, defaultTheme, relativeTime, type InboxApi, type InboxItem, type InboxStrings, type InboxTheme } from './core';
+import { createInboxStore, isMissingRoute, defaultStrings, defaultTheme, relativeTime, type InboxApi, type InboxItem, type InboxStrings, type InboxTheme } from './core';
 export * from './core';
 export type InboxScreenProps = { api: InboxApi; theme?: Partial<InboxTheme>; strings?: Partial<InboxStrings>; onOpen: (item: InboxItem) => void; onBack?: () => void; topInset?: number; isFocused?: boolean };
 export function InboxScreen({ api, theme, strings, onOpen, onBack, topInset = 0, isFocused = true }: InboxScreenProps) {
@@ -37,7 +37,7 @@ export function useInboxUnread(api: InboxApi, { refreshKey }: { refreshKey?: unk
   const [count, setCount] = useState(0);
   useEffect(() => {
     let disposed = false, request = 0;
-    const refresh = async () => { const id = ++request; try { const next = await api.unread(); if (!disposed && id === request) setCount(next); } catch { /* Keep previous count. */ } };
+    const refresh = async () => { const id = ++request; try { const next = await api.unread(); if (!disposed && id === request) setCount(next); } catch (err) { if (!disposed && id === request && isMissingRoute(err)) setCount(0); /* Other failures keep previous count (initially 0). */ } };
     void refresh();
     const subscription = AppState.addEventListener('change', state => { if (state === 'active') void refresh(); });
     return () => { disposed = true; subscription.remove(); };

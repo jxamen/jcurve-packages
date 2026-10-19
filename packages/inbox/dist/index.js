@@ -45,7 +45,10 @@ function useInboxUnread(api, { refreshKey } = {}) {
             if (!disposed && id === request)
                 setCount(next);
         }
-        catch { /* Keep previous count. */ } };
+        catch (err) {
+            if (!disposed && id === request && (0, core_1.isMissingRoute)(err))
+                setCount(0); /* Other failures keep previous count (initially 0). */
+        } };
         void refresh();
         const subscription = react_native_1.AppState.addEventListener('change', state => { if (state === 'active')
             void refresh(); });

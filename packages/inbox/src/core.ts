@@ -2,20 +2,40 @@ export type InboxItem = { id: number; kind: 'general' | 'shopping' | 'ad'; title
 export type Resp = { ok: boolean; items: InboxItem[]; unread: number; next?: number };
 export type InboxApi = { list(cursor?: number): Promise<Resp>; unread(): Promise<number>; read(ids?: number[], all?: boolean): Promise<number> };
 export type InboxApiOptions = { basePath?: string };
+/** Recognize missing endpoints across app HTTP wrappers and parsed responses. */
+export function isMissingRoute(err: unknown): boolean {
+  if (!err || (typeof err !== 'object' && typeof err !== 'string')) return false;
+  const e = err as any;
+  return [e.status, e.statusCode, e.response?.status].some(status => [404, 501, 405].includes(status))
+    || ['http_404', 'http_501', 'not_found'].includes(e.code)
+    || /\b(404|501)\b/.test(typeof err === 'string' ? err : e.message ?? '')
+    || (e.ok === false && e.error === 'not_found')
+    || (e.response?.data?.ok === false && e.response.data.error === 'not_found');
+}
 export function createInboxApi(fetchJson: (method: string, path: string, body?: any) => Promise<any>, options: InboxApiOptions = {}): InboxApi {
   const basePath = (options.basePath ?? 'me/push-inbox').replace(/\/+$/, '');
   let lastUnread = 0;
   const checked = (r: any) => {
+    if (isMissingRoute(r)) throw r;
     if (!r || r.ok !== true) throw new Error('Inbox API failed');
     lastUnread = r.unread;
     return r;
   };
   return {
-    list: async cursor => checked(await fetchJson('GET', `${basePath}${cursor === undefined ? '' : `?cursor=${encodeURIComponent(cursor)}`}`)),
-    unread: async () => checked(await fetchJson('GET', `${basePath}/unread`)).unread,
-    // Never omit ids: the server treats an omitted ids field as a bulk read.
-    // Empty/omitted ids are local no-ops, including legacy all=true calls.
-    read: async ids => ids?.length ? checked(await fetchJson('POST', `${basePath}/read`, { ids })).unread : lastUnread,
+    list: async cursor => {
+      try { return checked(await fetchJson('GET', `${basePath}${cursor === undefined ? '' : `?cursor=${encodeURIComponent(cursor)}`}`)); }
+      catch (err) { if (!isMissingRoute(err)) throw err; lastUnread = 0; return { ok: true, items: [], unread: 0 }; }
+    },
+    unread: async () => {
+      try { return checked(await fetchJson('GET', `${basePath}/unread`)).unread; }
+      catch (err) { if (!isMissingRoute(err)) throw err; return lastUnread = 0; }
+    },
+    // Empty/omitted ids remain local no-ops; never request a bulk read.
+    read: async ids => {
+      if (!ids?.length) return lastUnread;
+      try { return checked(await fetchJson('POST', `${basePath}/read`, { ids })).unread; }
+      catch (err) { if (!isMissingRoute(err)) throw err; return lastUnread; }
+    },
   };
 }
 export const defaultStrings = { title: '알림', back: '뒤로', empty: '받은 알림이 없어요', error: '알림을 불러오지 못했어요', retry: '다시 시도', ad: '광고', now: '방금', minutes: (n: number) => `${n}분 전`, hours: (n: number) => `${n}시간 전`, yesterday: '어제', date: (m: number, d: number) => `${m}월 ${d}일` };
@@ -74,7 +94,9 @@ export function createInboxStore(api: InboxApi) {
         const rows = r.items.filter(item => !item.read && !removed.has(item.id));
         const items = more ? [...state.items, ...rows.filter(item => !state.items.some(old => old.id === item.id))] : rows;
         update({ items, unread: pending.size ? state.unread : r.unread, next: r.next, loading: false });
-      } catch { if (token === generation) update({ loading: false, error: true }); }
+      } catch (err) { if (token === generation) update(isMissingRoute(err)
+        ? { items: [], expanded: [], unread: 0, next: undefined, loading: false, error: false }
+        : { loading: false, error: true }); }
     },
     markRead,
     press(item: InboxItem, onOpen: (item: InboxItem) => void) {

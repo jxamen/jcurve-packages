@@ -1,4 +1,6 @@
-# @jcurve/inbox 0.1.0
+# @jcurve/inbox 0.1.1
+
+0.1.1: 서버 배포 전 404 는 빈 목록
 
 받은 푸시·알림 목록. **순수 JS, 새 네이티브 0**. peerDependencies는 react >=18, react-native >=0.74만 사용합니다.
 
@@ -25,6 +27,6 @@ const count = useInboxUnread(api, { refreshKey });
 
 `theme`은 `bg, card, text, sub, line, primary, unreadDot, adBadgeBg, adBadgeText, radius`를 부분 덮어쓰기합니다. 기본색은 #FFFFFF, #F2F4F6, #191F28, #6B7684, #E5E8EB입니다. `strings`도 부분 덮어쓰기 가능하며 기본값은 한국어입니다. `minutes(n)`, `hours(n)`, `date(month, day)`는 함수입니다. 상대 시각은 60초 미만 방금, 60분 미만 분, 24시간 미만 시간, 이후 한국 시간 기준 어제/M월 D일(연도 다름 포함)입니다.
 
-`useInboxUnread`는 마운트·AppState active·refreshKey 변경에 갱신하며 실패 시 이전 값을 유지합니다. api 객체는 안정된 참조로 전달하세요. BellDot은 count > 0에만 절대 위치의 작은 빨간 점을 그립니다.
+`useInboxUnread`는 마운트·AppState active·refreshKey 변경에 갱신하며 경로 없음은 0, 그 외 실패 시 이전 값을 유지합니다(지난 값이 없으면 0). api 객체는 안정된 참조로 전달하세요. BellDot은 count > 0에만 절대 위치의 작은 빨간 점을 그립니다.
 
 검증: `npm run build`, `npm test`, `npm pack`. GitHub release 및 npm 발행은 하지 않습니다.

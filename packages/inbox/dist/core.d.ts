@@ -23,6 +23,8 @@ export type InboxApi = {
 export type InboxApiOptions = {
     basePath?: string;
 };
+/** Recognize missing endpoints across app HTTP wrappers and parsed responses. */
+export declare function isMissingRoute(err: unknown): boolean;
 export declare function createInboxApi(fetchJson: (method: string, path: string, body?: any) => Promise<any>, options?: InboxApiOptions): InboxApi;
 export declare const defaultStrings: {
     title: string;
