@@ -1,3 +1,13 @@
+/**
+ * 보상형 광고 본체 — 왜 이렇게 생겼는지는 `index.ts` 머리말에 있다(꼬꼬농장 `src/ads/rewarded.ts` 에서 옮김).
+ *
+ * **이 파일은 앱을 모른다.** 광고 단위 ID·테스트 여부는 앱이 넘기고, 보상을 무엇으로 줄지·하루 몇 번인지는
+ * 앱의 일이다. 여기는 「광고를 안전하게 띄우고 끝까지 봤는지 알려 주기」만 한다.
+ *
+ * ⚠ `require` 안의 이름은 **글자 그대로** 쓴다 — Metro 는 require 를 빌드 때 찾고, 변수로 주면 실행 때 던지는
+ * 코드로 바꿔 모듈이 늘 없는 것처럼 돈다(`@jcurve/notify` 1.1.0 사고).
+ */
+import { type Lang } from './i18n';
 /** 플랫폼마다 따로인 광고 단위 ID */
 export type AdUnits = {
     android?: string;
@@ -46,6 +56,11 @@ export type AdsOptions = {
     tiktok?: {
         adImpression: () => void;
     } | null;
+    /**
+     * (1.9.2) 실패 안내(`onFail` · `play()` 의 `message`) 언어 — 앱이 정해 넘긴다(패키지는 기기 언어를 읽지 않는다).
+     * 없거나 'ko' 면 지금과 같은 한국어. 켠 뒤 바꾸려면 `ads.setLang(lang)`.
+     */
+    lang?: Lang;
 };
 export type ShowOptions = {
     /** 서버 보상 확인(SSV)에 실을 회원 번호 — 둘러보기면 비운다 */
@@ -126,6 +141,8 @@ export type Rewarded = {
     setTikTok: (t: {
         adImpression: () => void;
     } | null) => void;
+    /** (1.9.2) 실패 안내 언어를 바꾼다 — 다음 광고부터. 없거나 'ko' 면 한국어 */
+    setLang: (lang?: Lang) => void;
 };
 type AppStateLike = {
     currentState: string;

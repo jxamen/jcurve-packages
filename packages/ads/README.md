@@ -19,6 +19,21 @@
 앱에 있어야 하는 것: `react-native-google-mobile-ads` · `expo-tracking-transparency` · `expo-updates` · `expo-constants`(Expo 기본).
 1.7 은 네이티브 모듈(`JcurveTikTok`)이 들어 있어 **새 빌드**가 필요하다. 모듈이 없는 옛 빌드에 OTA 로 내려가도 틱톡만 조용히 꺼지고 나머지는 그대로 돈다.
 
+
+## 미디에이션 — 광고 회사 5곳 기본(1.9)
+
+`@jcurve/ads` 1.9 부터 AdMob 미디에이션 어댑터 **앱러빈 · 유니티 · 민티그럴 · 팽글 · 메타(입찰)** 가 같이 들어간다(대표님 10-09).
+1.9.1 부터 이 패키지 안(`mediation.plugin.js` · `src/mediation`)에 있다 — 따로 쓰던 `@jcurve/mediation` 은 없앴다(대표님 10-09 「mediation은 없애」). 앱의 react-native-google-mobile-ads 가 고정한 AdMob SDK 판을 올리지 않는 어댑터를 골라
+`build.gradle`(민티그럴 · 팽글 maven 저장소 포함) · `Podfile` · iOS `SKAdNetworkItems`(156개)에 넣는다. 런타임 코드는 없다(처음 광고 직전 켜기 · 미리 안 받기 그대로).
+
+1. `package.json` 의 `@jcurve/ads` 를 1.9 릴리스 주소로 올린다. `app.json` 의 `plugins` 에 `"@jcurve/ads"` 가 있어야 한다(1.7 부터 있음).
+2. `npx expo prebuild --clean` → **새 스토어 빌드**(네이티브가 바뀐다 — OTA 로는 안 된다). 판 · runtimeVersion 을 올린다.
+3. 각 회사 키 · 앱 ID 는 **앱에 넣지 않는다** — AdMob 웹 「미디에이션 그룹」의 매핑에만 넣으면 새 빌드부터 쓰인다.
+
+- 틱톡 비즈니스 SDK(이 패키지의 JcurveTikTok 또는 앱 `modules/*`)가 있으면 안드에서 팽글이 따로 들고 오는 `tiktok-business-android-sdk-comp` 만 빼고 앱의 틱톡 한 벌을 같이 쓴다(중복 클래스 방지).
+- 끄기 `["@jcurve/ads", { "mediation": false }]` · 일부만 `{ "mediation": { "networks": ["applovin", "meta"] } }` · 팽글만 빼기 `{ "mediation": { "pangle": false } }`.
+- 예전에 `@jcurve/mediation` 플러그인을 적어 둔 앱은 그 줄과 패키지를 지운다(남겨도 표시 사이만 다시 써서 같지만, 패키지는 더 고치지 않는다).
+
 ## 쓰는 법
 
 ```ts
@@ -63,6 +78,18 @@ else toast(r.message ?? '광고를 보지 못했어요');   // r.noAd 면 「잠
 
 `show()` 와 콜백은 그대로 있다(옛 앱 그대로 돈다).
 
+## 언어 — `lang`(1.9.2)
+
+실패 안내(`onFail` 의 글 · `play()` 의 `message`)를 앱이 정한 언어로 낸다.
+
+```ts
+export const ads = createRewarded({ units, test, lang: 'en' });
+ads.setLang('en');   // 켠 뒤 바꿀 때 — 다음 광고부터
+```
+
+**언어는 앱이 넘긴다** — 패키지는 기기 언어를 읽지 않는다. 없거나 `'ko'` 면 지금과 바이트까지 같은 한국어.
+안내 글자를 비교하는 앱 코드는 영어에서 어긋나니 `noAd` · `earned` 로 가른다. 언어 추가는 `src/i18n/locales/<언어>.ts` + `locales/index.ts` 한 줄.
+
 ## 틱톡 값표
 
 | 어디 | 칸 | 값 | 비면 |
@@ -87,3 +114,17 @@ else toast(r.message ?? '광고를 보지 못했어요');   // r.noAd 면 「잠
 
 앱에 따로 넣은 `modules/tiktok-business/` · `src/tiktok*.ts` 는 **지운다**(패키지 모듈은 이름이 `JcurveTikTok` 이라 겹치지는 않지만,
 둘 다 있으면 같은 이벤트가 두 번 나간다). `expo-build-properties` 의 JitPack 줄은 남겨도 된다(플러그인이 겹치면 건너뛴다).
+
+
+## TabBarBanner (1.9.3)
+
+Place `<TabBarBanner unitId={existingUnit} enabled={remoteOn} />` immediately after the tab row,
+inside a footer above the app's bottom safe-area inset. `enabled` should default to false.
+The default `format="banner"` uses the SDK anchored adaptive BannerAd, including SDK attribution.
+For an existing **native** unit use `format="native"`: a 40dp single-line NativeAdView with icon/headline,
+SDK AdChoices, and the mandatory AD attribution (native SDK does not supply attribution text).
+Never send a native unit ID to BannerAd. Video-only native responses are destroyed without retries.
+Disabled, missing-unit, pending and failed requests occupy zero height. Unmount destroys native ads;
+a late response after unmount is destroyed too. Existing SDK test device configuration is retained.
+Pass a Google test unit from the app's existing test-mode logic when appropriate.
+No native module, plugin, reward, frequency or mediation changes are required relative to 1.9.2.

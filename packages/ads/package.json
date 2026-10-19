@@ -1,11 +1,23 @@
 {
   "name": "@jcurve/ads",
-  "version": "1.8.0",
+  "version": "1.9.3",
   "description": "리워드 앱 공용 광고 — AdMob 보상형(꼬꼬농장 방식, 화면 없음) · ATT · 틱톡 광고 전환(TikTok Business SDK)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist", "src", "README.md", "ios", "android", "expo-module.config.json", "app.plugin.js"],
-  "scripts": { "build": "tsc -p tsconfig.json", "test": "vitest run" },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "ios",
+    "android",
+    "expo-module.config.json",
+    "app.plugin.js",
+    "mediation.plugin.js"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
   "peerDependencies": {
     "react-native-google-mobile-ads": ">=16",
     "expo-tracking-transparency": "*",
@@ -13,17 +25,36 @@
     "react-native": ">=0.74",
     "expo-modules-core": "*",
     "expo-constants": "*",
-    "expo": "*"
+    "expo": "*",
+    "react": ">=18"
   },
   "peerDependenciesMeta": {
-    "react-native-google-mobile-ads": { "optional": true },
-    "expo-tracking-transparency": { "optional": true },
-    "expo-updates": { "optional": true },
-    "react-native": { "optional": true },
-    "expo-modules-core": { "optional": true },
-    "expo-constants": { "optional": true },
-    "expo": { "optional": true }
+    "react-native-google-mobile-ads": {
+      "optional": true
+    },
+    "expo-tracking-transparency": {
+      "optional": true
+    },
+    "expo-updates": {
+      "optional": true
+    },
+    "react-native": {
+      "optional": true
+    },
+    "expo-modules-core": {
+      "optional": true
+    },
+    "expo-constants": {
+      "optional": true
+    },
+    "expo": {
+      "optional": true
+    }
   },
-  "repository": { "type": "git", "url": "https://github.com/jxamen/jcurve-packages", "directory": "packages/ads" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jxamen/jcurve-packages",
+    "directory": "packages/ads"
+  },
   "license": "UNLICENSED"
 }

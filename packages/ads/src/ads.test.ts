@@ -25,7 +25,7 @@ class FakeAd {
   show() { this.shows++; return Promise.resolve(); }
 }
 
-function setup(o: { os?: string; test?: boolean; noSdk?: boolean; units?: AdsOptions['units']; testDevices?: string[]; device?: () => string; adid?: boolean } = {}) {
+function setup(o: { os?: string; test?: boolean; noSdk?: boolean; units?: AdsOptions['units']; testDevices?: string[]; device?: () => string; adid?: boolean; lang?: string } = {}) {
   const made: FakeAd[] = [];
   let inits = 0;
   const order: string[] = [];
@@ -65,6 +65,7 @@ function setup(o: { os?: string; test?: boolean; noSdk?: boolean; units?: AdsOpt
     testDevices: o.testDevices,
     device: o.device,
     adid: o.adid,
+    lang: o.lang,
   }, env);
   const calls = { earned: 0, closed: 0, opened: 0, fail: [] as string[], noAd: [] as boolean[] };
   const cb = {
@@ -512,5 +513,62 @@ describe('play() — 결과 하나(1.8, 앱이 0.7초에 스스로 「안 봤다
     await flush();
     s.ads.cancel();
     expect(await p).toEqual({ earned: false, opened: false, busy: false, noAd: true, message: '광고를 그만뒀어요' });
+  });
+});
+
+describe('언어(1.9.2) — lang 없음 · ko 는 원문, en 은 영어', () => {
+  const run = async (lang?: string, setLater?: string) => {
+    const s = setup({ lang });
+    if (setLater !== undefined) s.ads.setLang(setLater);
+    void s.ads.show({ ...s.cb });
+    await flush();
+    const ad = s.made[0];
+    ad.emit(EV.LOADED); ad.emit(EV.OPENED); ad.emit(EV.CLOSED);
+    vi.advanceTimersByTime(1200);
+    void s.ads.show({ ...s.cb });
+    await flush();
+    s.made[1].emit(EV.ERROR, { code: 'googleMobileAds/internal-error' });
+    void s.ads.show({ ...s.cb });
+    await flush();
+    s.made[2].emit(EV.ERROR, { code: 'no-fill' });
+
+    return s.calls.fail;
+  };
+
+  it('lang 없음 = ko = 원문(바이트까지 같다)', async () => {
+    const ko = ['광고를 끝까지 보지 않았어요', '광고를 불러오지 못했어요 (googleMobileAds/internal-error)', '지금은 볼 수 있는 광고가 없어요. 잠시 후 다시 시도해 주세요'];
+    expect(await run()).toEqual(ko);
+    expect(await run('ko')).toEqual(ko);
+  });
+
+  it('en 이면 영어 — createRewarded({ lang }) 와 setLang 둘 다', async () => {
+    const en = ['You didn\'t finish the ad', 'Couldn\'t load the ad (googleMobileAds/internal-error)', 'No ads available right now. Please try again in a moment'];
+    expect(await run('en')).toEqual(en);
+    expect(await run(undefined, 'en')).toEqual(en);
+  });
+
+  it('SDK 없는 빌드 안내 · play 의 그만두기도 언어를 따른다', async () => {
+    const s = setup({ noSdk: true, lang: 'en' });
+    await s.ads.show({ ...s.cb });
+    expect(s.calls.fail).toEqual(['Ads can\'t play in this build']);
+    const k = setup({ noSdk: true });
+    await k.ads.show({ ...k.cb });
+    expect(k.calls.fail).toEqual(['이 빌드에서는 광고를 재생할 수 없어요']);
+    const e = setup({ lang: 'en' });
+    const p = e.ads.play({});
+    await flush();
+    e.ads.cancel();
+    expect((await p).message).toBe('You stopped the ad');
+  });
+
+  it('코드의 t()/tf() 원문은 모두 영어 표에 있다', async () => {
+    const { default: table } = await import('./i18n/locales/en');
+    const keys = new Set<string>();
+    for (const f of ['ads.ts', 'mode.ts', 'tiktok.ts', 'tiktok.map.ts']) {
+      const src = readFileSync(new URL('./' + f, import.meta.url), 'utf8');
+      for (const m of src.matchAll(/\bt[f]?\(\s*'((?:[^'\\]|\\.)*)'/g)) keys.add(m[1]!.replace(/\\'/g, "'"));
+    }
+    expect(keys.size).toBeGreaterThan(7);
+    for (const key of keys) expect(table[key], key).toBeTypeOf('string');
   });
 });
