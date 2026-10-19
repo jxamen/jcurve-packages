@@ -26,6 +26,10 @@ const api = useMemo(() => createHttpShoppingApi((path, init) => request(path, in
 `createHttpShoppingApi` 가 부르는 경로: `shopping/home` · `categories` · `products` · `deals` · `coupon-info` · `notice` (GET, `partner=` · `category=` · `cursor=`), `shopping/link` (POST `{partner, product}` → `{url}`). 모양은 `src/types.ts`.
 서버가 붙기 전엔 `createMockShoppingApi()` — 모든 글에 「[목업]」이 붙는다.
 
+## 0.1.2 (2026-10-19)
+
+- 할인권 안내(coupon-info)가 null 이면 「할인권이란?」 링크를 숨긴다(정책 전 서버는 null)
+
 ## 0.1.1 (2026-10-19) — 패키지api 계약(docs/shopping-package-design §13)에 맞춤
 
 - `partners[].disclosure` — 제휴 활동 고지를 서버 글 그대로 화면 아래에 늘 그린다

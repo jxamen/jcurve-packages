@@ -145,13 +145,16 @@ function PartnerView({ api, partner, theme, onProduct, onCouponInfo }: { api: Sh
   const [deals, setDeals] = useState<Deals | null>(null);
   const [now, setNow] = useState(Date.now());
   useEffect(() => { if (!coupon) api.deals(partner.id).then(setDeals).catch(() => setDeals(null)); }, [api, partner.id, coupon]);
+  // 할인권 안내 글이 아직 없으면(정책 전 서버는 null) 「할인권이란?」 링크를 숨긴다
+  const [hasInfo, setHasInfo] = useState(false);
+  useEffect(() => { if (coupon) api.couponInfo(partner.id).then(i => setHasInfo(!!i)).catch(() => setHasInfo(false)); }, [api, partner.id, coupon]);
   useEffect(() => { if (!deals) return; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, [deals]);
   const left = deals ? countdown(deals.endsAt, now) : null;
   return <ScrollView contentContainerStyle={st.body} showsVerticalScrollIndicator={false}>
     <View style={[st.info, { backgroundColor: theme.card }]}>
       <Text style={[st.infoMark, { backgroundColor: coupon ? theme.text : theme.primary, color: theme.onPrimary }]}>{coupon ? '할' : (theme.pointMark ?? 'P').slice(0, 1)}</Text>
       <Text style={[st.infoText, { color: theme.text }]}>{partnerLine(partner, theme)}</Text>
-      {coupon ? <Pressable accessibilityRole="link" onPress={onCouponInfo} hitSlop={8}><Text style={[st.infoLink, { color: theme.sub }]}>{rewardName('coupon', theme)}이란?</Text></Pressable> : null}
+      {coupon && hasInfo ? <Pressable accessibilityRole="link" onPress={onCouponInfo} hitSlop={8}><Text style={[st.infoLink, { color: theme.sub }]}>{rewardName('coupon', theme)}이란?</Text></Pressable> : null}
     </View>
     {deals && left && deals.items.length ? <View>
       <Text style={[st.h2, { color: theme.text, marginBottom: 2 }]}>{deals.title ?? '오늘만 이 가격에 팔아요'}</Text>
