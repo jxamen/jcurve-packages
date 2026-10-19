@@ -18,6 +18,9 @@ describe('쇼핑 글', () => {
     expect(partnerLine({ id: 'c', name: '쿠팡', rateText: '2%', rewardKind: 'coupon', rewardLabel: '캐시' }, theme)).toBe('구매 금액의 2%를 캐시로 드려요');   // 서버 설정값이 먼저
     expect(won(14900)).toBe('14,900원');
   });
+  it('보상 없는 제휴처는 안내 원문만 표시한다', () => {
+    expect(partnerLine({ id: 'sharing', name: '쇼핑', rateText: '추천 상품 둘러보기', rewardKind: 'none' }, theme)).toBe('추천 상품 둘러보기');
+  });
   it('적립 기록 띠는 실제 기록만 — 이름이나 금액이 없으면 버린다(가짜 문구 금지)', () => {
     expect(realRecent(undefined)).toEqual([]);
     expect(realRecent([{ maskedName: '', amount: 100, unit: '원', at: 1 }, { maskedName: '따뜻한****', amount: 0, unit: '원', at: 1 }])).toEqual([]);

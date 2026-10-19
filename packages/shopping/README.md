@@ -44,3 +44,7 @@ const api = useMemo(() => createHttpShoppingApi((path, init) => request(path, in
 ## 0.1.0 (2026-10-19)
 
 첫 판. 목업 · 서버 인터페이스 · ①~⑤ 화면.
+
+## 0.1.4 (2026-10-20) — 주제별 상품 구성
+
+선택 함수 `ShoppingApi.themes(partnerId)`가 `ThemeSection[]`(`id`, `title`, 선택 `subtitle`, `items: Product[]`)을 반환하면 제휴처의 분류 칩·2열 목록 대신 주제 제목과 가로 상품 줄을 표시한다. 실패하거나 빈 배열이면 기존 화면으로 돌아간다. 목업에는 `themes`가 없다. `rewardKind: 'none'`은 보상 없는 쉐어링크 수동 진열용으로, `rateText`만 그대로 표시하고 보상 안내·딱지는 숨긴다(상품도 `none`으로 전달). `partner.disclosure`는 원문 그대로 상품 줄 위에 13pt 본문 색으로 펼쳐 표시한다. 상품 이미지는 크롭 없이 표시하며 자동 넘김·자동 실행은 하지 않는다.

@@ -9,8 +9,8 @@
 /** 제휴처 — 'toss' · 'coupang' 처럼 서버가 정한 id */
 export type PartnerId = string;
 
-/** 적립 방식 — 포인트로 바로(point) · 할인권으로(coupon) */
-export type RewardKind = 'point' | 'coupon';
+/** 보상 방식 — point · coupon · none(적립 없는 쉐어링크 수동 진열, 이동만) */
+export type RewardKind = 'point' | 'coupon' | 'none';
 
 export type Partner = {
   id: PartnerId;
@@ -44,6 +44,8 @@ export type Product = {
   /** 짧은 딱지(예 「로켓배송」) — 서버가 준 글 그대로 */
   tags?: string[];
 };
+
+export type ThemeSection = { id: string; title: string; subtitle?: string | null; items: Product[] };
 
 export type Category = { id: string; name: string };
 
@@ -91,6 +93,8 @@ export type ProductQuery = { partnerId: PartnerId | 'all'; categoryId?: string |
 /** 앱이 넘기는 데이터 함수 — 서버 경로는 앱(또는 createHttpShoppingApi)이 정한다 */
 export type ShoppingApi = {
   home(): Promise<ShoppingHome>;
+  /** 주제별 묶음 — 있으면 그 제휴처 칸은 분류 칩 + 2열 목록 대신 주제 줄로 그린다 */
+  themes?(partnerId: PartnerId): Promise<ThemeSection[]>;
   categories(partnerId: PartnerId | 'all'): Promise<Category[]>;
   products(q: ProductQuery): Promise<ProductPage>;
   /** 오늘만 특가 — 없으면 null */

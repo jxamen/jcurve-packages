@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { num, realRecent, won } from './format';
-import type { Category, NoticeSection, Product, RecentReward, ShoppingTheme } from './types';
+import type { Category, NoticeSection, Product, RecentReward, ShoppingTheme, ThemeSection } from './types';
 
 /** 적립 딱지 — 포인트형은 「P 447」, 할인권형은 번개 모양 대신 「할인권 7」(그림은 앱마다 다르니 글로) */
 export function RewardBadge({ product, theme }: { product: Product; theme: ShoppingTheme }) {
+  if (product.reward <= 0 || product.rewardKind === 'none') return null;
   const coupon = product.rewardKind === 'coupon';
   return <View style={[s.badge, { backgroundColor: coupon ? theme.text : theme.primary }]}>
     <Text style={[s.badgeMark, { color: coupon ? theme.text : theme.primary, backgroundColor: theme.onPrimary }]}>{coupon ? '할' : (theme.pointMark ?? 'P').slice(0, 1)}</Text>
@@ -14,7 +15,7 @@ export function RewardBadge({ product, theme }: { product: Product; theme: Shopp
 
 function Thumb({ uri, title, theme, style }: { uri?: string | null; title: string; theme: ShoppingTheme; style: object }) {
   return uri
-    ? <Image source={{ uri }} style={[style, { backgroundColor: theme.card }]} resizeMode="cover" accessibilityIgnoresInvertColors />
+    ? <Image source={{ uri }} style={[style, { backgroundColor: theme.card }]} resizeMode="contain" accessibilityIgnoresInvertColors />
     : <View style={[style, s.thumbEmpty, { backgroundColor: theme.card }]}><Text style={[s.thumbLetter, { color: theme.sub }]}>{title.replace(/^\[[^\]]*\]\s*/, '').slice(0, 1)}</Text></View>;
 }
 
@@ -23,7 +24,7 @@ export function ProductCard({ product, theme, onPress, width }: { product: Produ
     style={({ pressed }) => [{ width, opacity: pressed ? 0.85 : 1 }]}>
     <View>
       <Thumb uri={product.image} title={product.title} theme={theme} style={s.thumb} />
-      <View style={s.badgeAt}><RewardBadge product={product} theme={theme} /></View>
+      {product.reward > 0 && product.rewardKind !== 'none' ? <View style={s.badgeAt}><RewardBadge product={product} theme={theme} /></View> : null}
     </View>
     {product.tags?.length ? <Text style={[s.tag, { color: theme.primary }]} numberOfLines={1}>{product.tags.join(' · ')}</Text> : null}
     <Text style={[s.title, { color: theme.text }]} numberOfLines={2}>{product.title}</Text>
@@ -33,6 +34,26 @@ export function ProductCard({ product, theme, onPress, width }: { product: Produ
     </Text>
     {product.rating ? <Text style={[s.rating, { color: theme.sub }]}>★ {product.rating.toFixed(1)}{product.reviews ? ` (${num(product.reviews)})` : ''}</Text> : null}
   </Pressable>;
+}
+
+/** 주제 제목과 수동으로 넘기는 상품 줄 */
+export function ThemeRow({ section, theme, onPress }: { section: ThemeSection; theme: ShoppingTheme; onPress: (p: Product) => void }) {
+  if (!section.items.length) return null;
+  return <View style={{ marginTop: 28 }}>
+    <Text accessibilityRole="header" style={{ paddingHorizontal: 20, fontSize: 18, fontWeight: '800', color: theme.text }}>{section.title}</Text>
+    {section.subtitle ? <Text style={{ paddingHorizontal: 20, marginTop: 6, fontSize: 13, color: theme.sub }}>{section.subtitle}</Text> : null}
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 12, paddingTop: 12 }}>
+      {section.items.map(p => <ProductCard key={p.id} product={p} theme={theme} onPress={onPress} width={148} />)}
+    </ScrollView>
+  </View>;
+}
+
+/** 대가성 문구는 원문 그대로 링크 가까이에 펼쳐 표시 */
+export function DisclosureNote({ text, theme }: { text?: string | null; theme: ShoppingTheme }) {
+  if (!text?.trim()) return null;
+  return <View style={{ backgroundColor: theme.card, borderRadius: 12, padding: 12, marginHorizontal: 20, marginTop: 12 }}>
+    <Text style={{ fontSize: 13, lineHeight: 20, color: theme.text }}>{text}</Text>
+  </View>;
 }
 
 /** 2열 상품 목록 */

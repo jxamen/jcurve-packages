@@ -15,11 +15,11 @@ export function countdown(endsAt: number, now: number): string | null {
 
 /** 적립 이름 — 포인트형은 앱 포인트 이름, 할인권형은 할인권 이름 */
 export const rewardName = (kind: RewardKind, theme: ShoppingTheme): string =>
-  kind === 'coupon' ? theme.couponName || '할인권' : theme.pointName;
+  kind === 'none' ? '' : kind === 'coupon' ? theme.couponName || '할인권' : theme.pointName;
 
 /** 제휴처 안내 한 줄 — 「구매 금액의 3%를 P로 드려요」 */
 /** 제휴처 지급 형태 이름 — 서버 설정(rewardLabel)이 있으면 그것, 없으면 테마 이름 */
-export const partnerRewardName = (p: Partner, theme: ShoppingTheme): string => (p.rewardLabel ?? '').trim() || rewardName(p.rewardKind, theme);
+export const partnerRewardName = (p: Partner, theme: ShoppingTheme): string => p.rewardKind === 'none' ? '' : (p.rewardLabel ?? '').trim() || rewardName(p.rewardKind, theme);
 
 /** 받침이 있으면 「으로」 */
 const ro = (word: string): string => {
@@ -28,6 +28,7 @@ const ro = (word: string): string => {
 };
 
 export const partnerLine = (p: Partner, theme: ShoppingTheme): string => {
+  if (p.rewardKind === 'none') return p.rateText;
   const name = partnerRewardName(p, theme);
   return `구매 금액의 ${p.rateText}를 ${name}${ro(name)} 드려요`;
 };
