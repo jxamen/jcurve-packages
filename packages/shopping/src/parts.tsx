@@ -1,0 +1,119 @@
+import React, { useEffect, useState } from 'react';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { num, realRecent, won } from './format';
+import type { Category, NoticeSection, Product, RecentReward, ShoppingTheme } from './types';
+
+/** 적립 딱지 — 포인트형은 「P 447」, 할인권형은 번개 모양 대신 「할인권 7」(그림은 앱마다 다르니 글로) */
+export function RewardBadge({ product, theme }: { product: Product; theme: ShoppingTheme }) {
+  const coupon = product.rewardKind === 'coupon';
+  return <View style={[s.badge, { backgroundColor: coupon ? theme.text : theme.primary }]}>
+    <Text style={[s.badgeMark, { color: coupon ? theme.text : theme.primary, backgroundColor: theme.onPrimary }]}>{coupon ? '할' : (theme.pointMark ?? 'P').slice(0, 1)}</Text>
+    <Text style={[s.badgeText, { color: theme.onPrimary }]}>{num(product.reward)}</Text>
+  </View>;
+}
+
+function Thumb({ uri, title, theme, style }: { uri?: string | null; title: string; theme: ShoppingTheme; style: object }) {
+  return uri
+    ? <Image source={{ uri }} style={[style, { backgroundColor: theme.card }]} resizeMode="cover" accessibilityIgnoresInvertColors />
+    : <View style={[style, s.thumbEmpty, { backgroundColor: theme.card }]}><Text style={[s.thumbLetter, { color: theme.sub }]}>{title.replace(/^\[[^\]]*\]\s*/, '').slice(0, 1)}</Text></View>;
+}
+
+export function ProductCard({ product, theme, onPress, width }: { product: Product; theme: ShoppingTheme; onPress: (p: Product) => void; width: number | `${number}%` }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={`${product.title}, ${won(product.price)}`} onPress={() => onPress(product)}
+    style={({ pressed }) => [{ width, opacity: pressed ? 0.85 : 1 }]}>
+    <View>
+      <Thumb uri={product.image} title={product.title} theme={theme} style={s.thumb} />
+      <View style={s.badgeAt}><RewardBadge product={product} theme={theme} /></View>
+    </View>
+    {product.tags?.length ? <Text style={[s.tag, { color: theme.primary }]} numberOfLines={1}>{product.tags.join(' · ')}</Text> : null}
+    <Text style={[s.title, { color: theme.text }]} numberOfLines={2}>{product.title}</Text>
+    <Text style={s.priceRow} numberOfLines={1}>
+      {product.discountRate ? <Text style={[s.rate, { color: theme.danger }]}>{product.discountRate}% </Text> : null}
+      <Text style={[s.price, { color: theme.text }]}>{won(product.price)}</Text>
+    </Text>
+    {product.rating ? <Text style={[s.rating, { color: theme.sub }]}>★ {product.rating.toFixed(1)}{product.reviews ? ` (${num(product.reviews)})` : ''}</Text> : null}
+  </Pressable>;
+}
+
+/** 2열 상품 목록 */
+export function ProductGrid({ items, theme, onPress }: { items: Product[]; theme: ShoppingTheme; onPress: (p: Product) => void }) {
+  return <View style={s.grid}>{items.map(p => <ProductCard key={p.id} product={p} theme={theme} onPress={onPress} width="48%" />)}</View>;
+}
+
+export function Chips({ items, value, onChange, theme }: { items: Category[]; value: string | null; onChange: (id: string) => void; theme: ShoppingTheme }) {
+  if (!items.length) return null;
+  return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chips}>
+    {items.map(c => {
+      const on = c.id === value;
+      return <Pressable key={c.id} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => onChange(c.id)}
+        style={[s.chip, { backgroundColor: on ? theme.primarySoft : theme.card }]}>
+        <Text style={[s.chipText, { color: on ? theme.primary : theme.sub, fontWeight: on ? '700' : '500' }]}>{c.name}</Text>
+      </Pressable>;
+    })}
+  </ScrollView>;
+}
+
+/** 상품 상세 설명 및 유의사항 — 서버 글 그대로(패키지는 정책 글을 박지 않는다) */
+export function Notice({ sections, theme, dark }: { sections: NoticeSection[]; theme: ShoppingTheme; dark?: boolean }) {
+  if (!sections.length) return null;
+  const head = dark ? '#FFFFFF' : theme.text;
+  const body = dark ? '#B0B8C1' : theme.sub;
+  return <View style={[s.notice, { backgroundColor: dark ? '#191F28' : theme.card }]}>
+    <Text accessibilityRole="header" style={[s.noticeHead, { color: head }]}>상품 상세 설명 및 유의사항</Text>
+    {sections.map(sec => <View key={sec.title} style={s.noticeSec}>
+      <Text style={[s.noticeTitle, { color: head }]}>{sec.title}</Text>
+      {sec.items.map((it, i) => typeof it === 'string'
+        ? <Text key={i} style={[s.noticeItem, { color: body }]}>•  {it}</Text>
+        : <View key={i}>
+          <Text style={[s.noticeItem, { color: body }]}>•  {it.text}</Text>
+          {it.sub?.map((x, j) => <Text key={j} style={[s.noticeSub, { color: body }]}>•  {x}</Text>)}
+        </View>)}
+    </View>)}
+  </View>;
+}
+
+/** 실제 적립 기록 띠 — 서버가 준 실제 기록이 있을 때만, 4초마다 다음 것. 없으면 아무것도 안 그린다 */
+export function RecentTicker({ list, theme }: { list?: RecentReward[] | null; theme: ShoppingTheme }) {
+  const rows = realRecent(list);
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    if (rows.length < 2) return;
+    const t = setInterval(() => setI(v => (v + 1) % rows.length), 4000);
+    return () => clearInterval(t);
+  }, [rows.length]);
+  if (!rows.length) return null;
+  const r = rows[i % rows.length];
+  return <View style={[s.ticker, { backgroundColor: theme.bg, borderColor: theme.line }]} accessibilityLiveRegion="polite">
+    <Text style={[s.tickerText, { color: theme.text }]} numberOfLines={1}>
+      {r.maskedName}님이 <Text style={{ color: theme.primary, fontWeight: '700' }}>{num(r.amount)}{r.unit}</Text> 받았어요
+    </Text>
+  </View>;
+}
+
+export const s = StyleSheet.create({
+  badge: { flexDirection: 'row', alignItems: 'center', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 3, gap: 4 },
+  badgeMark: { width: 16, height: 16, borderRadius: 8, textAlign: 'center', fontSize: 10, lineHeight: 16, fontWeight: '800', overflow: 'hidden' },
+  badgeText: { fontSize: 13, fontWeight: '700' },
+  badgeAt: { position: 'absolute', left: 8, top: 8 },
+  thumb: { width: '100%', aspectRatio: 1, borderRadius: 14 },
+  thumbEmpty: { alignItems: 'center', justifyContent: 'center' },
+  thumbLetter: { fontSize: 28, fontWeight: '700' },
+  tag: { fontSize: 12, fontWeight: '700', marginTop: 8 },
+  title: { fontSize: 14, lineHeight: 20, marginTop: 6 },
+  priceRow: { marginTop: 4 },
+  rate: { fontSize: 16, fontWeight: '800' },
+  price: { fontSize: 16, fontWeight: '800' },
+  rating: { fontSize: 12, marginTop: 2 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 22, paddingHorizontal: 20 },
+  chips: { paddingHorizontal: 20, gap: 8, paddingBottom: 14 },
+  chip: { paddingHorizontal: 14, minHeight: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  chipText: { fontSize: 14 },
+  notice: { paddingHorizontal: 20, paddingVertical: 24, marginTop: 28, gap: 20 },
+  noticeHead: { fontSize: 17, fontWeight: '700' },
+  noticeSec: { gap: 8 },
+  noticeTitle: { fontSize: 15, fontWeight: '700' },
+  noticeItem: { fontSize: 14, lineHeight: 21 },
+  noticeSub: { fontSize: 14, lineHeight: 21, paddingLeft: 16 },
+  ticker: { alignSelf: 'center', borderWidth: 1, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 8, marginVertical: 8 },
+  tickerText: { fontSize: 13 },
+});
