@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { num, realRecent, won } from './format';
+import { isFiniteNumber, num, realRecent, won } from './format';
 import type { Category, NoticeSection, Product, RecentReward, ShoppingTheme, ThemeSection } from './types';
 
 /** 적립 딱지 — 포인트형은 「P 447」, 할인권형은 번개 모양 대신 「할인권 7」(그림은 앱마다 다르니 글로) */
@@ -20,7 +20,8 @@ function Thumb({ uri, title, theme, style }: { uri?: string | null; title: strin
 }
 
 export function ProductCard({ product, theme, onPress, width }: { product: Product; theme: ShoppingTheme; onPress: (p: Product) => void; width: number | `${number}%` }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={`${product.title}, ${won(product.price)}`} onPress={() => onPress(product)}
+  const hasPrice = isFiniteNumber(product.price);
+  return <Pressable accessibilityRole="button" accessibilityLabel={hasPrice ? `${product.title}, ${won(product.price)}` : product.title} onPress={() => onPress(product)}
     style={({ pressed }) => [{ width, opacity: pressed ? 0.85 : 1 }]}>
     <View>
       <Thumb uri={product.image} title={product.title} theme={theme} style={s.thumb} />
@@ -28,10 +29,10 @@ export function ProductCard({ product, theme, onPress, width }: { product: Produ
     </View>
     {product.tags?.length ? <Text style={[s.tag, { color: theme.primary }]} numberOfLines={1}>{product.tags.join(' · ')}</Text> : null}
     <Text style={[s.title, { color: theme.text }]} numberOfLines={2}>{product.title}</Text>
-    <Text style={s.priceRow} numberOfLines={1}>
-      {product.discountRate ? <Text style={[s.rate, { color: theme.danger }]}>{product.discountRate}% </Text> : null}
+    {hasPrice ? <Text style={s.priceRow} numberOfLines={1}>
+      {isFiniteNumber(product.discountRate) && product.discountRate ? <Text style={[s.rate, { color: theme.danger }]}>{product.discountRate}% </Text> : null}
       <Text style={[s.price, { color: theme.text }]}>{won(product.price)}</Text>
-    </Text>
+    </Text> : null}
     {product.rating ? <Text style={[s.rating, { color: theme.sub }]}>★ {product.rating.toFixed(1)}{product.reviews ? ` (${num(product.reviews)})` : ''}</Text> : null}
   </Pressable>;
 }

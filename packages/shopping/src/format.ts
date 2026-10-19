@@ -1,8 +1,10 @@
 import type { Partner, RecentReward, RewardKind, ShoppingTheme } from './types';
 
-export const won = (n: number): string => Math.max(0, Math.round(n)).toLocaleString('ko-KR') + '원';
+export const isFiniteNumber = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
 
-export const num = (n: number): string => Math.max(0, Math.round(n)).toLocaleString('ko-KR');
+export const num = (n: unknown): string => isFiniteNumber(n) ? Math.max(0, Math.round(n)).toLocaleString('ko-KR') : '';
+
+export const won = (n: unknown): string => isFiniteNumber(n) ? num(n) + '원' : '';
 
 /** 남은 시간 hh:mm:ss — 끝났으면 null(특가 줄을 안 그린다) */
 export function countdown(endsAt: number, now: number): string | null {

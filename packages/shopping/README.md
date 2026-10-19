@@ -21,9 +21,9 @@ const api = useMemo(() => createHttpShoppingApi((path, init) => request(path, in
 - 이동은 서버가 만든 **추적 링크**(`link`)만 연다 — 앱이 `onOpenUrl` 로 연다. 패키지는 아무 데도 보내지 않는다(계측은 `onEvent`).
 - 다른 회사 이름 · 로고 · 문구를 쓰지 않는다. 앱 이름은 `theme.appName`(「{앱}에서 이동해야 적립돼요」).
 
-## 서버(패키지api 설계 중 — 경로는 바뀔 수 있다)
+## 서버(패키지api 확정 계약)
 
-`createHttpShoppingApi` 가 부르는 경로: `shopping/home` · `categories` · `products` · `deals` · `coupon-info` · `notice` (GET, `partner=` · `category=` · `cursor=`), `shopping/link` (POST `{partner, product}` → `{url}`). 모양은 `src/types.ts`.
+`createHttpShoppingApi` 가 부르는 경로: `shopping/home` · `categories` · `products` · `themes` · `deals` · `coupon-info` · `notice` (GET, `partner=` · `category=` · `cursor=`), `shopping/link` (POST `{partner, product}` → `{url}`). 모양은 `src/types.ts`.
 시험 · 미리보기는 `import { createMockShoppingApi } from '@jcurve/shopping/dist/mock'`로 직접 가져온다. 서버가 붙기 전엔 `createMockShoppingApi()` — 모든 글에 「[목업]」이 붙는다.
 
 ## 0.1.3 (2026-10-19) — 숫자 · 이름 · 켜짐은 전부 서버 설정값
@@ -66,3 +66,10 @@ const api = useMemo(() => createHttpShoppingApi((path, init) => request(path, in
 목업은 index 에 없다 — 운영 번들에 coupang · [목업] 글이 들어가지 않게
 
 구매 인증 안내의 `subtitle`, `payoutText`, `steps`(title·선택 desc), `faq`(q·a), `notice`, `cta`는 서버 선택 값이다. 없는 구역은 숨기며, `cta`가 있을 때만 사진 선택 고정 버튼을 표시한다. `Notice`의 선택 `title` 기본값은 「상품 상세 설명 및 유의사항」이다.
+
+## 0.1.6 (2026-10-20) — 서버 패키지api 확정 계약
+
+- 인증 상태 6개: `received` 접수 · `checked` 확인 중 · `waiting` 확정 대기 D-n · `paid` 지급 · `rejected` 반려 · `revoked` 회수. 확인 중은 대시보드 반영으로 며칠 머물 수 있다. 회수는 지급 뒤 취소·환불로 회수된 상태이며, 반려·회수의 `reason`은 칩 아래 빨간 계열 글로 표시한다.
+- 인증 오류 `off`는 「지금은 인증을 받지 않아요」, `provider_not_ready`·`ocr_not_enabled`는 「잠시 후 다시 시도해 주세요」로 표시한다.
+- `Product.price?: number | null`: 서버 수동 목록은 가격 키를 생략할 수 있다. 가격이 없거나 유효한 숫자가 아니면 가격 줄·할인율·접근성 가격 문구를 숨긴다.
+- `GET shopping/themes?partner=` → `{ ok: true, themes }`, `body.themes ?? []`를 반환한다. 성공 응답의 `ok: true`와 함께 기존 `home`·`items`·`next`·`deals`·`info`·`sections`·`item` 키를 그대로 읽는다. `notice`·`coupon-info`의 404는 각각 `[]`·`null`로 처리하고 다른 오류는 전달한다.

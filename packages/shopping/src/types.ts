@@ -32,8 +32,8 @@ export type Product = {
   partnerId: PartnerId;
   title: string;
   image?: string | null;
-  /** 판매가(원) */
-  price: number;
+  /** 판매가(원) — 수동 목록에서 생략 가능, 없으면 가격 · 할인율을 숨긴다 */
+  price?: number | null;
   /** 할인율(%) — 없으면 표시 안 함 */
   discountRate?: number | null;
   /** **예상** 적립(포인트 수 · 할인권 금액) — 확정 때 수수료 · 하루 상한으로 줄 수 있어 화면은 「약」으로 쓴다 */
@@ -90,7 +90,7 @@ export type CouponInfo = {
 
 export type ProductQuery = { partnerId: PartnerId | 'all'; categoryId?: string | null; cursor?: string | null };
 
-export type ProofStatus = 'received' | 'checked' | 'waiting' | 'paid' | 'rejected';
+export type ProofStatus = 'received' | 'checked' | 'waiting' | 'paid' | 'rejected' | 'revoked';
 export type ProofInfo = { rateText: string; title?: string | null; subtitle?: string | null; payoutText?: string | null; steps?: Array<{ title: string; desc?: string | null }>; faq?: Array<{ q: string; a: string }>; notice?: NoticeSection[]; cta?: string | null; guide?: string[]; confirmDays?: number | null; dailyMax?: number | null };
 export type ProofItem = { id: string; partnerId: PartnerId; status: ProofStatus; createdAt: number; amount?: number | null; reward?: number | null; confirmAt?: number | null; reason?: string | null };
 export type PickedImage = { uri: string; name: string; type: string };

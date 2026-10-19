@@ -10,6 +10,7 @@ export type ProofScreenProps = {
   onSubmitted?: (item: ProofItem) => void; onError?: (code: string) => void;
 };
 const messages: Record<string, string> = {
+  off: '지금은 인증을 받지 않아요', provider_not_ready: '잠시 후 다시 시도해 주세요', ocr_not_enabled: '잠시 후 다시 시도해 주세요',
   signup_required: '가입 후 인증할 수 있어요', too_often: '잠시 후 다시 올려 주세요',
   daily_max: '오늘은 더 인증할 수 없어요', bad_image: '사진을 다시 골라 주세요(jpg · png)', duplicate: '이미 인증한 주문이에요',
 };
@@ -100,11 +101,11 @@ export function ProofScreen({ api, partner, info, theme, topInset = 0, onBack, p
         <Text accessibilityRole="header" style={[s.heading, { color: theme.text }]}>내 인증 내역</Text>
         {loading ? <Text style={{ color: theme.sub }}>불러오는 중…</Text> : listFailed ? <Text style={{ color: theme.sub }}>인증 내역을 불러오지 못했어요</Text> : !items.length ? <Text style={{ color: theme.sub }}>아직 인증한 구매가 없어요</Text> : null}
         {items.map(item => <View key={item.id} style={[s.row, { backgroundColor: theme.card }]}>
-          <Text style={[s.chip, { color: theme.primary, backgroundColor: theme.primarySoft }]}>{item.status === 'waiting' ? `확정 대기${item.confirmAt != null ? ` ${proofDday(item.confirmAt, now)}` : ''}` : { received: '접수', checked: '확인됨', paid: '지급', rejected: '반려' }[item.status]}</Text>
+          <Text style={[s.chip, { color: theme.primary, backgroundColor: theme.primarySoft }]}>{item.status === 'waiting' ? `확정 대기${item.confirmAt != null ? ` ${proofDday(item.confirmAt, now)}` : ''}` : { received: '접수', checked: '확인 중', paid: '지급', rejected: '반려', revoked: '회수' }[item.status]}</Text>
+          {(item.status === 'rejected' || item.status === 'revoked') && item.reason ? <Text style={{ color: theme.danger }}>{item.reason}</Text> : null}
           <Text style={{ color: theme.sub }}>{new Date(item.createdAt).toLocaleDateString('ko-KR')}</Text>
           {item.amount != null ? <Text style={{ color: theme.text }}>{won(item.amount)}</Text> : null}
           {item.reward != null ? <Text style={{ color: theme.primary }}>{theme.pointMark ?? 'P'} {num(item.reward)}</Text> : null}
-          {item.status === 'rejected' && item.reason ? <Text style={{ color: theme.danger }}>{item.reason}</Text> : null}
         </View>)}
       </View>
       <Faq items={info.faq} />

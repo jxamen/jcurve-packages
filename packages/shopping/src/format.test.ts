@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { proofDday, countdown, partnerLine, realRecent, rewardName, won } from './format';
+import { proofDday, countdown, partnerLine, realRecent, rewardName, num, won } from './format';
 import { createHttpShoppingApi, parseProofInfo } from './http';
 import { DEFAULT_THEME } from './types';
 
@@ -89,5 +89,42 @@ describe('구매 인증 안내 모양 검사', () => {
     expect(parseProofInfo(null)).toBeNull();
     expect(parseProofInfo({ rateText: 1 })).toBeNull();
     expect(parseProofInfo({ rateText: '비율', subtitle: null, payoutText: null, cta: null, steps: [], faq: [], notice: [] })).toMatchObject({ subtitle: null, payoutText: null, cta: null, steps: [], faq: [], notice: [] });
+  });
+});
+
+
+describe('0.1.6 서버 계약', () => {
+  it.each([undefined, null, NaN, Infinity, -Infinity, '14900', '', {}, false])('숫자가 아닌 값 %s는 가격으로 만들지 않는다', value => {
+    expect(won(value)).toBe('');
+    expect(num(value)).toBe('');
+  });
+
+  it('ok 응답의 데이터 키와 선택 가격을 그대로 읽는다', async () => {
+    const item = { id: 'manual', partnerId: 'a b', title: '가격 없는 상품', reward: 0, rewardKind: 'none' as const };
+    const themes = [{ id: 'theme', title: '수동 목록', items: [item] }];
+    const calls: string[] = [];
+    const api = createHttpShoppingApi(async <T,>(path: string) => {
+      calls.push(path);
+      return { ok: true, themes, items: [item], next: 'next', home: { partners: [] }, deals: null, info: null, sections: [] } as T;
+    });
+    expect(await api.themes!('a b')).toEqual(themes);
+    expect(calls[0]).toBe('shopping/themes?partner=a%20b');
+    expect(await api.products({ partnerId: 'all' })).toMatchObject({ items: [item], next: 'next' });
+    expect(await api.home()).toEqual({ partners: [] });
+    const empty = createHttpShoppingApi(async <T,>() => ({ ok: true }) as T);
+    expect(await empty.themes!('all')).toEqual([]);
+  });
+
+  it.each([{ status: 404 }, { statusCode: 404 }, { code: '404' }])('선택 안내 404는 숨긴다: %s', async error => {
+    const api = createHttpShoppingApi(async () => { throw error; });
+    expect(await api.notice('all')).toEqual([]);
+    expect(await api.couponInfo('partner')).toBeNull();
+  });
+
+  it('선택 안내의 다른 오류는 숨기지 않는다', async () => {
+    const error = Object.assign(new Error('offline'), { code: 'network' });
+    const api = createHttpShoppingApi(async () => { throw error; });
+    await expect(api.notice('all')).rejects.toBe(error);
+    await expect(api.couponInfo('partner')).rejects.toBe(error);
   });
 });
