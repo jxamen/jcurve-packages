@@ -90,9 +90,19 @@ export type CouponInfo = {
 
 export type ProductQuery = { partnerId: PartnerId | 'all'; categoryId?: string | null; cursor?: string | null };
 
+export type ProofStatus = 'received' | 'checked' | 'waiting' | 'paid' | 'rejected';
+export type ProofInfo = { rateText: string; title?: string | null; subtitle?: string | null; payoutText?: string | null; steps?: Array<{ title: string; desc?: string | null }>; faq?: Array<{ q: string; a: string }>; notice?: NoticeSection[]; cta?: string | null; guide?: string[]; confirmDays?: number | null; dailyMax?: number | null };
+export type ProofItem = { id: string; partnerId: PartnerId; status: ProofStatus; createdAt: number; amount?: number | null; reward?: number | null; confirmAt?: number | null; reason?: string | null };
+export type PickedImage = { uri: string; name: string; type: string };
+
 /** 앱이 넘기는 데이터 함수 — 서버 경로는 앱(또는 createHttpShoppingApi)이 정한다 */
 export type ShoppingApi = {
   home(): Promise<ShoppingHome>;
+  proof?: {
+    info(partnerId: PartnerId): Promise<ProofInfo | null>;
+    list(): Promise<ProofItem[]>;
+    submit(input: { partnerId: PartnerId; image: PickedImage; orderNo?: string | null; amount?: number | null }): Promise<ProofItem>;
+  };
   /** 주제별 묶음 — 있으면 그 제휴처 칸은 분류 칩 + 2열 목록 대신 주제 줄로 그린다 */
   themes?(partnerId: PartnerId): Promise<ThemeSection[]>;
   categories(partnerId: PartnerId | 'all'): Promise<Category[]>;

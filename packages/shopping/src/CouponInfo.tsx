@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { partnerRewardName } from './format';
-import { Disclosures, Notice } from './parts';
+import { Disclosures, Faq, Notice } from './parts';
 import type { CouponInfo, Partner, ShoppingApi, ShoppingTheme } from './types';
 
 /** ⑤ 할인권 안내 — 글은 모두 서버(couponInfo). 아래 고정 버튼은 제휴처로 이동(적립 추적 링크) */
@@ -50,13 +50,7 @@ export function CouponInfoScreen({ api, partner, theme, topInset = 0, onBack, on
             </View>
           </View>)}
         </View> : null}
-        {info.faq?.length ? <View style={cs.faq}>
-          <Text style={cs.faqHead}>자주 묻는 질문</Text>
-          {info.faq.map(f => <View key={f.q} style={cs.faqCard}>
-            <Text style={cs.faqQ}>Q. {f.q}</Text>
-            <Text style={cs.faqA}>{f.a}</Text>
-          </View>)}
-        </View> : null}
+        <Faq items={info.faq} />
         <Notice sections={info.notice ?? []} theme={theme} />
         <Disclosures texts={[partner.disclosure ?? '']} theme={theme} />
       </ScrollView>}
@@ -91,11 +85,6 @@ const cs = StyleSheet.create({
   stepNo: { width: 28, height: 28, borderRadius: 14, textAlign: 'center', lineHeight: 28, fontWeight: '800', overflow: 'hidden' },
   stepTitle: { fontSize: 17, fontWeight: '700' },
   stepDesc: { fontSize: 14, marginTop: 4 },
-  faq: { backgroundColor: '#191F28', paddingHorizontal: 20, paddingVertical: 28, marginTop: 36, gap: 12 },
-  faqHead: { color: '#FFFFFF', fontSize: 19, fontWeight: '800', marginBottom: 4 },
-  faqCard: { backgroundColor: '#2B3440', borderRadius: 16, padding: 18, gap: 8 },
-  faqQ: { color: '#FFFFFF', fontSize: 17, fontWeight: '800' },
-  faqA: { color: '#D1D6DB', fontSize: 15, lineHeight: 22 },
   ctaWrap: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 24 },
   cta: { minHeight: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   ctaText: { fontSize: 17, fontWeight: '800' },

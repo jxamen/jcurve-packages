@@ -36,3 +36,13 @@ export const partnerLine = (p: Partner, theme: ShoppingTheme): string => {
 /** 띠에 보일 실제 적립 기록 — 서버가 준 것 중 금액 · 이름이 있는 것만. 없으면 띠를 안 그린다(가짜 문구 금지) */
 export const realRecent = (list?: RecentReward[] | null): RecentReward[] =>
   (list ?? []).filter(r => r && typeof r.maskedName === 'string' && r.maskedName.trim() !== '' && Number(r.amount) > 0);
+
+/** 기기 현지 날짜 기준 확정일까지 남은 날. 지난 날짜도 D-day로 표시한다. */
+export function proofDday(confirmAt: number, now: number): string {
+  const day = (at: number) => {
+    const d = new Date(at);
+    return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  };
+  const left = Math.max(0, Math.round((day(confirmAt) - day(now)) / 86_400_000));
+  return Number.isFinite(left) && left > 0 ? `D-${left}` : 'D-day';
+}

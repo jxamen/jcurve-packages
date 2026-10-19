@@ -2,11 +2,13 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { countdown, num, partnerLine, partnerRewardName } from './format';
 import { Chips, DisclosureNote, Disclosures, ThemeRow, Notice, ProductCard, ProductGrid, RecentTicker } from './parts';
+import { ProofScreen } from './Proof';
 import { CouponInfoScreen } from './CouponInfo';
-import { DEFAULT_THEME, type Category, type Deals, type NoticeSection, type Partner, type PartnerId, type Product, type ShoppingApi, type ShoppingHome, type ShoppingTheme, type ThemeSection } from './types';
+import { DEFAULT_THEME, type PickedImage, type ProofInfo, type Category, type Deals, type NoticeSection, type Partner, type PartnerId, type Product, type ShoppingApi, type ShoppingHome, type ShoppingTheme, type ThemeSection } from './types';
 
 export type ShoppingTabProps = {
   api: ShoppingApi;
+  pickImage?: () => Promise<PickedImage | null>;
   theme?: Partial<ShoppingTheme>;
   /** 이동 — 서버가 준 추적 링크를 앱이 연다(외부 브라우저 · 제휴처 앱). 패키지는 직접 열지 않는다 */
   onOpenUrl: (url: string, ctx: { partnerId: PartnerId; productId?: string | null }) => void;
@@ -21,11 +23,12 @@ export type ShoppingTabProps = {
 type TabKey = 'all' | PartnerId;
 
 /** 쇼핑 탭 — ① 머리 · 누적 혜택 · 상단 탭 ② 전체 ③ 포인트형 제휴처 ④ 할인권형 제휴처 ⑤ 할인권 안내 */
-export function ShoppingTab({ api, theme: themeIn, onOpenUrl, onEvent, onLinkError, topInset = 0 }: ShoppingTabProps) {
+export function ShoppingTab({ api, theme: themeIn, onOpenUrl, onEvent, onLinkError, pickImage, topInset = 0 }: ShoppingTabProps) {
   const theme: ShoppingTheme = { ...DEFAULT_THEME, ...themeIn };
   const [home, setHome] = useState<ShoppingHome | null>(null);
   const [failed, setFailed] = useState(false);
   const [tab, setTab] = useState<TabKey>('all');
+  const [proofFor, setProofFor] = useState<{ partner: Partner; info: ProofInfo } | null>(null);
   const [couponFor, setCouponFor] = useState<Partner | null>(null);
 
   const load = useCallback(() => {
@@ -45,6 +48,8 @@ export function ShoppingTab({ api, theme: themeIn, onOpenUrl, onEvent, onLinkErr
       onLinkError?.(code, { partnerId, productId });
     }
   }, [api, onOpenUrl, onEvent, onLinkError]);
+
+  if (proofFor && pickImage && api.proof) return <ProofScreen api={api} partner={proofFor.partner} info={proofFor.info} theme={theme} topInset={topInset} pickImage={pickImage} onBack={() => setProofFor(null)} onSubmitted={() => onEvent?.('shop_proof_submit', { partner: proofFor.partner.id })} onError={code => onEvent?.('shop_proof_error', { code })} />;
 
   if (couponFor) return <CouponInfoScreen api={api} partner={couponFor} theme={theme} topInset={topInset} onBack={() => setCouponFor(null)} onGo={() => open(couponFor.id)} />;
 
@@ -72,7 +77,7 @@ export function ShoppingTab({ api, theme: themeIn, onOpenUrl, onEvent, onLinkErr
     {failed ? <Retry theme={theme} onRetry={load} />
       : !home ? <View style={st.center}><ActivityIndicator color={theme.primary} /></View>
       : tab === 'all' ? <AllView api={api} home={home} theme={theme} onPartner={setTab} onOpen={open} />
-      : partner ? <PartnerView key={partner.id} api={api} partner={partner} theme={theme} onProduct={p => open(p.partnerId, p.id)} onCouponInfo={() => setCouponFor(partner)} />
+      : partner ? <PartnerView key={partner.id} api={api} partner={partner} theme={theme} onProduct={p => open(p.partnerId, p.id)} onCouponInfo={() => setCouponFor(partner)} pickImage={pickImage} onProof={info => { setProofFor({ partner, info }); onEvent?.('shop_proof_open', { partner: partner.id }); }} />
       : null}
     {home && partner?.rewardKind !== 'none' ? <View pointerEvents="none" style={st.tickerAt}><RecentTicker list={home.recent} theme={theme} /></View> : null}
   </View>;
@@ -150,7 +155,17 @@ function AllView({ api, home, theme, onPartner, onOpen }: { api: ShoppingApi; ho
   </ScrollView>;
 }
 
-function PartnerView({ api, partner, theme, onProduct, onCouponInfo }: { api: ShoppingApi; partner: Partner; theme: ShoppingTheme; onProduct: (p: Product) => void; onCouponInfo: () => void }) {
+function PartnerView({ api, partner, theme, onProduct, onCouponInfo, pickImage, onProof }: { pickImage?: () => Promise<PickedImage | null>; onProof: (info: ProofInfo) => void; api: ShoppingApi; partner: Partner; theme: ShoppingTheme; onProduct: (p: Product) => void; onCouponInfo: () => void }) {
+  const [proofResult, setProofResult] = useState<{ api: ShoppingApi; partnerId: PartnerId; info: ProofInfo } | null>(null);
+  useEffect(() => {
+    let active = true;
+    setProofResult(null);
+    if (api.proof && pickImage) Promise.resolve().then(() => api.proof!.info(partner.id)).then(info => {
+      if (active && info?.rateText.trim()) setProofResult({ api, partnerId: partner.id, info });
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [api, partner.id, pickImage]);
+  const proofInfo = proofResult?.api === api && proofResult.partnerId === partner.id && pickImage ? proofResult.info : null;
   const coupon = partner.rewardKind === 'coupon';
   const noReward = partner.rewardKind === 'none';
   const [themeResult, setThemeResult] = useState<{ api: ShoppingApi; partnerId: PartnerId; sections: ThemeSection[] } | null>(null);
@@ -191,7 +206,8 @@ function PartnerView({ api, partner, theme, onProduct, onCouponInfo }: { api: Sh
       <Text style={[st.infoText, { color: theme.text }]}>{partnerLine(partner, theme)}</Text>
       {coupon && hasInfo ? <Pressable accessibilityRole="link" onPress={onCouponInfo} hitSlop={8}><Text style={[st.infoLink, { color: theme.sub }]}>{partnerRewardName(partner, theme)}이란?</Text></Pressable> : null}
     </View>
-    {themes.length || noReward ? <DisclosureNote text={partner.disclosure} theme={theme} /> : null}
+    <DisclosureNote text={partner.disclosure} theme={theme} />
+    {proofInfo ? <Pressable accessibilityRole="button" onPress={() => onProof(proofInfo)} style={[st.info, { backgroundColor: theme.primarySoft, marginTop: 12 }]}><Text style={{ color: theme.primary, fontWeight: '700' }}>구매했다면 인증하고 포인트 받기 ›</Text></Pressable> : null}
     {deals && left && deals.items.length ? <View>
       <Text style={[st.h2, { color: theme.text, marginBottom: 2 }]}>{deals.title ?? '오늘만 이 가격에 팔아요'}</Text>
       <Text style={[st.left, { color: theme.danger }]}>{left} 동안만 특가</Text>

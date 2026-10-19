@@ -1,4 +1,4 @@
-import type { CouponInfo, NoticeSection, Product, ShoppingApi } from './types';
+import type { CouponInfo, NoticeSection, Product, ProofItem, ShoppingApi } from './types';
 
 /*
  | 목업 데이터 — 서버(패키지api 설계 중)가 붙기 전 화면 확인용. 모든 글에 「목업」 표시를 남겨 실제 운영 글로 착각하지 않게 한다.
@@ -38,7 +38,41 @@ const COUPON: CouponInfo = {
 
 export function createMockShoppingApi(delayMs = 150): ShoppingApi {
   const wait = <T>(v: T) => new Promise<T>(r => setTimeout(() => r(v), delayMs));
+  const now = Date.now();
+  let nextId = 4;
+  const proofs: ProofItem[] = [
+    { id: 'mock-1', partnerId: 'toss', status: 'received', createdAt: now, amount: 10000 },
+    { id: 'mock-2', partnerId: 'toss', status: 'waiting', createdAt: now, confirmAt: now + 3 * 86_400_000, reward: 200 },
+    { id: 'mock-3', partnerId: 'toss', status: 'rejected', createdAt: now, reason: '[목업] 주문번호가 보이지 않아요' },
+  ];
   return {
+    proof: {
+      info: () => wait({
+        rateText: '[목업] 구매 금액의 1%를 포인트로',
+        subtitle: '[목업] 구매 인증 안내', title: '[목업] 주문내역을 인증해 주세요',
+        payoutText: '[목업] 지급 시점은 서버 안내로 표시돼요',
+        steps: [
+          { title: '[목업] 주문내역 준비', desc: '[목업] 인증할 사진을 준비해 주세요' },
+          { title: '[목업] 사진 올리기', desc: '[목업] 주문내역 사진을 골라 주세요' },
+          { title: '[목업] 내역 확인', desc: '[목업] 처리 상태를 확인해 주세요' },
+        ],
+        faq: [
+          { q: '[목업] 어떤 사진을 올리나요?', a: '[목업] 실제 사진 조건은 서버가 안내해요' },
+          { q: '[목업] 언제 지급되나요?', a: '[목업] 실제 지급 시점은 서버가 안내해요' },
+        ],
+        notice: [
+          { title: '[목업] 인증 안내', items: ['[목업] 실제 인증 조건은 서버가 안내해요'] },
+          { title: '[목업] 지급 안내', items: ['[목업] 실제 지급 조건은 서버가 안내해요'] },
+        ],
+        cta: '[목업] 구매 인증 사진 고르기',
+      }),
+      list: () => wait(proofs.map(item => ({ ...item }))),
+      submit: input => {
+        const item: ProofItem = { id: `mock-${nextId++}`, partnerId: input.partnerId, status: 'received', createdAt: Date.now(), amount: input.amount };
+        proofs.unshift(item);
+        return wait({ ...item });
+      },
+    },
     home: () => wait({
       totalBenefit: 0,
       partners: [

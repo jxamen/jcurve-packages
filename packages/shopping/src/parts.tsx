@@ -75,12 +75,12 @@ export function Chips({ items, value, onChange, theme }: { items: Category[]; va
 }
 
 /** 상품 상세 설명 및 유의사항 — 서버 글 그대로(패키지는 정책 글을 박지 않는다) */
-export function Notice({ sections, theme, dark }: { sections: NoticeSection[]; theme: ShoppingTheme; dark?: boolean }) {
+export function Notice({ sections, theme, dark, title = '상품 상세 설명 및 유의사항' }: { sections: NoticeSection[]; theme: ShoppingTheme; dark?: boolean; title?: string }) {
   if (!sections.length) return null;
   const head = dark ? '#FFFFFF' : theme.text;
   const body = dark ? '#B0B8C1' : theme.sub;
   return <View style={[s.notice, { backgroundColor: dark ? '#191F28' : theme.card }]}>
-    <Text accessibilityRole="header" style={[s.noticeHead, { color: head }]}>상품 상세 설명 및 유의사항</Text>
+    <Text accessibilityRole="header" style={[s.noticeHead, { color: head }]}>{title}</Text>
     {sections.map(sec => <View key={sec.title} style={s.noticeSec}>
       <Text style={[s.noticeTitle, { color: head }]}>{sec.title}</Text>
       {sec.items.map((it, i) => typeof it === 'string'
@@ -118,7 +118,25 @@ export function Disclosures({ texts, theme }: { texts: string[]; theme: Shopping
   return <View style={s.disc}>{rows.map(t => <Text key={t} style={[s.discText, { color: theme.sub }]}>{t}</Text>)}</View>;
 }
 
+/** 서버 질문과 답변 — 두 안내 화면이 같은 어두운 띠를 쓴다. */
+export function Faq({ items }: { items?: Array<{ q: string; a: string }> }) {
+  if (!items?.length) return null;
+  return <View style={s.faq}>
+    <Text accessibilityRole="header" style={s.faqHead}>자주 묻는 질문</Text>
+    {items.map((f, i) => <View key={i} style={s.faqCard}>
+      <Text style={s.faqQ}>Q. {f.q}</Text>
+      <Text style={s.faqA}>{f.a}</Text>
+    </View>)}
+  </View>;
+}
+
 export const s = StyleSheet.create({
+  faq: { backgroundColor: '#191F28', paddingHorizontal: 20, paddingVertical: 28, marginTop: 36, gap: 12 },
+  faqHead: { color: '#FFFFFF', fontSize: 19, fontWeight: '800', marginBottom: 4 },
+  faqCard: { backgroundColor: '#2B3440', borderRadius: 16, padding: 18, gap: 8 },
+  faqQ: { color: '#FFFFFF', fontSize: 17, fontWeight: '800' },
+  faqA: { color: '#D1D6DB', fontSize: 15, lineHeight: 22 },
+
   disc: { paddingHorizontal: 20, paddingVertical: 16, gap: 6 },
   discText: { fontSize: 12, lineHeight: 18 },
   badge: { flexDirection: 'row', alignItems: 'center', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 3, gap: 4 },
