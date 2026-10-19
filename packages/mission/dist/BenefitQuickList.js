@@ -29,7 +29,8 @@ const s = react_native_1.StyleSheet.create({
     card: { backgroundColor: '#FFFFFF', borderRadius: 20, paddingVertical: 6, paddingHorizontal: 14 },
     row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 }, border: { borderBottomWidth: 1, borderBottomColor: '#F3EBE1' },
     icon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-    copy: { flex: 1, minWidth: 0, gap: 2 }, nameRow: { flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }, badge: { backgroundColor: '#FFFFFF', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1 }, badgeText: { fontSize: 9, fontWeight: '900', color: '#E2600F' }, name: { flexShrink: 1, fontSize: 16, fontWeight: '700', color: '#2B2118' }, subtitle: { fontSize: 13, color: '#6B5E52' },
+    copy: { flex: 1, minWidth: 0, gap: 2 }, nameRow: { flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }, /* 광고 배지 — 글자만 떠 보이지 않게 색 바탕 배지로 조금 크게(당근 대표님 10-19 19:33 「배지로 조금 더 크게」) */
+    badge: { backgroundColor: '#FDE6D6', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }, badgeText: { fontSize: 11, fontWeight: '800', color: '#E2600F' }, name: { flexShrink: 1, fontSize: 16, fontWeight: '700', color: '#2B2118' }, subtitle: { fontSize: 13, color: '#6B5E52' },
     steps: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 }, step: { flex: 1, maxWidth: 26, height: 6, borderRadius: 3 }, stepsLabel: { marginLeft: 4, fontSize: 12, color: '#6B5E52' },
     button: { flexShrink: 0, height: 40, paddingHorizontal: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, cta: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' }, footer: { marginTop: 4 },
     iconDrawing: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
