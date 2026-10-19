@@ -60,7 +60,9 @@ export function BenefitQuickList({ title = '바로 받는 혜택', seeAllLabel, 
       {seeAllLabel && onSeeAll ? <Pressable accessibilityRole="button" onPress={onSeeAll} hitSlop={8}><Text style={[s.seeAll, { color: accentColor }]}>{seeAllLabel}</Text></Pressable> : null}
     </View> : null}
     <View style={s.card}>
-      {visible.map((item, index) => <View key={item.key} style={[s.row, index < visible.length - 1 && s.border]}>
+      {/* 버튼뿐 아니라 줄 어디를 눌러도 이동(당근 대표님 10-19 20:55 「아예 리스트에서 그 줄을 눌러도 이동되게」) */}
+      {visible.map((item, index) => <Pressable key={item.key} accessible={false} disabled={item.done} onPress={() => { if (!item.done) item.onPress(); }}
+        style={({ pressed }) => [s.row, index < visible.length - 1 && s.border, pressed && !item.done && { opacity: 0.85 }]}>
         <View style={[s.icon, { backgroundColor: item.tint }]}><Icon icon={item.icon} /></View>
         <View style={s.copy}><View style={s.nameRow}><Text style={s.name}>{item.title}</Text>{item.badge ? <View style={s.badge}><Text style={s.badgeText}>{item.badge}</Text></View> : null}</View>{item.progress && item.progress.total > 0
           ? <View accessibilityLabel={item.progress.done + '/' + item.progress.total} style={s.steps}>{Array.from({ length: item.progress.total }, (_, i) => <View key={i} style={[s.step, { backgroundColor: i < item.progress!.done ? accentColor : '#ECE6DE' }]} />)}{item.progressLabel ? <Text style={s.stepsLabel} numberOfLines={1}>{item.progressLabel}</Text> : null}</View>
@@ -70,7 +72,7 @@ export function BenefitQuickList({ title = '바로 받는 혜택', seeAllLabel, 
           style={({ pressed }) => [s.button, { width: buttonWidth, height: buttonHeight, backgroundColor: item.done ? '#D3D7DD' : accentColor }, pressed && !item.done && { opacity: 0.8 }]}>
           <Text style={s.cta} numberOfLines={1} adjustsFontSizeToFit>{item.done ? doneLabel : item.ctaLabel}</Text>
         </Pressable>
-      </View>)}
+      </Pressable>)}
     </View>
     {footer != null ? <View style={s.footer}>{footer}</View> : null}
   </View>;

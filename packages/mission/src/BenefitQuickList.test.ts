@@ -1,6 +1,8 @@
 import React, { type ReactElement } from 'react';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Pressable: 'Pressable', StyleSheet: { create: (v: unknown) => v } }));
+// 버튼만 센다 — 줄 전체도 Pressable(accessible=false)이라 역할로 구분
+const isButton = (n: any) => n?.type === 'Pressable' && n.props?.accessibilityRole === 'button';
 import { BenefitQuickList, type BenefitQuickItem } from './BenefitQuickList';
 // Walk the rendered React element tree, including functional icon components.
 function nodes(node: any): any[] {
@@ -18,18 +20,18 @@ describe('BenefitQuickList', () => {
     rows.push(item({ key: 'custom', icon: React.createElement('CustomIcon') }));
     const tree = nodes(BenefitQuickList({ items: rows, seeAllLabel: '전체', onSeeAll, footer: React.createElement('NativeAd') }));
     expect(tree).toContain('바로 받는 혜택');
-    expect(tree.filter(n => n?.type === 'Pressable')).toHaveLength(8);
+    expect(tree.filter(n => isButton(n))).toHaveLength(8);
     expect(tree.some(n => n?.type === 'CustomIcon')).toBe(true);
     expect(tree.some(n => n?.type === 'NativeAd')).toBe(true);
-    tree.find(n => n?.type === 'Pressable').props.onPress();
+    tree.find(n => isButton(n)).props.onPress();
     expect(onSeeAll).toHaveBeenCalledOnce();
-    tree.filter(n => n?.type === 'Pressable')[1].props.onPress();
+    tree.filter(n => isButton(n))[1].props.onPress();
     expect(rows[0].onPress).toHaveBeenCalledOnce();
   });
   it('shows a disabled grey 완료 button and ignores even a direct callback invocation', () => {
     const row = item({ done: true });
     const tree = nodes(BenefitQuickList({ items: [row] }));
-    const button = tree.find(n => n?.type === 'Pressable');
+    const button = tree.find(n => isButton(n));
     expect(tree).toContain('완료');
     expect(tree).not.toContain('출석하기');
     expect(button.props.disabled).toBe(true);
@@ -42,10 +44,10 @@ describe('BenefitQuickList', () => {
     const tree = nodes(BenefitQuickList({ title: '혜택', accentColor: '#123456', items: [item(), item({ key: 'hidden', title: '숨김', hidden: true })] }));
     expect(tree).toContain('혜택');
     expect(tree).not.toContain('숨김');
-    const buttons = tree.filter(n => n?.type === 'Pressable');
+    const buttons = tree.filter(n => isButton(n));
     expect(buttons).toHaveLength(1);
     expect(buttons[0].props.style({ pressed: false })[1].backgroundColor).toBe('#123456');
-    expect(nodes(BenefitQuickList({ items: [] })).filter(n => n?.type === 'Pressable')).toHaveLength(0);
+    expect(nodes(BenefitQuickList({ items: [] })).filter(n => isButton(n))).toHaveLength(0);
   });
 });
 
@@ -54,13 +56,13 @@ it('uses translated done text in button and accessibility label, and renders tit
   expect(tree).toContain('Done');
   expect(tree).toContain('광고');
   expect(tree).not.toContain('완료');
-  expect(tree.find(n => n?.type === 'Pressable').props.accessibilityLabel).toBe('출석, Done');
+  expect(tree.find(n => isButton(n)).props.accessibilityLabel).toBe('출석, Done');
 });
 it('gives all buttons the same fixed default width and allows overriding it', () => {
   const rows = [item(), item({ key: 'long', ctaLabel: '뽑으러 가기' }), item({ key: 'done', done: true })];
   for (const buttonWidth of [undefined, 120]) {
     const tree = nodes(BenefitQuickList({ items: rows, buttonWidth }));
-    const buttons = tree.filter(n => n?.type === 'Pressable');
+    const buttons = tree.filter(n => isButton(n));
     expect(buttons.map(n => n.props.style({ pressed: false })[1].width)).toEqual(Array(3).fill(buttonWidth ?? 100));
   }
 });
@@ -68,4 +70,16 @@ it('gives all buttons the same fixed default width and allows overriding it', ()
 it('drops the heading row when title is empty and there is no see-all', () => {
   const tree = JSON.stringify(nodes(BenefitQuickList({ title: '', items: [] })));
   expect(tree).not.toContain('바로 받는 혜택');
+});
+
+it('tapping anywhere on a row delegates, but not on a done row', () => {
+  const go = vi.fn(); const done = vi.fn();
+  const rows = nodes(BenefitQuickList({ items: [
+    { key: 'a', title: 'A', subtitle: 'a', ctaLabel: 'Go', icon: 'calendar', onPress: go },
+    { key: 'b', title: 'B', subtitle: 'b', ctaLabel: 'Go', icon: 'calendar', onPress: done, done: true },
+  ] })).filter((n: any) => n?.type === 'Pressable' && n.props?.accessible === false);
+  expect(rows).toHaveLength(2);
+  rows[0].props.onPress(); rows[1].props.onPress();
+  expect(go).toHaveBeenCalledTimes(1); expect(done).not.toHaveBeenCalled();
+  expect(rows[1].props.disabled).toBe(true);
 });
