@@ -10,3 +10,4 @@ export { normalizeCards, parseCardsResponse, fetchCards, type MissionCard, type 
 export { MissionCards, type MissionCardsProps, type MissionCardsTheme } from './MissionCards';
 export { ShoppingMission, type ShoppingMissionProps } from './ShoppingMission';
 export type { MissionNavigation } from './MissionWebView';
+export { BenefitQuickList, type BenefitQuickListProps, type BenefitQuickItem, type BenefitQuickIcon } from './BenefitQuickList';

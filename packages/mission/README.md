@@ -99,3 +99,33 @@ function Missions() {
 바뀌는 것: 기본 제목 · 부제(`title` · `subtitle` 을 주면 그 글 그대로), 닫기 · 뒤로가기 · 불러오는 중, 상태 화면(오류 · 점검 · 마감 · 준비 중) 문구(`stateCopy(kind, lang)`).
 안 바뀌는 것: 서버 카드 제목 · 설명(mission/cards), 웹뷰 안 APIHUB 페이지 글.
 언어 추가는 `src/i18n/locales/<언어>.ts` 표 하나 + `locales/index.ts` 한 줄.
+
+## 0.3.2 바로 받는 혜택
+
+```tsx
+import { BenefitQuickList } from '@jcurve/mission';
+
+<BenefitQuickList
+  title="바로 받는 혜택"
+  accentColor="#EE7A33"
+  seeAllLabel="혜택 전체보기"
+  onSeeAll={() => navigation.navigate('Benefits')}
+  items={[{
+    key: 'attendance', title: '매일 출석 체크',
+    subtitle: '하루 한 번 눌러서 포인트 받기', ctaLabel: '출석하기',
+    icon: 'calendar', tint: '#E8F0FD', done: todayDone,
+    onPress: () => navigation.navigate('ShoppingMission'),
+  }]}
+  footer={<HarvestNative />}
+/>
+```
+
+예시의 navigation·todayDone·HarvestNative는 앱이 제공한다.
+`title` 기본값은 「바로 받는 혜택」, `accentColor`는 `#EE7A33`.
+`seeAllLabel`과 `onSeeAll`을 모두 주면 전체보기 버튼을 표시한다.
+각 item은 key·title·subtitle·ctaLabel·icon·tint·onPress가 필수이고,
+`hidden`이면 행을 생략한다. `done`이면 회색 「완료」 버튼으로 바꾸고 콜백을 무시한다.
+`icon`은 calendar/bag/pin/star/ticket/friend 또는 ReactNode이며,
+기본 아이콘은 RN View 도형이다. 앱 고유 아이콘색·모양은 ReactNode로 바꾼다.
+`footer`는 목록 카드 아래 14 간격으로 표시한다. 외부 좌우 여백은 앱이 정한다.
+패키지는 이동·완료 판정·보상 규칙·광고 로딩을 알지 않으며 새 네이티브 의존성이 없다.
