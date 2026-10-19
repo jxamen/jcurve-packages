@@ -3,10 +3,22 @@ import { createInboxApi, createInboxStore, relativeTime, type InboxItem } from '
 const item: InboxItem = { id: 1, kind: 'general', title: '제목', body: '본문', data: {}, link: null, read: false, readAt: null, sentAt: '2026-10-20T12:00:00+09:00' };
 const setup = () => { const api = { list: vi.fn().mockResolvedValue({ ok: true, items: [item], unread: 1, next: 30 }), unread: vi.fn().mockResolvedValue(0), read: vi.fn().mockResolvedValue(0) }; return { api, store: createInboxStore(api) }; };
 describe('api', () => {
- it('uses exact relative paths, cursor and bodies', async () => {
+ it('uses exact push-inbox paths, cursor and explicit ids', async () => {
   const fetch = vi.fn().mockResolvedValue({ ok: true, items: [], unread: 2 }); const api = createInboxApi(fetch);
-  await api.list(); await api.list(0); expect(await api.unread()).toBe(2); await api.read([1,2]); await api.read(undefined,true); await api.read();
-  expect(fetch.mock.calls).toEqual([['GET','me/notifications'],['GET','me/notifications?cursor=0'],['GET','me/notifications/unread'],['POST','me/notifications/read',{ids:[1,2]}],['POST','me/notifications/read',{all:true}],['POST','me/notifications/read',{}]]);
+  await api.list(); await api.list(0); expect(await api.unread()).toBe(2); expect(await api.read([1,2])).toBe(2);
+  expect(fetch.mock.calls).toEqual([['GET','me/push-inbox'],['GET','me/push-inbox?cursor=0'],['GET','me/push-inbox/unread'],['POST','me/push-inbox/read',{ids:[1,2]}]]);
+ });
+ it('supports a custom base path for every endpoint', async () => {
+  const fetch = vi.fn().mockResolvedValue({ok:true,items:[],unread:1}); const api = createInboxApi(fetch,{basePath:'custom/inbox/'});
+  await api.list(30); await api.unread(); await api.read([1],true);
+  expect(fetch.mock.calls).toEqual([['GET','custom/inbox?cursor=30'],['GET','custom/inbox/unread'],['POST','custom/inbox/read',{ids:[1]}]]);
+ });
+ it('never calls fetch for empty or omitted ids, even with all=true', async () => {
+  const fetch = vi.fn().mockResolvedValue({ok:true,items:[],unread:7}); const api = createInboxApi(fetch);
+  expect(await api.read([])).toBe(0); expect(fetch).not.toHaveBeenCalled();
+  await api.list(); fetch.mockClear();
+  for (const ids of [[], undefined]) for (const all of [false,true]) expect(await api.read(ids,all)).toBe(7);
+  expect(await api.read()).toBe(7); expect(fetch).not.toHaveBeenCalled();
  });
  it('rejects unsuccessful responses', async () => { await expect(createInboxApi(async () => ({ok:false})).list()).rejects.toThrow(); });
 });

@@ -5,13 +5,21 @@ exports.createInboxApi = createInboxApi;
 exports.relativeTime = relativeTime;
 exports.hasDestination = hasDestination;
 exports.createInboxStore = createInboxStore;
-function createInboxApi(fetchJson) {
-    const checked = (r) => { if (!r || r.ok !== true)
-        throw new Error('Inbox API failed'); return r; };
+function createInboxApi(fetchJson, options = {}) {
+    const basePath = (options.basePath ?? 'me/push-inbox').replace(/\/+$/, '');
+    let lastUnread = 0;
+    const checked = (r) => {
+        if (!r || r.ok !== true)
+            throw new Error('Inbox API failed');
+        lastUnread = r.unread;
+        return r;
+    };
     return {
-        list: async (cursor) => checked(await fetchJson('GET', `me/notifications${cursor === undefined ? '' : `?cursor=${encodeURIComponent(cursor)}`}`)),
-        unread: async () => checked(await fetchJson('GET', 'me/notifications/unread')).unread,
-        read: async (ids, all) => checked(await fetchJson('POST', 'me/notifications/read', all ? { all: true } : ids ? { ids } : {})).unread,
+        list: async (cursor) => checked(await fetchJson('GET', `${basePath}${cursor === undefined ? '' : `?cursor=${encodeURIComponent(cursor)}`}`)),
+        unread: async () => checked(await fetchJson('GET', `${basePath}/unread`)).unread,
+        // Never omit ids: the server treats an omitted ids field as a bulk read.
+        // Empty/omitted ids are local no-ops, including legacy all=true calls.
+        read: async (ids) => ids?.length ? checked(await fetchJson('POST', `${basePath}/read`, { ids })).unread : lastUnread,
     };
 }
 exports.defaultStrings = { title: '알림', back: '뒤로', empty: '받은 알림이 없어요', error: '알림을 불러오지 못했어요', retry: '다시 시도', ad: '광고', now: '방금', minutes: (n) => `${n}분 전`, hours: (n) => `${n}시간 전`, yesterday: '어제', date: (m, d) => `${m}월 ${d}일` };

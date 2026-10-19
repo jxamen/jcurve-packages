@@ -20,7 +20,10 @@ export type InboxApi = {
     unread(): Promise<number>;
     read(ids?: number[], all?: boolean): Promise<number>;
 };
-export declare function createInboxApi(fetchJson: (method: string, path: string, body?: any) => Promise<any>): InboxApi;
+export type InboxApiOptions = {
+    basePath?: string;
+};
+export declare function createInboxApi(fetchJson: (method: string, path: string, body?: any) => Promise<any>, options?: InboxApiOptions): InboxApi;
 export declare const defaultStrings: {
     title: string;
     back: string;
