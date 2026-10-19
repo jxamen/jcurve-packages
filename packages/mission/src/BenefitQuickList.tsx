@@ -48,10 +48,11 @@ function Icon({ icon }: { icon: BenefitQuickItem['icon'] }) {
 export function BenefitQuickList({ title = '바로 받는 혜택', seeAllLabel, onSeeAll, accentColor = '#EE7A33', items, footer, doneLabel = '완료', buttonWidth = 100 }: BenefitQuickListProps) {
   const visible = items.filter(item => !item.hidden);
   return <View style={s.root}>
-    <View style={s.header}>
-      <Text style={s.title}>{title}</Text>
+    {/* 제목도 「전체보기」도 없으면 머리 줄을 그리지 않는다(2026-10-19 당근 대표님 「바로 받는 혜택 · 혜택 전체보기 제거」) */}
+    {title || (seeAllLabel && onSeeAll) ? <View style={s.header}>
+      {title ? <Text style={s.title}>{title}</Text> : <View />}
       {seeAllLabel && onSeeAll ? <Pressable accessibilityRole="button" onPress={onSeeAll} hitSlop={8}><Text style={[s.seeAll, { color: accentColor }]}>{seeAllLabel}</Text></Pressable> : null}
-    </View>
+    </View> : null}
     <View style={s.card}>
       {visible.map((item, index) => <View key={item.key} style={[s.row, index < visible.length - 1 && s.border]}>
         <View style={[s.icon, { backgroundColor: item.tint }]}><Icon icon={item.icon} /></View>

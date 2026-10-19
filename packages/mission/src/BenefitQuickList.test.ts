@@ -64,3 +64,8 @@ it('gives all buttons the same fixed default width and allows overriding it', ()
     expect(buttons.map(n => n.props.style({ pressed: false })[1].width)).toEqual(Array(3).fill(buttonWidth ?? 100));
   }
 });
+
+it('drops the heading row when title is empty and there is no see-all', () => {
+  const tree = JSON.stringify(nodes(BenefitQuickList({ title: '', items: [] })));
+  expect(tree).not.toContain('바로 받는 혜택');
+});
