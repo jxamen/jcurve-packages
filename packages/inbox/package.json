@@ -1,0 +1,29 @@
+{
+  "name": "@jcurve/inbox",
+  "version": "0.1.0",
+  "description": "공용 받은 알림함 — 순수 JS, 새 네이티브 0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-native": ">=0.74"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.0",
+    "react": "^19.2.0",
+    "react-native": "^0.86.3",
+    "typescript": "~5.9.2",
+    "vitest": "^3.2.4"
+  },
+  "license": "UNLICENSED",
+  "private": false
+}
