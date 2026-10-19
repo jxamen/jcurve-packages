@@ -69,8 +69,9 @@ export function ShoppingTab({ api, theme: themeIn, onOpenUrl, onEvent, onLinkErr
       {tabs.map(t => {
         const on = t.key === tab;
         return <Pressable key={t.key} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => { setTab(t.key); onEvent?.('shopping_tab', { tab: t.key }); }}
-          style={[st.tab, on && { borderBottomColor: theme.text }]}>
-          <Text style={[st.tabText, { color: on ? theme.text : theme.sub }]}>{t.name}</Text>
+          style={st.tab}>
+          <Text style={[st.tabText, { color: on ? theme.text : '#B0B8C1', fontWeight: on ? '800' : '600' }]}>{t.name}</Text>
+          {on ? <View style={[st.tabLine, { backgroundColor: theme.text }]} /> : null}
         </Pressable>;
       })}
     </View>
@@ -138,7 +139,7 @@ function AllView({ api, home, theme, onPartner, onOpen }: { api: ShoppingApi; ho
       {home.hero.image ? <Image source={{ uri: home.hero.image }} style={st.heroImg} resizeMode="contain" /> : null}
     </Pressable> : null}
     {home.partners.length ? <View style={st.partners}>
-      {home.partners.map(p => <Pressable key={p.id} accessibilityRole="button" onPress={() => onPartner(p.id)} style={[st.partner, { backgroundColor: theme.card }]}>
+      {home.partners.map(p => <Pressable key={p.id} accessibilityRole="button" onPress={() => onPartner(p.id)} style={[st.partner, { backgroundColor: theme.chipBg ?? '#F2F4F6' }]}>
         <View style={[st.logo, { backgroundColor: theme.bg }]}>{p.logo ? <Image source={{ uri: p.logo }} style={st.logoImg} /> : <Text style={[st.logoText, { color: theme.primary }]}>{p.name.slice(0, 1)}</Text>}</View>
         <View style={{ flex: 1 }}>
           <Text style={[st.partnerName, { color: theme.text }]}>{p.name}</Text>
@@ -201,8 +202,8 @@ function PartnerView({ api, partner, theme, onProduct, onCouponInfo, pickImage, 
   useEffect(() => { if (!deals) return; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, [deals]);
   const left = deals ? countdown(deals.endsAt, now) : null;
   return <ScrollView contentContainerStyle={st.body} showsVerticalScrollIndicator={false}>
-    <View style={[st.info, { backgroundColor: theme.card }]}>
-      {!noReward ? <Text style={[st.infoMark, { backgroundColor: coupon ? theme.text : theme.primary, color: theme.onPrimary }]}>{coupon ? '할' : (theme.pointMark ?? 'P').slice(0, 1)}</Text> : null}
+    <View style={[st.info, { backgroundColor: theme.chipBg ?? '#F2F4F6' }]}>
+      <View style={[st.infoMark, { backgroundColor: theme.primary }]}>{partner.logo ? <Image source={{ uri: partner.logo }} resizeMode="contain" style={{ width: 22, height: 22 }} /> : <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '800' }}>{partner.name.slice(0, 1)}</Text>}</View>
       <Text style={[st.infoText, { color: theme.text }]}>{partnerLine(partner, theme)}</Text>
       {coupon && hasInfo ? <Pressable accessibilityRole="link" onPress={onCouponInfo} hitSlop={8}><Text style={[st.infoLink, { color: theme.sub }]}>{partnerRewardName(partner, theme)}이란?</Text></Pressable> : null}
     </View>
@@ -212,7 +213,7 @@ function PartnerView({ api, partner, theme, onProduct, onCouponInfo, pickImage, 
       <Text style={[st.h2, { color: theme.text, marginBottom: 2 }]}>{deals.title ?? '오늘만 이 가격에 팔아요'}</Text>
       <Text style={[st.left, { color: theme.danger }]}>{left} 동안만 특가</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.deals}>
-        {deals.items.map(p => <ProductCard key={p.id} product={p} theme={theme} onPress={onProduct} width={136} />)}
+        {deals.items.map(p => <ProductCard key={p.id} product={p} theme={theme} onPress={onProduct} width={128} />)}
       </ScrollView>
     </View> : null}
     {themes.length ? themes.map(section => <ThemeRow key={section.id} section={section} theme={theme} onPress={onProduct} />) : <>
@@ -228,23 +229,24 @@ function PartnerView({ api, partner, theme, onProduct, onCouponInfo, pickImage, 
 const st = StyleSheet.create({
   wrap: { flex: 1 },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 6 },
-  h1: { fontSize: 24, fontWeight: '800' },
+  h1: { fontSize: 26, fontWeight: '800' },
   benefit: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
   benefitLabel: { fontSize: 13, fontWeight: '600' },
   benefitValue: { fontSize: 14, fontWeight: '800' },
-  tabs: { flexDirection: 'row', paddingHorizontal: 12, borderBottomWidth: 1 },
-  tab: { paddingHorizontal: 10, paddingVertical: 12, borderBottomWidth: 3, borderBottomColor: 'transparent', marginBottom: -1 },
-  tabText: { fontSize: 18, fontWeight: '700' },
-  body: { paddingTop: 16, paddingBottom: 40 },
+  tabs: { flexDirection: 'row', paddingHorizontal: 20, gap: 24, borderBottomWidth: 1 },
+  tab: { height: 48, justifyContent: 'center' },
+  tabText: { fontSize: 18 },
+  tabLine: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 3, borderRadius: 2 },
+  body: { paddingTop: 0, paddingBottom: 40 },
   center: { paddingVertical: 48, alignItems: 'center', justifyContent: 'center', gap: 12 },
   empty: { fontSize: 15 },
   retry: { borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12 },
-  hero: { marginHorizontal: 20, borderRadius: 20, padding: 22, flexDirection: 'row', alignItems: 'center', minHeight: 120 },
+  hero: { marginHorizontal: 20, marginTop: 16, borderRadius: 20, padding: 20, flexDirection: 'row', alignItems: 'center', height: 150 },
   heroLabel: { fontSize: 14, fontWeight: '700' },
-  heroTitle: { fontSize: 18, fontWeight: '700', lineHeight: 26 },
-  heroImg: { width: 110, height: 90 },
+  heroTitle: { fontSize: 19, fontWeight: '800', lineHeight: 26 },
+  heroImg: { width: 110, height: 110 },
   partners: { flexDirection: 'row', gap: 10, paddingHorizontal: 20, marginTop: 12 },
-  partner: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, padding: 14 },
+  partner: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, paddingHorizontal: 14, height: 64 },
   logo: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   logoImg: { width: 32, height: 32 },
   logoText: { fontSize: 16, fontWeight: '800' },
@@ -252,9 +254,9 @@ const st = StyleSheet.create({
   partnerRate: { fontSize: 14, fontWeight: '600', marginTop: 2 },
   chev: { fontSize: 24 },
   h2: { fontSize: 19, fontWeight: '800', paddingHorizontal: 20, marginTop: 28, marginBottom: 12 },
-  info: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 20, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14 },
-  infoMark: { width: 22, height: 22, borderRadius: 11, textAlign: 'center', lineHeight: 22, fontSize: 12, fontWeight: '800', overflow: 'hidden' },
-  infoText: { flex: 1, fontSize: 14 },
+  info: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 20, marginTop: 16, minHeight: 52, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14 },
+  infoMark: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  infoText: { flex: 1, fontSize: 15, fontWeight: '500' },
   infoLink: { fontSize: 14, textDecorationLine: 'underline' },
   left: { fontSize: 16, fontWeight: '600', paddingHorizontal: 20, marginBottom: 12 },
   deals: { paddingHorizontal: 20, gap: 12 },

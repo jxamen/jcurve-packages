@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { partnerRewardName } from './format';
-import { Disclosures, Faq, Notice } from './parts';
+import { Disclosures, Faq, Notice, StepList } from './parts';
 import type { CouponInfo, Partner, ShoppingApi, ShoppingTheme } from './types';
 
 /** ⑤ 할인권 안내 — 글은 모두 서버(couponInfo). 아래 고정 버튼은 제휴처로 이동(적립 추적 링크) */
@@ -42,13 +42,7 @@ export function CouponInfoScreen({ api, partner, theme, topInset = 0, onBack, on
         {info.steps?.length ? <View style={cs.sec}>
           <Text style={[cs.pill, { backgroundColor: theme.primarySoft, color: theme.primary }]}>이용 방법</Text>
           <Text style={[cs.secTitle, { color: theme.text }]}>어떻게 쓰나요?</Text>
-          {info.steps.map((st, i) => <View key={st.title} style={cs.step}>
-            <Text style={[cs.stepNo, { backgroundColor: theme.card, color: theme.text }]}>{i + 1}</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={[cs.stepTitle, { color: theme.text }]}>{st.title}</Text>
-              <Text style={[cs.stepDesc, { color: theme.sub }]}>{st.desc ?? (i === 0 ? `${theme.appName}에서 이동해야 적립돼요` : '')}</Text>
-            </View>
-          </View>)}
+          <StepList theme={theme} steps={info.steps.map((step, i) => ({ ...step, desc: step.desc ?? (i === 0 ? `${theme.appName}에서 이동해야 적립돼요` : '') }))} />
         </View> : null}
         <Faq items={info.faq} />
         <Notice sections={info.notice ?? []} theme={theme} />
@@ -81,10 +75,6 @@ const cs = StyleSheet.create({
   tier: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 14, paddingHorizontal: 18, paddingVertical: 16 },
   tierName: { fontSize: 16, fontWeight: '700' },
   tierRange: { fontSize: 14 },
-  step: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
-  stepNo: { width: 28, height: 28, borderRadius: 14, textAlign: 'center', lineHeight: 28, fontWeight: '800', overflow: 'hidden' },
-  stepTitle: { fontSize: 17, fontWeight: '700' },
-  stepDesc: { fontSize: 14, marginTop: 4 },
   ctaWrap: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 24 },
   cta: { minHeight: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   ctaText: { fontSize: 17, fontWeight: '800' },

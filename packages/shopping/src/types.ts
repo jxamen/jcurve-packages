@@ -129,6 +129,10 @@ export type ShoppingTheme = {
   couponName?: string;
   bg: string;
   card: string;
+  /** 상품 이미지 바탕(기본 #F2F4F6) */
+  thumbBg?: string;
+  /** 안내 줄 · 칩 바탕(기본 #F2F4F6) */
+  chipBg?: string;
   text: string;
   sub: string;
   line: string;
@@ -143,6 +147,7 @@ export type ShoppingTheme = {
 
 export const DEFAULT_THEME: ShoppingTheme = {
   appName: '앱', pointName: '포인트', pointMark: 'P', couponName: '할인권',
+  thumbBg: '#F2F4F6', chipBg: '#F2F4F6',
   bg: '#FFFFFF', card: '#F4F6F9', text: '#191F28', sub: '#6B7684', line: '#E5E8EB',
   primary: '#2F6BFF', primarySoft: '#E8F0FF', onPrimary: '#FFFFFF', danger: '#F04452',
 };

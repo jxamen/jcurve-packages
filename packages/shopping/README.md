@@ -47,7 +47,7 @@ const api = useMemo(() => createHttpShoppingApi((path, init) => request(path, in
 
 ## 0.1.4 (2026-10-20) — 주제별 상품 구성
 
-선택 함수 `ShoppingApi.themes(partnerId)`가 `ThemeSection[]`(`id`, `title`, 선택 `subtitle`, `items: Product[]`)을 반환하면 제휴처의 분류 칩·2열 목록 대신 주제 제목과 가로 상품 줄을 표시한다. 실패하거나 빈 배열이면 기존 화면으로 돌아간다. 목업에는 `themes`가 없다. `rewardKind: 'none'`은 보상 없는 쉐어링크 수동 진열용으로, `rateText`만 그대로 표시하고 보상 안내·딱지는 숨긴다(상품도 `none`으로 전달). `partner.disclosure`는 원문 그대로 상품 줄 위에 13pt 본문 색으로 펼쳐 표시한다. 상품 이미지는 크롭 없이 표시하며 자동 넘김·자동 실행은 하지 않는다.
+선택 함수 `ShoppingApi.themes(partnerId)`가 `ThemeSection[]`(`id`, `title`, 선택 `subtitle`, `items: Product[]`)을 반환하면 제휴처의 분류 칩·2열 목록 대신 주제 제목과 가로 상품 줄을 표시한다. 실패하거나 빈 배열이면 기존 화면으로 돌아간다. 목업에는 `themes`가 없다. `rewardKind: 'none'`은 보상 없는 쉐어링크 수동 진열용으로, `rateText`만 그대로 표시하고 보상 안내·딱지는 숨긴다(상품도 `none`으로 전달). `partner.disclosure`는 원문 그대로 상품 줄 위에 읽기 쉬운 글로 펼쳐 표시한다. 상품 이미지는 크롭 없이 표시하며 자동 넘김·자동 실행은 하지 않는다.
 
 ## 0.1.5 (2026-10-20) — 구매 인증
 
@@ -73,3 +73,12 @@ const api = useMemo(() => createHttpShoppingApi((path, init) => request(path, in
 - 인증 오류 `off`는 「지금은 인증을 받지 않아요」, `provider_not_ready`·`ocr_not_enabled`는 「잠시 후 다시 시도해 주세요」로 표시한다.
 - `Product.price?: number | null`: 서버 수동 목록은 가격 키를 생략할 수 있다. 가격이 없거나 유효한 숫자가 아니면 가격 줄·할인율·접근성 가격 문구를 숨긴다.
 - `GET shopping/themes?partner=` → `{ ok: true, themes }`, `body.themes ?? []`를 반환한다. 성공 응답의 `ok: true`와 함께 기존 `home`·`items`·`next`·`deals`·`info`·`sections`·`item` 키를 그대로 읽는다. `notice`·`coupon-info`의 404는 각각 `[]`·`null`로 처리하고 다른 오류는 전달한다.
+
+
+## 테마
+
+`ShoppingTheme`의 색은 앱이 지정한다. 화면 바탕은 `bg`, 상품 썸네일 바탕은 선택 값 `thumbBg`, 안내 줄·비선택 칩·입력칸 바탕은 선택 값 `chipBg`를 쓴다. `thumbBg`와 `chipBg` 기본값은 각각 `#F2F4F6`이다. 기존 `card`는 기타 안내 영역 바탕으로 유지한다.
+
+## 0.1.7 (2026-10-20) — 디자인 다듬기
+
+탭·제휴처 안내·광고 고지·상품 카드·칩·히어로와 구매 인증 화면의 간격·서체·색·모서리를 정리했다. 상품 이미지는 안쪽 여백을 두고 contain으로 표시하며, 2열 카드 폭은 화면 너비로 계산한다. 구매 인증과 쿠폰 안내는 공용 `StepList`를 쓴다. 서버 계약과 이동·사진 선택·인증 제출 동작은 유지한다.
