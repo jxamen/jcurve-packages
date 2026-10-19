@@ -6,6 +6,7 @@ export type BenefitQuickItem = {
   key: string;
   title: string;
   subtitle: string;
+  badge?: string;
   ctaLabel: string;
   icon: BenefitQuickIcon | ReactNode;
   tint: string;
@@ -15,6 +16,8 @@ export type BenefitQuickItem = {
 };
 export type BenefitQuickListProps = {
   title?: string;
+  doneLabel?: string;
+  buttonWidth?: number;
   seeAllLabel?: string;
   onSeeAll?: () => void;
   accentColor?: string;
@@ -42,7 +45,7 @@ function Icon({ icon }: { icon: BenefitQuickItem['icon'] }) {
   </View>;
 }
 
-export function BenefitQuickList({ title = '바로 받는 혜택', seeAllLabel, onSeeAll, accentColor = '#EE7A33', items, footer }: BenefitQuickListProps) {
+export function BenefitQuickList({ title = '바로 받는 혜택', seeAllLabel, onSeeAll, accentColor = '#EE7A33', items, footer, doneLabel = '완료', buttonWidth = 100 }: BenefitQuickListProps) {
   const visible = items.filter(item => !item.hidden);
   return <View style={s.root}>
     <View style={s.header}>
@@ -52,11 +55,11 @@ export function BenefitQuickList({ title = '바로 받는 혜택', seeAllLabel, 
     <View style={s.card}>
       {visible.map((item, index) => <View key={item.key} style={[s.row, index < visible.length - 1 && s.border]}>
         <View style={[s.icon, { backgroundColor: item.tint }]}><Icon icon={item.icon} /></View>
-        <View style={s.copy}><Text style={s.name}>{item.title}</Text><Text style={s.subtitle} numberOfLines={1} adjustsFontSizeToFit>{item.subtitle}</Text></View>
-        <Pressable accessibilityRole="button" accessibilityLabel={item.title + ', ' + (item.done ? '완료' : item.ctaLabel)} accessibilityState={{ disabled: !!item.done }} disabled={item.done}
+        <View style={s.copy}><View style={s.nameRow}><Text style={s.name}>{item.title}</Text>{item.badge ? <View style={s.badge}><Text style={s.badgeText}>{item.badge}</Text></View> : null}</View><Text style={s.subtitle} numberOfLines={1} adjustsFontSizeToFit>{item.subtitle}</Text></View>
+        <Pressable accessibilityRole="button" accessibilityLabel={item.title + ', ' + (item.done ? doneLabel : item.ctaLabel)} accessibilityState={{ disabled: !!item.done }} disabled={item.done}
           onPress={() => { if (!item.done) item.onPress(); }}
-          style={({ pressed }) => [s.button, { backgroundColor: item.done ? '#D3D7DD' : accentColor }, pressed && !item.done && { opacity: 0.8 }]}>
-          <Text style={s.cta}>{item.done ? '완료' : item.ctaLabel}</Text>
+          style={({ pressed }) => [s.button, { width: buttonWidth, backgroundColor: item.done ? '#D3D7DD' : accentColor }, pressed && !item.done && { opacity: 0.8 }]}>
+          <Text style={s.cta} numberOfLines={1} adjustsFontSizeToFit>{item.done ? doneLabel : item.ctaLabel}</Text>
         </Pressable>
       </View>)}
     </View>
@@ -69,8 +72,8 @@ const s = StyleSheet.create({
   card: { backgroundColor: '#FFFFFF', borderRadius: 20, paddingVertical: 6, paddingHorizontal: 14 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 }, border: { borderBottomWidth: 1, borderBottomColor: '#F3EBE1' },
   icon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  copy: { flex: 1, minWidth: 0, gap: 2 }, name: { fontSize: 16, fontWeight: '700', color: '#2B2118' }, subtitle: { fontSize: 13, color: '#6B5E52' },
-  button: { minWidth: 84, height: 40, paddingHorizontal: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, cta: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' }, footer: { marginTop: 4 },
+  copy: { flex: 1, minWidth: 0, gap: 2 }, nameRow: { flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }, badge: { backgroundColor: '#FFFFFF', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1 }, badgeText: { fontSize: 9, fontWeight: '900', color: '#E2600F' }, name: { flexShrink: 1, fontSize: 16, fontWeight: '700', color: '#2B2118' }, subtitle: { fontSize: 13, color: '#6B5E52' },
+  button: { flexShrink: 0, height: 40, paddingHorizontal: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, cta: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' }, footer: { marginTop: 4 },
   iconDrawing: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
   calendar: { width: 18, height: 17, borderRadius: 3 }, calendarLine: { height: 2, marginTop: 3 }, check: { width: 8, height: 5, borderLeftWidth: 2, borderBottomWidth: 2, transform: [{ rotate: '-45deg' }], marginLeft: 4, marginTop: 2 },
   bag: { width: 16, height: 14, borderRadius: 2, marginTop: 5 }, handle: { position: 'absolute', top: 1, width: 8, height: 9, borderRadius: 5 },

@@ -48,3 +48,19 @@ describe('BenefitQuickList', () => {
     expect(nodes(BenefitQuickList({ items: [] })).filter(n => n?.type === 'Pressable')).toHaveLength(0);
   });
 });
+
+it('uses translated done text in button and accessibility label, and renders title badge', () => {
+  const tree = nodes(BenefitQuickList({ doneLabel: 'Done', items: [item({ done: true, badge: '광고' })] }));
+  expect(tree).toContain('Done');
+  expect(tree).toContain('광고');
+  expect(tree).not.toContain('완료');
+  expect(tree.find(n => n?.type === 'Pressable').props.accessibilityLabel).toBe('출석, Done');
+});
+it('gives all buttons the same fixed default width and allows overriding it', () => {
+  const rows = [item(), item({ key: 'long', ctaLabel: '뽑으러 가기' }), item({ key: 'done', done: true })];
+  for (const buttonWidth of [undefined, 120]) {
+    const tree = nodes(BenefitQuickList({ items: rows, buttonWidth }));
+    const buttons = tree.filter(n => n?.type === 'Pressable');
+    expect(buttons.map(n => n.props.style({ pressed: false })[1].width)).toEqual(Array(3).fill(buttonWidth ?? 100));
+  }
+});

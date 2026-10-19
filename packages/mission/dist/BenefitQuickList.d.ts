@@ -4,6 +4,7 @@ export type BenefitQuickItem = {
     key: string;
     title: string;
     subtitle: string;
+    badge?: string;
     ctaLabel: string;
     icon: BenefitQuickIcon | ReactNode;
     tint: string;
@@ -13,10 +14,12 @@ export type BenefitQuickItem = {
 };
 export type BenefitQuickListProps = {
     title?: string;
+    doneLabel?: string;
+    buttonWidth?: number;
     seeAllLabel?: string;
     onSeeAll?: () => void;
     accentColor?: string;
     items: readonly BenefitQuickItem[];
     footer?: ReactNode;
 };
-export declare function BenefitQuickList({ title, seeAllLabel, onSeeAll, accentColor, items, footer }: BenefitQuickListProps): React.JSX.Element;
+export declare function BenefitQuickList({ title, seeAllLabel, onSeeAll, accentColor, items, footer, doneLabel, buttonWidth }: BenefitQuickListProps): React.JSX.Element;
