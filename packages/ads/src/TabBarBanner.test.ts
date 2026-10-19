@@ -64,13 +64,29 @@ describe('TabBarBanner lifecycle (packed CommonJS)', () => {
     h.mount({ enabled: true, unitId: 'existing', format: 'native' });
     h.render(); h.start(); await flush(); expect(h.render()).toBeNull();
   });
-  it('video response is destroyed without another request or blank slot', async () => {
-    const ad = { mediaContent: { hasVideoContent: true }, destroy: vi.fn() };
+  it('video response is destroyed, keeps no blank slot, and asks again after a delay', async () => {
+    vi.useFakeTimers();
+    try {
+      const ad = { mediaContent: { hasVideoContent: true }, destroy: vi.fn() };
+      const h = harness(Promise.resolve(ad));
+      h.mount({ enabled: true, unitId: 'existing', format: 'native' });
+      h.render(); const cleanup = h.start(); await flush();
+      expect(h.render()).toBeNull(); expect(ad.destroy).toHaveBeenCalledOnce();
+      expect(h.sdk.NativeAd.createForAdRequest).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(3000); await flush();
+      expect(h.sdk.NativeAd.createForAdRequest).toHaveBeenCalledTimes(2);
+      cleanup?.();
+      await vi.advanceTimersByTimeAsync(120000); await flush();
+      expect(h.sdk.NativeAd.createForAdRequest).toHaveBeenCalledTimes(2);
+    } finally { vi.useRealTimers(); }
+  });
+  it('centers the native row', async () => {
+    const ad = { headline: 'x', destroy: vi.fn() };
     const h = harness(Promise.resolve(ad));
-    h.mount({ enabled: true, unitId: 'existing', format: 'native' });
-    h.render(); h.start(); await flush();
-    expect(h.render()).toBeNull(); expect(ad.destroy).toHaveBeenCalledOnce();
-    expect(h.sdk.NativeAd.createForAdRequest).toHaveBeenCalledTimes(1);
+    h.mount({ enabled: true, unitId: 'existing-native', format: 'native' });
+    h.render(); const cleanup = h.start(); await flush();
+    expect(h.render().props.children[0].props.style.justifyContent).toBe('center');
+    cleanup?.();
   });
   it('destroys a late native response after the footer was removed', async () => {
     let resolve: (ad: any) => void = () => {};

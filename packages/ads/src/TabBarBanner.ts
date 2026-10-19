@@ -19,22 +19,41 @@ export function TabBarBanner({ unitId, enabled, format = 'banner' }: TabBarBanne
   return React.createElement(LoadedBanner, { key: `${format}:${unitId}`, sdk, rn, unitId, format });
 }
 
+/** Retry delays after no fill / video creative (ms). After the last one the slot stays collapsed. */
+export const NATIVE_RETRY_MS = [3000, 10000, 30000, 60000];
+/** Swap the creative while it stays on screen. */
+export const NATIVE_REFRESH_MS = 60000;
+
 function LoadedBanner({ sdk, rn, unitId, format }: any) {
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const [ad, setAd] = useState<any>(null);
   useEffect(() => {
     let alive = true;
-    let loaded: any;
-    void Promise.resolve().then(() => sdk.default().initialize()).then(async () => {
+    let shown: any = null;
+    let timer: any = null;
+    let tries = 0;
+    const later = (ms: number) => { timer = setTimeout(() => { void load(); }, ms); };
+    // A one-line native slot cannot display mandatory video media: drop video and ask again
+    // (2026-10-19 owner: 「배너 광고가 하나도 안 나와」 — one video creative used to leave the slot empty for the whole session).
+    const load = async () => {
+      let next: any = null;
+      try { next = await sdk.NativeAd.createForAdRequest(unitId, { startVideoMuted: true }); } catch { next = null; }
+      if (!alive) { next?.destroy(); return; }
+      if (next && !next.mediaContent?.hasVideoContent) {
+        const old = shown; shown = next; setAd(next); old?.destroy();
+        tries = 0; later(NATIVE_REFRESH_MS); return;
+      }
+      next?.destroy();
+      if (shown) { later(NATIVE_REFRESH_MS); return; }   // keep the current creative
+      if (tries < NATIVE_RETRY_MS.length) later(NATIVE_RETRY_MS[tries++]);
+    };
+    void Promise.resolve().then(() => sdk.default().initialize()).then(() => {
       if (!alive) return;
       if (format === 'banner') { setReady(true); return; }
-      loaded = await sdk.NativeAd.createForAdRequest(unitId, { startVideoMuted: true });
-      // A one-line native slot cannot display mandatory video media. Do not retry/preload.
-      if (!alive || loaded.mediaContent?.hasVideoContent) { loaded.destroy(); loaded = null; return; }
-      setAd(loaded);
+      return load();
     }).catch(() => { if (alive) setFailed(true); });
-    return () => { alive = false; loaded?.destroy(); };
+    return () => { alive = false; if (timer) clearTimeout(timer); shown?.destroy(); };
   }, [sdk, unitId, format]);
   if (failed) return null;
   const h = React.createElement;
@@ -46,11 +65,12 @@ function LoadedBanner({ sdk, rn, unitId, format }: any) {
   }
   if (!ad) return null;
   // NativeAdView supplies AdChoices. Native attribution is required separately by AdMob.
+  // Centered row (2026-10-19 owner 「가운데 정렬로」); side padding keeps clear of the AdChoices corner.
   return h(sdk.NativeAdView, { nativeAd: ad, style: { height: 40, width: '100%', backgroundColor: '#fff' } },
-    h(rn.View, { collapsable: false, style: { height: 40, flexDirection: 'row', alignItems: 'center', paddingLeft: 12, paddingRight: 28, gap: 8 } },
+    h(rn.View, { collapsable: false, style: { height: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28, gap: 8 } },
       h(rn.Text, { style: { fontSize: 11, color: '#666', backgroundColor: '#eee', paddingHorizontal: 4 } }, 'AD'),
       ad.icon ? h(sdk.NativeAsset, { assetType: sdk.NativeAssetType.ICON },
         h(rn.Image, { source: { uri: ad.icon.url }, style: { width: 28, height: 28 } })) : null,
       h(sdk.NativeAsset, { assetType: sdk.NativeAssetType.HEADLINE },
-        h(rn.Text, { numberOfLines: 1, style: { flex: 1, fontSize: 13, color: '#555' } }, ad.headline))));
+        h(rn.Text, { numberOfLines: 1, style: { flexShrink: 1, fontSize: 13, color: '#555' } }, ad.headline))));
 }

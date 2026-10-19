@@ -7,3 +7,7 @@ export type TabBarBannerProps = {
 };
 /** Mount below the tabs, above the caller's safe-area inset. No fill means no space. */
 export declare function TabBarBanner({ unitId, enabled, format }: TabBarBannerProps): React.FunctionComponentElement<any> | null;
+/** Retry delays after no fill / video creative (ms). After the last one the slot stays collapsed. */
+export declare const NATIVE_RETRY_MS: number[];
+/** Swap the creative while it stays on screen. */
+export declare const NATIVE_REFRESH_MS = 60000;
