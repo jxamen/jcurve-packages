@@ -48,7 +48,7 @@ export function createMockShoppingApi(delayMs = 150): ShoppingApi {
   return {
     proof: {
       info: () => wait({
-        rateText: '[목업] 구매 금액의 1%를 포인트로',
+        rateText: '[목업] 구매 금액의 3%를 포인트로',
         subtitle: '[목업] 구매 인증 안내', title: '[목업] 주문내역을 인증해 주세요',
         payoutText: '[목업] 지급 시점은 서버 안내로 표시돼요',
         steps: [
