@@ -13,7 +13,7 @@ vi.mock('react-native', () => ({
 }));
 beforeEach(() => { vi.clearAllMocks(); h.effects = []; h.reduced = true; h.back = null; });
 import { GoldenLotteryPopup, LotteryChip, LotteryResult, LotterySheet, RESULT, lotteryResultTopHeight, sheetMaxHeight } from './LotteryUi';
-import { parseLotteryState, type LotteryTier, type LotteryWinner } from './lottery';
+import { parseLotteryState, type LotteryState, type LotteryTier, type LotteryWinner } from './lottery';
 
 function nodes(node: any): any[] {
   if (Array.isArray(node)) return node.flatMap(nodes);
@@ -98,15 +98,15 @@ describe('LotterySheet — 바텀 시트(참고 캡처 구성)', () => {
     { missions: 5, missionState: 'locked', missionsLeft: 3, unit, maxWon: unit === 'points' ? 625 : 500, maxPoints: unit === 'points' ? 1000 : 800 },
     { missions: 10, state: 'opened', missionState: 'opened', tickets: 1, basic: 1, basicUnopened: 1, unopened: 1, unit, maxWon: unit === 'points' ? 625 : 1000, maxPoints: unit === 'points' ? 1000 : 1600 },
   ], 2);
-  const sheet = (over: Record<string, unknown> = {}) => nodes(LotterySheet({ open: true, state: missionsState(), winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn(), ...over } as any));
+  const sheet = (over: Record<string, unknown> = {}) => nodes(LotterySheet({ fullScreen: false, open: true, state: missionsState(), winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn(), ...over } as any));
   const rowBtn = (tree: any[], title: string) => buttons(tree).find(b => String(b.props.accessibilityLabel).startsWith(title));
 
   it('닫혀 있거나 상태가 없으면 아무것도 그리지 않는다', () => {
     expect(LotterySheet({ open: false, state: missionsState(), winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn() })).toBeNull();
-    expect(LotterySheet({ open: true, state: null, winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn() })).toBeNull();
+    expect(LotterySheet({ fullScreen: false, open: true, state: null, winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn() })).toBeNull();
   });
 
-  it('위에서 아래로: 딤 → 손잡이 → X → 큰 제목 → 회색 한 줄 → 줄들 → 큰 버튼 → 알림 링크', () => {
+  it('위에서 아래로: 딤 → 손잡이 → X → 큰 제목 → 회색 한 줄 → 줄들 → 알림 링크 (0.1.6: 맨 아래 「한 번 더」 큰 버튼은 없다)', () => {
     const tree = sheet({ winners: [winner()], notify: { visible: true, onPress: vi.fn() } });
     const dim = idx(tree, n => n?.type === 'Pressable' && n.props?.accessibilityLabel === '닫기' && flat(n.props.style).backgroundColor === 'rgba(0,0,0,0.5)');
     const handle = idx(tree, n => n?.type === 'View' && flat(n.props.style).width === 44 && flat(n.props.style).height === 5);
@@ -114,9 +114,9 @@ describe('LotterySheet — 바텀 시트(참고 캡처 구성)', () => {
     const title = idx(tree, n => n?.type === 'Text' && n.props?.accessibilityRole === 'header');
     const sub = idx(tree, n => n === '받은 복권은 매일 자정에 사라져요');
     const row = idx(tree, n => n?.type === 'Pressable' && String(n.props?.accessibilityLabel).startsWith('최대 100원 복권'));
-    const big = idx(tree, n => n?.type === 'Pressable' && String(n.props?.accessibilityLabel).startsWith('한 번 더!'));
     const link = idx(tree, n => n?.type === 'Pressable' && n.props?.accessibilityLabel === '복권 받게 알림 켜기');
-    const order = [dim, handle, x, title, sub, row, big, link];
+    const order = [dim, handle, x, title, sub, row, link];
+    expect(buttons(tree).some(b => String(b.props.accessibilityLabel).startsWith('한 번 더!'))).toBe(false);
     expect(order.every(i => i >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(text(tree)).toContain('꽝 없는 복권\n지금 열고 행운 받아가요!');
@@ -173,7 +173,7 @@ describe('LotterySheet — 바텀 시트(참고 캡처 구성)', () => {
   it('미션 줄: ready → 열기(onOpen(tier, mission)) · locked → 받기(onEarn) · opened → 받기 완료(눌리지 않음) · capped → 내일 받아요', () => {
     const onOpen = vi.fn(); const onEarn = vi.fn();
     const st = state([{ missionState: 'ready', unopened: 1 }, { missionState: 'locked' }, { missionState: 'opened' }, { missionState: 'capped' }], 1);
-    const tree = nodes(LotterySheet({ open: true, state: st, winners: [], onOpen, onEarn, onClose: vi.fn() }));
+    const tree = nodes(LotterySheet({ fullScreen: false, open: true, state: st, winners: [], onOpen, onEarn, onClose: vi.fn() }));
     const rows = buttons(tree).filter(b => String(b.props.accessibilityLabel).startsWith('최대 100원 복권'));
     expect(rows.map(r => String(r.props.accessibilityLabel).split(', ')[1])).toEqual(['열기', '받기', '받기 완료', '내일 받아요']);
     rows[0].props.onPress(); rows[1].props.onPress(); rows[2].props.onPress(); rows[3].props.onPress();
@@ -198,20 +198,20 @@ describe('LotterySheet — 바텀 시트(참고 캡처 구성)', () => {
     expect(nodes(rowBtn(noAd, '최대 1,000원 복권, 열기')!.props.children).some(n => n?.type === 'Text' && n.props?.children === '광고')).toBe(false);
     // 황금을 이미 열었으면 받기 완료
     const opened = state([{ missionState: 'locked' }, { missionState: 'opened', basic: 1, basicUnopened: 0, maxWon: 1000 }], 0);
-    const t2 = nodes(LotterySheet({ open: true, state: opened, winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn() }));
+    const t2 = nodes(LotterySheet({ fullScreen: false, open: true, state: opened, winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn() }));
     expect(buttons(t2).some(b => String(b.props.accessibilityLabel) === '최대 1,000원 복권, 받기 완료')).toBe(true);
     // 기본 복권이 없으면 황금 줄이 없다
-    const none = nodes(LotterySheet({ open: true, state: state([{ missionState: 'locked' }], 0), winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn() }));
+    const none = nodes(LotterySheet({ fullScreen: false, open: true, state: state([{ missionState: 'locked' }], 0), winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn() }));
     expect(tree.filter(n => n?.props?.adjustsFontSizeToFit).length - none.filter(n => n?.props?.adjustsFontSizeToFit).length).toBeGreaterThan(0);
     expect(none.some(n => n?.props?.children === '★')).toBe(false);
   });
 
   it('포인트 표(unit:points): 「최대 1,000P 복권」 — 원 표시가 없다', () => {
-    const tree = nodes(LotterySheet({ open: true, state: missionsState('points'), winners: [winner({ unit: 'points', points: 1000, tierMaxPoints: 1000 })], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn() }));
+    const tree = nodes(LotterySheet({ fullScreen: false, open: true, state: missionsState('points'), winners: [winner({ unit: 'points', points: 1000, tierMaxPoints: 1000 })], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn() }));
     const t = text(tree);
     expect(t).toContain('최대 1,000P 복권');
     expect(t).not.toContain('원 복권');
-    expect(buttons(tree).some(b => String(b.props.accessibilityLabel).startsWith('한 번 더! 최대 1,000P 복권 받기'))).toBe(true);
+    expect(buttons(tree).some(b => String(b.props.accessibilityLabel).startsWith('한 번 더!'))).toBe(false);
     const pill = tree.find(n => n?.type === 'Text' && n.props?.numberOfLines === 1)!;
     const kids = nodes(pill.props.children);
     expect(kids).toContain('1,000P');
@@ -219,25 +219,21 @@ describe('LotterySheet — 바텀 시트(참고 캡처 구성)', () => {
     expect(plain).toBe('Noe****님이 1,000P 당첨됐어요!');
   });
 
-  it('당첨 띠는 서버 winners 에 실제 기록이 있을 때만 — 없으면 숨긴다(가짜 이름 없음) · 원 표는 예전 문구', () => {
+  it('당첨 띠는 서버 winners 에 실제 기록이 있을 때만 — 없으면 숨긴다(가짜 이름 없음) · 원 당첨도 P 로(state.wonToPoint, 0.1.6)', () => {
     expect(text(sheet({ winners: [] }))).not.toContain('님이');
     expect(text(sheet({ winners: undefined }))).not.toContain('님이');
     const tree = sheet({ winners: [winner({ nick: 'Kim****', tierMax: 500 })] });
     const pill = tree.find(n => n?.type === 'Text' && n.props?.numberOfLines === 1)!;
     const joined = nodes(pill.props.children).filter(x => typeof x === 'string').join('');
-    expect(joined).toBe('Kim****님이 500원 복권에 당첨됐어요!');
+    expect(joined).toBe('Kim****님이 160P 당첨됐어요!');                       // 100원 × wonToPoint 160 ÷ 100 — 최대액(500원)이 아니라 실제 당첨액
   });
 
-  it('맨 아래 큰 「한 번 더! ○ 복권 받기」 — 원 표는 500원 복권, 누르면 onMore(다음 단계) · 없으면 onEarn · 다 받았으면 버튼 없음', () => {
+  it('맨 아래 큰 「한 번 더! ○ 복권 받기」 버튼은 없다(0.1.6, 대표님 17:18) — 못 받은 단계가 남아도 · onMore 를 넘겨도', () => {
     const onMore = vi.fn(); const onEarn = vi.fn();
-    const big = buttons(sheet({ onMore, onEarn })).find(b => String(b.props.accessibilityLabel).startsWith('한 번 더!'))!;
-    expect(big.props.accessibilityLabel).toBe('한 번 더! 500원 복권 받기');
-    big.props.onPress();
-    expect(onMore).toHaveBeenCalledWith(2);
-    buttons(sheet({ onEarn })).find(b => String(b.props.accessibilityLabel).startsWith('한 번 더!'))!.props.onPress();
-    expect(onEarn).toHaveBeenCalledWith(2);
-    const all = nodes(LotterySheet({ open: true, state: state([{ missionState: 'opened' }], 0), winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn() }));
-    expect(buttons(all).some(b => String(b.props.accessibilityLabel).startsWith('한 번 더!'))).toBe(false);
+    const tree = sheet({ onMore, onEarn });
+    expect(buttons(tree).some(b => String(b.props.accessibilityLabel).startsWith('한 번 더!'))).toBe(false);
+    expect(text(tree)).not.toContain('한 번 더!');
+    expect(onMore).not.toHaveBeenCalled();
   });
 
   it('열기가 진행 중(busy)이면 줄이 눌리지 않는다', () => {
@@ -318,12 +314,12 @@ describe('LotteryResult — 당첨 전체 화면', () => {
 });
 
 describe('GoldenLotteryPopup — 바텀 시트', () => {
-  const golden = (over: Record<string, unknown> = {}) => nodes(GoldenLotteryPopup({ open: true, maxWon: 1000, maxPoints: 1600, onOpen: vi.fn(), onClose: vi.fn(), ...over } as any));
+  const golden = (over: Record<string, unknown> = {}) => nodes(GoldenLotteryPopup({ fullScreen: false, open: true, maxWon: 1000, maxPoints: 1600, onOpen: vi.fn(), onClose: vi.fn(), ...over } as any));
 
   it('닫혀 있으면 null · 「광고 보고 황금 복권 열기」 · busy 동안은 눌리지 않는다', () => {
     expect(GoldenLotteryPopup({ open: false, maxWon: 1000, onOpen: vi.fn(), onClose: vi.fn() })).toBeNull();
     const onOpen = vi.fn();
-    const tree = nodes(GoldenLotteryPopup({ open: true, maxWon: 1000, onOpen, onClose: vi.fn(), icon: React.createElement('Gold') }));
+    const tree = nodes(GoldenLotteryPopup({ fullScreen: false, open: true, maxWon: 1000, onOpen, onClose: vi.fn(), icon: React.createElement('Gold') }));
     expect(text(tree)).toContain('황금 복권이 나타났어요!');
     expect(tree.some(n => n?.type === 'Gold')).toBe(true);
     const b = buttons(tree).find(x => x.props.accessibilityLabel === '광고 보고 황금 복권 열기')!;
@@ -399,8 +395,8 @@ describe('🔔 복권 받게 알림 켜기 링크 — 알림이 꺼져 있을 �
   it('시트 · 황금 팝업 · 결과 화면 모두: visible 일 때만 보이고 누르면 onPress', () => {
     const p = vi.fn();
     const make = {
-      sheet: (n: any) => nodes(LotterySheet({ open: true, state: st, winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn(), notify: n })),
-      golden: (n: any) => nodes(GoldenLotteryPopup({ open: true, maxWon: 1000, onOpen: vi.fn(), onClose: vi.fn(), notify: n })),
+      sheet: (n: any) => nodes(LotterySheet({ fullScreen: false, open: true, state: st, winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn(), notify: n })),
+      golden: (n: any) => nodes(GoldenLotteryPopup({ fullScreen: false, open: true, maxWon: 1000, onOpen: vi.fn(), onClose: vi.fn(), notify: n })),
       result: (n: any) => nodes(LotteryResult({ result: { won: 100, points: 160, unopened: 0 }, onClose: vi.fn(), notify: n })),
     };
     for (const [name, fn] of Object.entries(make)) {
@@ -419,9 +415,9 @@ describe('🔔 복권 받게 알림 켜기 링크 — 알림이 꺼져 있을 �
     const busy = nodes(LotteryResult({ result: { won: 100, points: 160, unopened: 0 }, onClose: vi.fn(), notify: notify(true, { busy: true, label: '알림 켜기', hint: '힌트' }) }));
     expect(link(busy, '알림 켜기')!.props.disabled).toBe(true);
     expect(text(busy)).not.toContain('힌트');                                  // 당첨 화면은 설명 줄 없이 한 줄(0.1.4)
-    const busySheet = nodes(LotterySheet({ open: true, state: st, winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn(), notify: notify(true, { label: '알림 켜기', hint: '힌트' }) }));
+    const busySheet = nodes(LotterySheet({ fullScreen: false, open: true, state: st, winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn(), notify: notify(true, { label: '알림 켜기', hint: '힌트' }) }));
     expect(text(busySheet)).toContain('힌트');                                 // 글자는 바꿀 수 있다
-    const legacy = nodes(LotterySheet({ open: true, state: st, winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn(), onEnableNotify: vi.fn() }));
+    const legacy = nodes(LotterySheet({ fullScreen: false, open: true, state: st, winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn(), onEnableNotify: vi.fn() }));
     expect(text(legacy)).toContain('복권 받게 알림 켜기');
   });
 });
@@ -431,8 +427,8 @@ describe('한글 줄바꿈(0.1.4) — 단어 단위, 한 글자만 남지 않게
   it('모든 글자가 lineBreakStrategyIOS="hangul-word" 를 가진다(시트 · 황금 팝업 · 당첨 화면)', () => {
     const st = state([{ missionState: 'ready', unopened: 1, basic: 1, basicUnopened: 1 }, { missions: 5, missionState: 'locked', missionsLeft: 3 }], 1);
     const trees = [
-      nodes(LotterySheet({ open: true, state: st, winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn(), notify: { visible: true, onPress: vi.fn() } })),
-      nodes(GoldenLotteryPopup({ open: true, maxWon: 1000, onOpen: vi.fn(), onClose: vi.fn() })),
+      nodes(LotterySheet({ fullScreen: false, open: true, state: st, winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn(), notify: { visible: true, onPress: vi.fn() } })),
+      nodes(GoldenLotteryPopup({ fullScreen: false, open: true, maxWon: 1000, onOpen: vi.fn(), onClose: vi.fn() })),
       nodes(LotteryResult({ result: { won: 100, points: 5, unopened: 1, unit: 'points' }, onOpenNext: vi.fn(), onClose: vi.fn() })),
     ];
     for (const tree of trees) {
@@ -443,7 +439,7 @@ describe('한글 줄바꿈(0.1.4) — 단어 단위, 한 글자만 남지 않게
   });
   it('제목은 두 줄 안에서 · 줄 제목은 한 줄로 줄어들고 · 줄 설명은 두 줄까지 — 너비에 맞춘다', () => {
     const st = state([{ missionState: 'locked' }], 0);
-    const tree = nodes(LotterySheet({ open: true, state: st, winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn() }));
+    const tree = nodes(LotterySheet({ fullScreen: false, open: true, state: st, winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn() }));
     const title = tree.find(n => n?.type === 'Text' && n.props?.accessibilityRole === 'header')!;
     expect(title.props).toMatchObject({ numberOfLines: 2, adjustsFontSizeToFit: true });
     expect(flat(title.props.style).fontSize).toBeLessThanOrEqual(24);
@@ -506,7 +502,7 @@ describe('5단계 시트(1 · 5 · 10 · 20 · 30) — 10 · 20 · 30 은 한 �
   const mk = (s: ('ready' | 'locked' | 'opened' | 'capped')[]) => state([1, 5, 10, 20, 30].map((m, i) => ({
     missions: m, missionState: s[i], state: s[i], missionsLeft: s[i] === 'locked' ? m : 0, unopened: s[i] === 'ready' ? 1 : 0, basic: i === 4 ? 1 : 0, basicUnopened: i === 4 ? 1 : 0,
   })) as Partial<LotteryTier>[], 1);
-  const sheet5 = (st: any, over: Record<string, unknown> = {}) => nodes(LotterySheet({ open: true, state: st, winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn(), ...over } as any));
+  const sheet5 = (st: any, over: Record<string, unknown> = {}) => nodes(LotterySheet({ fullScreen: false, open: true, state: st, winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn(), ...over } as any));
   const rowsOf = (tree: any[]) => buttons(tree).filter(b => String(b.props.accessibilityLabel).startsWith('최대 '));
   const rowHints = (tree: any[]) => tree.filter(n => n?.type === 'Text' && n.props?.numberOfLines === 1 && flat(n.props.style).fontSize === 14 && flat(n.props.style).lineHeight === 20).map(n => String(n.props.children));
 
@@ -549,8 +545,8 @@ describe('5단계 시트(1 · 5 · 10 · 20 · 30) — 10 · 20 · 30 은 한 �
 describe('알림 켜기 상자 — 안쪽 가운데 정렬 (0.1.5, 대표님 17:08:49)', () => {
   const notify = { visible: true, onPress: vi.fn(), hint: '매일 새 복권이 나오면 알려 드릴게요 — 아주 긴 설명은 두 줄로 내려가도 가운데에 놓인다' };
   const trees = () => ({
-    sheet: nodes(LotterySheet({ open: true, state: state([{ missionState: 'locked' }], 0), winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn(), notify })),
-    golden: nodes(GoldenLotteryPopup({ open: true, maxWon: 1000, onOpen: vi.fn(), onClose: vi.fn(), notify })),
+    sheet: nodes(LotterySheet({ fullScreen: false, open: true, state: state([{ missionState: 'locked' }], 0), winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn(), notify })),
+    golden: nodes(GoldenLotteryPopup({ fullScreen: false, open: true, maxWon: 1000, onOpen: vi.fn(), onClose: vi.fn(), notify })),
     result: nodes(LotteryResult({ result: { won: 100, points: 5, unopened: 0, unit: 'points' }, onClose: vi.fn(), notify } as any)),
   });
 
@@ -567,5 +563,134 @@ describe('알림 켜기 상자 — 안쪽 가운데 정렬 (0.1.5, 대표님 17:
         expect(flat(hint.props.style), name).toMatchObject({ textAlign: 'center', alignSelf: 'stretch' });
       }
     }
+  });
+});
+
+describe('복권 목록 · 황금 복권 전체 화면 — 기본 (0.1.6, 감자밭 화면 그대로)', () => {
+  const five = (): LotteryState => state([1, 5, 10, 20, 30].map((m, i) => ({
+    missions: m, missionState: i === 0 ? 'ready' : 'locked', state: i === 0 ? 'ready' : 'locked', missionsLeft: i === 0 ? 0 : m, unopened: i === 0 ? 1 : 0, basic: i === 4 ? 1 : 0, basicUnopened: i === 4 ? 1 : 0,
+  })) as Partial<LotteryTier>[], 1);
+  const list = (over: Record<string, unknown> = {}) => nodes(LotterySheet({ open: true, state: five(), winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn(), ...over } as any));
+  const gold = (over: Record<string, unknown> = {}) => nodes(GoldenLotteryPopup({ open: true, maxWon: 1000, maxPoints: 1600, onOpen: vi.fn(), onClose: vi.fn(), ...over } as any));
+
+  it('fullScreen 이 기본 — 머리글(‹ · 가운데 제목 「꽝 없는 복권」) 아래 흰 카드, 바텀 시트의 딤 · 손잡이 · X 는 없다', () => {
+    const tree = list();
+    expect(find(tree, n => n?.type === 'Pressable' && n.props?.accessibilityLabel === '뒤로')).toBeTruthy();
+    expect(tree.filter(n => n?.type === 'Text' && n.props?.accessibilityRole === 'header').map(n => n.props.children)).toEqual(['꽝 없는 복권', '지금 열고 행운 받아가요!']);
+    expect(text(tree).split('꽝 없는 복권').length - 1).toBe(1);                         // 카드 안 「꽝 없는 복권」 첫 줄은 없다 — 머리글 제목 한 번
+    expect(tree.some(n => n?.type === 'Pressable' && flat(n.props.style).backgroundColor === 'rgba(0,0,0,0.5)')).toBe(false);          // 딤
+    expect(tree.some(n => n?.type === 'View' && flat(n.props.style).width === 44 && flat(n.props.style).height === 5)).toBe(false);     // 손잡이
+    expect(tree.some(n => n?.type === 'View' && flat(n.props.style).borderTopLeftRadius === 28)).toBe(false);                          // 바텀 시트 모양
+    expect(text(tree)).not.toContain('✕');
+    expect(text(tree)).toContain('받은 복권은 매일 자정에 사라져요');
+  });
+
+  it('머리글 치수는 mission PageFrame 과 같다 — 높이 52 · 옆 44 · ‹ 32 · 제목 18/700 · 본문 padding 16 / 아래 40 / 칸 12, 바탕 theme.bg · 카드 theme.card 둥근 모서리 + 그림자', () => {
+    const tree = list({ topInset: 0 });
+    const header = find(tree, n => n?.type === 'View' && flat(n.props.style).height === 52)!;
+    expect(flat(header.props.style)).toMatchObject({ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8 });
+    const side = find(tree, n => n?.type === 'Pressable' && n.props?.accessibilityLabel === '뒤로')!;
+    expect(flat(side.props.style)).toMatchObject({ width: 44, height: 44 });
+    expect(flat(find(tree, n => n?.type === 'Text' && n.props?.children === '‹')!.props.style)).toMatchObject({ fontSize: 32, marginTop: -4 });
+    expect(flat(find(tree, n => n?.type === 'Text' && n.props?.children === '꽝 없는 복권')!.props.style)).toMatchObject({ flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '700' });
+    expect(flat(find(tree, n => n?.type === 'ScrollView')!.props.contentContainerStyle)).toMatchObject({ padding: 16, paddingBottom: 40, gap: 12 });
+    const page = find(tree, n => n?.type === 'View' && flat(n.props.style).position === 'absolute' && flat(n.props.style).backgroundColor === '#FBF7F2')!;
+    expect(flat(page.props.style)).toMatchObject({ top: 0, bottom: 0, left: 0, right: 0, paddingTop: 0, paddingBottom: 0 });            // 안전 영역은 앱 바깥 틀
+    const card = find(tree, n => n?.type === 'View' && flat(n.props.style).borderRadius === 20 && flat(n.props.style).backgroundColor === '#FFFFFF')!;
+    expect(flat(card.props.style)).toMatchObject({ padding: 20, elevation: 2 });
+    // 앱이 준 색을 따른다
+    const themed = list({ theme: { bg: '#E5F5D0', card: '#FAFAFA' } });
+    expect(find(themed, n => n?.type === 'View' && flat(n.props.style).position === 'absolute' && flat(n.props.style).backgroundColor === '#E5F5D0')).toBeTruthy();
+    expect(find(themed, n => n?.type === 'View' && flat(n.props.style).borderRadius === 20 && flat(n.props.style).backgroundColor === '#FAFAFA')).toBeTruthy();
+    // 안전 영역을 주면 그만큼
+    const insets = list({ topInset: 47, bottomInset: 34 });
+    expect(flat(find(insets, n => n?.type === 'View' && flat(n.props.style).position === 'absolute' && flat(n.props.style).backgroundColor === '#FBF7F2')!.props.style)).toMatchObject({ paddingTop: 47, paddingBottom: 34 });
+  });
+
+  it('‹ 와 안드로이드 뒤로 가기는 닫기 · 카드 안: 제목 → 회색 한 줄 → 당첨 띠 → 줄들 → 알림 → 카드 밖 아래 광고(위 보정 없이)', () => {
+    const onClose = vi.fn();
+    const tree = list({ onClose, winners: [winner({ nick: 'Kim****', won: 1000, tierMax: 1000 })], notify: { visible: true, onPress: vi.fn() }, renderNative: () => React.createElement('NativeAd') });
+    buttons(tree).find(b => b.props.accessibilityLabel === '뒤로')!.props.onPress();
+    expect(onClose).toHaveBeenCalledOnce();
+    const cleanup = h.effects[h.effects.length - 1]();
+    expect(h.back()).toBe(true);
+    expect(onClose).toHaveBeenCalledTimes(2);
+    cleanup();
+    expect(h.remove).toHaveBeenCalled();
+    const at = (pred: (n: any) => boolean) => idx(tree, pred);
+    const order = [
+      at(n => n?.type === 'Pressable' && n.props?.accessibilityLabel === '뒤로'),
+      at(n => n?.type === 'Text' && n.props?.children === '지금 열고 행운 받아가요!'),
+      at(n => n === '받은 복권은 매일 자정에 사라져요'),
+      at(n => n === 'Kim****님이 '),
+      at(n => n?.type === 'Pressable' && String(n.props?.accessibilityLabel).startsWith('최대 100원 복권')),
+      at(n => n?.type === 'Pressable' && n.props?.accessibilityLabel === '복권 받게 알림 켜기'),
+      at(n => n?.type === 'NativeAd'),
+    ];
+    expect(order.every(i => i >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    // 광고는 카드 밖(카드 View 의 자손이 아님) — 감싼 View 에 위 여백 스타일이 없어 간격은 본문 칸 사이 12 뿐
+    const card = find(tree, n => n?.type === 'View' && flat(n.props.style).borderRadius === 20)!;
+    expect(nodes(card.props.children).some(n => n?.type === 'NativeAd')).toBe(false);
+    const wrap = find(tree, n => n?.type === 'View' && n.props?.children?.type === 'NativeAd')!;
+    expect(wrap.props.style).toBeUndefined();
+  });
+
+  it('줄은 서버 단계대로(묶기 0.1.5) · 숫자 박스 없음 · 「한 번 더」 없음 · 당첨 띠는 원 → P(1,000원 × 160 ÷ 100 = 1,600P) · 줄 크기는 행운 찬스 줄처럼 16 / 13 / 72x36', () => {
+    const tree = list({ winners: [winner({ nick: 'Kim****', won: 1000, tierMax: 1000 })] });
+    const rowBtns = buttons(tree).filter(b => String(b.props.accessibilityLabel).startsWith('최대 '));
+    expect(rowBtns.map(b => b.props.accessibilityLabel)).toEqual(['최대 100원 복권, 열기', '최대 100원 복권, 받기', '최대 100원 복권, 받기', '최대 100원 복권, 열기, 광고']);
+    expect(text(tree)).not.toContain('한 번 더!');
+    expect(tree.some(n => n?.type === 'Text' && n.props?.adjustsFontSizeToFit && flat(n.props.style).fontWeight === '900' && flat(n.props.style).fontSize === 17)).toBe(false);
+    const pill = tree.find(n => n?.type === 'Text' && n.props?.numberOfLines === 1 && flat(n.props.style).fontSize === 13.5)!;
+    expect(nodes(pill.props.children).filter(x => typeof x === 'string').join('')).toBe('Kim****님이 1,600P 당첨됐어요!');
+    const hint = tree.filter(n => n?.type === 'Text' && n.props?.numberOfLines === 1 && flat(n.props.style).fontSize === 13 && flat(n.props.style).fontWeight === '600').map(n => String(n.props.children));
+    expect(hint).toEqual(['쇼핑 · 플레이스 퀴즈 1개 하면 받아요', '쇼핑 · 플레이스 퀴즈 5개 하면 받아요', '쇼핑 · 플레이스 퀴즈 10개마다 받아요', '하루 1번 광고 보고 받아요']);
+    expect(find(tree, n => n?.type === 'Text' && n.props?.children === '최대 100원 복권')).toBeTruthy();
+    expect(flat(find(tree, n => n?.type === 'Text' && n.props?.children === '최대 100원 복권')!.props.style)).toMatchObject({ fontSize: 16, fontWeight: '800' });
+    expect(flat(find(tree, n => n?.type === 'View' && flat(n.props.style).minWidth === 72)!.props.style)).toMatchObject({ height: 36, borderRadius: 12 });
+    // 묶인 줄을 누르면 안 연 첫 단계 / 못 받은 줄은 onEarn
+    const onOpen = vi.fn(); const onEarn = vi.fn();
+    const t2 = list({ onOpen, onEarn });
+    buttons(t2).find(b => b.props.accessibilityLabel === '최대 100원 복권, 열기')!.props.onPress();
+    expect(onOpen).toHaveBeenCalledWith(1, 'mission');
+    buttons(t2).filter(b => b.props.accessibilityLabel === '최대 100원 복권, 받기')[0].props.onPress();
+    expect(onEarn).toHaveBeenCalledWith(2);
+  });
+
+  it('황금 복권 전체 화면: 같은 머리글(제목 「황금 복권」) + 흰 카드(티켓 → 제목 → 쉬운 말 → 작은 글씨 → 큰 버튼+광고 칩 → 다음에 열기 → 알림) · 딤 · 손잡이 없음', () => {
+    const onOpen = vi.fn(); const onClose = vi.fn();
+    const tree = gold({ onOpen, onClose, notify: { visible: true, onPress: vi.fn() } });
+    expect(tree.filter(n => n?.type === 'Text' && n.props?.accessibilityRole === 'header').map(n => n.props.children)).toEqual(['황금 복권', '황금 복권이 나타났어요!']);
+    expect(tree.some(n => n?.type === 'Pressable' && flat(n.props.style).backgroundColor === 'rgba(0,0,0,0.5)')).toBe(false);
+    expect(tree.some(n => n?.type === 'View' && flat(n.props.style).width === 44 && flat(n.props.style).height === 5)).toBe(false);
+    const at = (pred: (n: any) => boolean) => idx(tree, pred);
+    const order = [
+      at(n => n?.type === 'Pressable' && n.props?.accessibilityLabel === '뒤로'),
+      at(n => n === 'GOLD'),
+      at(n => n?.type === 'Text' && n.props?.children === '황금 복권이 나타났어요!'),
+      at(n => typeof n === 'string' && n.includes('바로 들어와요')),
+      at(n => n?.type === 'Pressable' && String(n.props?.accessibilityLabel).startsWith('광고 보고 황금 복권 열기')),
+      at(n => n?.type === 'Pressable' && n.props?.accessibilityLabel === '다음에 열기'),
+      at(n => n?.type === 'Pressable' && n.props?.accessibilityLabel === '복권 받게 알림 켜기'),
+    ];
+    expect(order.every(i => i >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    const open = buttons(tree).find(b => String(b.props.accessibilityLabel).startsWith('광고 보고 황금 복권 열기'))!;
+    expect(nodes(open.props.children).some(n => n?.type === 'Text' && n.props?.children === '광고')).toBe(true);
+    open.props.onPress();
+    expect(onOpen).toHaveBeenCalledOnce();
+    buttons(tree).find(b => b.props.accessibilityLabel === '다음에 열기')!.props.onPress();
+    buttons(tree).find(b => b.props.accessibilityLabel === '뒤로')!.props.onPress();
+    expect(onClose).toHaveBeenCalledTimes(2);
+    expect(nodes(GoldenLotteryPopup({ open: false, maxWon: 1000, onOpen: vi.fn(), onClose: vi.fn() }))).toEqual([null]);
+  });
+
+  it('fullScreen={false} 면 예전 바텀 시트 그대로(딤 · 손잡이 · X · 큰 제목 2줄) — 목록 · 황금 모두', () => {
+    const sheetOld = nodes(LotterySheet({ fullScreen: false, open: true, state: five(), winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn() }));
+    expect(sheetOld.some(n => n?.type === 'Pressable' && flat(n.props.style).backgroundColor === 'rgba(0,0,0,0.5)')).toBe(true);
+    expect(text(sheetOld)).toContain('꽝 없는 복권\n지금 열고 행운 받아가요!');
+    const goldOld = nodes(GoldenLotteryPopup({ fullScreen: false, open: true, maxWon: 1000, onOpen: vi.fn(), onClose: vi.fn() }));
+    expect(goldOld.some(n => n?.type === 'Pressable' && flat(n.props.style).backgroundColor === 'rgba(0,0,0,0.5)')).toBe(true);
   });
 });

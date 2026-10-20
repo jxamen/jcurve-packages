@@ -1,6 +1,6 @@
 {
   "name": "@jcurve/lottery",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "공용 복권 — 칩 · 복권 시트 · 결과 · 황금 복권 팝업 · 서버 호출 훅 (서버 jcurve-api lottery/*)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

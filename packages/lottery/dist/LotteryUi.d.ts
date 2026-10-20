@@ -55,12 +55,13 @@ export type LotteryPresentation = 'overlay' | 'modal';
  */
 export declare function sheetMaxHeight(windowHeight: number, topInset?: number, os?: string, statusBar?: number | null | undefined): number;
 /**
- * 복권 시트 — 참고 캡처(IMG_9331) 구성: 딤 · 둥근 흰 시트 · X · 손잡이 → 큰 제목 2줄 + 회색 한 줄 → 회색 둥근 당첨 띠(**서버 winners 의 실제 기록이 있을 때만**, 가짜 이름 없음)
- * → 줄 목록(왼쪽 숫자 카드 · 「최대 ○ 복권」 굵게 · 회색 설명 · 오른쪽 「받기」 연한 버튼 / 「받기 완료」 회색) → 맨 아래 큰 「한 번 더! ○ 복권 받기」 + 「🔔 복권 받게 알림 켜기 ›」 링크.
- * 줄: 미션 복권 줄(단계마다, 미션 복권만의 상태) + 하루 기본(황금) 복권 줄(있을 때). 포인트 표 단계는 「최대 1,000P 복권」(unit:'points'), 원 표는 「최대 100원 복권」.
+ * 복권 목록 — (0.1.6) 기본은 **전체 화면**(감자밭 화면 그대로): 행운 찬스와 같은 머리글(‹ · 가운데 제목 「꽝 없는 복권」 · theme.bg 바탕, 안드 뒤로가기 → onClose) 아래 흰 카드(theme.card · 둥근 모서리 · 그림자)에
+ * 「지금 열고 행운 받아가요!」 한 줄 + 회색 한 줄 → 당첨 띠(**서버 winners 의 실제 기록이 있을 때만**, 원 당첨도 P 로) → 단계 줄 + 황금 줄 → 「🔔 복권 받게 알림 켜기」(가운데). 「한 번 더」 버튼은 없다.
+ * 맨 아래 `renderNative` 광고는 카드 아래 12. `fullScreen={false}` 면 예전 바텀 시트(딤 · X · 손잡이 · 큰 제목 2줄).
+ * 줄: 서버 단계 수대로(같은 표 + 문턱이 10 의 배수는 한 줄로 묶음, 0.1.5) + 하루 기본(황금) 복권 줄(있을 때). 포인트 표 단계는 「최대 1,000P 복권」(unit:'points'), 원 표는 「최대 100원 복권」.
  * 광고가 바로 열리는 줄(황금 복권을 여는 버튼)에만 「광고」 칩. `onOpen(tier, src)` — 미션 줄은 'mission', 황금 줄은 'basic'(앱은 'basic' 일 때 보상형 광고를 먼저 보여 준다).
  */
-export declare function LotterySheet({ open, state, winners, busy, onOpen, onEarn, onMore, onClose, onEnableNotify, notifyLabel, notify, theme, renderNative, topInset, bottomInset, basicAd, adLabel, presentation, quiz }: {
+export declare function LotterySheet({ open, state, winners, busy, onOpen, onEarn, onClose, onEnableNotify, notifyLabel, notify, theme, renderNative, topInset, bottomInset, basicAd, adLabel, presentation, quiz, fullScreen, headerTitle }: {
     open: boolean;
     state: LotteryState | null;
     winners?: LotteryWinner[];
@@ -69,7 +70,7 @@ export declare function LotterySheet({ open, state, winners, busy, onOpen, onEar
     onOpen: (tier: number, src?: 'basic' | 'mission') => void;
     /** 「받기」 — 아직 못 받은 단계(미션으로 가기) */
     onEarn: (tier: number) => void;
-    /** 「한 번 더! ○ 복권 받기」 — 안 주면 onEarn(다음 단계) */
+    /** (0.1.6 사용 안 함) 「한 번 더! ○ 복권 받기」 버튼이 없어졌다 — 예전 앱이 넘겨도 오류 없이 무시한다 */
     onMore?: (tier: number) => void;
     onClose: () => void;
     /** (옛 방식) 있으면 늘 보이는 「알림 켜기」 줄 — 새 앱은 `notify`(useLotteryNotify)를 쓴다: 꺼져 있을 때만 보인다 */
@@ -78,9 +79,9 @@ export declare function LotterySheet({ open, state, winners, busy, onOpen, onEar
     /** (0.1.2) 알림이 꺼져 있을 때만 보이는 「🔔 복권 받게 알림 켜기 ›」 링크 */
     notify?: LotteryNotify;
     renderNative?: () => ReactNode;
-    /** 안전 영역 위 여백(`useSafeAreaInsets().top`) — 시트가 이 아래에서 끝난다. 안 주면 짐작한다 */
+    /** 안전 영역 위 여백(`useSafeAreaInsets().top`). 전체 화면은 기본 0(안전 영역을 앱 바깥 틀이 잡을 때), 바텀 시트는 시트가 이 아래에서 끝난다(안 주면 짐작) */
     topInset?: number;
-    /** (0.1.3) 아래 안전 영역(`useSafeAreaInsets().bottom`) — 시트 아래를 그만큼 더 띄운다 */
+    /** (0.1.3) 아래 안전 영역(`useSafeAreaInsets().bottom`) */
     bottomInset?: number;
     /** (0.1.2) 황금(기본) 복권을 열 때 광고가 열리나 — 서버 설정 daily_basic.ad(기본 true). */
     basicAd?: boolean;
@@ -88,6 +89,10 @@ export declare function LotterySheet({ open, state, winners, busy, onOpen, onEar
     presentation?: LotteryPresentation;
     /** (0.1.5) 줄 설명의 이름 — 기본 「쇼핑 · 플레이스 퀴즈」(「쇼핑 · 플레이스 퀴즈 5개 하면 받아요」). 앱마다 다르면 바꾼다 */
     quiz?: string;
+    /** (0.1.6) 전체 화면(기본 true, 행운 찬스와 같은 틀) — false 면 예전 바텀 시트 */
+    fullScreen?: boolean;
+    /** (0.1.6) 전체 화면 머리글 제목 — 기본 「꽝 없는 복권」 */
+    headerTitle?: string;
 } & ThemeProp): React.JSX.Element | null;
 /**
  * 당첨 결과 — **전체 화면**(0.1.3, 대표님 15:57 「당첨 화면은 전체 화면으로 나오게 해」): 탭 메뉴 · 상태줄까지 덮는다(앱 루트에 그리거나 `presentation="modal"`).
@@ -126,7 +131,7 @@ export declare function LotteryResult({ result, state, onOpenNext, onMore, onClo
  * 버튼은 「광고 보고 황금 복권 열기」: 앱이 `onOpen` 에서 **보상형 광고(용도 lottery_basic)를 보여 준 뒤** `useLottery.open(tier, 'basic')` 을 부른다
  * — 광고 시청은 서버가 구글 SSV 로 확인한다(앱 말만 믿지 않는다). 광고가 바로 열리므로 버튼 안 오른쪽에 「광고」 칩(`ad` 가 false 면 칩 · 광고 문구 없음). busy 동안은 다시 눌리지 않는다.
  */
-export declare function GoldenLotteryPopup({ open, maxWon, maxPoints, unit, busy, onOpen, onClose, buttonLabel, icon, theme, ad, adLabel, closeLabel, lines, note, topInset, bottomInset, notify, presentation }: {
+export declare function GoldenLotteryPopup({ open, maxWon, maxPoints, unit, busy, onOpen, onClose, buttonLabel, icon, theme, ad, adLabel, closeLabel, lines, note, topInset, bottomInset, notify, presentation, fullScreen, headerTitle }: {
     open: boolean;
     maxWon: number;
     maxPoints?: number | null;
@@ -149,6 +154,10 @@ export declare function GoldenLotteryPopup({ open, maxWon, maxPoints, unit, busy
     /** (0.1.2) 알림이 꺼져 있을 때만 보이는 「🔔 복권 받게 알림 켜기 ›」 링크 — 「다음에 열기」 아래 */
     notify?: LotteryNotify;
     presentation?: LotteryPresentation;
+    /** (0.1.6) 전체 화면(기본 true, 목록과 같은 머리글 · 흰 카드) — false 면 예전 바텀 시트 */
+    fullScreen?: boolean;
+    /** (0.1.6) 전체 화면 머리글 제목 — 기본 「황금 복권」 */
+    headerTitle?: string;
 } & ThemeProp): React.JSX.Element | null;
 /**
  * (0.1.4, 대표님 16:40 「당첨 화면 아래 네이티브 광고 카드가 잘려요」) 당첨 전체 화면 위쪽 영역의 칸 높이(pt) — 스타일과 `lotteryResultTopHeight` 가 같은 값을 쓴다.

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  createLotteryOpener, fetchLotteryState, goldenLines, goldenRow, goldenTier, lotteryChipCount, lotteryMissionButton, lotteryMissionHint, lotteryGroupTiers, lotteryTierRow, lotteryMoreLabel, lotteryMoreMissionLabel,
+  createLotteryOpener, fetchLotteryState, goldenLines, goldenRow, goldenTier, lotteryChipCount, lotteryMissionButton, lotteryMissionHint, lotteryGroupTiers, lotteryTierRow, lotteryWinnersInPoints, lotteryMoreLabel, lotteryMoreMissionLabel,
   lotteryResultHeadline, lotteryResultTitle, lotteryTierAmount, lotteryTierButton, lotteryTierHint, lotteryTierTitle, lotteryWinnerLine, lotteryWinnerParts,
   newLotteryKey, nextTierToEarn, openLottery, parseLotteryState, parseWinners, readyTiers, toLotteryError, type LotteryTier,
 } from './lottery';
@@ -199,6 +199,15 @@ describe('포인트 표(unit:points) — 읽기와 문구(0.1.3)', () => {
       }
       expect(lotteryMissionHint({ missions, missionsLeft: missions, missionState: 'locked' })).toBe('쇼핑 · 플레이스 퀴즈 ' + missions + '개 하면 받아요');   // 안 했으면 ready · opened 와 같은 문장
     }
+  });
+  it('당첨 띠 원 → P(0.1.6): 실제 당첨액 × wonToPoint ÷ 100 · P 단위는 그대로 · 0P 이하와 환산값 0 은 뺀다', () => {
+    const won = (nick: string, w: number, tierMax = 1000) => ({ nick, won: w, tierMax, unit: 'won' as const });
+    const out = lotteryWinnersInPoints([won('A****', 1000), won('B****', 5), { nick: 'C****', won: 0, tierMax: 0, unit: 'points' as const, points: 1000 }, { nick: 'D****', won: 0, tierMax: 0, unit: 'points' as const, points: 0 }], 160);
+    expect(out.map(w => [w.nick, w.unit, w.points])).toEqual([['A****', 'points', 1600], ['B****', 'points', 8], ['C****', 'points', 1000]]);   // 1,000원 → 1,600P (최대액이 아니라 실제 당첨액)
+    expect(out[0].tierMaxPoints).toBe(1600);
+    expect(lotteryWinnersInPoints([won('A****', 1000)], 0)).toEqual([]);                      // 환산값을 모르면 원 당첨은 뺀다
+    expect(lotteryWinnersInPoints([won('Z****', 0)], 160)).toEqual([]);                        // 0P 이하
+    expect(lotteryWinnerLine(lotteryWinnersInPoints([won('Kim****', 1000)], 160)[0])).toBe('Kim****님이 1,600P 당첨됐어요!');
   });
   it('줄 이름은 바꿀 수 있다(quiz) — 기본은 「쇼핑 · 플레이스 퀴즈」(0.1.5)', () => {
     expect(lotteryMissionHint({ missions: 5, missionsLeft: 5, missionState: 'locked' }, '미션')).toBe('미션 5개 하면 받아요');

@@ -123,6 +123,13 @@ export declare function lotteryWinnerParts(w: LotteryWinner): {
 };
 export declare const lotteryWinnerLine: (w: LotteryWinner) => string;
 /**
+ * (0.1.6, 대표님 10-20 16:37 「1,000원 복권에 당첨됐어요」 → P) 당첨 띠에 쓸 당첨 목록 — 원 당첨도 P 로 보여 준다(포인트 표로 가는 중이라 P 로 통일).
+ * 서버 winners 가 아직 원 단위(unit 'won')면 **실제 당첨액**(won)에 100원당 P(`state.wonToPoint`, 160 = 1원 1.6P)를 곱해 바꾼다 — 예: 1,000원 → 1,600P.
+ * 티켓 단계의 최대액(tierMax)이 아니라 실제 당첨액이다(최대액을 당첨처럼 보이면 사실과 다르다). 서버가 이미 P(unit 'points')로 주면 그대로 통과한다.
+ * 환산값을 모르거나(0) 당첨 P 가 0 이하인 줄은 띠에서 뺀다. `LotterySheet` 가 자동으로 쓴다.
+ */
+export declare function lotteryWinnersInPoints(winners: LotteryWinner[], wonToPoint: number): LotteryWinner[];
+/**
  * (0.1.3) 시트 줄 — 미션 복권 줄(단계마다)과 황금 복권 줄(하루 기본 복권이 있을 때 하나)을 따로 보여 준다. 미션 줄은 미션 복권만의 상태(missionState)로 정한다.
  * 「열기」는 미션 복권이 열린 줄, 「받기」는 아직 못 받은(미션으로 가기), 「받기 완료」는 다 연 줄, 「내일 받아요」는 하루 한도에 막힌 줄
  */

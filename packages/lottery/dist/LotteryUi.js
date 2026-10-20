@@ -108,34 +108,52 @@ function sheetMaxHeight(windowHeight, topInset, os = react_native_1.Platform.OS,
 function BottomSheet({ open, onClose, theme, topInset, bottomInset = 0, presentation, children }) {
     return (0, jsx_runtime_1.jsxs)(Layer, { open: open, onClose: onClose, presentation: presentation, children: [(0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: "\uB2EB\uAE30", onPress: onClose, style: s.dim }), (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: [s.bsheet, { backgroundColor: theme.card, maxHeight: sheetMaxHeight(react_native_1.Dimensions.get('window').height, topInset), paddingBottom: SHEET_PAD + Math.max(0, bottomInset) }], children: [(0, jsx_runtime_1.jsx)(react_native_1.View, { accessible: false, style: s.handleWrap, children: (0, jsx_runtime_1.jsx)(react_native_1.View, { style: [s.handle, { backgroundColor: theme.done }] }) }), (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.bsHeader, children: (0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: "\uB2EB\uAE30", hitSlop: 12, onPress: onClose, style: s.bsClose, children: (0, jsx_runtime_1.jsx)(Txt, { style: [s.closeText, { color: theme.sub }], children: "\u2715" }) }) }), (0, jsx_runtime_1.jsx)(react_native_1.ScrollView, { bounces: false, showsVerticalScrollIndicator: false, contentContainerStyle: s.bsBody, children: children })] })] });
 }
-/** 목록 줄 — (0.1.5, 대표님 17:08) 왼쪽 숫자 박스(1 · 5 · 10 · 황금 별)는 없다: 제목 · 설명이 맨 왼쪽부터, 오른쪽에 버튼 */
-function CardRow({ title, hint, button, ad, adLabel, theme, busy, onPress }) {
-    const active = button.kind === 'open' || button.kind === 'earn';
-    return (0, jsx_runtime_1.jsxs)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: title + ', ' + button.label + (ad ? ', ' + (adLabel ?? '광고') : ''), accessibilityState: { disabled: !active || !!busy }, disabled: !active || !!busy, onPress: onPress, style: s.row, children: [(0, jsx_runtime_1.jsxs)(react_native_1.View, { style: s.rowCopy, children: [(0, jsx_runtime_1.jsx)(Txt, { style: [s.rowTitle, { color: theme.text }], numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: 0.85, children: title }), (0, jsx_runtime_1.jsx)(Txt, { style: [s.rowHint, { color: theme.sub }], numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: 0.85, children: hint })] }), (0, jsx_runtime_1.jsxs)(react_native_1.View, { pointerEvents: "none", style: [s.rowButton, { backgroundColor: active ? theme.accentSoft : theme.done }], children: [(0, jsx_runtime_1.jsx)(Txt, { style: [s.rowButtonText, { color: active ? theme.accent : theme.sub }], children: button.label }), ad && button.kind === 'open' ? (0, jsx_runtime_1.jsx)(AdChip, { label: adLabel, onColor: theme.accent }) : null] })] });
+/**
+ * (0.1.6) 전체 화면 틀 — `@jcurve/mission` 의 PageFrame(행운 찬스 화면)과 **같은 치수**. lottery 는 mission 에 기대지 않아 따로 그리되 치수를 맞춘다:
+ * 머리글 높이 52 · 양옆 44 · 「‹」 32 · 가운데 제목 18/700 · 본문 padding 16 / 아래 40 / 칸 사이 12. 위 안전 영역은 앱 바깥 틀이 잡는다(`topInset` 기본 0).
+ * 바탕은 theme.bg, 안드로이드 뒤로 가기는 닫기(Layer). `footer` 는 맨 아래 광고 자리 — 카드와는 본문 칸 사이 12 만큼(위 여백 보정 없음).
+ */
+function FullPage({ open, onClose, presentation, title, theme, topInset = 0, bottomInset = 0, footer, children }) {
+    return (0, jsx_runtime_1.jsx)(Layer, { open: open, onClose: onClose, presentation: presentation, children: (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: [s.page, { backgroundColor: theme.bg, paddingTop: Math.max(0, topInset), paddingBottom: Math.max(0, bottomInset) }], children: [(0, jsx_runtime_1.jsxs)(react_native_1.View, { style: s.pageHeader, children: [(0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: "\uB4A4\uB85C", hitSlop: 12, onPress: onClose, style: s.pageSide, children: (0, jsx_runtime_1.jsx)(Txt, { style: [s.pageBack, { color: theme.text }], children: "\u2039" }) }), (0, jsx_runtime_1.jsx)(Txt, { accessibilityRole: "header", style: [s.pageTitle, { color: theme.text }], numberOfLines: 1, children: title }), (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.pageSide })] }), (0, jsx_runtime_1.jsxs)(react_native_1.ScrollView, { bounces: false, showsVerticalScrollIndicator: false, contentContainerStyle: s.pageContent, children: [children, footer != null ? (0, jsx_runtime_1.jsx)(react_native_1.View, { children: footer }) : null] })] }) });
 }
 /**
- * 복권 시트 — 참고 캡처(IMG_9331) 구성: 딤 · 둥근 흰 시트 · X · 손잡이 → 큰 제목 2줄 + 회색 한 줄 → 회색 둥근 당첨 띠(**서버 winners 의 실제 기록이 있을 때만**, 가짜 이름 없음)
- * → 줄 목록(왼쪽 숫자 카드 · 「최대 ○ 복권」 굵게 · 회색 설명 · 오른쪽 「받기」 연한 버튼 / 「받기 완료」 회색) → 맨 아래 큰 「한 번 더! ○ 복권 받기」 + 「🔔 복권 받게 알림 켜기 ›」 링크.
- * 줄: 미션 복권 줄(단계마다, 미션 복권만의 상태) + 하루 기본(황금) 복권 줄(있을 때). 포인트 표 단계는 「최대 1,000P 복권」(unit:'points'), 원 표는 「최대 100원 복권」.
+ * 목록 줄 — (0.1.5, 대표님 17:08) 왼쪽 숫자 박스(1 · 5 · 10 · 황금 별)는 없다: 제목 · 설명이 맨 왼쪽부터, 오른쪽에 버튼.
+ * `compact`(0.1.6, 전체 화면 카드 안) — 행운 찬스 줄과 같은 크기: 제목 16 · 설명 13(한 줄, 넘치면 조금 줄어듦) · 버튼 72x36
+ */
+function CardRow({ title, hint, button, ad, adLabel, theme, busy, compact, onPress }) {
+    const active = button.kind === 'open' || button.kind === 'earn';
+    return (0, jsx_runtime_1.jsxs)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: title + ', ' + button.label + (ad ? ', ' + (adLabel ?? '광고') : ''), accessibilityState: { disabled: !active || !!busy }, disabled: !active || !!busy, onPress: onPress, style: compact ? s.rowC : s.row, children: [(0, jsx_runtime_1.jsxs)(react_native_1.View, { style: s.rowCopy, children: [(0, jsx_runtime_1.jsx)(Txt, { style: [compact ? s.rowTitleC : s.rowTitle, { color: theme.text }], numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: 0.85, children: title }), (0, jsx_runtime_1.jsx)(Txt, { style: [compact ? s.rowHintC : s.rowHint, { color: theme.sub }], numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: compact ? 0.7 : 0.85, children: hint })] }), (0, jsx_runtime_1.jsxs)(react_native_1.View, { pointerEvents: "none", style: [compact ? s.rowButtonC : s.rowButton, { backgroundColor: active ? theme.accentSoft : theme.done }], children: [(0, jsx_runtime_1.jsx)(Txt, { style: [compact ? s.rowButtonTextC : s.rowButtonText, { color: active ? theme.accent : theme.sub }], numberOfLines: 1, children: button.label }), ad && button.kind === 'open' ? (0, jsx_runtime_1.jsx)(AdChip, { label: adLabel, onColor: theme.accent }) : null] })] });
+}
+/**
+ * 복권 목록 — (0.1.6) 기본은 **전체 화면**(감자밭 화면 그대로): 행운 찬스와 같은 머리글(‹ · 가운데 제목 「꽝 없는 복권」 · theme.bg 바탕, 안드 뒤로가기 → onClose) 아래 흰 카드(theme.card · 둥근 모서리 · 그림자)에
+ * 「지금 열고 행운 받아가요!」 한 줄 + 회색 한 줄 → 당첨 띠(**서버 winners 의 실제 기록이 있을 때만**, 원 당첨도 P 로) → 단계 줄 + 황금 줄 → 「🔔 복권 받게 알림 켜기」(가운데). 「한 번 더」 버튼은 없다.
+ * 맨 아래 `renderNative` 광고는 카드 아래 12. `fullScreen={false}` 면 예전 바텀 시트(딤 · X · 손잡이 · 큰 제목 2줄).
+ * 줄: 서버 단계 수대로(같은 표 + 문턱이 10 의 배수는 한 줄로 묶음, 0.1.5) + 하루 기본(황금) 복권 줄(있을 때). 포인트 표 단계는 「최대 1,000P 복권」(unit:'points'), 원 표는 「최대 100원 복권」.
  * 광고가 바로 열리는 줄(황금 복권을 여는 버튼)에만 「광고」 칩. `onOpen(tier, src)` — 미션 줄은 'mission', 황금 줄은 'basic'(앱은 'basic' 일 때 보상형 광고를 먼저 보여 준다).
  */
-function LotterySheet({ open, state, winners, busy, onOpen, onEarn, onMore, onClose, onEnableNotify, notifyLabel, notify, theme, renderNative, topInset, bottomInset, basicAd = true, adLabel, presentation, quiz = lottery_1.DEFAULT_QUIZ }) {
+function LotterySheet({ open, state, winners, busy, onOpen, onEarn, onClose, onEnableNotify, notifyLabel, notify, theme, renderNative, topInset, bottomInset, basicAd = true, adLabel, presentation, quiz = lottery_1.DEFAULT_QUIZ, fullScreen = true, headerTitle = '꽝 없는 복권' }) {
     if (!open || !state)
         return null;
     const c = th(theme);
     const gold = (0, lottery_1.goldenRow)(state);
-    const next = state.tiers.find(t => t.missionState === 'locked') ?? null;
-    const more = next ? (0, lottery_1.lotteryMoreLabel)(state) : null;
-    const last = winners && winners.length > 0 ? winners[0] : null;
+    const last = (0, lottery_1.lotteryWinnersInPoints)(winners ?? [], state.wonToPoint)[0] ?? null; // 원 당첨도 P 로(0.1.6)
     const parts = last ? (0, lottery_1.lotteryWinnerParts)(last) : null;
-    return (0, jsx_runtime_1.jsxs)(BottomSheet, { open: open, onClose: onClose, theme: c, topInset: topInset, bottomInset: bottomInset, presentation: presentation, children: [(0, jsx_runtime_1.jsx)(Txt, { accessibilityRole: "header", style: [s.sheetTitle, { color: c.text }], numberOfLines: 2, adjustsFontSizeToFit: true, minimumFontScale: 0.8, children: '꽝 없는 복권\n지금 열고 행운 받아가요!' }), (0, jsx_runtime_1.jsx)(Txt, { style: [s.sheetSub, { color: c.sub }], children: "\uBC1B\uC740 \uBCF5\uAD8C\uC740 \uB9E4\uC77C \uC790\uC815\uC5D0 \uC0AC\uB77C\uC838\uC694" }), parts ? (0, jsx_runtime_1.jsx)(react_native_1.View, { style: [s.ticker, { backgroundColor: c.bg }], children: (0, jsx_runtime_1.jsxs)(Txt, { style: [s.tickerText, { color: c.text }], numberOfLines: 1, children: [parts.pre, (0, jsx_runtime_1.jsx)(Txt, { style: { color: c.accent, fontWeight: '800' }, children: parts.amount }), parts.post] }) }) : null, (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: s.rows, children: [(0, lottery_1.lotteryGroupTiers)(state.tiers).map(group => {
-                        const r = (0, lottery_1.lotteryTierRow)(group, quiz);
-                        // 같은 표 + 문턱이 10 의 배수인 이어진 단계(10 · 20 · 30)는 한 줄 — 「열기 2」처럼 열 수 있는 장 수, 누르면 안 연 첫 단계(0.1.5)
-                        return (0, jsx_runtime_1.jsx)(CardRow, { title: (0, lottery_1.lotteryTierTitle)(r.rep), hint: r.hint, button: r.button, theme: c, busy: busy, onPress: () => { if (r.button.kind === 'open' && r.openTier !== null)
-                                onOpen(r.openTier, 'mission');
-                            else if (r.button.kind === 'earn')
-                                onEarn(r.earnTier); } }, r.rep.tier);
-                    }), gold ? (0, jsx_runtime_1.jsx)(CardRow, { title: (0, lottery_1.lotteryTierTitle)(gold.tier), hint: (0, lottery_1.lotteryGoldHint)(basicAd), button: gold.unopened > 0 ? { label: '열기', kind: 'open' } : { label: '받기 완료', kind: 'done' }, ad: basicAd && gold.unopened > 0, adLabel: adLabel, theme: c, busy: busy, onPress: () => onOpen(gold.tier.tier, 'basic') }) : null] }), more && next ? (0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: more, disabled: !!busy, onPress: () => (onMore ?? onEarn)(next.tier), style: [s.big, { backgroundColor: c.accent }], children: (0, jsx_runtime_1.jsx)(Txt, { style: [s.bigText, { color: c.accentText }], children: more }) }) : null, notify ? (0, jsx_runtime_1.jsx)(NotifyRow, { notify: notify, theme: c }) : onEnableNotify ? (0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: notifyLabel ?? '복권 받게 알림 켜기', onPress: onEnableNotify, style: s.link, children: (0, jsx_runtime_1.jsxs)(Txt, { style: [s.linkText, { color: c.accent }], children: ["\uD83D\uDD14 ", notifyLabel ?? '복권 받게 알림 켜기', " \u203A"] }) }) : null, renderNative ? (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.native, children: renderNative() }) : null] });
+    const ticker = parts
+        ? (0, jsx_runtime_1.jsx)(react_native_1.View, { style: [fullScreen ? s.tickerC : s.ticker, { backgroundColor: c.bg }], children: (0, jsx_runtime_1.jsxs)(Txt, { style: [fullScreen ? s.tickerTextC : s.tickerText, { color: c.text }], numberOfLines: 1, children: [parts.pre, (0, jsx_runtime_1.jsx)(Txt, { style: { color: c.accent, fontWeight: '800' }, children: parts.amount }), parts.post] }) })
+        : null;
+    const rows = (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: fullScreen ? s.rowsC : s.rows, children: [(0, lottery_1.lotteryGroupTiers)(state.tiers).map(group => {
+                const r = (0, lottery_1.lotteryTierRow)(group, quiz);
+                // 같은 표 + 문턱이 10 의 배수인 이어진 단계(10 · 20 · 30)는 한 줄 — 「열기 2」처럼 열 수 있는 장 수, 누르면 안 연 첫 단계(0.1.5)
+                return (0, jsx_runtime_1.jsx)(CardRow, { title: (0, lottery_1.lotteryTierTitle)(r.rep), hint: r.hint, button: r.button, theme: c, busy: busy, compact: fullScreen, onPress: () => { if (r.button.kind === 'open' && r.openTier !== null)
+                        onOpen(r.openTier, 'mission');
+                    else if (r.button.kind === 'earn')
+                        onEarn(r.earnTier); } }, r.rep.tier);
+            }), gold ? (0, jsx_runtime_1.jsx)(CardRow, { title: (0, lottery_1.lotteryTierTitle)(gold.tier), hint: (0, lottery_1.lotteryGoldHint)(basicAd), compact: fullScreen, button: gold.unopened > 0 ? { label: '열기', kind: 'open' } : { label: '받기 완료', kind: 'done' }, ad: basicAd && gold.unopened > 0, adLabel: adLabel, theme: c, busy: busy, onPress: () => onOpen(gold.tier.tier, 'basic') }) : null] });
+    const notifyView = notify ? (0, jsx_runtime_1.jsx)(NotifyRow, { notify: notify, theme: c }) : onEnableNotify ? (0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: notifyLabel ?? '복권 받게 알림 켜기', onPress: onEnableNotify, style: s.link, children: (0, jsx_runtime_1.jsxs)(Txt, { style: [s.linkText, { color: c.accent }], children: ["\uD83D\uDD14 ", notifyLabel ?? '복권 받게 알림 켜기', " \u203A"] }) }) : null;
+    if (fullScreen) {
+        return (0, jsx_runtime_1.jsx)(FullPage, { open: open, onClose: onClose, presentation: presentation, title: headerTitle, theme: c, topInset: topInset, bottomInset: bottomInset, footer: renderNative ? renderNative() : null, children: (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: [s.card, { backgroundColor: c.card }], children: [(0, jsx_runtime_1.jsx)(Txt, { accessibilityRole: "header", style: [s.cardTitle, { color: c.text }], numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: 0.8, children: "\uC9C0\uAE08 \uC5F4\uACE0 \uD589\uC6B4 \uBC1B\uC544\uAC00\uC694!" }), (0, jsx_runtime_1.jsx)(Txt, { style: [s.cardSub, { color: c.sub }], children: "\uBC1B\uC740 \uBCF5\uAD8C\uC740 \uB9E4\uC77C \uC790\uC815\uC5D0 \uC0AC\uB77C\uC838\uC694" }), ticker, rows, notifyView] }) });
+    }
+    return (0, jsx_runtime_1.jsxs)(BottomSheet, { open: open, onClose: onClose, theme: c, topInset: topInset, bottomInset: bottomInset, presentation: presentation, children: [(0, jsx_runtime_1.jsx)(Txt, { accessibilityRole: "header", style: [s.sheetTitle, { color: c.text }], numberOfLines: 2, adjustsFontSizeToFit: true, minimumFontScale: 0.8, children: '꽝 없는 복권\n지금 열고 행운 받아가요!' }), (0, jsx_runtime_1.jsx)(Txt, { style: [s.sheetSub, { color: c.sub }], children: "\uBC1B\uC740 \uBCF5\uAD8C\uC740 \uB9E4\uC77C \uC790\uC815\uC5D0 \uC0AC\uB77C\uC838\uC694" }), ticker, rows, notifyView, renderNative ? (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.native, children: renderNative() }) : null] });
 }
 /**
  * 기본으로 그리는 황금 복권 그림 — 앱 그림(`icon`)이 없을 때. 금빛 티켓 한 장에 별 하나, 오른쪽은 점선 절취선
@@ -162,7 +180,7 @@ function LotteryResult({ result, state, onOpenNext, onMore, onClose, renderNativ
  * 버튼은 「광고 보고 황금 복권 열기」: 앱이 `onOpen` 에서 **보상형 광고(용도 lottery_basic)를 보여 준 뒤** `useLottery.open(tier, 'basic')` 을 부른다
  * — 광고 시청은 서버가 구글 SSV 로 확인한다(앱 말만 믿지 않는다). 광고가 바로 열리므로 버튼 안 오른쪽에 「광고」 칩(`ad` 가 false 면 칩 · 광고 문구 없음). busy 동안은 다시 눌리지 않는다.
  */
-function GoldenLotteryPopup({ open, maxWon, maxPoints, unit, busy, onOpen, onClose, buttonLabel, icon, theme, ad = true, adLabel, closeLabel, lines, note, topInset, bottomInset = 0, notify, presentation }) {
+function GoldenLotteryPopup({ open, maxWon, maxPoints, unit, busy, onOpen, onClose, buttonLabel, icon, theme, ad = true, adLabel, closeLabel, lines, note, topInset, bottomInset = 0, notify, presentation, fullScreen = true, headerTitle = '황금 복권' }) {
     if (!open)
         return null;
     const c = th(theme);
@@ -171,7 +189,13 @@ function GoldenLotteryPopup({ open, maxWon, maxPoints, unit, busy, onOpen, onClo
     const body = lines ?? copy.lines;
     const small = note ?? copy.note;
     const later = closeLabel ?? '다음에 열기';
-    return (0, jsx_runtime_1.jsxs)(BottomSheet, { open: open, onClose: onClose, theme: c, topInset: topInset, bottomInset: bottomInset, presentation: presentation, children: [(0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.goldArt, children: icon ?? (0, jsx_runtime_1.jsx)(GoldenTicketArt, {}) }), (0, jsx_runtime_1.jsx)(Txt, { accessibilityRole: "header", style: [s.goldTitle, { color: c.text }], numberOfLines: 2, adjustsFontSizeToFit: true, minimumFontScale: 0.8, children: "\uD669\uAE08 \uBCF5\uAD8C\uC774 \uB098\uD0C0\uB0AC\uC5B4\uC694!" }), (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.goldLines, children: body.map((line, i) => (0, jsx_runtime_1.jsx)(Txt, { style: [s.goldLine, { color: c.text }], children: line }, i)) }), (0, jsx_runtime_1.jsx)(Txt, { style: [s.goldNote, { color: c.sub }], children: small }), (0, jsx_runtime_1.jsxs)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: label + (ad && !label.includes(adLabel ?? '광고') ? ', ' + (adLabel ?? '광고') : ''), accessibilityState: { disabled: !!busy }, disabled: !!busy, onPress: onOpen, style: [s.big, s.bigRow, { backgroundColor: c.accent }, busy && { opacity: 0.6 }], children: [(0, jsx_runtime_1.jsx)(Txt, { style: [s.bigText, { color: c.accentText }], children: label }), ad ? (0, jsx_runtime_1.jsx)(AdChip, { label: adLabel, onColor: c.accentText, onFilled: true }) : null] }), (0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: later, onPress: onClose, style: s.goldLater, children: (0, jsx_runtime_1.jsx)(Txt, { style: [s.linkText, { color: c.sub }], children: later }) }), (0, jsx_runtime_1.jsx)(NotifyRow, { notify: notify, theme: c })] });
+    const art = (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.goldArt, children: icon ?? (0, jsx_runtime_1.jsx)(GoldenTicketArt, {}) });
+    const openButton = (0, jsx_runtime_1.jsxs)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: label + (ad && !label.includes(adLabel ?? '광고') ? ', ' + (adLabel ?? '광고') : ''), accessibilityState: { disabled: !!busy }, disabled: !!busy, onPress: onOpen, style: [s.big, fullScreen && s.bigC, s.bigRow, { backgroundColor: c.accent }, busy && { opacity: 0.6 }], children: [(0, jsx_runtime_1.jsx)(Txt, { style: [s.bigText, { color: c.accentText }], numberOfLines: 1, adjustsFontSizeToFit: true, children: label }), ad ? (0, jsx_runtime_1.jsx)(AdChip, { label: adLabel, onColor: c.accentText, onFilled: true }) : null] });
+    const laterButton = (0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: later, onPress: onClose, style: s.goldLater, children: (0, jsx_runtime_1.jsx)(Txt, { style: [s.linkText, { color: c.sub }], children: later }) });
+    if (fullScreen) {
+        return (0, jsx_runtime_1.jsx)(FullPage, { open: open, onClose: onClose, presentation: presentation, title: headerTitle, theme: c, topInset: topInset, bottomInset: bottomInset, children: (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: [s.card, s.goldCardC, { backgroundColor: c.card }], children: [art, (0, jsx_runtime_1.jsx)(Txt, { accessibilityRole: "header", style: [s.goldTitleC, { color: c.text }], numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: 0.8, children: "\uD669\uAE08 \uBCF5\uAD8C\uC774 \uB098\uD0C0\uB0AC\uC5B4\uC694!" }), (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.goldLinesC, children: body.map((line, i) => (0, jsx_runtime_1.jsx)(Txt, { style: [s.goldLineC, { color: c.text }], children: line }, i)) }), (0, jsx_runtime_1.jsx)(Txt, { style: [s.goldNoteC, { color: c.sub }], children: small }), openButton, laterButton, (0, jsx_runtime_1.jsx)(NotifyRow, { notify: notify, theme: c })] }) });
+    }
+    return (0, jsx_runtime_1.jsxs)(BottomSheet, { open: open, onClose: onClose, theme: c, topInset: topInset, bottomInset: bottomInset, presentation: presentation, children: [art, (0, jsx_runtime_1.jsx)(Txt, { accessibilityRole: "header", style: [s.goldTitle, { color: c.text }], numberOfLines: 2, adjustsFontSizeToFit: true, minimumFontScale: 0.8, children: "\uD669\uAE08 \uBCF5\uAD8C\uC774 \uB098\uD0C0\uB0AC\uC5B4\uC694!" }), (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.goldLines, children: body.map((line, i) => (0, jsx_runtime_1.jsx)(Txt, { style: [s.goldLine, { color: c.text }], children: line }, i)) }), (0, jsx_runtime_1.jsx)(Txt, { style: [s.goldNote, { color: c.sub }], children: small }), openButton, laterButton, (0, jsx_runtime_1.jsx)(NotifyRow, { notify: notify, theme: c })] });
 }
 /** 시트의 바깥 여백(좌우 · 아래) */
 const SHEET_PAD = 24;
@@ -231,6 +255,31 @@ const s = react_native_1.StyleSheet.create({
     link: { alignItems: 'center', justifyContent: 'center', minHeight: 48, marginTop: 4 },
     linkText: { fontSize: 15, fontWeight: '700' },
     native: { marginTop: 12 },
+    // 전체 화면 틀(0.1.6) — @jcurve/mission PageFrame 과 같은 치수: 머리글 52 · 옆 44 · 「‹」 32 · 제목 18/700 · 본문 padding 16 / 아래 40 / 칸 사이 12
+    page: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+    pageHeader: { height: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8 },
+    pageSide: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+    pageBack: { fontSize: 32, marginTop: -4 },
+    pageTitle: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '700' },
+    pageContent: { padding: 16, paddingBottom: 40, gap: 12 },
+    // 흰 카드 — 행운 찬스 카드와 같은 모양(둥근 모서리 · 그림자)
+    card: { borderRadius: 20, padding: 20, gap: 8, shadowColor: '#17212E', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 2 },
+    cardTitle: { fontSize: 22, lineHeight: 30, fontWeight: '900' },
+    cardSub: { fontSize: 13, fontWeight: '600' },
+    tickerC: { borderRadius: 999, paddingVertical: 10, paddingHorizontal: 14, marginTop: 4 },
+    tickerTextC: { fontSize: 13.5, fontWeight: '700', textAlign: 'center' },
+    rowsC: { marginTop: 4, gap: 4 },
+    rowC: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
+    rowTitleC: { fontSize: 16, fontWeight: '800' },
+    rowHintC: { fontSize: 13, fontWeight: '600' },
+    rowButtonC: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, minWidth: 72, height: 36, borderRadius: 12, paddingHorizontal: 10 },
+    rowButtonTextC: { fontSize: 14, fontWeight: '800' },
+    bigC: { height: 52, borderRadius: 14, marginTop: 12, alignSelf: 'stretch' },
+    goldCardC: { alignItems: 'center', paddingVertical: 24 },
+    goldTitleC: { fontSize: 22, fontWeight: '900', textAlign: 'center' },
+    goldLinesC: { gap: 6, marginTop: 4, alignSelf: 'stretch' },
+    goldLineC: { fontSize: 15.5, lineHeight: 22, textAlign: 'center', fontWeight: '600' },
+    goldNoteC: { fontSize: 12.5, textAlign: 'center' },
     // 알림 켜기 상자는 안쪽을 모두 가운데로 — 종 · 제목 · 화살표 줄과 설명(여러 줄이어도 가운데), 시트 · 황금 팝업 · 당첨 화면 같은 상자(0.1.5, 대표님 17:08:49)
     notifyBox: { alignSelf: 'stretch', alignItems: 'center', marginTop: 8, gap: 2 },
     notifyLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 40, paddingVertical: 6 },

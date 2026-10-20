@@ -1,6 +1,6 @@
 export {
   parseLotteryState, parseWinners, fetchLotteryState, fetchLotteryWinners, openLottery, createLotteryOpener, newLotteryKey, toLotteryError,
-  lotteryTierTitle, lotteryTierHint, lotteryTierButton, nextTierToEarn, lotteryMoreLabel, lotteryMoreMissionLabel, lotteryResultTitle, lotteryWinnerLine, lotteryChipCount, goldenTier, readyTiers, opensWithAd, nextOpensWithAd, goldenLines, lotteryTierAmount, lotteryResultHeadline, lotteryWinnerParts, lotteryMissionButton, lotteryMissionHint, lotteryGoldHint, lotteryGroupTiers, lotteryTierRow, DEFAULT_QUIZ, goldenRow,
+  lotteryTierTitle, lotteryTierHint, lotteryTierButton, nextTierToEarn, lotteryMoreLabel, lotteryMoreMissionLabel, lotteryResultTitle, lotteryWinnerLine, lotteryChipCount, goldenTier, readyTiers, opensWithAd, nextOpensWithAd, goldenLines, lotteryTierAmount, lotteryResultHeadline, lotteryWinnerParts, lotteryMissionButton, lotteryMissionHint, lotteryGoldHint, lotteryGroupTiers, lotteryTierRow, lotteryWinnersInPoints, DEFAULT_QUIZ, goldenRow,
   type LotteryState, type LotteryTier, type LotteryRow, type LotteryTierState, type LotteryOpenResult, type LotteryWinner, type LotteryError, type OpenOutcome, type Requester,
 } from './lottery';
 export { useLottery } from './useLottery';
