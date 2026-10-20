@@ -4,7 +4,7 @@ import { fetchEntry, type EntryResult, type Requester, traceEntry } from './entr
 import { MissionWebView, type MissionNavigation, type MissionWebViewProps } from './MissionWebView';
 import { DEFAULT_THEME, MissionLoading, MissionState } from './states';
 import { t } from './i18n';
-import { backTarget, edgeSwipeDone, edgeSwipeStarts, EDGE_WIDTH, safeTop } from './missionNav';
+import { backTarget, edgeBackHandlers, safeTop } from './missionNav';
 
 // Try to load overlay module (optional peer dependency)
 let JcurveOverlay: any = null;
@@ -14,7 +14,7 @@ try {
   // Module not available
 }
 
-export type ShoppingMissionProps = Omit<MissionWebViewProps, 'url' | 'onClose' | 'onNavigationChange' | 'traceStage'> & {
+export type ShoppingMissionProps = Omit<MissionWebViewProps, 'url' | 'onClose' | 'onNavigationChange' | 'traceStage' | 'nativeSwipeBack'> & {
   fetchJson: Requester;
   onClose: () => void;
   title?: string;
@@ -112,16 +112,12 @@ export function ShoppingMission({ fetchJson, onClose, title, adId, source = 'oth
     const sub = BackHandler.addEventListener('hardwareBackPress', () => { backRef.current(); return true; });
     return () => sub.remove();
   }, []);
-  // iOS 왼쪽 가장자리를 오른쪽으로 밀면 뒤로가기(웹 기록 → 없으면 닫기)
-  const edge = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: () => false,
-    onMoveShouldSetPanResponder: (_e, g) => edgeSwipeStarts(g.dx, g.dy),
-    onPanResponderRelease: (_e, g) => { if (edgeSwipeDone(g.dx, g.dy, g.vx)) backRef.current(); },
-    onPanResponderTerminationRequest: () => false,
-  })).current;
+  // iOS 왼쪽 가장자리를 오른쪽으로 밀면 뒤로가기(웹 기록 → 없으면 닫기) — 본문에 띠 View 를 덮지 않고 화면 최상위의 캡처 핸들러로 받는다(0.7.12).
+  // 띠의 응답자가 놓친 터치 때문에 머리줄 「닫기」 · 「뒤로가기」가 눌림을 못 받던 것(대표님 10-21 00:16 쇼핑 퀴즈 먹통)을 막는다
+  const edge = useRef(PanResponder.create(edgeBackHandlers(() => backRef.current()))).current;
   const top = safeTop(Platform.OS, safeAreaInsets.top, Dimensions.get('window').height);
 
-  return <View style={[s.screen, { backgroundColor: theme.bg, paddingTop: top, paddingBottom: safeAreaInsets.bottom, paddingLeft: safeAreaInsets.left ?? 0, paddingRight: safeAreaInsets.right ?? 0 }]}>
+  return <View {...(Platform.OS === 'ios' ? edge.panHandlers : {})} style={[s.screen, { backgroundColor: theme.bg, paddingTop: top, paddingBottom: safeAreaInsets.bottom, paddingLeft: safeAreaInsets.left ?? 0, paddingRight: safeAreaInsets.right ?? 0 }]}>
     <View style={[s.bar, { backgroundColor: theme.bg, borderBottomColor: theme.line }]}>
       <Pressable accessibilityRole="button" accessibilityLabel={t('닫기', lang)} onPress={handleClose} hitSlop={12} style={s.button}><Text style={[s.buttonText, { color: theme.text }]}>{t('닫기', lang)}</Text></Pressable>
       <Text numberOfLines={1} style={[s.title, { color: theme.text }]}>{heading}</Text>
@@ -134,14 +130,13 @@ export function ShoppingMission({ fetchJson, onClose, title, adId, source = 'oth
             <Text style={[s.hintText, { color: theme.text }]}>{hintText ?? t('상품을 10초만 구경하면 포인트가 들어와요', lang)}</Text>
             <Pressable accessibilityRole="button" accessibilityLabel={t('닫기', lang)} onPress={() => setHintVisible(false)} hitSlop={8} style={s.hintClose}><Text style={[s.hintCloseText, { color: theme.text }]}>✕</Text></Pressable>
           </View>}
-          <MissionWebView {...webViewProps} url={result.url} theme={theme} onClose={handleClose} onNavigationChange={navigationChanged} traceStage={traceStage} overlayReady={webViewProps.overlayReady ?? overlayReady} lang={lang} />
+          <MissionWebView {...webViewProps} nativeSwipeBack={false} url={result.url} theme={theme} onClose={handleClose} onNavigationChange={navigationChanged} traceStage={traceStage} overlayReady={webViewProps.overlayReady ?? overlayReady} lang={lang} />
         </>
       ) : result ? (
         <MissionState kind={result.reason === 'off' ? 'off' : result.reason === 'not_ready' ? 'notReady' : 'error'} theme={theme} onClose={handleClose} onRetry={() => setAttempt(n => n + 1)} lang={lang} />
       ) : (
         <MissionLoading theme={theme} lang={lang} />
       )}
-      {Platform.OS === 'ios' ? <View {...edge.panHandlers} style={s.edge} /> : null}
     </View>
   </View>;
 }
@@ -159,7 +154,6 @@ export function ShoppingMissionModal({ visible, ...props }: ShoppingMissionProps
 const s = StyleSheet.create({
   screen: { flex: 1 },
   body: { flex: 1, zIndex: 0 },
-  edge: { position: 'absolute', left: 0, top: 0, bottom: 0, width: EDGE_WIDTH, zIndex: 3 },
   bar: { minHeight: 48, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, borderBottomWidth: 1, zIndex: 2, elevation: 2 },
   button: { minWidth: 64, minHeight: 48, justifyContent: 'center', alignItems: 'center' },
   buttonText: { fontSize: 16, fontWeight: '700' },

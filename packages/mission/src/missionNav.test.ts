@@ -71,7 +71,7 @@ describe('독립 페이지 가장자리 밀기 핸들러(0.4.13)', () => {
     h.onPanResponderRelease({}, { dx: 100, dy: 0, vx: 0 });
     expect(back).toHaveBeenCalledTimes(1);
   });
-  it('responder 를 얻은 뒤 다른 곳이 뺏지 못한다', () => {
-    expect(make().h.onPanResponderTerminationRequest()).toBe(false);
+  it('responder 를 쥐고 있지 않는다 — 다른 곳이 가져가겠다고 하면 놓는다(놓친 터치가 머리줄 단추를 막지 않게, 0.7.12)', () => {
+    expect(make().h.onPanResponderTerminationRequest()).toBe(true);
   });
 });

@@ -344,3 +344,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';   // ⚠ 0
 **`PageButton`**(위 단추 통일에 필요한 만큼만): 선택 prop `fontSize` · `radius` 를 더하고, `height` 가 **큰 단추(`big`)에도** 적용되게 했다. 이 값들을 안 주면 모양은 예전과 같다(줄 단추 72×34 · 모서리 12 · 글자 14, 큰 단추 높이 52 · 모서리 14 · 글자 16) — 시험으로 고정.
 
 새 네이티브 0. 의존 · peer 변경 없음.
+
+## 0.4.15 — 쇼핑 미션 화면 왼쪽 밀기 띠 제거 (대표님 10-21 00:16 쇼핑 퀴즈 「닫기」 · 「뒤로가기」 먹통, 앱관리 확정 · 0.7.12 와 같은 소스)
+
+딱 이것만 바꿨다. 화면 모양 · 글자 · 머리줄 · 웹뷰 · 로딩 · 기록은 그대로다.
+
+- **`ShoppingMission`**: 본문 왼쪽에 덮어 두던 폭 24 짜리 **밀기 띠 View 를 없앴다**. 대신 PageFrame 과 같은 `edgeBackHandlers`(missionNav.ts)를 화면 **최상위 View 의 캡처 핸들러**로 붙인다(iOS 만). 왼쪽 가장자리에서 시작해 오른쪽으로 민 뒤 떼면 지금처럼 웹 기록이 있으면 한 칸 뒤로, 없으면 닫는다.
+- **응답자를 쥐고 있지 않는다**: `edgeBackHandlers` 의 `onPanResponderTerminationRequest` 를 `false` → `true`. 띠가 응답자를 쥔 채 터치 끝 이벤트를 놓치면 머리줄 단추가 눌림을 거절당하던 경로를 없애기 위해서다(원인은 기기에서 확정하지 못했다 — 방어 수정). **PageFrame 의 가장자리 밀기(0.7.10)도 같은 묶음을 쓰므로 같이 이 규칙을 따른다.**
+- **`MissionWebView`**: 선택 prop `nativeSwipeBack`(기본 **true** = 예전과 같다). `ShoppingMission` 은 `false` 로 넘겨 웹뷰 자체의 iOS 가장자리 뒤로 · 앞으로 밀기(`allowsBackForwardNavigationGestures`)를 끈다 — 띠가 사라지면 그 기본 밀기가 왼쪽 가장자리에서 되살아나 우리 핸들러와 겹쳐 한 번 밀 때 웹 기록이 두 칸 가기 때문이다. 이 화면에서 오른쪽 끝 「앞으로 가기」 밀기는 없다(예전에도 띠 때문에 사실상 안 됐다). 웹뷰를 단독으로 쓰는 앱은 그대로다.
+- 새 네이티브 0. 의존 · peer 변경 없음. 안드로이드는 영향 없음.
