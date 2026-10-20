@@ -7,7 +7,7 @@
 import type { BenefitQuickItem } from './BenefitQuickList';
 import type { Requester } from './entry';
 /** 서버가 아는 줄 행동 — jcurve-api MissionCardsController::HOME_KEYS 와 같다 */
-export declare const HOME_KEYS: readonly ["quiz1", "quiz2", "checkin", "steps", "free_item", "today_missions", "lucky_chance", "invite", "recommend"];
+export declare const HOME_KEYS: readonly ["quiz1", "quiz2", "checkin", "steps", "free_item", "ad_item", "today_missions", "lucky_chance", "invite", "recommend"];
 export type HomeRowKey = typeof HOME_KEYS[number];
 export type HomeRow = {
     key: HomeRowKey;
@@ -123,7 +123,7 @@ export declare function withFreeItemRow(items: readonly BenefitQuickItem[], home
 /**
  * (0.4.4) 앱별 서버 home_rows 를 **그대로 따른다**(대표님 17:14 「목록 순서는 어드민에서 앱별로 · 넣고 빼고 순서랑」):
  *  - **순서**: home_rows 순서대로(설정에 있는 줄이 앞, 서버 key 와 짝이 없는 앱 전용 줄은 그 뒤에 원래 순서로)
- *  - **빼기**: 서버 key 로 맞춰진 앱 줄인데 home_rows 에 없으면 그리지 않는다. 있어도 visible:false 면 숨긴다
+ *  - **빼기**: 서버 key 로 맞춰진 앱 줄인데 home_rows 에 없으면 그리지 않는다. 있어도 visible:false 면 숨긴다 (`keepUnlisted`(homeActions 방식, 0.7.13)면 목록에 없다고 빼지 않는다 — 패키지 기본 자리에 둔다)
  *  - **넣기**: home_rows 에 있는데 앱 items 에 짝이 없는 key 는 그 줄(제목 · 설명 · 버튼 · 배지는 서버 값)을 기본 그림으로 만들어 넣고, 누르면 `onRow(key)` 를 부른다 — `onRow` 가 없으면 그 줄은 만들지 않는다(눌러도 갈 곳이 없다)
  *  - **제목**(0.4.5): 서버 title 이 비어 있으면 앱 제목을 그대로 둔다(동적 제목 보호) — 적혀 있을 때만 덮는다. 새로 만드는 줄은 비었으면 key별 기본 제목
  *  - rows 가 null(설정 없음 · 실패)이면 앱 기본 그대로
@@ -131,4 +131,5 @@ export declare function withFreeItemRow(items: readonly BenefitQuickItem[], home
  */
 export declare function composeHomeRows(items: readonly BenefitQuickItem[], rows: readonly HomeRow[] | null, keys: Readonly<Record<string, HomeRowKey>>, opts?: {
     onRow?: (key: HomeRowKey) => void;
+    keepUnlisted?: boolean;
 }): BenefitQuickItem[];

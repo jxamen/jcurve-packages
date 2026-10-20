@@ -349,3 +349,29 @@ home_rows 가 없거나 읽기에 실패하면 **앱 기본 그대로**(60초 �
 - **응답자를 쥐고 있지 않는다**: `edgeBackHandlers` 의 `onPanResponderTerminationRequest` 를 `false` → `true`. 띠가 응답자를 쥔 채 터치 끝 이벤트를 놓치면 머리줄 단추가 눌림을 거절당하던 경로를 없애기 위해서다(원인은 기기에서 확정하지 못했다 — 방어 수정). **PageFrame 의 가장자리 밀기(0.7.10)도 같은 묶음을 쓰므로 같이 이 규칙을 따른다.**
 - **`MissionWebView`**: 선택 prop `nativeSwipeBack`(기본 **true** = 예전과 같다). `ShoppingMission` 은 `false` 로 넘겨 웹뷰 자체의 iOS 가장자리 뒤로 · 앞으로 밀기(`allowsBackForwardNavigationGestures`)를 끈다 — 띠가 사라지면 그 기본 밀기가 왼쪽 가장자리에서 되살아나 우리 핸들러와 겹쳐 한 번 밀 때 웹 기록이 두 칸 가기 때문이다. 이 화면에서 오른쪽 끝 「앞으로 가기」 밀기는 없다(예전에도 띠 때문에 사실상 안 됐다). 웹뷰를 단독으로 쓰는 앱은 그대로다.
 - 새 네이티브 0. 의존 · peer 변경 없음. 안드로이드는 영향 없음.
+
+## 0.7.13 — 홈 혜택 목록 10줄 고정 · 줄마다 어드민 원격설정으로 숨기기 (대표님 10-21 07:06~07:08 「이거 패키지잖아 왜 다르냐고 매번」「어드민에서 넣고 빼고 할 수 있게」)
+
+홈 「바로 받는 혜택」 목록의 **줄 구성 · 순서를 패키지가 고정**한다. 앱은 아이템 이름 · 색 · 아이콘 · **줄마다 누를 때 동작**만 넘긴다. `homeActions` 방식에서만 해당(예전 `items` 방식은 그대로).
+
+**줄 10개(기본 순서) · 원격설정 키** — 키 이름은 어드민 앱 설정에 그룹 `home` · 항목 `row.<줄id>` 로 넣으면 앱이 받는 `values["home.row.<줄id>"]` 가 된다.
+
+| 줄id | 원격 키 | 기본 제목 |
+|---|---|---|
+| `quiz1` | `home.row.quiz1` | 쇼핑 태그 퀴즈1 |
+| `quiz2` | `home.row.quiz2` | 플레이스 & 쇼핑 태그 퀴즈2 |
+| `checkin` | `home.row.checkin` | 매일 출석 체크 |
+| `steps` | `home.row.steps` + 기존 키 `steps.on` | 만보기 / 오늘 N걸음 |
+| `free_item` | `home.row.free_item` | 무료 ○○ 받기 (하루 3번 들르면) |
+| `ad_item` (신설) | `home.row.ad_item` | 광고 보고 ○○ 받기 |
+| `today_missions` | `home.row.today_missions` | 오늘의 미션 |
+| `lucky_chance` | `home.row.lucky_chance` | 행운 찬스 |
+| `invite` | `home.row.invite` | 친구 초대하기 |
+| `recommend` | `home.row.recommend` | 추천 앱 둘러보기 |
+
+- **줄은 앱에서 빠지지 않는다.** `HomeActions` 는 10줄 **전부 필수**(타입) — 빼면 컴파일 오류. 타입을 우회해 빠뜨려도 줄은 그려지고 누름은 아무 일도 안 한다(개발 중엔 경고 한 번).
+- **숨기는 길은 셋뿐**: ① 원격 키 `home.row.<줄id>` 가 `'0'` / `'false'`(대소문자 · 공백 무시, `false` · `0` 도) — **값이 없으면 켜짐** ② 걸음 줄은 기존 키 `steps.on` 이 `'1'` / `'true'` 가 **아니면** 숨김(값이 없어도 숨김 — 지금 당근 규칙) ③ 서버 `mission.home_rows` 의 `visible:false`. 앱이 줄을 뺄 수 없다. 걸음 네이티브가 없는 앱은 `remoteValues={{ ...values, 'steps.on': '0' }}` 로 넘기면 된다.
+- 앱은 어드민 앱 설정 값 맵을 **`remoteValues`** 로 넘긴다: `<BenefitQuickList homeActions={…} remoteValues={values} … />`. **안 넘기면 원격 규칙은 적용되지 않는다**(앱의 기존 게이팅 그대로).
+- **서버 `home_rows` 는 글자 · 순서 · `visible:false` 덮기만** 한다 — 목록에 **없다고 줄을 숨기지 않는다**(예전엔 서버 목록이 곧 목록이었다). 목록에 없는 줄은 패키지 기본 자리에 둔다. 서버 키는 `ad_item` 이 더해졌다(jcurve-api `MissionCardsController::HOME_KEYS`).
+- **광고 아이템 줄(`ad_item`)**: 제목 「광고 보고 ○○ 받기」 · 부제 「짧은 광고를 보면 ○○을/를 더 드려요」(조사는 받침으로 — 맘마를 · 양분을) · 버튼 「광고 보기」. 아이콘은 `homeContext.itemIcon`(없으면 🌱), 바탕색은 기본 연초록이고 앱 테마색이 있으면 `homeContext.tints.ad_item`(이제 걸음 · 무료 · 광고 · 추천 네 줄).
+- 새 네이티브 0. 의존 · peer 변경 없음.

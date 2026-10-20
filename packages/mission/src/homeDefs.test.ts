@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
-import { CHECKIN_DONE_LABEL, FREE_DONE_LABEL, FREE_NOW_BADGE, HOME_ORDER, STEPS_PERMISSION_LABEL, buildHomeItems, homeItem, type HomeActions } from './homeDefs';
+import { CHECKIN_DONE_LABEL, FREE_DONE_LABEL, FREE_NOW_BADGE, HOME_ORDER, STEPS_PERMISSION_LABEL, buildHomeItems, homeItem, homeRowOff, homeRowRemoteKey, type HomeActions } from './homeDefs';
 import { HOME_KEYS, composeHomeRows, resolveHomeKeys, type HomeRow } from './home';
 
 /** 당근 기준표(ota/carrot-ios-106-benefit-1020 814f2f4, FarmScreen HOME_BENEFITS + theme.ts carrotSoft #FFEEE2 · heartSoft #E6F5EA) — 대표님 10-20 20:23 「갖다 넣으면 똑같은 게 그냥 튀어 나와야」 */
@@ -11,6 +11,8 @@ const CARROT = {
   checkin: { title: '매일 출석 체크', subtitle: '10초 구경하고 포인트 받기', ctaLabel: '출석하기', icon: 'calendar', tint: '#E8F0FD' },
   steps: { title: '만보기', subtitle: '오늘 걸음으로 포인트 받기', ctaLabel: '보상 받기', icon: '👟', tint: '#FFEEE2' },
   free_item: { title: '무료 포인트 받기', subtitle: '하루 3번 들르면 포인트 받기', ctaLabel: '받기', icon: '🌱', tint: '#E6F5EA' },
+  // 당근에는 없는 줄 — 10앱 합집합(대표님 10-21 07:07 「빠진 줄 없는 전체 목록」), 문구는 대표님 확정
+  ad_item: { title: '광고 보고 포인트 받기', subtitle: '짧은 광고를 보면 포인트를 더 드려요', ctaLabel: '광고 보기', icon: '🌱', tint: '#E6F5EA' },
   today_missions: { title: '오늘의 미션', subtitle: '간단한 미션으로 포인트 더 받기', ctaLabel: '보러가기', icon: 'star', tint: '#FBF1DC' },
   lucky_chance: { title: '행운 찬스', subtitle: '하루 기회로 포인트 뽑기', ctaLabel: '뽑기', icon: 'ticket', tint: '#EFE8FB' },
   invite: { title: '친구 초대하기', subtitle: '친구가 가입하면 같이 받기', ctaLabel: '초대하기', icon: 'friend', tint: '#FDEBDD' },
@@ -20,9 +22,9 @@ const CARROT = {
 const all = (): HomeActions => Object.fromEntries(HOME_ORDER.map(k => [k, vi.fn()])) as HomeActions;
 
 describe('줄 정의 = 당근 기준 (0.7.5)', () => {
-  it('9줄 제목 · 부제 · 버튼 · 아이콘 · 바탕색이 당근 표와 글자까지 같다(이름은 기본값 「포인트」)', () => {
+  it('10줄 제목 · 부제 · 버튼 · 아이콘 · 바탕색이 당근 표와 글자까지 같다(이름은 기본값 「포인트」)', () => {
     const items = buildHomeItems({}, all());
-    expect(items).toHaveLength(9);
+    expect(items).toHaveLength(10);
     for (const it of items) {
       const want = CARROT[it.key as keyof typeof CARROT];
       expect({ title: it.title, subtitle: it.subtitle, ctaLabel: it.ctaLabel, icon: it.icon, tint: it.tint }).toEqual(want);
@@ -32,15 +34,6 @@ describe('줄 정의 = 당근 기준 (0.7.5)', () => {
   it('순서는 서버 home_rows 기본 순서(HOME_KEYS)와 같고, 줄 key 가 서버 key 라 맞춤표가 필요 없다', () => {
     expect([...HOME_ORDER]).toEqual([...HOME_KEYS]);
     expect(buildHomeItems({}, all()).map(i => i.key)).toEqual([...HOME_KEYS]);
-  });
-
-  it('동작(actions)을 안 넘긴 줄은 그 앱에서 빠진다 — 순서는 유지(꾹테크 무료 줄이 없을 때 등)', () => {
-    const a = all();
-    delete a.free_item;
-    delete a.steps;
-    expect(buildHomeItems({}, a).map(i => i.key)).toEqual(['quiz1', 'quiz2', 'checkin', 'today_missions', 'lucky_chance', 'invite', 'recommend']);
-    expect(buildHomeItems({}, {})).toEqual([]);
-    expect(buildHomeItems({}, { invite: undefined } as HomeActions)).toEqual([]);          // 함수가 아니면 만들지 않는다
   });
 
   it('줄마다 누르면 자기 동작을 부른다', () => {
@@ -64,10 +57,10 @@ describe('줄 정의 = 당근 기준 (0.7.5)', () => {
     expect(buildHomeItems({ itemName: '  ', pointName: '' }, all()).find(i => i.key === 'free_item')!.title).toBe('무료 포인트 받기');     // 빈 이름은 기본 「포인트」
   });
 
-  it('앱 테마색을 따르는 걸음 · 무료 · 추천 세 줄만 바탕색(tints)을 앱이 넘길 수 있다 — 나머지 줄은 넘겨도 고정', () => {
-    const items = buildHomeItems({ tints: { steps: '#112233', free_item: '#445566', recommend: '#778899', quiz1: '#000000' } as any }, all());
+  it('앱 테마색을 따르는 걸음 · 무료 · 광고 · 추천 네 줄만 바탕색(tints)을 앱이 넘길 수 있다 — 나머지 줄은 넘겨도 고정', () => {
+    const items = buildHomeItems({ tints: { steps: '#112233', free_item: '#445566', ad_item: '#AABBCC', recommend: '#778899', quiz1: '#000000' } as any }, all());
     const tint = (k: string) => items.find(i => i.key === k)!.tint;
-    expect([tint('steps'), tint('free_item'), tint('recommend')]).toEqual(['#112233', '#445566', '#778899']);
+    expect([tint('steps'), tint('free_item'), tint('ad_item'), tint('recommend')]).toEqual(['#112233', '#445566', '#AABBCC', '#778899']);
     expect([tint('quiz1'), tint('quiz2'), tint('checkin'), tint('today_missions'), tint('lucky_chance'), tint('invite')]).toEqual(['#FDEBE2', '#E4F3EA', '#E8F0FD', '#FBF1DC', '#EFE8FB', '#FDEBDD']);
     const blank = buildHomeItems({ tints: { steps: '  ', free_item: '' } }, all());          // 빈 값은 당근 기본
     expect([blank.find(i => i.key === 'steps')!.tint, blank.find(i => i.key === 'free_item')!.tint]).toEqual(['#FFEEE2', '#E6F5EA']);
@@ -169,25 +162,147 @@ describe('줄별 값 — 걸음 · 무료 아이템 · 오늘의 미션 · 추�
 describe('서버 home_rows 와 함께 — 서버는 글자 · 보임 · 순서만 덮고 아이콘 · 바탕색은 패키지 정의', () => {
   const row = (key: string, over: Partial<HomeRow> = {}, order = 0): HomeRow => ({ key: key as HomeRow['key'], title: key + ' 서버', desc: '', button: '', badge: '', visible: true, order, ...over });
 
-  it('서버 순서 · 제목 · 설명 · 버튼 · 배지가 얹히고 아이콘 · 바탕색 · 완료 글자는 그대로, 동작 없는 서버 줄은 안 그린다', () => {
-    const a = all();
-    delete a.recommend;
-    const base = buildHomeItems({}, a);
+  it('서버 순서 · 제목 · 설명 · 버튼 · 배지가 얹히고 아이콘 · 바탕색 · 완료 글자는 그대로 — keepUnlisted 가 아니면 서버 목록이 곧 목록(예전 items 방식 규칙)', () => {
+    const base = buildHomeItems({}, all());
     const rows = [row('checkin', { desc: '서버 부제', button: '체크', badge: 'NEW' }, 0), row('quiz1', {}, 1), row('recommend', {}, 2), row('free_item', { title: '' }, 3)];
-    const out = composeHomeRows(base, rows, resolveHomeKeys(base, undefined));                                // onRow 없음 — 동작 없는 recommend 는 만들지 않는다
-    // 서버 목록이 곧 목록이다 — home_rows 에 없는 줄(quiz2 · 걸음 …)은 안 그리고, 서버에만 있고 동작이 없는 recommend 도 안 만든다
-    expect(out.map(i => i.key)).toEqual(['checkin', 'quiz1', 'free_item']);
+    const out = composeHomeRows(base, rows, resolveHomeKeys(base, undefined));
+    expect(out.map(i => i.key)).toEqual(['checkin', 'quiz1', 'recommend', 'free_item']);      // 목록에 없는 줄(quiz2 · 걸음 …)은 빠진다
     const c = out[0];
     expect([c.title, c.subtitle, c.ctaLabel, c.badge]).toEqual(['checkin 서버', '서버 부제', '체크', 'NEW']);
     expect([c.icon, c.tint]).toEqual(['calendar', '#E8F0FD']);                  // 서버가 아이콘 · 바탕색을 못 바꾼다
     const f = out.find(i => i.key === 'free_item')!;
     expect([f.title, f.doneLabel, f.icon]).toEqual(['무료 포인트 받기', '내일 다시', '🌱']);       // 빈 서버 제목 = 패키지 제목 유지
-    expect(out.some(i => i.key === 'recommend')).toBe(false);
+  });
+
+  it('keepUnlisted(homeActions 방식): 서버 목록에 없다고 줄을 빼지 않고 패키지 기본 자리에 둔다 — 글자 · 순서 · visible:false 덮기만 유지 (0.7.13)', () => {
+    const base = buildHomeItems({}, all());
+    const keys = resolveHomeKeys(base, undefined);
+    const listed = ['quiz1', 'quiz2', 'checkin', 'free_item', 'today_missions', 'lucky_chance', 'invite', 'recommend'];       // 걸음 · 광고 아이템은 서버 목록에 없다
+    const out = composeHomeRows(base, listed.map((k, i) => row(k, {}, i)), keys, { keepUnlisted: true });
+    expect(out.map(i => i.key)).toEqual([...HOME_KEYS]);                         // 걸음은 출석 뒤, 광고 아이템은 무료 뒤 — 기본 자리
+    // visible:false 는 여전히 숨긴다
+    const hidden = composeHomeRows(base, listed.map((k, i) => row(k, k === 'invite' ? { visible: false } : {}, i)), keys, { keepUnlisted: true });
+    expect(hidden.find(i => i.key === 'invite')!.hidden).toBe(true);
+    expect(hidden.filter(i => !i.hidden)).toHaveLength(9);
+    // 서버가 순서를 바꾸면 그 순서를 따르고 나머지는 기본 자리에 끼운다 — 줄은 하나도 안 빠진다
+    const reorder = composeHomeRows(base, [row('lucky_chance', {}, 0), row('quiz1', {}, 1)], keys, { keepUnlisted: true });
+    expect(reorder).toHaveLength(10);
+    const at = (k: string) => reorder.map(i => i.key).indexOf(k);
+    expect(at('lucky_chance')).toBeLessThan(at('quiz1'));
+    expect(at('ad_item')).toBe(at('free_item') + 1);
+    expect(composeHomeRows(base, [], keys, { keepUnlisted: true }).map(i => i.key)).toEqual([...HOME_KEYS]);   // 빈 설정 = 기본 순서
+    expect(composeHomeRows(base, null, keys, { keepUnlisted: true })).toEqual(base);
   });
 
   it('서버 설정이 없거나(null) 실패하면 패키지 정의 그대로', () => {
     const base = buildHomeItems({}, all());
     expect(composeHomeRows(base, null, resolveHomeKeys(base, undefined))).toEqual(base);
+  });
+});
+
+describe('원격설정으로 줄 숨기기/보이기 — home.row.<줄id> (0.7.13, 대표님 10-21 07:08 「어드민에서 넣고 빼고」)', () => {
+  const hiddenKeys = (values?: Record<string, unknown>) => buildHomeItems({}, all(), values).filter(i => i.hidden).map(i => i.key);
+
+  it('키 이름은 home.row.<줄id> — 줄은 10개(광고 아이템 ad_item 은 무료 다음)', () => {
+    expect(HOME_ORDER.map(homeRowRemoteKey)).toEqual([
+      'home.row.quiz1', 'home.row.quiz2', 'home.row.checkin', 'home.row.steps', 'home.row.free_item',
+      'home.row.ad_item', 'home.row.today_missions', 'home.row.lucky_chance', 'home.row.invite', 'home.row.recommend',
+    ]);
+    expect(HOME_ORDER).toHaveLength(10);
+  });
+
+  it('값을 안 넘기면(remoteValues 없음) 어떤 줄도 숨기지 않는다 — 앱의 기존 게이팅 그대로', () => {
+    expect(hiddenKeys(undefined)).toEqual([]);
+    expect(homeRowOff('steps', undefined)).toBe(false);
+  });
+
+  it('줄마다 따로 숨긴다 — 그 줄만, 다른 줄은 그대로(걸음 줄은 steps.on 이 켜져 있어도 home.row.steps 가 꺼지면 숨김)', () => {
+    for (const key of HOME_ORDER) {
+      expect(hiddenKeys({ 'steps.on': '1', [homeRowRemoteKey(key)]: '0' }), key).toEqual([key]);
+    }
+  });
+
+  it('끄는 값은 \'0\' · \'false\'(대소문자·공백 무시) · false · 0 — 값이 없거나 그 밖의 값은 켜짐', () => {
+    for (const off of ['0', 'false', 'FALSE', ' 0 ', false, 0]) expect(hiddenKeys({ 'steps.on': '1', 'home.row.free_item': off }), String(off)).toEqual(['free_item']);
+    for (const on of ['1', 'true', '', undefined, null, 'yes', 'maybe', 2]) expect(hiddenKeys({ 'steps.on': '1', 'home.row.free_item': on }), String(on)).toEqual([]);
+  });
+
+  it('걸음 줄은 기존 키 steps.on 을 존중 — \'1\' / \'true\' 일 때만 보이고 없음 · 그 밖은 숨김(지금 당근 규칙). 값 맵을 안 넘기면 적용하지 않는다', () => {
+    expect(hiddenKeys({})).toEqual(['steps']);                                                 // 맵은 넘겼는데 steps.on 이 없다
+    for (const on of ['1', 'true', ' TRUE ', true, 1]) expect(hiddenKeys({ 'steps.on': on }), String(on)).toEqual([]);
+    for (const off of ['0', 'false', '', 'no', false, 0, null]) expect(hiddenKeys({ 'steps.on': off }), String(off)).toEqual(['steps']);
+  });
+
+  it('숨긴 줄도 목록에 남아 hidden:true 로 표시된다 — 서버 home_rows 합치기 뒤에도 유지', () => {
+    const base = buildHomeItems({}, all(), { 'steps.on': '1', 'home.row.invite': '0' });
+    expect(base).toHaveLength(10);
+    expect(base.find(i => i.key === 'invite')!.hidden).toBe(true);
+    const merged = composeHomeRows(base, [HOME_KEYS.map((k, i) => ({ key: k, title: k + ' 서버', desc: '', button: '', badge: '', visible: true, order: i }) as HomeRow)].flat(), resolveHomeKeys(base, undefined), { keepUnlisted: true });
+    expect(merged.find(i => i.key === 'invite')!.hidden).toBe(true);
+    expect(merged.filter(i => !i.hidden)).toHaveLength(9);
+  });
+});
+
+describe('광고 보고 아이템 받기 줄(ad_item) — 문구는 대표님 확정(10-21 07:2x)', () => {
+  const ad = (ctx: Parameters<typeof homeItem>[1] = {}) => homeItem('ad_item', ctx, () => {});
+
+  it('기본 문구: 제목 「광고 보고 ○○ 받기」 · 부제 「짧은 광고를 보면 ○○을/를 더 드려요」 · 버튼 「광고 보기」', () => {
+    const a = ad();
+    expect([a.title, a.subtitle, a.ctaLabel]).toEqual(['광고 보고 포인트 받기', '짧은 광고를 보면 포인트를 더 드려요', '광고 보기']);
+  });
+
+  it('아이템 이름이 들어가고 조사는 받침으로 고른다 — 맘마를 · 양분을 · 모이를 · 한글이 아니면 을(를)', () => {
+    const sub = (itemName: string) => ad({ itemName }).subtitle;
+    expect([sub('맘마'), sub('양분'), sub('모이'), sub('캡슐'), sub('coin')]).toEqual([
+      '짧은 광고를 보면 맘마를 더 드려요', '짧은 광고를 보면 양분을 더 드려요', '짧은 광고를 보면 모이를 더 드려요', '짧은 광고를 보면 캡슐을 더 드려요', '짧은 광고를 보면 coin을(를) 더 드려요',
+    ]);
+    expect(ad({ itemName: '맘마' }).title).toBe('광고 보고 맘마 받기');
+  });
+
+  it('아이콘은 앱 아이템 그림(없으면 🌱), 바탕색은 기본 연초록 — 앱 테마색(tints.ad_item)이 있으면 그것이 우선', () => {
+    expect([ad().icon, ad().tint]).toEqual(['🌱', '#E6F5EA']);
+    expect(ad({ itemIcon: 'star', tints: { ad_item: '#123456' } }).icon).toBe('star');
+    expect(ad({ tints: { ad_item: '#123456' } }).tint).toBe('#123456');
+    expect(ad({ tints: { ad_item: '  ' } }).tint).toBe('#E6F5EA');
+  });
+
+  it('무료 아이템 줄 바로 뒤에 있고, 누르면 자기 동작을 부른다', () => {
+    const a = all();
+    const items = buildHomeItems({}, a);
+    const keys = items.map(i => i.key);
+    expect(keys.indexOf('ad_item')).toBe(keys.indexOf('free_item') + 1);
+    items.find(i => i.key === 'ad_item')!.onPress();
+    expect(a.ad_item).toHaveBeenCalledOnce();
+    expect(a.free_item).not.toHaveBeenCalled();
+  });
+});
+
+describe('줄은 앱에서 빠지지 않는다 — 동작이 빠져도 그려진다 (0.7.13)', () => {
+  it('동작을 하나도 안 넘겨도 10줄이 모두 만들어지고 누름은 아무 일도 안 한다(던지지 않는다)', () => {
+    const items = buildHomeItems({}, {});
+    expect(items.map(i => i.key)).toEqual([...HOME_ORDER]);
+    expect(() => items.forEach(i => i.onPress())).not.toThrow();
+    const noFn = buildHomeItems({}, { invite: undefined, lucky_chance: 'x' } as unknown as Partial<HomeActions>);
+    expect(noFn).toHaveLength(10);                                                              // 함수가 아니어도 줄은 만든다
+  });
+
+  it('개발 중에는 빠진 동작마다 경고를 한 번만 낸다(운영에서는 조용)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    (globalThis as { __DEV__?: boolean }).__DEV__ = true;
+    try {
+      buildHomeItems({}, { quiz1: vi.fn() });
+      expect(warn).toHaveBeenCalledTimes(9);                                                    // quiz1 만 넘겼다
+      buildHomeItems({}, { quiz1: vi.fn() });
+      expect(warn).toHaveBeenCalledTimes(9);                                                    // 같은 줄은 다시 안 낸다
+      expect(String(warn.mock.calls[0][0])).toContain('homeActions.');
+    } finally {
+      delete (globalThis as { __DEV__?: boolean }).__DEV__;
+      warn.mockRestore();
+    }
+    const quiet = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    buildHomeItems({}, {});
+    expect(quiet).not.toHaveBeenCalled();
+    quiet.mockRestore();
   });
 });
 
