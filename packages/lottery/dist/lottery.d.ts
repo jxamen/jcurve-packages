@@ -30,6 +30,8 @@ export type LotteryTier = {
         won: number;
         points: number;
     } | null;
+    /** (0.1.3) 이 단계 당첨표의 단위 — 'points' 면 「최대 1,000P」로 P 만 보여 준다(원은 서버가 계산만 한 값이라 안 보인다). 서버가 안 주면 'won'(옛 응답 그대로) */
+    unit: 'won' | 'points';
 };
 export type LotteryState = {
     day: string;
@@ -47,11 +49,16 @@ export type LotteryOpenResult = {
     balance: number;
     replayed: boolean;
     unopened: number;
+    unit: 'won' | 'points';
+    maxPoints?: number;
 };
 export type LotteryWinner = {
     nick: string;
     tierMax: number;
-    won: number;
+    won: number; /** (0.1.3) 포인트 표 단계의 당첨 */
+    unit: 'won' | 'points';
+    points?: number;
+    tierMaxPoints?: number;
 };
 export type LotteryError = 'off' | 'not_ready' | 'not_reached' | 'already_opened' | 'key_conflict' | 'ad_required' | 'key_required' | 'bad_key' | 'bad_tier' | 'bad_src' | 'network' | 'busy' | 'invalid';
 /** 서버 응답을 믿지 않고 다시 읽는다 — 꺼진 앱(ok 아님) · 깨진 응답은 null(칩이 안 보인다) */
@@ -85,7 +92,13 @@ export declare function openLottery(fetchJson: Requester, args: {
  * 잠금(busy)은 끝나면 반드시 풀린다(finally) — 이동 · 실패 · 취소를 기다리지 않는다(0.4.3 와 같은 규칙).
  */
 export declare function createLotteryOpener(fetchJson: Requester): (tier: number, src?: 'basic' | 'mission') => Promise<OpenOutcome>;
-export declare const lotteryTierTitle: (t: Pick<LotteryTier, "maxWon">) => string;
+/** (0.1.3) 단계의 「최대 ○」 — 포인트 표(unit:'points')면 `1,000P`, 원 표면 `100원`. 원 표시는 포인트 표에서 쓰지 않는다 */
+export declare const lotteryTierAmount: (t: Pick<LotteryTier, "maxWon" | "maxPoints"> & {
+    unit?: "won" | "points";
+}) => string;
+export declare const lotteryTierTitle: (t: Pick<LotteryTier, "maxWon" | "maxPoints"> & {
+    unit?: "won" | "points";
+}) => string;
 /** 단계 줄 설명 — 황금(기본) 복권이 있는 단계는 그 안내, 아니면 미션 기준 */
 export declare function lotteryTierHint(t: LotteryTier): string;
 /** 단계 줄 버튼 — ready 면 「열기」, 다 열었으면 「획득 완료」, 못 받은 단계는 「받기」(미션으로 가기), 하루 한도에 막힌 단계는 「내일 받아요」 */
@@ -98,9 +111,33 @@ export declare function nextTierToEarn(s: LotteryState): LotteryTier | null;
 export declare function lotteryMoreLabel(s: LotteryState): string | null;
 /** 결과 창 제목 — 「축하해요 보상 ○P 당첨!」 */
 export declare const lotteryResultTitle: (points: number) => string;
+/** (0.1.3) 당첨 전체 화면의 큰 제목 — 「5P 당첨!」 */
+export declare const lotteryResultHeadline: (points: number) => string;
 /** 결과 창에서 남은 복권이 없을 때 잇는 버튼 — 「미션 하고 복권 더 받기」(다음 단계까지 남은 미션 수) */
 export declare function lotteryMoreMissionLabel(s: LotteryState): string | null;
+/** (0.1.3) 당첨 띠 문구를 세 조각으로 — 가운데(금액)만 강조색으로 그린다. 포인트 표 단계는 「○님이 1,000P 당첨됐어요!」, 원 표는 예전 문구 그대로 */
+export declare function lotteryWinnerParts(w: LotteryWinner): {
+    pre: string;
+    amount: string;
+    post: string;
+};
 export declare const lotteryWinnerLine: (w: LotteryWinner) => string;
+/**
+ * (0.1.3) 시트 줄 — 미션 복권 줄(단계마다)과 황금 복권 줄(하루 기본 복권이 있을 때 하나)을 따로 보여 준다. 미션 줄은 미션 복권만의 상태(missionState)로 정한다.
+ * 「열기」는 미션 복권이 열린 줄, 「받기」는 아직 못 받은(미션으로 가기), 「받기 완료」는 다 연 줄, 「내일 받아요」는 하루 한도에 막힌 줄
+ */
+export declare function lotteryMissionButton(t: Pick<LotteryTier, 'missionState'>): {
+    label: string;
+    kind: 'open' | 'earn' | 'done' | 'wait';
+};
+/** 미션 줄 설명 — 「쇼핑 · 플레이스 미션 1개 하면 받아요」 */
+export declare function lotteryMissionHint(t: Pick<LotteryTier, 'missions' | 'missionsLeft' | 'missionState'>): string;
+/** 황금 복권 줄 — 기본 복권이 있는 단계(없으면 null). `unopened` 가 0 이면 이미 연 것 */
+export declare function goldenRow(s: LotteryState | null): {
+    tier: LotteryTier;
+    unopened: number;
+    total: number;
+} | null;
 /** 안 연 복권이 있을 때만 칩을 그린다 — 다 열면 사라진다 */
 export declare const lotteryChipCount: (s: LotteryState | null) => number;
 /** 황금(기본) 복권 팝업 대상 — 안 연 기본 복권이 있는 단계(없으면 null) */
@@ -118,6 +155,7 @@ export declare function goldenLines(o: {
     maxWon: number;
     maxPoints?: number | null;
     ad?: boolean;
+    unit?: 'won' | 'points';
 }): {
     lines: string[];
     note: string;

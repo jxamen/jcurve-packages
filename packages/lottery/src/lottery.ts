@@ -26,6 +26,8 @@ export type LotteryTier = {
   basic: number;
   basicUnopened: number;
   prize: { won: number; points: number } | null;
+  /** (0.1.3) 이 단계 당첨표의 단위 — 'points' 면 「최대 1,000P」로 P 만 보여 준다(원은 서버가 계산만 한 값이라 안 보인다). 서버가 안 주면 'won'(옛 응답 그대로) */
+  unit: 'won' | 'points';
 };
 
 export type LotteryState = {
@@ -37,8 +39,8 @@ export type LotteryState = {
   unopened: number;
 };
 
-export type LotteryOpenResult = { tier: number; maxWon: number; won: number; points: number; balance: number; replayed: boolean; unopened: number };
-export type LotteryWinner = { nick: string; tierMax: number; won: number };
+export type LotteryOpenResult = { tier: number; maxWon: number; won: number; points: number; balance: number; replayed: boolean; unopened: number; unit: 'won' | 'points'; maxPoints?: number };
+export type LotteryWinner = { nick: string; tierMax: number; won: number; /** (0.1.3) 포인트 표 단계의 당첨 */ unit: 'won' | 'points'; points?: number; tierMaxPoints?: number };
 
 export type LotteryError =
   | 'off' | 'not_ready' | 'not_reached' | 'already_opened' | 'key_conflict' | 'ad_required' | 'key_required' | 'bad_key' | 'bad_tier' | 'bad_src'
@@ -63,6 +65,7 @@ export function parseLotteryState(response: unknown): LotteryState | null {
       missionsLeft: Math.max(0, num(t.missionsLeft)), tickets: Math.max(0, num(t.tickets)), unopened: Math.max(0, num(t.unopened)),
       basic: Math.max(0, num(t.basic)), basicUnopened: Math.max(0, num(t.basicUnopened)),
       prize: prize && typeof prize === 'object' ? { won: num(prize.won), points: num(prize.points) } : null,
+      unit: t.unit === 'points' ? 'points' : 'won',
     });
   }
   if (tiers.length === 0) return null;
@@ -76,8 +79,12 @@ export function parseWinners(response: unknown): LotteryWinner[] {
   if (!r || r.ok !== true || !Array.isArray(r.items)) return [];
   const out: LotteryWinner[] = [];
   for (const raw of r.items.slice(0, 20)) {
-    const w = raw as { nick?: unknown; tierMax?: unknown; won?: unknown } | null;
-    if (w && typeof w.nick === 'string' && w.nick !== '') out.push({ nick: w.nick, tierMax: num(w.tierMax), won: num(w.won) });
+    const w = raw as { nick?: unknown; tierMax?: unknown; won?: unknown; unit?: unknown; points?: unknown; tierMaxPoints?: unknown } | null;
+    if (w && typeof w.nick === 'string' && w.nick !== '') {
+      out.push(w.unit === 'points'
+        ? { nick: w.nick, tierMax: num(w.tierMax), won: num(w.won), unit: 'points', points: num(w.points), tierMaxPoints: num(w.tierMaxPoints) }
+        : { nick: w.nick, tierMax: num(w.tierMax), won: num(w.won), unit: 'won' });
+    }
   }
 
   return out;
@@ -133,9 +140,12 @@ export async function openLottery(fetchJson: Requester, args: { tier: number; ke
   } catch (e) {
     return { ok: false, error: toLotteryError(e) };
   }
-  const j = r as { ok?: unknown; tier?: unknown; maxWon?: unknown; won?: unknown; points?: unknown; balance?: unknown; replayed?: unknown; unopened?: unknown; error?: unknown } | null;
+  const j = r as { ok?: unknown; tier?: unknown; maxWon?: unknown; won?: unknown; points?: unknown; balance?: unknown; replayed?: unknown; unopened?: unknown; error?: unknown; unit?: unknown; maxPoints?: unknown } | null;
   if (j?.ok === true && typeof j.won === 'number' && typeof j.points === 'number') {
-    return { ok: true, result: { tier: num(j.tier), maxWon: num(j.maxWon), won: j.won, points: j.points, balance: num(j.balance), replayed: j.replayed === true, unopened: Math.max(0, num(j.unopened)) } };
+    const points = j.unit === 'points';
+
+    return { ok: true, result: { tier: num(j.tier), maxWon: num(j.maxWon), won: j.won, points: j.points, balance: num(j.balance), replayed: j.replayed === true, unopened: Math.max(0, num(j.unopened)),
+      unit: points ? 'points' : 'won', ...(points ? { maxPoints: num(j.maxPoints) } : {}) } };
   }
 
   return { ok: false, error: j?.ok === false ? toLotteryError(j) : 'invalid' };
@@ -168,7 +178,12 @@ export function createLotteryOpener(fetchJson: Requester): (tier: number, src?: 
 
 // ── 문구 ──────────────────────────────────────────────────────────────
 
-export const lotteryTierTitle = (t: Pick<LotteryTier, 'maxWon'>): string => '최대 ' + t.maxWon.toLocaleString('ko-KR') + '원 복권';
+const ko = (n: number): string => n.toLocaleString('ko-KR');
+
+/** (0.1.3) 단계의 「최대 ○」 — 포인트 표(unit:'points')면 `1,000P`, 원 표면 `100원`. 원 표시는 포인트 표에서 쓰지 않는다 */
+export const lotteryTierAmount = (t: Pick<LotteryTier, 'maxWon' | 'maxPoints'> & { unit?: 'won' | 'points' }): string => (t.unit === 'points' ? ko(t.maxPoints) + 'P' : ko(t.maxWon) + '원');
+
+export const lotteryTierTitle = (t: Pick<LotteryTier, 'maxWon' | 'maxPoints'> & { unit?: 'won' | 'points' }): string => '최대 ' + lotteryTierAmount(t) + ' 복권';
 
 /** 단계 줄 설명 — 황금(기본) 복권이 있는 단계는 그 안내, 아니면 미션 기준 */
 export function lotteryTierHint(t: LotteryTier): string {
@@ -197,21 +212,63 @@ export function nextTierToEarn(s: LotteryState): LotteryTier | null {
 export function lotteryMoreLabel(s: LotteryState): string | null {
   const t = nextTierToEarn(s);
 
-  return t ? '한 번 더! ' + t.maxWon.toLocaleString('ko-KR') + '원 복권 받기' : null;
+  if (!t) return null;
+
+  return t.unit === 'points' ? '한 번 더! ' + lotteryTierTitle(t) + ' 받기' : '한 번 더! ' + ko(t.maxWon) + '원 복권 받기';
 }
 
 /** 결과 창 제목 — 「축하해요 보상 ○P 당첨!」 */
 export const lotteryResultTitle = (points: number): string => '축하해요 보상 ' + points.toLocaleString('ko-KR') + 'P 당첨!';
+
+/** (0.1.3) 당첨 전체 화면의 큰 제목 — 「5P 당첨!」 */
+export const lotteryResultHeadline = (points: number): string => ko(points) + 'P 당첨!';
 
 /** 결과 창에서 남은 복권이 없을 때 잇는 버튼 — 「미션 하고 복권 더 받기」(다음 단계까지 남은 미션 수) */
 export function lotteryMoreMissionLabel(s: LotteryState): string | null {
   const t = nextTierToEarn(s);
   if (!t) return null;
 
-  return t.missionsLeft > 0 ? '미션 ' + t.missionsLeft + '개 더 하고 ' + t.maxWon.toLocaleString('ko-KR') + '원 복권 받기' : '미션 하고 복권 더 받기';
+  const what = t.unit === 'points' ? lotteryTierTitle(t) : ko(t.maxWon) + '원 복권';
+
+  return t.missionsLeft > 0 ? '미션 ' + t.missionsLeft + '개 더 하고 ' + what + ' 받기' : '미션 하고 복권 더 받기';
 }
 
-export const lotteryWinnerLine = (w: LotteryWinner): string => w.nick + '님이 ' + w.tierMax.toLocaleString('ko-KR') + '원 복권에 당첨됐어요!';
+/** (0.1.3) 당첨 띠 문구를 세 조각으로 — 가운데(금액)만 강조색으로 그린다. 포인트 표 단계는 「○님이 1,000P 당첨됐어요!」, 원 표는 예전 문구 그대로 */
+export function lotteryWinnerParts(w: LotteryWinner): { pre: string; amount: string; post: string } {
+  if (w.unit === 'points') return { pre: w.nick + '님이 ', amount: ko(w.points ?? 0) + 'P', post: ' 당첨됐어요!' };
+
+  return { pre: w.nick + '님이 ', amount: ko(w.tierMax) + '원', post: ' 복권에 당첨됐어요!' };
+}
+
+export const lotteryWinnerLine = (w: LotteryWinner): string => { const p = lotteryWinnerParts(w); return p.pre + p.amount + p.post; };
+
+/**
+ * (0.1.3) 시트 줄 — 미션 복권 줄(단계마다)과 황금 복권 줄(하루 기본 복권이 있을 때 하나)을 따로 보여 준다. 미션 줄은 미션 복권만의 상태(missionState)로 정한다.
+ * 「열기」는 미션 복권이 열린 줄, 「받기」는 아직 못 받은(미션으로 가기), 「받기 완료」는 다 연 줄, 「내일 받아요」는 하루 한도에 막힌 줄
+ */
+export function lotteryMissionButton(t: Pick<LotteryTier, 'missionState'>): { label: string; kind: 'open' | 'earn' | 'done' | 'wait' } {
+  if (t.missionState === 'ready') return { label: '열기', kind: 'open' };
+  if (t.missionState === 'opened') return { label: '받기 완료', kind: 'done' };
+  if (t.missionState === 'capped') return { label: '내일 받아요', kind: 'wait' };
+
+  return { label: '받기', kind: 'earn' };
+}
+
+/** 미션 줄 설명 — 「쇼핑 · 플레이스 미션 1개 하면 받아요」 */
+export function lotteryMissionHint(t: Pick<LotteryTier, 'missions' | 'missionsLeft' | 'missionState'>): string {
+  if (t.missionState === 'ready' || t.missionState === 'opened') return '쇼핑 · 플레이스 미션 ' + t.missions + '개로 받았어요';
+  if (t.missionState === 'capped') return '오늘 받을 수 있는 복권을 모두 받았어요';
+
+  return t.missionsLeft > 0 && t.missionsLeft < t.missions ? '미션 ' + t.missionsLeft + '개 더 하면 받아요' : '쇼핑 · 플레이스 미션 ' + t.missions + '개 하면 받아요';
+}
+
+/** 황금 복권 줄 — 기본 복권이 있는 단계(없으면 null). `unopened` 가 0 이면 이미 연 것 */
+export function goldenRow(s: LotteryState | null): { tier: LotteryTier; unopened: number; total: number } | null {
+  if (!s) return null;
+  const t = s.tiers.find(x => x.basic > 0);
+
+  return t ? { tier: t, unopened: t.basicUnopened, total: t.basic } : null;
+}
 
 /** 안 연 복권이 있을 때만 칩을 그린다 — 다 열면 사라진다 */
 export const lotteryChipCount = (s: LotteryState | null): number => (s ? s.unopened : 0);
@@ -236,12 +293,14 @@ export function nextOpensWithAd(s: LotteryState | null, basicAd = true): boolean
 }
 
 /** 황금 복권 시트의 쉬운 말 설명 — 줄마다 한 가지, 값(최대 금액 · 포인트)은 서버 state 에서 온 것을 넘긴다. 광고 없이 열리는 설정이면 두 번째 줄이 바뀐다 */
-export function goldenLines(o: { maxWon: number; maxPoints?: number | null; ad?: boolean }): { lines: string[]; note: string } {
+export function goldenLines(o: { maxWon: number; maxPoints?: number | null; ad?: boolean; unit?: 'won' | 'points' }): { lines: string[]; note: string } {
   const won = o.maxWon.toLocaleString('ko-KR') + '원';
   const pts = typeof o.maxPoints === 'number' && o.maxPoints > 0 ? '(' + o.maxPoints.toLocaleString('ko-KR') + 'P)' : '';
+  // 포인트 표(unit:'points')는 P 만 — 「최대 1,000P가 바로 들어와요」(원 병기 없음)
+  const last = o.unit === 'points' ? '최대 ' + ko(o.maxPoints ?? 0) + 'P가 바로 들어와요' : '최대 ' + won + pts + '이 포인트로 바로 들어와요';
 
   return {
-    lines: ['하루에 한 장, 무료로 드려요', o.ad === false ? '바로 열 수 있어요' : '광고 1번 보면 바로 열 수 있어요', '최대 ' + won + pts + '이 포인트로 바로 들어와요'],
+    lines: ['하루에 한 장, 무료로 드려요', o.ad === false ? '바로 열 수 있어요' : '광고 1번 보면 바로 열 수 있어요', last],
     note: '오늘 자정까지 열 수 있어요',
   };
 }

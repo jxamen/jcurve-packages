@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  createLotteryOpener, fetchLotteryState, goldenTier, lotteryChipCount, lotteryMoreLabel, lotteryMoreMissionLabel, lotteryResultTitle, lotteryTierButton, lotteryTierHint, lotteryTierTitle,
-  lotteryWinnerLine, newLotteryKey, nextTierToEarn, openLottery, parseLotteryState, parseWinners, readyTiers, toLotteryError, type LotteryTier,
+  createLotteryOpener, fetchLotteryState, goldenLines, goldenRow, goldenTier, lotteryChipCount, lotteryMissionButton, lotteryMissionHint, lotteryMoreLabel, lotteryMoreMissionLabel,
+  lotteryResultHeadline, lotteryResultTitle, lotteryTierAmount, lotteryTierButton, lotteryTierHint, lotteryTierTitle, lotteryWinnerLine, lotteryWinnerParts,
+  newLotteryKey, nextTierToEarn, openLottery, parseLotteryState, parseWinners, readyTiers, toLotteryError, type LotteryTier,
 } from './lottery';
 
-const tier = (over: Partial<LotteryTier> = {}): LotteryTier => ({ tier: 1, missions: 1, maxWon: 100, maxPoints: 160, state: 'locked', missionState: 'locked', missionsLeft: 1, tickets: 0, unopened: 0, basic: 0, basicUnopened: 0, prize: null, ...over });
+const tier = (over: Partial<LotteryTier> = {}): LotteryTier => ({ tier: 1, missions: 1, maxWon: 100, maxPoints: 160, state: 'locked', missionState: 'locked', missionsLeft: 1, tickets: 0, unopened: 0, basic: 0, basicUnopened: 0, prize: null, unit: 'won', ...over });
 const wire = (tiers: Partial<LotteryTier>[], over: Record<string, unknown> = {}) => ({ ok: true, day: '2026-10-20', wonToPoint: 160, participated: 0, unopened: 0, tiers: tiers.map((t, i) => tier({ tier: i + 1, ...t })), ...over });
 
 describe('상태 읽기', () => {
@@ -37,7 +38,7 @@ describe('열기', () => {
     const req = vi.fn(async () => ({ ok: true, tier: 3, maxWon: 1000, won: 200, points: 320, balance: 900, replayed: false, unopened: 1 }));
     const r = await openLottery(req, { tier: 3, key: 'k1', src: 'basic' });
     expect(req).toHaveBeenCalledWith('lottery/open', { method: 'POST', body: { tier: 3, idempotency_key: 'k1', src: 'basic' } });
-    expect(r).toEqual({ ok: true, result: { tier: 3, maxWon: 1000, won: 200, points: 320, balance: 900, replayed: false, unopened: 1 } });
+    expect(r).toEqual({ ok: true, result: { tier: 3, maxWon: 1000, won: 200, points: 320, balance: 900, replayed: false, unopened: 1, unit: 'won' } });
     await openLottery(req, { tier: 1, key: 'k2' });
     expect((req.mock.calls[1] as any)[1].body).toEqual({ tier: 1, idempotency_key: 'k2' });
   });
@@ -140,5 +141,56 @@ describe('toLotteryError — 앱 요청 함수가 던지는 꼴을 그대로 읽
     const apiError = (code: string, status: number) => async () => { throw Object.assign(new Error(code), { code, status }); };
     expect(await openLottery(apiError('ad_required', 409), { tier: 3, key: 'k', src: 'basic' })).toEqual({ ok: false, error: 'ad_required' });
     expect(await openLottery(apiError('not_found', 404), { tier: 1, key: 'k' })).toEqual({ ok: false, error: 'off' });
+  });
+});
+
+describe('포인트 표(unit:points) — 읽기와 문구(0.1.3)', () => {
+  it('state 단계 · 열기 결과 · 당첨 띠가 unit 과 P 를 읽고, 없으면 원 표(옛 응답 그대로)', () => {
+    const s = parseLotteryState({ ok: true, day: 'd', wonToPoint: 160, participated: 1, unopened: 1, tiers: [
+      { tier: 1, missions: 1, maxWon: 625, maxPoints: 1000, unit: 'points', state: 'ready', missionState: 'ready', missionsLeft: 0, tickets: 1, unopened: 1, basic: 0, basicUnopened: 0, prize: null },
+      { tier: 2, missions: 5, maxWon: 500, maxPoints: 800, state: 'locked', missionState: 'locked', missionsLeft: 4, tickets: 0, unopened: 0, basic: 0, basicUnopened: 0, prize: null },
+    ] })!;
+    expect(s.tiers.map(t => t.unit)).toEqual(['points', 'won']);
+    expect(lotteryTierTitle(s.tiers[0])).toBe('최대 1,000P 복권');
+    expect(lotteryTierTitle(s.tiers[1])).toBe('최대 500원 복권');
+    expect(lotteryTierAmount(s.tiers[0])).toBe('1,000P');
+    expect(lotteryMoreLabel(parseLotteryState({ ok: true, day: 'd', wonToPoint: 160, participated: 0, unopened: 0, tiers: [{ tier: 1, missions: 1, maxWon: 625, maxPoints: 1000, unit: 'points', state: 'locked', missionState: 'locked', missionsLeft: 1 }] }))).toBe('한 번 더! 최대 1,000P 복권 받기');
+    expect(lotteryMoreLabel(s)).toBe('한 번 더! 500원 복권 받기');
+    const w = parseWinners({ ok: true, items: [
+      { nick: 'Noe****', tierMax: 625, won: 3, unit: 'points', points: 5, tierMaxPoints: 1000 },
+      { nick: 'Kim****', tierMax: 500, won: 500 },
+    ] });
+    expect(w).toEqual([
+      { nick: 'Noe****', tierMax: 625, won: 3, unit: 'points', points: 5, tierMaxPoints: 1000 },
+      { nick: 'Kim****', tierMax: 500, won: 500, unit: 'won' },
+    ]);
+    expect(lotteryWinnerLine(w[0])).toBe('Noe****님이 5P 당첨됐어요!');
+    expect(lotteryWinnerParts(w[0])).toEqual({ pre: 'Noe****님이 ', amount: '5P', post: ' 당첨됐어요!' });
+    expect(lotteryWinnerLine(w[1])).toBe('Kim****님이 500원 복권에 당첨됐어요!');
+  });
+  it('열기 결과: unit points 면 unit · maxPoints 를 싣는다', async () => {
+    const r = await openLottery(async () => ({ ok: true, tier: 1, maxWon: 625, maxPoints: 1000, unit: 'points', won: 3, points: 5, balance: 5, replayed: false, unopened: 0 }), { tier: 1, key: 'k' });
+    expect(r).toEqual({ ok: true, result: { tier: 1, maxWon: 625, won: 3, points: 5, balance: 5, replayed: false, unopened: 0, unit: 'points', maxPoints: 1000 } });
+  });
+  it('당첨 화면 큰 제목은 「5P 당첨!」, 황금 줄 · 미션 줄 문구와 버튼', () => {
+    expect(lotteryResultHeadline(5)).toBe('5P 당첨!');
+    expect(lotteryResultHeadline(1000)).toBe('1,000P 당첨!');
+    expect(lotteryMissionButton({ missionState: 'ready' })).toEqual({ label: '열기', kind: 'open' });
+    expect(lotteryMissionButton({ missionState: 'locked' })).toEqual({ label: '받기', kind: 'earn' });
+    expect(lotteryMissionButton({ missionState: 'opened' })).toEqual({ label: '받기 완료', kind: 'done' });
+    expect(lotteryMissionButton({ missionState: 'capped' })).toEqual({ label: '내일 받아요', kind: 'wait' });
+    expect(lotteryMissionHint({ missions: 1, missionsLeft: 1, missionState: 'locked' })).toBe('쇼핑 · 플레이스 미션 1개 하면 받아요');
+    expect(lotteryMissionHint({ missions: 5, missionsLeft: 3, missionState: 'locked' })).toBe('미션 3개 더 하면 받아요');
+    expect(lotteryMissionHint({ missions: 5, missionsLeft: 0, missionState: 'opened' })).toBe('쇼핑 · 플레이스 미션 5개로 받았어요');
+    expect(lotteryMissionHint({ missions: 5, missionsLeft: 0, missionState: 'capped' })).toBe('오늘 받을 수 있는 복권을 모두 받았어요');
+  });
+  it('goldenRow: 기본 복권이 있는 단계, 없으면 null · goldenLines 포인트 표는 P 만', () => {
+    const mk = (tiers: any[]) => parseLotteryState({ ok: true, day: 'd', wonToPoint: 160, participated: 0, unopened: 0, tiers: tiers.map((t, i) => ({ tier: i + 1, missions: i + 1, maxWon: 100, maxPoints: 160, state: 'locked', missionState: 'locked', missionsLeft: 1, tickets: 0, unopened: 0, basic: 0, basicUnopened: 0, ...t })) });
+    expect(goldenRow(mk([{}, {}]))).toBeNull();
+    const g = goldenRow(mk([{}, { basic: 1, basicUnopened: 1 }]))!;
+    expect([g.tier.tier, g.unopened, g.total]).toEqual([2, 1, 1]);
+    expect(goldenRow(null)).toBeNull();
+    expect(goldenLines({ maxWon: 625, maxPoints: 1000, unit: 'points' }).lines[2]).toBe('최대 1,000P가 바로 들어와요');
+    expect(goldenLines({ maxWon: 1000, maxPoints: 1600 }).lines[2]).toBe('최대 1,000원(1,600P)이 포인트로 바로 들어와요');
   });
 });

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createMockLotteryApi = exports.DEFAULT_LOTTERY_THEME = exports.GoldenLotteryPopup = exports.LotteryResult = exports.LotterySheet = exports.LotteryChip = exports.notifyMode = exports.createNotifyController = exports.useLotteryNotify = exports.useLottery = exports.goldenLines = exports.nextOpensWithAd = exports.opensWithAd = exports.readyTiers = exports.goldenTier = exports.lotteryChipCount = exports.lotteryWinnerLine = exports.lotteryResultTitle = exports.lotteryMoreMissionLabel = exports.lotteryMoreLabel = exports.nextTierToEarn = exports.lotteryTierButton = exports.lotteryTierHint = exports.lotteryTierTitle = exports.toLotteryError = exports.newLotteryKey = exports.createLotteryOpener = exports.openLottery = exports.fetchLotteryWinners = exports.fetchLotteryState = exports.parseWinners = exports.parseLotteryState = void 0;
+exports.createMockLotteryApi = exports.DEFAULT_LOTTERY_THEME = exports.GoldenLotteryPopup = exports.LotteryResult = exports.LotterySheet = exports.LotteryChip = exports.notifyMode = exports.createNotifyController = exports.useLotteryNotify = exports.useLottery = exports.goldenRow = exports.lotteryMissionHint = exports.lotteryMissionButton = exports.lotteryWinnerParts = exports.lotteryResultHeadline = exports.lotteryTierAmount = exports.goldenLines = exports.nextOpensWithAd = exports.opensWithAd = exports.readyTiers = exports.goldenTier = exports.lotteryChipCount = exports.lotteryWinnerLine = exports.lotteryResultTitle = exports.lotteryMoreMissionLabel = exports.lotteryMoreLabel = exports.nextTierToEarn = exports.lotteryTierButton = exports.lotteryTierHint = exports.lotteryTierTitle = exports.toLotteryError = exports.newLotteryKey = exports.createLotteryOpener = exports.openLottery = exports.fetchLotteryWinners = exports.fetchLotteryState = exports.parseWinners = exports.parseLotteryState = void 0;
 var lottery_1 = require("./lottery");
 Object.defineProperty(exports, "parseLotteryState", { enumerable: true, get: function () { return lottery_1.parseLotteryState; } });
 Object.defineProperty(exports, "parseWinners", { enumerable: true, get: function () { return lottery_1.parseWinners; } });
@@ -24,6 +24,12 @@ Object.defineProperty(exports, "readyTiers", { enumerable: true, get: function (
 Object.defineProperty(exports, "opensWithAd", { enumerable: true, get: function () { return lottery_1.opensWithAd; } });
 Object.defineProperty(exports, "nextOpensWithAd", { enumerable: true, get: function () { return lottery_1.nextOpensWithAd; } });
 Object.defineProperty(exports, "goldenLines", { enumerable: true, get: function () { return lottery_1.goldenLines; } });
+Object.defineProperty(exports, "lotteryTierAmount", { enumerable: true, get: function () { return lottery_1.lotteryTierAmount; } });
+Object.defineProperty(exports, "lotteryResultHeadline", { enumerable: true, get: function () { return lottery_1.lotteryResultHeadline; } });
+Object.defineProperty(exports, "lotteryWinnerParts", { enumerable: true, get: function () { return lottery_1.lotteryWinnerParts; } });
+Object.defineProperty(exports, "lotteryMissionButton", { enumerable: true, get: function () { return lottery_1.lotteryMissionButton; } });
+Object.defineProperty(exports, "lotteryMissionHint", { enumerable: true, get: function () { return lottery_1.lotteryMissionHint; } });
+Object.defineProperty(exports, "goldenRow", { enumerable: true, get: function () { return lottery_1.goldenRow; } });
 var useLottery_1 = require("./useLottery");
 Object.defineProperty(exports, "useLottery", { enumerable: true, get: function () { return useLottery_1.useLottery; } });
 var useLotteryNotify_1 = require("./useLotteryNotify");

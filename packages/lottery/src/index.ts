@@ -1,6 +1,6 @@
 export {
   parseLotteryState, parseWinners, fetchLotteryState, fetchLotteryWinners, openLottery, createLotteryOpener, newLotteryKey, toLotteryError,
-  lotteryTierTitle, lotteryTierHint, lotteryTierButton, nextTierToEarn, lotteryMoreLabel, lotteryMoreMissionLabel, lotteryResultTitle, lotteryWinnerLine, lotteryChipCount, goldenTier, readyTiers, opensWithAd, nextOpensWithAd, goldenLines,
+  lotteryTierTitle, lotteryTierHint, lotteryTierButton, nextTierToEarn, lotteryMoreLabel, lotteryMoreMissionLabel, lotteryResultTitle, lotteryWinnerLine, lotteryChipCount, goldenTier, readyTiers, opensWithAd, nextOpensWithAd, goldenLines, lotteryTierAmount, lotteryResultHeadline, lotteryWinnerParts, lotteryMissionButton, lotteryMissionHint, goldenRow,
   type LotteryState, type LotteryTier, type LotteryTierState, type LotteryOpenResult, type LotteryWinner, type LotteryError, type OpenOutcome, type Requester,
 } from './lottery';
 export { useLottery } from './useLottery';

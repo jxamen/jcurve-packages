@@ -69,3 +69,13 @@ const notify = useLotteryNotify({
 ```
 누르면 아직 안 물은 기기는 `onEnableNotifications('ask')`(OS 권한 요청 + 토큰 등록은 앱 경로), 이미 거절한 기기('denied')는 `Linking.openSettings()` 로 설정 화면을 연다(`openSettings: false` 면 앱 콜백이 `'denied'` 로 받는다). 화면이 뜰 때 · 앱이 앞으로 돌아올 때(설정에서 켜고 온 경우) 권한을 다시 읽어 줄이 사라진다. 권한을 모르면(콜백이 던지면) 조르지 않는다. 옛 `onEnableNotify` 줄(항상 보임)은 그대로 있다.
 
+## 0.1.3 — 바텀 시트 · 당첨 전체 화면 · 포인트 표 (대표님 10-20 15:53~15:57)
+
+- **복권 목록 · 황금 복권은 확실한 바텀 시트**: 뒤 화면 어둡게(딤, 누르면 닫힘) · 오른쪽 위 X · 위 손잡이 바 · 둥근 위 모서리 · 아래 안전 영역(`bottomInset={insets.bottom}`) · Android 뒤로 가기는 닫기. 기본(`presentation="overlay"`)은 RN Modal 이 아니라 **부모 영역을 덮는 absolute 판**이다 —
+  보상형 광고가 Modal 뒤에 깔리지 않게(iOS 는 RN Modal 이 떠 있으면 AdMob 이 광고를 못 연다). **탭 메뉴까지 덮으려면 앱 루트(탭 · 상태줄 바깥)에서 그린다.** `presentation="modal"` 이면 RN Modal(탭 · 상태줄 위) — 그때는 광고를 열기 전에 먼저 닫을 것.
+- **복권 시트 구성**(참고 캡처 IMG_9331): 큰 제목 2줄 + 회색 한 줄 → 회색 둥근 당첨 띠(**서버 winners 의 실제 기록이 있을 때만**, 없으면 숨김) → 줄(왼쪽 숫자 카드 1 · 5 · 10 · 황금 ★, 색이 다름 · 「최대 ○ 복권」 · 회색 설명 · 오른쪽 「열기」/「받기」/「받기 완료」) → 큰 「한 번 더! ○ 복권 받기」 → 「🔔 복권 받게 알림 켜기 ›」 링크(알림이 켜져 있으면 숨김).
+  줄은 **미션 복권 줄(단계마다)** + **황금 복권 줄(하루 기본 복권이 있을 때)**. `onOpen(tier, src)` 의 `src` 가 'mission' 이면 미션 복권, **'basic' 이면 황금 복권 — 앱이 보상형 광고(customData `lottery_basic`)를 먼저 보여 준 뒤** `lot.open(tier, 'basic')`. 광고 칩은 황금 줄 버튼에만.
+- **당첨 결과는 전체 화면**: `LotteryResult` 가 탭 메뉴 · 상태줄까지 덮는다(`topInset` · `bottomInset` 안전 영역). 위 X · 가운데 「축하해요!」 + 큰 「5P 당첨!」 + 복권 그림(`icon`, 기본 황금 티켓) · 아래 「다음 복권 열기 (N장 남았어요)」 / 「한 번 더! ○ 복권 받기」 + 「확인」 + 알림 링크 + 네이티브 광고. 포인트 표는 원 표시 없음, 원 표는 「○원 복권」 한 줄.
+- **포인트 표(서버 `unit:'points'`)**: 단계 · 열기 결과 · 당첨 띠가 P 로 — 「최대 1,000P 복권」 · 「5P 당첨!」 · 「Noe****님이 1,000P 당첨됐어요!」 · 황금 팝업 「최대 1,000P가 바로 들어와요」(`<GoldenLotteryPopup maxWon={g.maxWon} maxPoints={g.maxPoints} unit={g.unit} …/>`). 서버가 `unit` 을 안 주면(원 표) 예전 문구 그대로.
+- 새 props: `LotterySheet`/`GoldenLotteryPopup`/`LotteryResult` 의 `presentation` · `topInset` · `bottomInset`, `LotteryResult` 의 `icon` · `open`, `GoldenLotteryPopup` 의 `unit`. `LotterySheet.onOpen` 은 `(tier, src?)`. 새 헬퍼: `lotteryTierAmount` · `lotteryResultHeadline` · `lotteryWinnerParts` · `lotteryMissionButton` · `lotteryMissionHint` · `goldenRow`.
+

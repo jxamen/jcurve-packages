@@ -20,17 +20,6 @@ type ThemeProp = {
     theme?: Partial<LotteryTheme>;
 };
 /**
- * (0.1.2) 「🔔 복권 받기 알림 켜기」 줄 — `useLotteryNotify` 가 돌려주는 값을 그대로 넘긴다. visible 이 거짓이면(알림이 이미 켜져 있거나 모르면) 줄이 없다.
- * 서버 발송은 이 패키지에 없다 — 버튼과 권한 유도만
- */
-export type LotteryNotify = {
-    visible: boolean;
-    busy?: boolean;
-    onPress: () => void;
-    label?: string;
-    hint?: string;
-};
-/**
  * 안 연 복권이 있을 때만 — 다 열면 사라진다(count 0 이면 null).
  * 기본은 **띠 없이 떠 있는 흰 알약**(그림자, FloatingRewardChip 과 같은 모양 · 대표님 「떠 있는 알약」): 안쪽 화면의 탭 바 위에 두고 `bottomOffset`(아래에서 띄울 거리)만 준다.
  * `floating={false}` 면 줄 안에 놓는 작은 색 알약(0.6.0 모양).
@@ -44,67 +33,100 @@ export declare function LotteryChip({ count, onPress, label, bottomOffset, float
     icon?: ReactNode;
 } & ThemeProp): React.JSX.Element | null;
 /**
+ * (0.1.2 · 0.1.3 링크 모양) 「🔔 복권 받게 알림 켜기 ›」 — `useLotteryNotify` 가 돌려주는 값을 그대로 넘긴다. visible 이 거짓이면(알림이 이미 켜져 있거나 모르면) 없다.
+ * 서버 발송은 이 패키지에 없다 — 버튼과 권한 유도만. 큰 버튼 아래의 글자 링크(참고 캡처 IMG_9331)
+ */
+export type LotteryNotify = {
+    visible: boolean;
+    busy?: boolean;
+    onPress: () => void;
+    label?: string;
+    hint?: string;
+};
+/**
+ * 시트 · 팝업 · 전체 화면이 올라오는 층(0.1.3) — 기본 `overlay` 는 Modal 이 아니라 부모 영역을 덮는 absolute 판(뒤 화면을 어둡게 하는 딤 포함)이다: 보상형 광고가 Modal 뒤에 깔리지 않게
+ * (iOS 는 RN Modal 이 떠 있으면 AdMob 이 광고를 못 연다). **앱 루트(탭 메뉴 · 상태줄 바깥)에 그려야** 탭 메뉴까지 덮는다. `presentation="modal"` 이면 RN Modal(탭 · 상태줄 위) —
+ * 그때는 광고를 열기 전에 먼저 닫을 것. Android 뒤로 가기는 닫기로 쓴다.
+ */
+export type LotteryPresentation = 'overlay' | 'modal';
+/**
  * 시트가 차지할 수 있는 높이 — 화면 높이에서 위 여백(상태줄 · 노치)과 숨 쉴 자리를 뺀다. 앱이 안전 영역 위 값을 `topInset` 으로 주면 그것을, 안 주면 안드로이드 상태줄 높이 · iOS 는 44 로 짐작한다.
  * 내용이 이보다 길면 시트 안에서 스크롤한다(0.1.1 — 시트 맨 위 줄이 상태줄 밑으로 밀려 잘리던 것, 감자밭 시뮬)
  */
 export declare function sheetMaxHeight(windowHeight: number, topInset?: number, os?: string, statusBar?: number | null | undefined): number;
-/** 복권 시트 — 3단계 줄 · 받기 / 열기 / 획득 완료 · 당첨 띠 · 「한 번 더! ○원 복권 받기」 · 알림 켜기 */
-export declare function LotterySheet({ open, state, winners, busy, onOpen, onEarn, onMore, onClose, onEnableNotify, notifyLabel, notify, theme, renderNative, topInset, basicAd, adLabel }: {
+/**
+ * 복권 시트 — 참고 캡처(IMG_9331) 구성: 딤 · 둥근 흰 시트 · X · 손잡이 → 큰 제목 2줄 + 회색 한 줄 → 회색 둥근 당첨 띠(**서버 winners 의 실제 기록이 있을 때만**, 가짜 이름 없음)
+ * → 줄 목록(왼쪽 숫자 카드 · 「최대 ○ 복권」 굵게 · 회색 설명 · 오른쪽 「받기」 연한 버튼 / 「받기 완료」 회색) → 맨 아래 큰 「한 번 더! ○ 복권 받기」 + 「🔔 복권 받게 알림 켜기 ›」 링크.
+ * 줄: 미션 복권 줄(단계마다, 미션 복권만의 상태) + 하루 기본(황금) 복권 줄(있을 때). 포인트 표 단계는 「최대 1,000P 복권」(unit:'points'), 원 표는 「최대 100원 복권」.
+ * 광고가 바로 열리는 줄(황금 복권을 여는 버튼)에만 「광고」 칩. `onOpen(tier, src)` — 미션 줄은 'mission', 황금 줄은 'basic'(앱은 'basic' 일 때 보상형 광고를 먼저 보여 준다).
+ */
+export declare function LotterySheet({ open, state, winners, busy, onOpen, onEarn, onMore, onClose, onEnableNotify, notifyLabel, notify, theme, renderNative, topInset, bottomInset, basicAd, adLabel, presentation }: {
     open: boolean;
     state: LotteryState | null;
-    winners?: readonly LotteryWinner[];
+    winners?: LotteryWinner[];
+    /** 열기 요청 중 — 줄이 눌리지 않는다 */
     busy?: boolean;
-    /** 「열기」 — 그 단계 복권을 연다(앱이 useLottery.open 을 부르고 결과 창을 띄운다) */
-    onOpen: (tier: number) => void;
-    /** 「받기」 — 아직 못 받은 단계: 미션 화면으로 보낸다 */
+    onOpen: (tier: number, src?: 'basic' | 'mission') => void;
+    /** 「받기」 — 아직 못 받은 단계(미션으로 가기) */
     onEarn: (tier: number) => void;
-    /** 아래 큰 버튼 「한 번 더! ○원 복권 받기」 — 안 주면 onEarn(다음 단계) */
+    /** 「한 번 더! ○ 복권 받기」 — 안 주면 onEarn(다음 단계) */
     onMore?: (tier: number) => void;
     onClose: () => void;
     /** (옛 방식) 있으면 늘 보이는 「알림 켜기」 줄 — 새 앱은 `notify`(useLotteryNotify)를 쓴다: 꺼져 있을 때만 보인다 */
     onEnableNotify?: () => void;
     notifyLabel?: string;
-    /** (0.1.2) 알림이 꺼져 있을 때만 보이는 「🔔 복권 받기 알림 켜기」 줄 */
+    /** (0.1.2) 알림이 꺼져 있을 때만 보이는 「🔔 복권 받게 알림 켜기 ›」 링크 */
     notify?: LotteryNotify;
     renderNative?: () => ReactNode;
     /** 안전 영역 위 여백(`useSafeAreaInsets().top`) — 시트가 이 아래에서 끝난다. 안 주면 짐작한다 */
     topInset?: number;
-    /** (0.1.2) 황금(기본) 복권을 열 때 광고가 열리나 — 서버 설정 daily_basic.ad(기본 true). 미션 복권만 남은 줄에는 늘 광고 칩이 없다 */
+    /** (0.1.3) 아래 안전 영역(`useSafeAreaInsets().bottom`) — 시트 아래를 그만큼 더 띄운다 */
+    bottomInset?: number;
+    /** (0.1.2) 황금(기본) 복권을 열 때 광고가 열리나 — 서버 설정 daily_basic.ad(기본 true). */
     basicAd?: boolean;
-    /** (0.1.2) 광고 칩 글자(기본 「광고」) */
     adLabel?: string;
+    presentation?: LotteryPresentation;
 } & ThemeProp): React.JSX.Element | null;
 /**
- * 결과 창 — 「축하해요 보상 ○P 당첨!」, **큰 아이콘 없음**(대표님 13:56). 버튼 아래에 앱이 넘기는 네이티브 광고(`renderNative`).
- * 남은 복권이 있으면 「다음 복권 열기」, 없으면 「미션 하고 복권 더 받기」(다음 단계까지 남은 미션 수), 둘 다 「다음에 할게요」로 닫는다.
+ * 당첨 결과 — **전체 화면**(0.1.3, 대표님 15:57 「당첨 화면은 전체 화면으로 나오게 해」): 탭 메뉴 · 상태줄까지 덮는다(앱 루트에 그리거나 `presentation="modal"`).
+ * 위: X(오른쪽) → 가운데 「축하해요!」 + 큰 「5P 당첨!」 + 복권 그림(`icon` 이 있으면 그것) → 아래: 큰 버튼 + 「확인」 + 알림 켜기 링크 + 네이티브 광고(`renderNative`).
+ * 남은 복권이 있으면 「다음 복권 열기 (N장 남았어요)」, 없으면 「한 번 더! ○ 복권 받기」(다음 단계), 둘 다 없으면 「확인」만. 원 표 단계는 「○원 복권」 한 줄이 더 붙고 포인트 표는 P 만 보인다.
+ * `topInset`/`bottomInset` 은 안전 영역(상태줄 · 홈 바) 값.
  */
-export declare function LotteryResult({ result, state, onOpenNext, onMore, onClose, renderNative, theme, nextAd, adLabel, notify }: {
-    result: Pick<LotteryOpenResult, 'won' | 'points' | 'unopened'>;
+export declare function LotteryResult({ result, state, onOpenNext, onMore, onClose, renderNative, theme, nextAd, adLabel, notify, icon, topInset, bottomInset, presentation, open }: {
+    result: Pick<LotteryOpenResult, 'won' | 'points' | 'unopened'> & {
+        unit?: 'won' | 'points';
+    };
     state?: LotteryState | null;
     /** 남은 복권이 있을 때 「다음 복권 열기」 */
     onOpenNext?: () => void;
-    /** 남은 복권이 없을 때 「미션 하고 복권 더 받기」 */
+    /** 남은 복권이 없을 때 「한 번 더! ○ 복권 받기」 */
     onMore?: () => void;
     onClose: () => void;
     renderNative?: () => ReactNode;
     /** (0.1.2) 「다음 복권 열기」가 광고를 여는가 — `nextOpensWithAd(state, basicAd)` 를 넘긴다(안 주면 광고 칩 없음) */
     nextAd?: boolean;
     adLabel?: string;
-    /** (0.1.2) 알림이 꺼져 있을 때만 보이는 「🔔 복권 받기 알림 켜기」 줄 — 「다음에 할게요」 아래, 네이티브 광고 위 */
+    /** (0.1.2) 알림이 꺼져 있을 때만 보이는 「🔔 복권 받게 알림 켜기 ›」 링크 */
     notify?: LotteryNotify;
+    /** 복권 그림(없으면 기본 황금 티켓) */
+    icon?: ReactNode;
+    topInset?: number;
+    bottomInset?: number;
+    presentation?: LotteryPresentation;
+    open?: boolean;
 } & ThemeProp): React.JSX.Element;
 /**
- * 황금 복권 팝업 — 「황금 복권이 나타났어요!」 하루 한 번(0.1.2: 읽기 쉽게 다시 짰다 — 대표님 15:48 「가독성이 떨어진다. 간격 좀 넣고 설명 좀 잘 넣어」).
- * 위에서 아래로: 닫기(X, 자기 줄 — 제목과 겹치지 않는다) → 황금 복권 그림(`icon` 이 있으면 그것) → 제목 → 쉬운 말 3줄 → 작은 글씨 → 버튼 → 「다음에 열기」.
- * 값(최대 금액 · 포인트)은 서버 state 에서 읽어 넘긴다 — `maxWon`(필수) · `maxPoints`(없으면 금액만 보인다). 문구는 `lines`/`note` 로 통째로 바꿀 수 있다(다국어).
+ * 황금 복권 팝업 — 「황금 복권이 나타났어요!」 하루 한 번(0.1.2: 읽기 쉽게, 0.1.3: **바텀 시트**로 — 딤 · X · 손잡이 · 안전 영역). 위에서 아래로: 황금 복권 그림(`icon` 이 있으면 그것) → 제목 → 쉬운 말 3줄 → 작은 글씨 → 버튼 → 「다음에 열기」.
+ * 값(최대 금액 · 포인트)은 서버 state 에서 읽어 넘긴다 — `maxWon`(필수) · `maxPoints` · **`unit`**(포인트 표면 'points' → 「최대 1,000P가 바로 들어와요」, 원 병기 없음). 문구는 `lines`/`note` 로 통째로 바꿀 수 있다(다국어).
  * 버튼은 「광고 보고 황금 복권 열기」: 앱이 `onOpen` 에서 **보상형 광고(용도 lottery_basic)를 보여 준 뒤** `useLottery.open(tier, 'basic')` 을 부른다
- * — 광고 시청은 서버가 구글 SSV 로 확인한다(앱 말만 믿지 않는다). 광고가 바로 열리므로 버튼 안 오른쪽에 「광고」 칩(`ad` 가 false 면 칩 · 광고 문구 없음).
- * busy 동안은 다시 눌리지 않는다. `bottomInset` 은 아래 안전 영역(`useSafeAreaInsets().bottom`).
+ * — 광고 시청은 서버가 구글 SSV 로 확인한다(앱 말만 믿지 않는다). 광고가 바로 열리므로 버튼 안 오른쪽에 「광고」 칩(`ad` 가 false 면 칩 · 광고 문구 없음). busy 동안은 다시 눌리지 않는다.
  */
-export declare function GoldenLotteryPopup({ open, maxWon, maxPoints, busy, onOpen, onClose, buttonLabel, icon, theme, ad, adLabel, closeLabel, lines, note, bottomInset, notify }: {
+export declare function GoldenLotteryPopup({ open, maxWon, maxPoints, unit, busy, onOpen, onClose, buttonLabel, icon, theme, ad, adLabel, closeLabel, lines, note, topInset, bottomInset, notify, presentation }: {
     open: boolean;
     maxWon: number;
     maxPoints?: number | null;
+    unit?: 'won' | 'points';
     busy?: boolean;
     onOpen: () => void;
     onClose: () => void;
@@ -118,8 +140,10 @@ export declare function GoldenLotteryPopup({ open, maxWon, maxPoints, busy, onOp
     /** 설명 줄 · 작은 글씨를 통째로 바꾼다(기본은 goldenLines) */
     lines?: string[];
     note?: string;
+    topInset?: number;
     bottomInset?: number;
-    /** (0.1.2) 알림이 꺼져 있을 때만 보이는 「🔔 복권 받기 알림 켜기」 줄 — 「다음에 열기」 아래 */
+    /** (0.1.2) 알림이 꺼져 있을 때만 보이는 「🔔 복권 받게 알림 켜기 ›」 링크 — 「다음에 열기」 아래 */
     notify?: LotteryNotify;
+    presentation?: LotteryPresentation;
 } & ThemeProp): React.JSX.Element | null;
 export {};
