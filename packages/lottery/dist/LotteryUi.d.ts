@@ -93,7 +93,7 @@ export declare function LotterySheet({ open, state, winners, busy, onOpen, onEar
  * 남은 복권이 있으면 「다음 복권 열기 (N장 남았어요)」, 없으면 「한 번 더! ○ 복권 받기」(다음 단계), 둘 다 없으면 「확인」만. 원 표 단계는 「○원 복권」 한 줄이 더 붙고 포인트 표는 P 만 보인다.
  * `topInset`/`bottomInset` 은 안전 영역(상태줄 · 홈 바) 값.
  */
-export declare function LotteryResult({ result, state, onOpenNext, onMore, onClose, renderNative, theme, nextAd, adLabel, notify, icon, topInset, bottomInset, presentation, open }: {
+export declare function LotteryResult({ result, state, onOpenNext, onMore, onClose, renderNative, theme, nextAd, adLabel, notify, icon, topInset, bottomInset, presentation, open, confirm }: {
     result: Pick<LotteryOpenResult, 'won' | 'points' | 'unopened'> & {
         unit?: 'won' | 'points';
     };
@@ -115,6 +115,8 @@ export declare function LotteryResult({ result, state, onOpenNext, onMore, onClo
     bottomInset?: number;
     presentation?: LotteryPresentation;
     open?: boolean;
+    /** (0.1.4) 글자 버튼 「확인」 — 기본 true(예전 그대로). false 면 닫기는 오른쪽 위 X 뿐(대표님 16:39 「확인 글자 버튼 삭제」, 감자밭은 false) */
+    confirm?: boolean;
 } & ThemeProp): React.JSX.Element;
 /**
  * 황금 복권 팝업 — 「황금 복권이 나타났어요!」 하루 한 번(0.1.2: 읽기 쉽게, 0.1.3: **바텀 시트**로 — 딤 · X · 손잡이 · 안전 영역). 위에서 아래로: 황금 복권 그림(`icon` 이 있으면 그것) → 제목 → 쉬운 말 3줄 → 작은 글씨 → 버튼 → 「다음에 열기」.
@@ -146,4 +148,38 @@ export declare function GoldenLotteryPopup({ open, maxWon, maxPoints, unit, busy
     notify?: LotteryNotify;
     presentation?: LotteryPresentation;
 } & ThemeProp): React.JSX.Element | null;
+/**
+ * (0.1.4, 대표님 16:40 「당첨 화면 아래 네이티브 광고 카드가 잘려요」) 당첨 전체 화면 위쪽 영역의 칸 높이(pt) — 스타일과 `lotteryResultTopHeight` 가 같은 값을 쓴다.
+ * 광고 카드(앱이 넘기는 `renderNative`, 폭 375 기준 약 360pt)가 iPhone SE(375×667)에서 스크롤 없이 끝까지 보이도록 광고 위 모든 것을 줄였다.
+ */
+export declare const RESULT: {
+    readonly top: 4;
+    readonly header: 32;
+    readonly kicker: 20;
+    readonly headline: 40;
+    readonly headlineGap: 2;
+    readonly sub: 24;
+    readonly subGap: 4;
+    readonly art: 52;
+    readonly artGap: 8;
+    readonly centerBottom: 8;
+    readonly actionsTop: 4;
+    readonly big: 48;
+    readonly bigGap: 8;
+    readonly confirm: 40;
+    readonly notify: 32;
+    readonly nativeGap: 8;
+    readonly bottom: 12;
+};
+/**
+ * 당첨 전체 화면에서 **네이티브 광고 위**가 차지하는 높이(pt, 위 안전 영역 `topInset` 은 빼고) — 광고 카드 밑 여백(`RESULT.bottom`)도 뺀 값.
+ * 큰 버튼(`big`: 다음 복권 열기 · 한 번 더) · 「확인」(`confirm`) · 알림 줄(`notify`) · 원 표 한 줄(`wonLine`) 이 있으면 더해진다. 시험에서 SE 기준 270pt 이하인지 본다.
+ */
+export declare function lotteryResultTopHeight(o?: {
+    big?: boolean;
+    confirm?: boolean;
+    notify?: boolean;
+    wonLine?: boolean;
+    native?: boolean;
+}): number;
 export {};

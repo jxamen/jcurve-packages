@@ -130,8 +130,15 @@ export declare function lotteryMissionButton(t: Pick<LotteryTier, 'missionState'
     label: string;
     kind: 'open' | 'earn' | 'done' | 'wait';
 };
-/** 미션 줄 설명 — 「쇼핑 · 플레이스 미션 1개 하면 받아요」 */
+/**
+ * 미션 줄 설명 — 늘 **받는 방법**으로 말한다(0.1.4, 대표님 16:37 「미션한개 다섯 개를 해서 내가 복권을 받았다는 건가?」: 「미션 1개로 받았어요」는 이미 받은 이유로 읽혔다).
+ * 1 · 5 · 10 · 20 · 30 줄이 같은 꼴 — 「미션 N개 하면 받아요」(받았든 안 받았든 열 수 있든). 일부 했으면 「미션 M개 더 하면 받아요」.
+ * 하루 한도에 막힌 줄은 버튼 「내일 받아요」와 같은 말 — 「내일 다시 받을 수 있어요」.
+ * 한 줄에 들어오게 짧다(대표님 16:47 「쇼핑 플레이스 미션 한 개로 받았어요. 이거를 두줄로 안 밀리게. 한 줄로 카피 줄여」 — 「쇼핑 · 플레이스」는 뺐다)
+ */
 export declare function lotteryMissionHint(t: Pick<LotteryTier, 'missions' | 'missionsLeft' | 'missionState'>): string;
+/** (0.1.4) 황금 복권 줄 설명 — 한 줄: 광고가 열리면 「하루 1번 광고 보고 받아요」, 광고 없이 열리면(`basicAd` false) 「하루 1번 받아요」 */
+export declare const lotteryGoldHint: (basicAd: boolean) => string;
 /** 황금 복권 줄 — 기본 복권이 있는 단계(없으면 null). `unopened` 가 0 이면 이미 연 것 */
 export declare function goldenRow(s: LotteryState | null): {
     tier: LotteryTier;

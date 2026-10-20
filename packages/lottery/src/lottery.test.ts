@@ -181,10 +181,24 @@ describe('포인트 표(unit:points) — 읽기와 문구(0.1.3)', () => {
     expect(lotteryMissionButton({ missionState: 'capped' })).toEqual({ label: '내일 받아요', kind: 'wait' });
     expect(lotteryMissionHint({ missions: 1, missionsLeft: 1, missionState: 'locked' })).toBe('미션 1개 하면 받아요');
     expect(lotteryMissionHint({ missions: 5, missionsLeft: 3, missionState: 'locked' })).toBe('미션 3개 더 하면 받아요');
-    // 받은 뒤(ready · opened)에도 같은 말 — 「미션 N개로 받았어요」 폐지(0.1.4)
+    // 받은 뒤(ready · opened)에도 같은 말 — 「미션 N개로 받았어요」 폐지(0.1.4, 대표님 16:37)
     expect(lotteryMissionHint({ missions: 5, missionsLeft: 0, missionState: 'opened' })).toBe('미션 5개 하면 받아요');
     expect(lotteryMissionHint({ missions: 10, missionsLeft: 0, missionState: 'ready' })).toBe('미션 10개 하면 받아요');
-    expect(lotteryMissionHint({ missions: 5, missionsLeft: 0, missionState: 'capped' })).toBe('오늘 받을 수 있는 복권을 모두 받았어요');
+    expect(lotteryMissionHint({ missions: 5, missionsLeft: 0, missionState: 'capped' })).toBe('내일 다시 받을 수 있어요');
+  });
+  it('미션 줄 설명은 어느 상태에서도 「받았어요」를 쓰지 않고, 1 · 5 · 10 · 20 · 30 줄이 같은 문장 꼴이다(0.1.4)', () => {
+    const states = ['ready', 'opened', 'locked', 'capped'] as const;
+    for (const missions of [1, 5, 10, 20, 30]) {
+      for (const missionState of states) {
+        for (const missionsLeft of [0, 1, missions - 1, missions]) {
+          expect(lotteryMissionHint({ missions, missionsLeft, missionState })).not.toContain('받았어요');
+        }
+      }
+      for (const missionState of ['ready', 'opened'] as const) {
+        expect(lotteryMissionHint({ missions, missionsLeft: 0, missionState })).toBe('미션 ' + missions + '개 하면 받아요');
+      }
+      expect(lotteryMissionHint({ missions, missionsLeft: missions, missionState: 'locked' })).toBe('미션 ' + missions + '개 하면 받아요');   // 안 했으면 ready · opened 와 같은 문장
+    }
   });
   it('goldenRow: 기본 복권이 있는 단계, 없으면 null · goldenLines 포인트 표는 P 만', () => {
     const mk = (tiers: any[]) => parseLotteryState({ ok: true, day: 'd', wonToPoint: 160, participated: 0, unopened: 0, tiers: tiers.map((t, i) => ({ tier: i + 1, missions: i + 1, maxWon: 100, maxPoints: 160, state: 'locked', missionState: 'locked', missionsLeft: 1, tickets: 0, unopened: 0, basic: 0, basicUnopened: 0, ...t })) });

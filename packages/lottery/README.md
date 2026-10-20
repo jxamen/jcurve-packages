@@ -79,3 +79,14 @@ const notify = useLotteryNotify({
 - **포인트 표(서버 `unit:'points'`)**: 단계 · 열기 결과 · 당첨 띠가 P 로 — 「최대 1,000P 복권」 · 「5P 당첨!」 · 「Noe****님이 1,000P 당첨됐어요!」 · 황금 팝업 「최대 1,000P가 바로 들어와요」(`<GoldenLotteryPopup maxWon={g.maxWon} maxPoints={g.maxPoints} unit={g.unit} …/>`). 서버가 `unit` 을 안 주면(원 표) 예전 문구 그대로.
 - 새 props: `LotterySheet`/`GoldenLotteryPopup`/`LotteryResult` 의 `presentation` · `topInset` · `bottomInset`, `LotteryResult` 의 `icon` · `open`, `GoldenLotteryPopup` 의 `unit`. `LotterySheet.onOpen` 은 `(tier, src?)`. 새 헬퍼: `lotteryTierAmount` · `lotteryResultHeadline` · `lotteryWinnerParts` · `lotteryMissionButton` · `lotteryMissionHint` · `goldenRow`.
 
+## 0.1.4 — 줄 설명 · iOS 줄바꿈 · 당첨 화면 「확인」 삭제 · 위쪽 압축 (대표님 10-20 16:37~16:42)
+
+- **줄 설명은 늘 「받는 방법」, 한 줄**: `lotteryMissionHint` — 열 수 있든(ready) 이미 열었든(opened) 못 받았든 「미션 N개 하면 받아요」(1 · 5 · 10 · 20 · 30 모두 같은 꼴, 「쇼핑 · 플레이스」는 뺐다), 일부 했으면 「미션 M개 더 하면 받아요」,
+  하루 한도에 막힌 줄은 버튼과 같은 말 「내일 다시 받을 수 있어요」. 황금 줄은 `lotteryGoldHint(basicAd)` — 「하루 1번 광고 보고 받아요」(광고 없이 열리면 「하루 1번 받아요」). 「미션 1개로 받았어요」(이미 받은 이유로 읽혔다)는 없어졌다.
+  줄 설명 글자는 `numberOfLines 1` + `adjustsFontSizeToFit`(최소 0.85배) — 좁은 폭(SE)에서 넘칠 때만 조금 줄어든다. 단계는 서버 `tiers` 대로 그려진다 — 5단계(1 · 5 · 10 · 20 · 30)도 같은 코드.
+- **iOS 한글 줄바꿈**: 이 패키지의 모든 글자가 `lineBreakStrategyIOS="hangul-word"`(띄어쓰기에서만 끊김). 시트 제목은 24px · 줄어듦(`numberOfLines 2` · `adjustsFontSizeToFit`), 줄 제목 · 줄 설명은 한 줄로 줄어든다(「받아가요!」가 「받아가 / 요!」로 갈라지던 것).
+- **당첨 전체 화면**: `LotteryResult` 의 새 prop **`confirm`**(기본 `true` = 예전 그대로). `confirm={false}` 면 글자 버튼 「확인」이 없고 닫기는 오른쪽 위 X 뿐(감자밭). 남은 복권 0 이어도 「확인」 없이 X 만 — 큰 제목 · 그림 · 네이티브 광고는 그대로.
+- **위쪽 압축 — 네이티브 광고 카드가 스크롤 없이 끝까지**: 위 여백 · 그림(약 60%) · 제목(48→34px) · 간격 · 큰 버튼(56→48) · 알림 줄(설명 줄 없이 한 줄)을 줄였다. 광고 위 높이 합은 `lotteryResultTopHeight({ big, notify, confirm, wonLine })`(위 안전 영역 제외) —
+  iPhone SE(375×667, 위 20)에서 큰 버튼 · 알림 줄이 있고 「확인」이 없으면 266pt, 광고 카드(폭 375 기준 약 360pt)가 다 보인다. 「확인」을 남기면(기본) 넘칠 수 있으니 광고를 아래에 두는 앱은 `confirm={false}`.
+- 가짜 서버(`createMockLotteryApi`)는 `tiers` 옵션으로 5단계도 준다: `tiers: [1, 5, 10, 20, 30].map(n => ({ missions: n, max: n * 100 }))`.
+

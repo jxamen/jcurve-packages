@@ -12,7 +12,7 @@ vi.mock('react-native', () => ({
   Animated: { View: 'AnimatedView', Value: class { setValue = h.set; }, timing: vi.fn(), sequence: vi.fn(), loop: () => ({ start: h.start, stop: h.stop }) },
 }));
 beforeEach(() => { vi.clearAllMocks(); h.effects = []; h.reduced = true; h.back = null; });
-import { GoldenLotteryPopup, LotteryChip, LotteryResult, LotterySheet, sheetMaxHeight } from './LotteryUi';
+import { GoldenLotteryPopup, LotteryChip, LotteryResult, LotterySheet, RESULT, lotteryResultTopHeight, sheetMaxHeight } from './LotteryUi';
 import { parseLotteryState, type LotteryTier, type LotteryWinner } from './lottery';
 
 function nodes(node: any): any[] {
@@ -161,6 +161,7 @@ describe('LotterySheet — 바텀 시트(참고 캡처 구성)', () => {
     const colors = tree.filter(n => n?.type === 'View' && flat(n.props.style).borderRadius === 12 && flat(n.props.style).width === 44).map(n => flat(n.props.style).backgroundColor);
     expect(new Set(colors).size).toBe(4);                                       // 색이 다 다르다
     expect(text(tree)).toContain('미션 1개 하면 받아요');       // ready 줄도 같은 말(「미션 1개로 받았어요」 폐지)
+    expect(text(tree)).toContain('미션 10개 하면 받아요');      // opened 줄도
     expect(text(tree)).toContain('미션 3개 더 하면 받아요');
     expect(text(tree)).not.toContain('받았어요');
   });
@@ -259,9 +260,9 @@ describe('LotteryResult — 당첨 전체 화면', () => {
     expect(text(tree)).toContain('5P 당첨!');
     expect(text(tree)).toContain('축하해요!');
     const head = find(tree, n => n?.type === 'Text' && n.props?.accessibilityRole === 'header')!;
-    expect(flat(head.props.style).fontSize).toBeGreaterThanOrEqual(44);
+    expect(flat(head.props.style).fontSize).toBeGreaterThanOrEqual(30);       // 0.1.4: 광고 카드가 보이게 줄였지만 여전히 가장 큰 글자
     const panel = find(tree, n => n?.type === 'View' && flat(n.props.style).paddingHorizontal === 24 && flat(n.props.style).top === 0)!;
-    expect(flat(panel.props.style)).toMatchObject({ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, paddingTop: 47 + 8, paddingBottom: 34 + 20 });
+    expect(flat(panel.props.style)).toMatchObject({ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, paddingTop: 47 + RESULT.top, paddingBottom: 34 + RESULT.bottom });
     const overlay = find(tree, n => n?.type === 'View' && flat(n.props.style).zIndex === 60)!;
     expect(flat(overlay.props.style).position).toBe('absolute');
     expect(find(full({ presentation: 'modal' }), n => n?.type === 'Modal')).toBeTruthy();
@@ -403,7 +404,8 @@ describe('🔔 복권 받게 알림 켜기 링크 — 알림이 꺼져 있을 �
       expect(link(fn(notify(false))), name + ' 이미 켜져 있음').toBeUndefined();
       const shown = fn(notify(true, { onPress: p }));
       expect(link(shown), name).toBeTruthy();
-      expect(text(shown)).toContain('매일 새 복권이 나오면 알려 드릴게요');
+      // 설명 줄은 시트 · 팝업만 — 당첨 전체 화면은 광고 카드가 보이게 한 줄로 줄였다(0.1.4)
+      if (name === 'result') expect(text(shown)).not.toContain('매일 새 복권이 나오면 알려 드릴게요'); else expect(text(shown)).toContain('매일 새 복권이 나오면 알려 드릴게요');
       expect(shown.some(n => n?.type === 'Text' && n.props?.children === '›')).toBe(true);        // 글자 링크 모양(오른쪽 화살표)
       link(shown)!.props.onPress();
     }
@@ -412,7 +414,9 @@ describe('🔔 복권 받게 알림 켜기 링크 — 알림이 꺼져 있을 �
   it('busy 동안은 눌리지 않고, 글자는 바꿀 수 있다 · 옛 onEnableNotify 줄은 그대로', () => {
     const busy = nodes(LotteryResult({ result: { won: 100, points: 160, unopened: 0 }, onClose: vi.fn(), notify: notify(true, { busy: true, label: '알림 켜기', hint: '힌트' }) }));
     expect(link(busy, '알림 켜기')!.props.disabled).toBe(true);
-    expect(text(busy)).toContain('힌트');
+    expect(text(busy)).not.toContain('힌트');                                  // 당첨 화면은 설명 줄 없이 한 줄(0.1.4)
+    const busySheet = nodes(LotterySheet({ open: true, state: st, winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn(), notify: notify(true, { label: '알림 켜기', hint: '힌트' }) }));
+    expect(text(busySheet)).toContain('힌트');                                 // 글자는 바꿀 수 있다
     const legacy = nodes(LotterySheet({ open: true, state: st, winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn(), onEnableNotify: vi.fn() }));
     expect(text(legacy)).toContain('복권 받게 알림 켜기');
   });
@@ -442,8 +446,80 @@ describe('한글 줄바꿈(0.1.4) — 단어 단위, 한 글자만 남지 않게
     const rowTitle = tree.find(n => n?.type === 'Text' && n.props?.children === '최대 100원 복권')!;
     expect(rowTitle.props).toMatchObject({ numberOfLines: 1, adjustsFontSizeToFit: true });
     const hint = tree.find(n => n?.type === 'Text' && n.props?.children === '미션 1개 하면 받아요')!;
-    expect(hint.props.numberOfLines).toBe(2);
+    expect(hint.props).toMatchObject({ numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: 0.85 });     // 한 줄(0.1.4 대표님 16:47) — 넘칠 때만 조금 줄어든다
     const head = nodes(LotteryResult({ result: { won: 100, points: 1000, unopened: 0, unit: 'points' }, onClose: vi.fn() })).find(n => n?.type === 'Text' && n.props?.accessibilityRole === 'header')!;
     expect(head.props).toMatchObject({ numberOfLines: 1, adjustsFontSizeToFit: true });
+  });
+});
+
+describe('당첨 전체 화면 — 「확인」 삭제 · 위쪽 압축 (0.1.4, 대표님 16:39 · 16:40)', () => {
+  const res = (over: Record<string, unknown> = {}) => nodes(LotteryResult({ result: { won: 100, points: 5, unopened: 7, unit: 'points' }, onOpenNext: vi.fn(), onClose: vi.fn(), ...over } as any));
+  const labels = (tree: any[]) => buttons(tree).map(b => b.props.accessibilityLabel);
+
+  it('confirm={false} 면 글자 버튼 「확인」이 없고 닫기는 오른쪽 위 X 뿐 — 큰 제목 · 그림 · 버튼 · 네이티브 광고는 그대로', () => {
+    const onClose = vi.fn();
+    const tree = res({ confirm: false, onClose, renderNative: () => React.createElement('NativeAd'), notify: { visible: true, onPress: vi.fn() } });
+    expect(labels(tree)).not.toContain('확인');
+    expect(text(tree)).not.toContain('확인');
+    expect(labels(tree).filter(l => l === '닫기')).toHaveLength(1);
+    buttons(tree).find(b => b.props.accessibilityLabel === '닫기')!.props.onPress();
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(text(tree)).toContain('5P 당첨!');
+    expect(nodes(buttons(tree).find(b => b.props.accessibilityLabel === '다음 복권 열기')!.props.children).filter(x => typeof x === 'string' || typeof x === 'number').join('')).toContain('다음 복권 열기 (7장 남았어요)');
+    expect(tree.some(n => n?.type === 'NativeAd')).toBe(true);
+    expect(tree.some(n => n?.type === 'View' && flat(n.props.style).transform?.[0]?.scale === 0.6)).toBe(true);        // 그림은 약 60%
+    // 남은 복권 0 · 다음 단계 없음 → X 만 / 다음 단계가 있으면 「한 번 더!」 만 더
+    const done = { won: 100, points: 5, unopened: 0, unit: 'points' };
+    expect(labels(res({ confirm: false, result: done, onOpenNext: undefined }))).toEqual(['닫기']);
+    const st = state([{ missionState: 'opened', unit: 'points', maxPoints: 1000, maxWon: 625 }, { missionState: 'locked', missions: 5, unit: 'points', maxPoints: 1000, maxWon: 625 }], 0);
+    expect(labels(res({ confirm: false, result: done, state: st, onOpenNext: undefined, onMore: vi.fn() }))).toEqual(['닫기', '한 번 더! 최대 1,000P 복권 받기']);
+    // 안 주면 예전 그대로(다른 앱이 쓰는 경우)
+    expect(labels(res())).toContain('확인');
+  });
+
+  it('위쪽 높이 합 — iPhone SE(375×667, 위 안전 영역 20)에서 네이티브 광고 카드(약 360pt)가 스크롤 없이 끝까지: 큰 버튼 · 알림 줄이 있어도 270pt 이하', () => {
+    const AD = 360; const SE = 667; const TOP = 20;
+    const worst = lotteryResultTopHeight({ big: true, notify: true });
+    expect(worst).toBeLessThanOrEqual(270);
+    expect(TOP + worst + AD + RESULT.bottom).toBeLessThanOrEqual(SE);
+    expect(TOP + lotteryResultTopHeight({ big: true, wonLine: true }) + AD + RESULT.bottom).toBeLessThanOrEqual(SE);     // 원 표 한 줄이 붙어도(알림 줄 없이)
+    expect(lotteryResultTopHeight({ big: true, notify: true, confirm: true })).toBeGreaterThan(270);                      // 「확인」을 남기면 넘친다 — 그래서 감자밭은 confirm={false}
+    // 계산식과 실제 스타일이 같은 값을 쓴다
+    const tree = res({ confirm: false, topInset: TOP, notify: { visible: true, onPress: vi.fn() }, renderNative: () => React.createElement('NativeAd') });
+    const panel = find(tree, n => n?.type === 'View' && flat(n.props.style).paddingHorizontal === 24 && flat(n.props.style).top === 0)!;
+    expect(flat(panel.props.style)).toMatchObject({ paddingTop: TOP + RESULT.top, paddingBottom: RESULT.bottom });
+    expect(find(tree, n => n?.type === 'View' && flat(n.props.style).height === RESULT.header && flat(n.props.style).alignItems === 'flex-end')).toBeTruthy();
+    expect(find(tree, n => n?.type === 'View' && flat(n.props.style).height === RESULT.art && flat(n.props.style).marginTop === RESULT.artGap)).toBeTruthy();
+    expect(flat(buttons(tree).find(b => b.props.accessibilityLabel === '다음 복권 열기')!.props.style)).toMatchObject({ height: RESULT.big, marginTop: RESULT.bigGap });
+    expect(flat(buttons(tree).find(b => b.props.accessibilityLabel === '복권 받게 알림 켜기')!.props.style).minHeight).toBe(RESULT.notify);
+    expect(flat(find(tree, n => n?.type === 'Text' && n.props?.accessibilityRole === 'header')!.props.style)).toMatchObject({ fontSize: 34, lineHeight: RESULT.headline });
+    expect(find(tree, n => n?.type === 'View' && flat(n.props.style).marginTop === RESULT.nativeGap && flat(n.props.style).alignItems === undefined && n.props.children?.type === 'NativeAd')).toBeTruthy();
+  });
+});
+
+describe('5단계 시트(1 · 5 · 10 · 20 · 30, 대표님 16:42)', () => {
+  const st5 = () => state([1, 5, 10, 20, 30].map((m, i) => ({ missions: m, missionState: i === 0 ? 'ready' : 'locked', missionsLeft: m, basic: i === 4 ? 1 : 0, basicUnopened: i === 4 ? 1 : 0, unopened: i === 0 ? 1 : 0 })) as Partial<LotteryTier>[], 1);
+
+  it('줄 5개 + 황금 줄 — 카드 색이 다 다르고 숫자 카드는 한 줄로 줄어들며 설명은 같은 꼴(「받았어요」 없음)', () => {
+    const tree = nodes(LotterySheet({ open: true, state: st5(), winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn() }));
+    const cards = tree.filter(n => n?.type === 'Text' && n.props?.adjustsFontSizeToFit && n.props?.numberOfLines === 1 && ['1', '5', '10', '20', '30', '★'].includes(n.props.children));
+    expect(cards.map(n => n.props.children)).toEqual(['1', '5', '10', '20', '30', '★']);
+    const colors = tree.filter(n => n?.type === 'View' && flat(n.props.style).borderRadius === 12 && flat(n.props.style).width === 44).map(n => flat(n.props.style).backgroundColor);
+    expect(colors).toHaveLength(6);
+    expect(new Set(colors).size).toBe(6);
+    for (const m of [1, 5, 10, 20, 30]) expect(text(tree)).toContain('미션 ' + m + '개 하면 받아요');
+    expect(text(tree)).not.toContain('받았어요');
+    // 줄 설명은 모두 한 줄 · 「쇼핑」 · 「받았어요」 없음 · 황금 줄은 「하루 1번 광고 보고 받아요」
+    const hints = tree.filter(n => n?.type === 'Text' && n.props?.numberOfLines === 1 && flat(n.props.style).fontSize === 14 && flat(n.props.style).lineHeight === 20).map(n => String(n.props.children));
+    expect(hints).toEqual(['미션 1개 하면 받아요', '미션 5개 하면 받아요', '미션 10개 하면 받아요', '미션 20개 하면 받아요', '미션 30개 하면 받아요', '하루 1번 광고 보고 받아요']);
+    expect(hints.some(h => h.includes('쇼핑') || h.includes('받았어요'))).toBe(false);
+    const noAd = nodes(LotterySheet({ open: true, state: st5(), winners: [], basicAd: false, onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn() }));
+    expect(text(noAd)).toContain('하루 1번 받아요');
+    expect(text(noAd)).not.toContain('광고 보고');
+    // 줄이 늘어도 시트 안에서 스크롤 — 높이는 화면 높이에서 위 여백을 뺀 값 이하
+    expect(tree.some(n => n?.type === 'ScrollView')).toBe(true);
+    const sheetBox = find(tree, n => n?.type === 'View' && flat(n.props.style).borderTopLeftRadius === 28)!;
+    expect(flat(sheetBox.props.style).maxHeight).toBe(sheetMaxHeight(800, undefined, 'android', 24));
+    expect(sheetMaxHeight(667, 20)).toBe(623);                                    // iPhone SE 도 시트가 화면 안에
   });
 });

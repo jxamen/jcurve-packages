@@ -12,6 +12,14 @@ describe('createMockLotteryApi — 서버 없이 시뮬에서 보이게', () => 
     expect(m.calls[0].path).toBe('lottery/state');
     expect((await fetchLotteryWinners(m.fetchJson)).length).toBeGreaterThan(0);
   });
+  it('5단계(1 · 5 · 10 · 20 · 30)도 줄 수 있다 — tiers 옵션(0.1.4 시험 예)', async () => {
+    const m = createMockLotteryApi({ seed: 3, golden: false, tiers: [1, 5, 10, 20, 30].map(n => ({ missions: n, max: n * 100 })) });
+    m.setParticipated(20);
+    const s = (await fetchLotteryState(m.fetchJson))!;
+    expect(s.tiers.map(t => t.missions)).toEqual([1, 5, 10, 20, 30]);
+    expect(s.tiers.map(t => t.state)).toEqual(['ready', 'ready', 'ready', 'ready', 'locked']);
+    expect(s.tiers.map(t => t.maxWon)).toEqual([100, 500, 1000, 2000, 3000]);
+  });
   it('미션 수를 올리면 복권이 생기고, 열면 포인트가 나오고, 같은 키는 다시 주고, 이미 열면 이미 열림', async () => {
     const m = createMockLotteryApi({ seed: 7, golden: false });
     m.setParticipated(5);

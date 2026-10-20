@@ -255,15 +255,20 @@ export function lotteryMissionButton(t: Pick<LotteryTier, 'missionState'>): { la
 }
 
 /**
- * 미션 줄 설명 — 「미션 1개 하면 받아요」(5개 · 10개도 같은 꼴, 0.1.4 — 받은 뒤에도 같은 말: 「미션 1개로 받았어요」 폐지, 대표님 16:37). 일부 했으면 「미션 3개 더 하면 받아요」,
- * 하루 한도에 막혔으면 「오늘 받을 수 있는 복권을 모두 받았어요」
+ * 미션 줄 설명 — 늘 **받는 방법**으로 말한다(0.1.4, 대표님 16:37 「미션한개 다섯 개를 해서 내가 복권을 받았다는 건가?」: 「미션 1개로 받았어요」는 이미 받은 이유로 읽혔다).
+ * 1 · 5 · 10 · 20 · 30 줄이 같은 꼴 — 「미션 N개 하면 받아요」(받았든 안 받았든 열 수 있든). 일부 했으면 「미션 M개 더 하면 받아요」.
+ * 하루 한도에 막힌 줄은 버튼 「내일 받아요」와 같은 말 — 「내일 다시 받을 수 있어요」.
+ * 한 줄에 들어오게 짧다(대표님 16:47 「쇼핑 플레이스 미션 한 개로 받았어요. 이거를 두줄로 안 밀리게. 한 줄로 카피 줄여」 — 「쇼핑 · 플레이스」는 뺐다)
  */
 export function lotteryMissionHint(t: Pick<LotteryTier, 'missions' | 'missionsLeft' | 'missionState'>): string {
-  if (t.missionState === 'capped') return '오늘 받을 수 있는 복권을 모두 받았어요';
+  if (t.missionState === 'capped') return '내일 다시 받을 수 있어요';
   if (t.missionState === 'locked' && t.missionsLeft > 0 && t.missionsLeft < t.missions) return '미션 ' + t.missionsLeft + '개 더 하면 받아요';
 
   return '미션 ' + t.missions + '개 하면 받아요';
 }
+
+/** (0.1.4) 황금 복권 줄 설명 — 한 줄: 광고가 열리면 「하루 1번 광고 보고 받아요」, 광고 없이 열리면(`basicAd` false) 「하루 1번 받아요」 */
+export const lotteryGoldHint = (basicAd: boolean): string => (basicAd ? '하루 1번 광고 보고 받아요' : '하루 1번 받아요');
 
 /** 황금 복권 줄 — 기본 복권이 있는 단계(없으면 null). `unopened` 가 0 이면 이미 연 것 */
 export function goldenRow(s: LotteryState | null): { tier: LotteryTier; unopened: number; total: number } | null {
