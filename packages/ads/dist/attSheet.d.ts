@@ -1,17 +1,18 @@
-/** 추적 허용 상태 — `unavailable` 은 iOS 가 아니거나 모듈이 없는 빌드, `unknown` 은 읽기가 실패한 것 */
+/** ATT 상태 — `unavailable` 은 iOS 가 아니거나 모듈이 없는 빌드, `unknown` 은 읽기가 실패한 것 */
 export type AttStatus = 'granted' | 'denied' | 'restricted' | 'undetermined' | 'unavailable' | 'unknown';
 export type AttTrigger = 'launch' | 'offerwall';
+/** `request` = 시스템 창(중립 안내 뒤), `show` = 거부 · 제한 단계 시트(오퍼월 진입 때만) */
 export type AttAction = 'show' | 'request' | 'none';
-/** 저장소 열쇠 — 마지막으로 시트를 띄운 날 */
-export declare const ATT_STORAGE_KEY = "jcurve.ads.attSheet.lastShown";
-/** 마지막으로 시트를 띄운 날(YYYY-MM-DD) 저장소 — 앱이 넘기면 그것을, 없으면 메모리(앱을 끄면 잊는다) */
+/** 1.9.11 부터 쓰이지 않는다(앱 코드가 타입을 가져다 써도 컴파일되도록 이름만 남김) */
 export type AttStorage = {
     getItem: (key: string) => string | null | undefined | Promise<string | null | undefined>;
     setItem: (key: string, value: string) => void | Promise<void>;
 };
-/** 시트 문구 — 기본값은 아래 `ATT_SHEET_TEXTS`. `{appName}` 자리는 앱 이름으로 바뀐다 */
+/** 거부 · 제한 단계 시트 문구 — 기본값은 아래 `ATT_SHEET_TEXTS`. `{appName}` 자리는 앱 이름으로 바뀐다 */
 export type AttSheetTexts = {
+    /** 맨 위 첫 줄 */
     title: string;
+    /** 둘째 줄 — 기본은 비어 있다(안 그린다) */
     body: string;
     /** 다섯 단계 — 셋째 줄에 `{appName}` 이 들어간다 */
     steps: string[];
@@ -22,17 +23,25 @@ export type AttSheetTexts = {
     openSettings: string;
     later: string;
 };
-/** 기본 문구 — 「」 는 문장 안의 인용 부호만 남기고, 제목·본문·버튼 글자의 바깥 짝은 뺐다 */
+/** 시스템 ATT 창 앞 중립 안내 문구 */
+export type AttPrimerTexts = {
+    title: string;
+    body: string;
+    button: string;
+};
+/** 거부 · 제한 단계 시트 기본 문구(1.9.11: 첫 줄만 사실 설명으로 바꾸고 이익을 내세우던 문구는 지웠다 — 단계 안내는 그대로) */
 export declare const ATT_SHEET_TEXTS: Readonly<AttSheetTexts>;
-/** 문구를 합친다 — 덮어쓴 값이 있으면 그것을, 셋째 줄의 `{appName}` 을 앱 이름으로 바꾼다 */
+/** 시스템 ATT 창 앞 중립 안내 기본 문구(대표님 확정 문구 — 앱이 `primerTexts` 로 덮어쓸 수 있다) */
+export declare const ATT_PRIMER_TEXTS: Readonly<AttPrimerTexts>;
+/** 문구를 합친다 — 덮어쓴 값이 있으면 그것을, 단계의 `{appName}` 을 앱 이름으로 바꾼다 */
 export declare function attSheetTexts(appName: string, overrides?: Partial<AttSheetTexts>): AttSheetTexts;
-/** 로컬 달력 날짜(YYYY-MM-DD) — 「하루 한 번」은 기기 시간대의 자정 기준이다 */
+/** 로컬 달력 날짜(YYYY-MM-DD) */
 export declare function localDay(d: Date): string;
 /**
  * 무엇을 할지 — 기기 없이 판단하는 순수 함수.
  * - Android·웹 등 iOS 가 아니면 아무것도 안 한다.
- * - 미정이면 시스템 창을 띄운다(시트는 안 띄운다). 두 경로 모두 같다.
- * - 거부·제한이면: 오퍼월은 매번 시트, 앱 켜기는 오늘 아직 안 보였을 때만 시트.
+ * - 미정이면 시스템 창(`request`) — 어느 시점이든. 그 앞에 중립 안내가 한 번 붙는다.
+ * - 거부·제한이면 **오퍼월 진입 때만** 단계 시트(`show`). 앱을 켤 때(`launch`)는 절대 아니다.
  */
 export declare function decideAttAction(i: {
     os: string;
@@ -53,34 +62,38 @@ export type TrackingModule = {
 export declare function loadTracking(): TrackingModule | null;
 /** react-native 를 가드된 require 로 — 웹·Expo Go 에서도 import 가 던지지 않게 */
 export declare function loadRN(): any | null;
-export declare const memoryStorage: AttStorage;
 /** 현재 상태를 읽는다 — 실패하면 `unknown`(던지지 않는다) */
 export declare function readStatus(tracking: TrackingModule): Promise<AttStatus>;
 /** 시스템 ATT 창을 띄우고 결과 상태를 돌려준다(창이 없으면 미정 그대로) */
 export declare function requestStatus(tracking: TrackingModule): Promise<AttStatus>;
+/**
+ * 화면을 가진 쪽 — 마운트된 `AttDeniedSheet` 가 등록한다. 각 함수는 보이고, 사용자가 끝내면(그리고 창이 사라지면) `done` 을 부른다.
+ * 등록된 곳이 없으면(앱이 안 붙였으면) 안내 없이 바로 넘어간다.
+ */
+export type AttHost = {
+    primer: (done: () => void) => void;
+    sheet: (done: () => void) => void;
+};
+export declare function registerAttHost(h: AttHost | null): void;
+/** 시스템 ATT 창 앞 중립 안내 — **한 번만**(이번 실행 안에서: 끝난 약속을 그대로 돌려준다). 동시에 부르면 하나를 같이 기다린다. 화면이 없으면 바로 돌아온다 */
+export declare function showAttPrimerOnce(): Promise<void>;
+/** 거부 · 제한 단계 시트 — 닫히면 돌아온다. 동시에 부르면 하나를 같이 기다린다. 화면이 없으면 바로 돌아온다 */
+export declare function showAttSheet(): Promise<void>;
 /** 판단에 쓰는 기기 값 묶음 — 시험에서는 가짜를 넣는다 */
 export type AttDeps = {
     os: string;
     tracking: TrackingModule | null;
-    storage: AttStorage;
-    today: () => string;
-    /** 시스템 창을 띄우기 직전(앱이 앞에 올라올 때까지 기다리는 자리) — 기본은 없음 */
-    beforeRequest?: () => Promise<void>;
+    /** 시스템 창 앞 중립 안내 — 기본은 `showAttPrimerOnce` */
+    primer?: () => Promise<void>;
+    /** 거부 · 제한 단계 시트 — 기본은 `showAttSheet` */
+    sheet?: () => Promise<void>;
 };
 /**
- * 앱 켤 때 — 「시트를 띄울지」를 돌려준다(`show`). 미정이면 시스템 창을 여기서 띄우고 `none`.
- * 시트를 띄우기로 하면 저장소에 오늘 날짜를 먼저 적는다.
- */
-export declare function launchCheck(d: AttDeps): Promise<AttAction>;
-/** 시트를 여는 자리 — 마운트된 `AttDeniedSheet` 가 등록한다. `done` 은 시트가 닫히면 부른다 */
-export type AttSheetOpener = (done: () => void) => void;
-export declare function setAttSheetOpener(f: AttSheetOpener | null): void;
-/**
- * 오퍼월에 들어가기 전 — 추적 허용 상태를 확인하고 필요하면 안내/시스템 창을 띄운 뒤 **결과 상태**를 돌려준다.
- * - 미정: 시스템 창을 띄우고 그 결과를 돌려준다(시트는 안 띄운다).
- * - 거부·제한: 시트를 띄우고, 닫히면 다시 읽은 상태를 돌려준다. 시트가 안 붙어 있으면 그 상태를 바로 돌려준다.
+ * 오퍼월에 들어가기 전 — ATT 상태를 확인하고 **결과 상태**를 돌려준다. 오퍼월을 막지 않는다.
+ * - 미정: 중립 안내(한 번) → 시스템 창 → 그 결과.
+ * - 거부 · 제한: 단계 시트를 열고, 닫히면 다시 읽은 상태(설정에서 켰을 수 있다). 시트가 안 붙어 있으면 그 상태를 바로 돌려준다.
  * - 허용 · Android · 모듈 없음: 바로 돌려준다.
  */
-export declare function ensureTrackingBeforeOfferwallWith(d: AttDeps, opener: AttSheetOpener | null): Promise<AttStatus>;
-/** 앱이 오퍼월에 들어가기 전에 부른다 — 실제 기기 값과 마운트된 시트를 쓴다 */
-export declare function ensureTrackingBeforeOfferwall(storage?: AttStorage): Promise<AttStatus>;
+export declare function ensureTrackingBeforeOfferwallWith(d: AttDeps): Promise<AttStatus>;
+/** 앱이 오퍼월에 들어가기 전에 부른다 — 실제 기기 값과 마운트된 화면을 쓴다. `storage` 는 1.9.11 부터 쓰이지 않는다(호출 코드가 그대로 컴파일되도록 남김) */
+export declare function ensureTrackingBeforeOfferwall(_storage?: AttStorage): Promise<AttStatus>;

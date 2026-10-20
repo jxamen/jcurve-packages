@@ -159,6 +159,8 @@ export type AdsEnv = {
     os: () => string;
     appState: () => AppStateLike | null;
     dev: () => boolean;
+    /** (1.9.11) 시스템 ATT 창 바로 앞 중립 안내 — 기본은 마운트된 `AttDeniedSheet` 가 보여 주는 것(없으면 바로 지나간다). **시험에서만** 갈아 끼운다 */
+    primer?: () => Promise<void>;
 };
 /** ATT 를 물은 결과 — timedOut 이면 창이 아직 떠 있을 수 있다(다음 권한 창 전에 앱이 앞으로 돌아오길 기다린다) */
 export type TrackingResult = {

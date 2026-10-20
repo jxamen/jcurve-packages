@@ -9,6 +9,7 @@
  */
 import { t, tf, type Lang } from './i18n';
 import { requireTracking } from './native';
+import { showAttPrimerOnce } from './attSheet';
 import { ssvRequestOptions } from './mode';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -160,6 +161,8 @@ export type AdsEnv = {
   os: () => string;
   appState: () => AppStateLike | null;
   dev: () => boolean;
+  /** (1.9.11) 시스템 ATT 창 바로 앞 중립 안내 — 기본은 마운트된 `AttDeniedSheet` 가 보여 주는 것(없으면 바로 지나간다). **시험에서만** 갈아 끼운다 */
+  primer?: () => Promise<void>;
 };
 
 const defaultEnv = (): AdsEnv => ({
@@ -258,6 +261,8 @@ export function createRewarded(opts: AdsOptions, env: AdsEnv = defaultEnv()): Re
          | 20초 시간 초과와 창이 닫힌 것을 가른다(민트런 시험 2026-10-01) — 시간 초과면 창이 아직 떠 있을 수 있어
          | 앱은 다음 권한 창(알림)을 부르기 전에 앱이 앞으로 돌아오는 것(AppState active)을 더 기다려야 한다.
          */
+        // (1.9.11) 상태가 미정일 때만 여기까지 온다 — 시스템 창 바로 앞에 중립 안내를 한 번 보인다(누르면 곧바로 창). 안 뜨거나 실패해도 창은 묻는다
+        try { await (env.primer ?? showAttPrimerOnce)(); } catch { /* 안내 실패 — 그냥 묻는다 */ }
         let timedOut = false;
         const after = (await Promise.race([
           att.requestTrackingPermissionsAsync().catch(() => null),

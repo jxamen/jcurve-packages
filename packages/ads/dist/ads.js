@@ -12,6 +12,7 @@ exports.createRewarded = createRewarded;
  */
 const i18n_1 = require("./i18n");
 const native_1 = require("./native");
+const attSheet_1 = require("./attSheet");
 const mode_1 = require("./mode");
 const defaultEnv = () => ({
     // 네이티브 모듈이 없으면(Expo Go) 여기서 예외가 나고 목업으로 넘어간다
@@ -129,6 +130,11 @@ function createRewarded(opts, env = defaultEnv()) {
                  | 20초 시간 초과와 창이 닫힌 것을 가른다(민트런 시험 2026-10-01) — 시간 초과면 창이 아직 떠 있을 수 있어
                  | 앱은 다음 권한 창(알림)을 부르기 전에 앱이 앞으로 돌아오는 것(AppState active)을 더 기다려야 한다.
                  */
+                // (1.9.11) 상태가 미정일 때만 여기까지 온다 — 시스템 창 바로 앞에 중립 안내를 한 번 보인다(누르면 곧바로 창). 안 뜨거나 실패해도 창은 묻는다
+                try {
+                    await (env.primer ?? attSheet_1.showAttPrimerOnce)();
+                }
+                catch { /* 안내 실패 — 그냥 묻는다 */ }
                 let timedOut = false;
                 const after = (await Promise.race([
                     att.requestTrackingPermissionsAsync().catch(() => null),

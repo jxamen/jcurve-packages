@@ -25,7 +25,7 @@ class FakeAd {
   show() { this.shows++; return Promise.resolve(); }
 }
 
-function setup(o: { os?: string; test?: boolean; noSdk?: boolean; units?: AdsOptions['units']; testDevices?: string[]; device?: () => string; adid?: boolean; lang?: string } = {}) {
+function setup(o: { os?: string; test?: boolean; noSdk?: boolean; units?: AdsOptions['units']; testDevices?: string[]; device?: () => string; adid?: boolean; lang?: string; primer?: () => Promise<void> } = {}) {
   const made: FakeAd[] = [];
   let inits = 0;
   const order: string[] = [];
@@ -58,6 +58,7 @@ function setup(o: { os?: string; test?: boolean; noSdk?: boolean; units?: AdsOpt
     os: () => o.os ?? 'android',
     appState: () => app,
     dev: () => false,
+    primer: o.primer,
   };
   const ads = createRewarded({
     units: o.units ?? { rewarded: { android: 'AND_R', ios: 'IOS_R' }, rewardedInterstitial: { android: 'AND_RI', ios: 'IOS_RI' } },
@@ -416,6 +417,42 @@ describe('미리 받기·초기화', () => {
     s.att.status = 'granted';
     await tracked(s);
     expect(s.att.asked).toBe(1);
+  });
+
+  it('(1.9.11) 상태가 미정이면 시스템 창 바로 앞에 중립 안내를 거친다 — 안내가 끝나야 창을 묻는다', async () => {
+    let finish: () => void = () => undefined;
+    const primer = vi.fn(() => new Promise<void>((r) => { finish = r; }));
+    const s = setup({ os: 'ios', primer });
+    const p = s.ads.requestTracking();
+    await flush(); vi.advanceTimersByTime(600); await flush();
+    expect(primer).toHaveBeenCalledTimes(1);
+    expect(s.att.asked, '안내가 떠 있는 동안은 시스템 창을 안 띄운다').toBe(0);
+    finish(); await flush();
+    expect(s.att.asked).toBe(1);
+    expect(await p).toEqual({ status: 'granted', timedOut: false });
+  });
+
+  it('(1.9.11) 이미 답했으면(허용 · 거부 · 제한) 중립 안내도 시스템 창도 없다 — 거부 뒤 다시 조르지 않는다', async () => {
+    for (const status of ['granted', 'denied', 'restricted']) {
+      const primer = vi.fn(async () => undefined);
+      const s = setup({ os: 'ios', primer });
+      s.att.status = status;
+      await tracked(s);
+      expect(primer, status).not.toHaveBeenCalled();
+      expect(s.att.asked, status).toBe(0);
+    }
+  });
+
+  it('(1.9.11) 중립 안내가 던져도 시스템 창은 묻는다 · Android 는 안내도 창도 없다', async () => {
+    const boom = vi.fn(async () => { throw new Error('x'); });
+    const s = setup({ os: 'ios', primer: boom });
+    await tracked(s);
+    expect(boom).toHaveBeenCalledTimes(1);
+    expect(s.att.asked).toBe(1);
+    const primer = vi.fn(async () => undefined);
+    const a = setup({ os: 'android', primer });
+    expect(await a.ads.requestTracking()).toEqual({ status: 'unavailable', timedOut: false });
+    expect(primer).not.toHaveBeenCalled();
   });
 
   it('(1.3) 앱이 앞에 올라오기 전에는 묻지 않고, 올라온 뒤 0.6초에 묻는다 — 그 전에 물으면 iOS 가 창 없이 넘긴다', async () => {
