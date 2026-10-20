@@ -125,8 +125,10 @@ export type Rewarded = {
   warm: (userId?: string, customData?: string, interstitial?: boolean) => void;
   /** (1.2) 늘 거짓 — 미리 받아 두지 않으므로. 대기 화면은 늘 뜬다 */
   warmReady: (userId?: string, customData?: string, interstitial?: boolean) => boolean;
-  /** 기다리기를 그만둔다(대기 화면의 「그만두기」) — 실패로 세지 않는다 */
+  /** 기다리기를 그만둔다(대기 화면의 「그만두기」) — 실패로 세지 않는다. **열린 광고도 끊는다**(1.9.7: 엔진이 알아서 끊지 않으니 닫힘을 못 받는 기기는 앱이 서버 ads/seen 으로 확인한 뒤 이것으로 푼다) */
   cancel: () => void;
+  /** (1.9.7) 광고가 지금 **열려 있나**(OPENED 를 받았고 아직 안 끝남) — 열려 있는 동안 새 요청은 거절(busy)된다 */
+  isOpen: () => boolean;
   /** 광고 자리를 접어 둔 시간이 얼마나 남았나 — 0 이면 평소대로 */
   mutedMs: () => number;
   /**
@@ -370,13 +372,15 @@ export function createRewarded(opts: AdsOptions, env: AdsEnv = defaultEnv()): Re
 
   async function show({ userId, customData, interstitial = false, onEarned, onFail, onClosed, onOpened, onAbort }: ShowOptions): Promise<boolean> {
     if (!nativeReady) { onFail(t('이 빌드에서는 광고를 재생할 수 없어요', lang), true); return false; }
-    const appState = env.appState();
     const elapsed = Date.now() - showingAt;
     if (showing) {
-      // 걸린 채 남은 표시를 푼다 — 받기·열기가 12초 넘게 멈췄거나, 광고가 닫혔는데 닫힘을 못 받았을 때
+      /*
+       | 걸린 채 남은 표시를 푼다 — **받기·열기가 12초 넘게 멈췄을 때만**(아직 열리지 않은 광고).
+       | (1.9.7) **열린 광고(OPENED 뒤)는 새 요청이 끊지 않는다** — 다른 진입점의 새 요청이 1.5초 뒤 열린 광고를 중단해 보상 이벤트를 잃던 것(대표님 10-20 15:10
+       | 「광고가 열리면 시간 제한 없음」). 열려 있는 동안 새 요청은 busy 로 거절하고, 닫힘을 못 받는 기기의 확인은 앱이 서버 ads/seen 으로 한 뒤 cancel() 로 푼다.
+       */
       const stuckLoad = (stage === 'load' || stage === 'init' || stage === 'show') && elapsed >= 12_000;
-      const missedClose = stage === 'open' && elapsed >= 1500 && (appState?.currentState ?? 'active') === 'active';
-      if (!stuckLoad && !missedClose) return false;
+      if (!stuckLoad) return false;
       abortCurrent?.();
     }
     showing = true;
@@ -390,16 +394,12 @@ export function createRewarded(opts: AdsOptions, env: AdsEnv = defaultEnv()): Re
     let earned = false;
     let opened = false;
     let finished = false;
-    let sawBg = false;
     const offs: Array<() => void> = [];
     const timers: Array<ReturnType<typeof setTimeout>> = [];
-    let appSub: { remove: () => void } | null = null;
     const cleanup = (): void => {
       abortCurrent = null;
       showing = false;
       stage = '';
-      try { appSub?.remove(); } catch { /* noop */ }
-      appSub = null;
       offs.forEach((f) => { try { f(); } catch { /* noop */ } });
       offs.length = 0;
       timers.forEach((t) => clearTimeout(t));
@@ -466,13 +466,11 @@ export function createRewarded(opts: AdsOptions, env: AdsEnv = defaultEnv()): Re
         ? t('지금은 볼 수 있는 광고가 없어요. 잠시 후 다시 시도해 주세요', lang)
         : tf('광고를 불러오지 못했어요 ({0})', lang, code || t('원인 불명', lang)));
     }));
-    // 닫힘 이벤트를 못 받는 기기 — 앱이 뒤로 갔다 돌아오면 닫힌 것으로 본다
-    try {
-      appSub = appState?.addEventListener('change', (s: string) => {
-        if (s !== 'active') { sawBg = true; return; }
-        if (sawBg && opened && !finished) finishClose();
-      }) ?? null;
-    } catch { appSub = null; }
+    /*
+     | (1.9.7) 앱이 뒤로 갔다 돌아왔다고 열린 광고를 닫힌 것으로 **추정하지 않는다**(전에는 OPENED 뒤 복귀하면 finishClose 를 불러
+     | 아직 열려 있는 광고에 「끝까지 보지 않았어요」를 내고 이벤트 구독을 끊었다 — 알림 창 · 시스템 창 · 잠깐 홈에 다녀온 경우).
+     | 닫힘 이벤트를 끝내 못 받는 기기의 복귀 확인은 앱이 서버 ads/seen 으로 하고, 확인되면 cancel() 로 푼다. 엔진은 CLOSED 만 믿는다.
+     */
 
     try {
       ad.load();
@@ -523,6 +521,7 @@ export function createRewarded(opts: AdsOptions, env: AdsEnv = defaultEnv()): Re
     warm,
     warmReady,
     cancel: () => { abortCurrent?.(); },
+    isOpen: () => showing && stage === 'open',
     mutedMs: () => Math.max(0, mutedUntil - Date.now()),
     requestTracking,
     advertisingId,

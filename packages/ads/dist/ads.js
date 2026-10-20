@@ -253,13 +253,15 @@ function createRewarded(opts, env = defaultEnv()) {
             onFail((0, i18n_1.t)('이 빌드에서는 광고를 재생할 수 없어요', lang), true);
             return false;
         }
-        const appState = env.appState();
         const elapsed = Date.now() - showingAt;
         if (showing) {
-            // 걸린 채 남은 표시를 푼다 — 받기·열기가 12초 넘게 멈췄거나, 광고가 닫혔는데 닫힘을 못 받았을 때
+            /*
+             | 걸린 채 남은 표시를 푼다 — **받기·열기가 12초 넘게 멈췄을 때만**(아직 열리지 않은 광고).
+             | (1.9.7) **열린 광고(OPENED 뒤)는 새 요청이 끊지 않는다** — 다른 진입점의 새 요청이 1.5초 뒤 열린 광고를 중단해 보상 이벤트를 잃던 것(대표님 10-20 15:10
+             | 「광고가 열리면 시간 제한 없음」). 열려 있는 동안 새 요청은 busy 로 거절하고, 닫힘을 못 받는 기기의 확인은 앱이 서버 ads/seen 으로 한 뒤 cancel() 로 푼다.
+             */
             const stuckLoad = (stage === 'load' || stage === 'init' || stage === 'show') && elapsed >= 12000;
-            const missedClose = stage === 'open' && elapsed >= 1500 && (appState?.currentState ?? 'active') === 'active';
-            if (!stuckLoad && !missedClose)
+            if (!stuckLoad)
                 return false;
             abortCurrent?.();
         }
@@ -276,19 +278,12 @@ function createRewarded(opts, env = defaultEnv()) {
         let earned = false;
         let opened = false;
         let finished = false;
-        let sawBg = false;
         const offs = [];
         const timers = [];
-        let appSub = null;
         const cleanup = () => {
             abortCurrent = null;
             showing = false;
             stage = '';
-            try {
-                appSub?.remove();
-            }
-            catch { /* noop */ }
-            appSub = null;
             offs.forEach((f) => { try {
                 f();
             }
@@ -373,20 +368,11 @@ function createRewarded(opts, env = defaultEnv()) {
                 ? (0, i18n_1.t)('지금은 볼 수 있는 광고가 없어요. 잠시 후 다시 시도해 주세요', lang)
                 : (0, i18n_1.tf)('광고를 불러오지 못했어요 ({0})', lang, code || (0, i18n_1.t)('원인 불명', lang)));
         }));
-        // 닫힘 이벤트를 못 받는 기기 — 앱이 뒤로 갔다 돌아오면 닫힌 것으로 본다
-        try {
-            appSub = appState?.addEventListener('change', (s) => {
-                if (s !== 'active') {
-                    sawBg = true;
-                    return;
-                }
-                if (sawBg && opened && !finished)
-                    finishClose();
-            }) ?? null;
-        }
-        catch {
-            appSub = null;
-        }
+        /*
+         | (1.9.7) 앱이 뒤로 갔다 돌아왔다고 열린 광고를 닫힌 것으로 **추정하지 않는다**(전에는 OPENED 뒤 복귀하면 finishClose 를 불러
+         | 아직 열려 있는 광고에 「끝까지 보지 않았어요」를 내고 이벤트 구독을 끊었다 — 알림 창 · 시스템 창 · 잠깐 홈에 다녀온 경우).
+         | 닫힘 이벤트를 끝내 못 받는 기기의 복귀 확인은 앱이 서버 ads/seen 으로 하고, 확인되면 cancel() 로 푼다. 엔진은 CLOSED 만 믿는다.
+         */
         try {
             ad.load();
         }
@@ -443,6 +429,7 @@ function createRewarded(opts, env = defaultEnv()) {
         warm,
         warmReady,
         cancel: () => { abortCurrent?.(); },
+        isOpen: () => showing && stage === 'open',
         mutedMs: () => Math.max(0, mutedUntil - Date.now()),
         requestTracking,
         advertisingId,

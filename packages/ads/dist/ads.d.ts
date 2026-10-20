@@ -119,8 +119,10 @@ export type Rewarded = {
     warm: (userId?: string, customData?: string, interstitial?: boolean) => void;
     /** (1.2) 늘 거짓 — 미리 받아 두지 않으므로. 대기 화면은 늘 뜬다 */
     warmReady: (userId?: string, customData?: string, interstitial?: boolean) => boolean;
-    /** 기다리기를 그만둔다(대기 화면의 「그만두기」) — 실패로 세지 않는다 */
+    /** 기다리기를 그만둔다(대기 화면의 「그만두기」) — 실패로 세지 않는다. **열린 광고도 끊는다**(1.9.7: 엔진이 알아서 끊지 않으니 닫힘을 못 받는 기기는 앱이 서버 ads/seen 으로 확인한 뒤 이것으로 푼다) */
     cancel: () => void;
+    /** (1.9.7) 광고가 지금 **열려 있나**(OPENED 를 받았고 아직 안 끝남) — 열려 있는 동안 새 요청은 거절(busy)된다 */
+    isOpen: () => boolean;
     /** 광고 자리를 접어 둔 시간이 얼마나 남았나 — 0 이면 평소대로 */
     mutedMs: () => number;
     /**

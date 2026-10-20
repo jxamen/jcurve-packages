@@ -128,15 +128,60 @@ describe('끝까지 봤는가', () => {
     expect(s.calls.fail).toEqual(['광고를 끝까지 보지 않았어요']);
   });
 
-  it('닫힘 이벤트를 못 받아도 앱이 뒤로 갔다 돌아오면 닫힌 것으로 본다', async () => {
+  it('(1.9.7) 열린 광고는 앱이 뒤로 갔다 돌아와도 닫힌 것으로 추정하지 않는다 — 진짜 CLOSED 만 믿는다', async () => {
     const s = setup();
     void s.ads.show({ ...s.cb });
     await flush();
     const ad = s.made[0];
-    ad.emit(EV.LOADED); ad.emit(EV.OPENED); ad.emit(EV.EARNED_REWARD);
-    s.toBg(); s.toFg();
+    ad.emit(EV.LOADED); ad.emit(EV.OPENED);
+    expect(s.ads.isOpen()).toBe(true);
+    s.toBg(); s.toFg();                                    // 알림 창 · 시스템 창 · 잠깐 홈에 다녀옴
+    vi.advanceTimersByTime(60_000);                         // 열린 광고에는 시간 제한이 없다
+    expect(s.calls.closed).toBe(0);
+    expect(s.calls.fail).toEqual([]);
+    expect(s.ads.isOpen()).toBe(true);
+    ad.emit(EV.EARNED_REWARD);                              // 이벤트 구독이 살아 있어 보상이 그대로 온다
+    expect(s.calls.earned).toBe(1);
+    ad.emit(EV.CLOSED);
     expect(s.calls.closed).toBe(1);
     expect(s.calls.fail).toEqual([]);
+    expect(s.ads.isOpen()).toBe(false);
+  });
+
+  it('(1.9.7) 열린 광고가 있으면 다른 진입점의 새 요청은 몇 초가 지나도 끊지 않고 거절(busy)한다', async () => {
+    const s = setup();
+    void s.ads.show({ ...s.cb });
+    await flush();
+    const ad = s.made[0];
+    ad.emit(EV.LOADED); ad.emit(EV.OPENED);
+    for (const ms of [1_000, 1_600, 5_000, 30_000, 120_000]) {
+      vi.advanceTimersByTime(ms);
+      expect(await s.ads.show({ ...s.cb })).toBe(false);
+    }
+    expect(s.made).toHaveLength(1);                         // 새 광고를 만들지도 않았다
+    let result: any = null;
+    void s.ads.play({}).then((r) => { result = r; });
+    await flush();
+    expect(result).toMatchObject({ earned: false, busy: true });
+    ad.emit(EV.EARNED_REWARD);
+    expect(s.calls.earned).toBe(1);
+    ad.emit(EV.CLOSED);
+    vi.advanceTimersByTime(1200);
+    expect(await s.ads.show({ ...s.cb })).toBe(true);       // 끝난 뒤에는 새로 열린다
+    expect(s.made).toHaveLength(2);
+  });
+
+  it('(1.9.7) cancel() 은 열린 광고도 푼다 — 닫힘을 못 받는 기기는 앱이 서버 확인 뒤 이것으로 푼다', async () => {
+    const s = setup();
+    let aborted = 0;
+    void s.ads.show({ ...s.cb, onAbort: () => { aborted++; } });
+    await flush();
+    const ad = s.made[0];
+    ad.emit(EV.LOADED); ad.emit(EV.OPENED);
+    s.ads.cancel();
+    expect(aborted).toBe(1);
+    expect(s.ads.isOpen()).toBe(false);
+    expect(await s.ads.show({ ...s.cb })).toBe(true);
   });
 });
 
@@ -176,12 +221,23 @@ describe('광고가 안 채워질 때', () => {
     expect(s.calls.fail[0]).toContain('(load)');
   });
 
-  it('도는 중에 또 부르면 거짓 — 걸린 지 12초가 넘었으면 풀고 새로 시작한다', async () => {
+  it('도는 중에 또 부르면 거짓 — 아직 열리지 않은 채 걸린 지 12초가 넘었으면 풀고 새로 시작한다', async () => {
     const s = setup();
     void s.ads.show({ ...s.cb });
     await flush();
     expect(await s.ads.show({ ...s.cb })).toBe(false);
     vi.advanceTimersByTime(12_000);
+    expect(await s.ads.show({ ...s.cb })).toBe(true);
+  });
+
+  it('(1.9.7) 보여 주기(show)까지 갔지만 12초 넘게 열리지 않은 광고도 푼다 — 열린 광고와 다르다', async () => {
+    const s = setup();
+    void s.ads.show({ ...s.cb });
+    await flush();
+    s.made[0].emit(EV.LOADED);                              // ad.show() 호출됨, OPENED 는 안 옴
+    vi.advanceTimersByTime(11_000);
+    expect(await s.ads.show({ ...s.cb })).toBe(false);
+    vi.advanceTimersByTime(1_000);
     expect(await s.ads.show({ ...s.cb })).toBe(true);
   });
 });
