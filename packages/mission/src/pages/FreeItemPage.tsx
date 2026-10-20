@@ -29,7 +29,7 @@ export type FreeItemPageProps = {
 
 export function FreeItemPage({ slots, onClaim, onBack, title, subtitle, theme: themeIn, footer, buttonWidth = PAGE_BUTTON.width, buttonHeight = PAGE_BUTTON.height }: FreeItemPageProps) {
   const theme = resolvePageTheme(themeIn);
-  const item = theme.itemName ?? '양분';
+  const item = theme.itemName ?? '아이템';
   const count = slotCount(slots);
   return <PageFrame title={title ?? `무료 ${item} 받기`} onBack={onBack} theme={theme} footer={footer}>
     <View style={[s.card, { backgroundColor: theme.card }]}>

@@ -147,3 +147,9 @@ export function normalizeInviteCode(raw: string): string {
 export function inviteHeadline(inviterPoint: number): string {
   return `${inviterPoint.toLocaleString()}P 받으세요`;
 }
+
+/** 확률권 줄 — 「확률권 N장」, 앱 설명이 있으면 「 — 설명」을 붙인다(앱 이름이 박히지 않게, 0.4.1) */
+export function boostLine(boost: number, text?: string): string {
+  const t = text?.trim();
+  return t ? `확률권 ${boost}장 — ${t}` : `확률권 ${boost}장`;
+}

@@ -157,7 +157,7 @@ items={[freeItemRow({ itemName: '먹이', left: 2, onPress: () => openFreeItem()
 | 이름 | 타입 | 기본값 | 설명 |
 | --- | --- | --- | --- |
 | `MissionPageTheme` | 타입 | — | `bg, card, text, sub, accent, accentText, accentSoft, line, done` + `character?`, `itemName?`, `itemIcon?` |
-| `DEFAULT_PAGE_THEME` | 값 | 주황 `#EE7A33` 계열, `itemName: '양분'` | 기본 색 |
+| `DEFAULT_PAGE_THEME` | 값 | 주황 `#EE7A33` 계열, `itemName: '아이템'` | 기본 색 |
 | 페이지 `theme` | `Partial<MissionPageTheme>` | `{}` | 일부만 줘도 된다(나머지는 기본) |
 | `PAGE_BUTTON` | 값 | `{ width: 72, height: 34 }` | 줄 버튼 크기(carrot 홈과 같음) |
 
@@ -168,7 +168,7 @@ items={[freeItemRow({ itemName: '먹이', left: 2, onPress: () => openFreeItem()
 | `FreeItemPage` | `slots: FreeItemSlot[]` · `onClaim(slotId)` · `onBack` · `title?` 기본 「무료 {아이템} 받기」 · `subtitle?` · `theme?` · `footer?` · `buttonWidth?` 72 · `buttonHeight?` 34 |
 | `TodayMissionPage` | `rows: TodayMissionRow[]` · `bonus: number` · `claimed?` false · `onClaim()` (false/reject 면 실패 문구) · `onBack` · `title?` 「오늘의 미션」 · `theme?` · `footer?` · `buttonWidth?` · `buttonHeight?` |
 | `StepsPage` | `todaySteps: number` · `stages: StepsStage[]` · `stepsAvailable: boolean` · `onUpdate()` · `onClaim(stage)` · `onBack` · `earnedToday?` 0 · `everySteps?` 1000 · `guide?` · `title?` 「만보기」 · `theme?` · `footer?` |
-| `LuckyChancePage` | `freeLeft: number` · `adLeft: number` · `onDraw(ad: boolean)` · `waitUntil?` epoch ms · `prizes?` · `boost?` 0 · `busy?` · `offerwall?: {name, onOpen}` · `onBack` · `title?` 「행운 찬스」 · `theme?` · `footer?` |
+| `LuckyChancePage` | `freeLeft: number` · `adLeft: number` · `onDraw(ad: boolean)` · `waitUntil?` epoch ms · `prizes?` · `boost?` 0 · `boostText?` (0.4.1, 없으면 「확률권 N장」만) · `drawTitle?` 「행운 뽑기」(0.4.1) · `busy?` · `offerwall?: {name, onOpen}` · `onBack` · `title?` 「행운 찬스」 · `theme?` · `footer?` |
 | `InvitePage` | `code: string` · `locked?` false · `lockReason?` 'verify' · `onVerify()` · `onSignup?()` · `verifying?` · `inviterPoint` · `inviteePoint` · `inviterBoost?` 0 · `inviteeBoost?` 0 · `invited` · `waiting` · `joined?` · `rewarded?` · `onJoin(code) → {ok, message?}` · `onShare()` · `onBack` · `notice?` · `title?` 「친구 초대」 · `theme?` · `footer?` |
 | `AppHubPage` | `apps: AppHubItem[]` (`key, name, desc?, icon?, onOpen`) · `onBack` · `title?` 「추천 앱」 · `emptyText?` · `theme?` · `footer?` |
 

@@ -6,7 +6,7 @@
 import React, { useEffect, useState, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { PageFrame, PageButton, resolvePageTheme, type MissionPageTheme } from './PageFrame';
-import { drawLabel, drawSubLine, prizeLine, waitLeftMs } from './logic';
+import { drawLabel, drawSubLine, prizeLine, waitLeftMs, boostLine } from './logic';
 
 export type LuckyChancePageProps = {
   /** 오늘 무료로 남은 뽑기 수 */
@@ -17,8 +17,12 @@ export type LuckyChancePageProps = {
   waitUntil?: number;
   /** 뽑으면 받는 것 목록 — 「꽝 없이 A / B」(carrot 은 서버 칸에서 종류별 최대값) */
   prizes?: readonly string[];
-  /** 확률권 수 — 있으면 「다음에 캘 때 좋은 당근이 잘 나와요」 한 줄 */
+  /** 확률권 수 — 0 보다 크면 한 줄(boostText 가 없으면 「확률권 N장」만) */
   boost?: number;
+  /** 확률권 줄 뒤 설명 — 앱마다 말이 달라 앱이 준다(예 「다음에 캘 때 좋은 당근이 잘 나와요」) (0.4.1 앱보조2 10-20) */
+  boostText?: string;
+  /** 카드 제목 — 기본 「행운 뽑기」(0.4.0 은 「당근 뽑기」가 박혀 있었다) */
+  drawTitle?: string;
   /** 뽑기 — ad=false 면 무료, true 면 광고를 보고 뽑는다(광고 · 지급은 앱) */
   onDraw: (ad: boolean) => void | Promise<void>;
   /** 뽑기 중 — 단추를 막는다 */
@@ -31,7 +35,7 @@ export type LuckyChancePageProps = {
   footer?: ReactNode;
 };
 
-export function LuckyChancePage({ freeLeft, adLeft, waitUntil, prizes = [], boost = 0, onDraw, busy = false, offerwall, onBack, title = '행운 찬스', theme: themeIn, footer }: LuckyChancePageProps) {
+export function LuckyChancePage({ freeLeft, adLeft, waitUntil, prizes = [], boost = 0, boostText, drawTitle = '행운 뽑기', onDraw, busy = false, offerwall, onBack, title = '행운 찬스', theme: themeIn, footer }: LuckyChancePageProps) {
   const theme = resolvePageTheme(themeIn);
   // 초읽기 — 대기 중일 때만 1초마다 다시 그린다(시각은 렌더마다 새로 잰다)
   const [, tick] = useState(0);
@@ -48,11 +52,11 @@ export function LuckyChancePage({ freeLeft, adLeft, waitUntil, prizes = [], boos
 
   return <PageFrame title={title} onBack={onBack} theme={theme} footer={footer}>
     <View style={[s.card, { backgroundColor: theme.card }]}>
-      <Text style={[s.cardTitle, { color: theme.text }]}>당근 뽑기</Text>
+      <Text style={[s.cardTitle, { color: theme.text }]}>{drawTitle}</Text>
       <Text style={[s.cardSub, { color: theme.sub }]}>{drawSubLine({ free: freeLeft, ad: adLeft, waitMs })}</Text>
       {prize ? <Text style={[s.prize, { color: theme.text, backgroundColor: theme.accentSoft }]}>{prize}</Text> : null}
       {boost > 0 ? <View style={[s.boost, { backgroundColor: theme.accentSoft }]}>
-        <Text style={[s.boostText, { color: theme.accent }]}>{`확률권 ${boost}장 — 다음에 캘 때 좋은 당근이 잘 나와요`}</Text>
+        <Text style={[s.boostText, { color: theme.accent }]}>{boostLine(boost, boostText)}</Text>
       </View> : null}
       <PageButton big label={drawLabel({ free, waitMs })} theme={theme}
         on={canFree || canAd} disabled={!(canFree || canAd)} onPress={() => { void onDraw(!free); }} />

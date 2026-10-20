@@ -18,7 +18,7 @@ export type MissionPageTheme = {
   done: string;
   /** 캐릭터 그림(ReactNode) — 친구 초대 머리에 쓴다. 없으면 그리지 않는다 */
   character?: ReactNode;
-  /** 아이템 이름 — 양분 · 캡슐 · 열매 · 먹이 (2026-10-19 대표님 「이름만 앱마다」). 기본 「양분」 */
+  /** 아이템 이름 — 양분 · 캡슐 · 열매 · 먹이 (2026-10-19 대표님 「이름만 앱마다」). 기본 「아이템」(0.4.1 — 앱 말이 박히지 않게) */
   itemName?: string;
   /** 아이템 그림(ReactNode, 예 🌱) — 없으면 글자만 */
   itemIcon?: ReactNode;
@@ -26,7 +26,7 @@ export type MissionPageTheme = {
 
 export const DEFAULT_PAGE_THEME: MissionPageTheme = {
   bg: '#FBF7F2', card: '#FFFFFF', text: '#2B2118', sub: '#6B5E52', accent: '#EE7A33', accentText: '#FFFFFF',
-  accentSoft: '#FDE6D6', line: '#F3EBE1', done: '#D3D7DD', itemName: '양분',
+  accentSoft: '#FDE6D6', line: '#F3EBE1', done: '#D3D7DD', itemName: '아이템',
 };
 
 /** 앱이 일부만 넘기면 나머지는 기본값 — `character` · `itemIcon` 은 기본이 없다 */

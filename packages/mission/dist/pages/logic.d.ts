@@ -85,3 +85,5 @@ export declare function prizeLine(prizes: readonly string[]): string | null;
 export declare function normalizeInviteCode(raw: string): string;
 /** 초대 카드 제목 줄 — 「{n}P 받으세요」 */
 export declare function inviteHeadline(inviterPoint: number): string;
+/** 확률권 줄 — 「확률권 N장」, 앱 설명이 있으면 「 — 설명」을 붙인다(앱 이름이 박히지 않게, 0.4.1) */
+export declare function boostLine(boost: number, text?: string): string;

@@ -16,7 +16,7 @@ export type MissionPageTheme = {
     done: string;
     /** 캐릭터 그림(ReactNode) — 친구 초대 머리에 쓴다. 없으면 그리지 않는다 */
     character?: ReactNode;
-    /** 아이템 이름 — 양분 · 캡슐 · 열매 · 먹이 (2026-10-19 대표님 「이름만 앱마다」). 기본 「양분」 */
+    /** 아이템 이름 — 양분 · 캡슐 · 열매 · 먹이 (2026-10-19 대표님 「이름만 앱마다」). 기본 「아이템」(0.4.1 — 앱 말이 박히지 않게) */
     itemName?: string;
     /** 아이템 그림(ReactNode, 예 🌱) — 없으면 글자만 */
     itemIcon?: ReactNode;

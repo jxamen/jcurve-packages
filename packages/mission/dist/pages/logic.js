@@ -20,6 +20,7 @@ exports.drawSubLine = drawSubLine;
 exports.prizeLine = prizeLine;
 exports.normalizeInviteCode = normalizeInviteCode;
 exports.inviteHeadline = inviteHeadline;
+exports.boostLine = boostLine;
 /** 칸 버튼 글자 — 받았으면 「받았어요」, 지났으면 「놓쳤어요」, 받을 수 있으면 「받기」, 그 밖은 「아직」 */
 function slotButtonLabel(slot) {
     if (slot.done)
@@ -119,4 +120,9 @@ function normalizeInviteCode(raw) {
 /** 초대 카드 제목 줄 — 「{n}P 받으세요」 */
 function inviteHeadline(inviterPoint) {
     return `${inviterPoint.toLocaleString()}P 받으세요`;
+}
+/** 확률권 줄 — 「확률권 N장」, 앱 설명이 있으면 「 — 설명」을 붙인다(앱 이름이 박히지 않게, 0.4.1) */
+function boostLine(boost, text) {
+    const t = text?.trim();
+    return t ? `확률권 ${boost}장 — ${t}` : `확률권 ${boost}장`;
 }

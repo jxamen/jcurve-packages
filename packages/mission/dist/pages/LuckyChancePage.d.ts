@@ -14,8 +14,12 @@ export type LuckyChancePageProps = {
     waitUntil?: number;
     /** 뽑으면 받는 것 목록 — 「꽝 없이 A / B」(carrot 은 서버 칸에서 종류별 최대값) */
     prizes?: readonly string[];
-    /** 확률권 수 — 있으면 「다음에 캘 때 좋은 당근이 잘 나와요」 한 줄 */
+    /** 확률권 수 — 0 보다 크면 한 줄(boostText 가 없으면 「확률권 N장」만) */
     boost?: number;
+    /** 확률권 줄 뒤 설명 — 앱마다 말이 달라 앱이 준다(예 「다음에 캘 때 좋은 당근이 잘 나와요」) (0.4.1 앱보조2 10-20) */
+    boostText?: string;
+    /** 카드 제목 — 기본 「행운 뽑기」(0.4.0 은 「당근 뽑기」가 박혀 있었다) */
+    drawTitle?: string;
     /** 뽑기 — ad=false 면 무료, true 면 광고를 보고 뽑는다(광고 · 지급은 앱) */
     onDraw: (ad: boolean) => void | Promise<void>;
     /** 뽑기 중 — 단추를 막는다 */
@@ -30,4 +34,4 @@ export type LuckyChancePageProps = {
     theme?: Partial<MissionPageTheme>;
     footer?: ReactNode;
 };
-export declare function LuckyChancePage({ freeLeft, adLeft, waitUntil, prizes, boost, onDraw, busy, offerwall, onBack, title, theme: themeIn, footer }: LuckyChancePageProps): React.JSX.Element;
+export declare function LuckyChancePage({ freeLeft, adLeft, waitUntil, prizes, boost, boostText, drawTitle, onDraw, busy, offerwall, onBack, title, theme: themeIn, footer }: LuckyChancePageProps): React.JSX.Element;

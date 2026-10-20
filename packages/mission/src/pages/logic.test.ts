@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { slotButtonLabel, slotStatusLine, slotWindowLabel, slotCount, missionProgress, bonusButtonLabel, stepsSummary, stepsBubble, UPDATE_NOTICE, waitLeftMs, clockText, drawLabel, drawSubLine, prizeLine, normalizeInviteCode, inviteHeadline, type FreeItemSlot, type StepsStage } from './logic';
+import { slotButtonLabel, slotStatusLine, slotWindowLabel, slotCount, missionProgress, bonusButtonLabel, stepsSummary, stepsBubble, UPDATE_NOTICE, waitLeftMs, clockText, drawLabel, drawSubLine, prizeLine, normalizeInviteCode, inviteHeadline, type FreeItemSlot, type StepsStage, boostLine } from './logic';
 
 const slot = (o: Partial<FreeItemSlot> = {}): FreeItemSlot => ({ id: 'a', name: '아침', fromHour: 9, toHour: 11, step: 1, reward: 10, done: false, missed: false, claimable: false, ...o });
 
@@ -89,5 +89,13 @@ describe('친구 초대', () => {
   });
   it('헤드라인', () => {
     expect(inviteHeadline(1000)).toBe('1,000P 받으세요');
+  });
+});
+
+describe('boostLine (0.4.1)', () => {
+  it('설명이 없으면 「확률권 N장」만, 있으면 붙인다', () => {
+    expect(boostLine(2)).toBe('확률권 2장');
+    expect(boostLine(2, '  ')).toBe('확률권 2장');
+    expect(boostLine(1, '다음 뽑기 확률이 올라가요')).toBe('확률권 1장 — 다음 뽑기 확률이 올라가요');
   });
 });

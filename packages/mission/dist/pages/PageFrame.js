@@ -9,7 +9,7 @@ const react_1 = require("react");
 const react_native_1 = require("react-native");
 exports.DEFAULT_PAGE_THEME = {
     bg: '#FBF7F2', card: '#FFFFFF', text: '#2B2118', sub: '#6B5E52', accent: '#EE7A33', accentText: '#FFFFFF',
-    accentSoft: '#FDE6D6', line: '#F3EBE1', done: '#D3D7DD', itemName: '양분',
+    accentSoft: '#FDE6D6', line: '#F3EBE1', done: '#D3D7DD', itemName: '아이템',
 };
 /** 앱이 일부만 넘기면 나머지는 기본값 — `character` · `itemIcon` 은 기본이 없다 */
 function resolvePageTheme(theme) {
