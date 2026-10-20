@@ -1,5 +1,6 @@
-import React, { useEffect, type ReactNode } from 'react';
-import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef, type ReactNode } from 'react';
+import { BackHandler, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { edgeBackHandlers } from '../missionNav';
 
 /**
  * 페이지 색 · 글자 · 캐릭터(0.4.0) — 색과 이름만 앱이 넘긴다. 모양은 패키지가 정한다(carrot 화면 그대로).
@@ -41,9 +42,14 @@ export const PAGE_BUTTON = { width: 72, height: 34 } as const;
  * 독립 페이지 공통 틀 — 상단 「‹ 제목」 한 줄 · 안드로이드 뒤로 가기 → onBack · 본문 스크롤 · 맨 아래 광고 자리(footer).
  * 상태 표시줄 안전영역은 앱 바깥 틀이 잡는다(carrot PageHeader 와 같은 규칙).
  */
-export function PageFrame({ title, onBack, theme, footer, children }: {
+export function PageFrame({ title, onBack, swipeBack = true, theme, footer, children }: {
   title: string;
   onBack: () => void;
+  /**
+   * (0.4.13) iOS 왼쪽 가장자리를 오른쪽으로 밀면 onBack(기본 true, `false` 일 때만 끔). 안드로이드는 그대로(뒤로 키). 이미 앱 바깥에서 밀기를 감싼 화면은 false.
+   * 새 네이티브 의존 없음(PanResponder) — 가장자리에서 시작한 가로 밀기만 가로채서 안쪽 탭 · 스크롤은 그대로다
+   */
+  swipeBack?: boolean;
   theme: MissionPageTheme;
   /** 맨 아래 광고 자리 — 앱이 네이티브 광고를 넣는다(패키지는 광고를 모른다) */
   footer?: ReactNode;
@@ -53,7 +59,11 @@ export function PageFrame({ title, onBack, theme, footer, children }: {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => { onBack(); return true; });
     return () => sub.remove();
   }, [onBack]);
-  return <View style={[s.root, { backgroundColor: theme.bg }]}>
+  const backRef = useRef(onBack);
+  backRef.current = onBack;
+  const edge = useRef(PanResponder.create(edgeBackHandlers(() => backRef.current()))).current;
+  const swipe = swipeBack !== false && Platform.OS === 'ios';
+  return <View style={[s.root, { backgroundColor: theme.bg }]} {...(swipe ? edge.panHandlers : {})}>
     <View style={s.header}>
       <Pressable accessibilityRole="button" accessibilityLabel="뒤로" hitSlop={12} onPress={onBack} style={s.side}>
         <Text style={[s.back, { color: theme.text }]}>‹</Text>

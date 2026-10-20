@@ -20,6 +20,8 @@ export type AppHubItem = {
 export type AppHubPageProps = {
   apps: readonly AppHubItem[];
   onBack: () => void;
+  /** (0.4.13) iOS 왼쪽 가장자리를 오른쪽으로 밀면 onBack(기본 true). 안드로이드는 그대로. 이미 앱에서 밀기를 감싼 화면은 false */
+  swipeBack?: boolean;
   title?: string;
   /** 목록이 비었을 때 글 */
   emptyText?: string;
@@ -27,9 +29,9 @@ export type AppHubPageProps = {
   footer?: ReactNode;
 };
 
-export function AppHubPage({ apps, onBack, title = '추천 앱', emptyText = '추천 앱을 준비하고 있어요', theme: themeIn, footer }: AppHubPageProps) {
+export function AppHubPage({ apps, onBack, swipeBack, title = '추천 앱', emptyText = '추천 앱을 준비하고 있어요', theme: themeIn, footer }: AppHubPageProps) {
   const theme = resolvePageTheme(themeIn);
-  return <PageFrame title={title} onBack={onBack} theme={theme} footer={footer}>
+  return <PageFrame title={title} onBack={onBack} swipeBack={swipeBack} theme={theme} footer={footer}>
     {apps.length === 0 ? <Text style={[s.empty, { color: theme.sub }]}>{emptyText}</Text> : <View style={[s.card, { backgroundColor: theme.card }]}>
       {apps.map((app, i) => <Pressable key={app.key} accessible={false} onPress={app.onOpen}
         style={({ pressed }) => [s.row, i < apps.length - 1 && { borderBottomWidth: 1, borderBottomColor: theme.line }, pressed && { opacity: 0.85 }]}>

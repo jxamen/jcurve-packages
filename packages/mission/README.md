@@ -316,3 +316,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';   // ⚠ 0
 - **고침**: 팔레트 이름이 아닌 문자열은 `<Text>` 로 감싸 그린다(글자 크기 22). ReactNode 아이콘과 팔레트 아이콘은 그대로. 팔레트 판정은 자기 키만 본다(`toString` 같은 문자열이 팔레트로 읽히지 않게).
 - **시험**: 실제 렌더 트리를 걸어 「`<Text>` 가 아닌 부모 밑의 문자열」이 없음을 확인(`BenefitQuickListIcon.test.ts` — homeDefs 9줄 전부 포함). 수정 전 코드에서는 이 시험이 실패한다.
 - 겸해서 `index.ts` 가 상수 `CHECKIN_DONE_LABEL` · `FREE_NOW_BADGE` · `STEPS_PERMISSION_LABEL` 을 export 한다(0.7.8 과 같게).
+
+## 0.4.13 — 하위 화면 iOS 왼쪽 가장자리 밀기 → 뒤로 (`swipeBack`, 앱관리 요청 · 10앱 통일)
+
+독립 페이지(`PageFrame` — 무료 아이템 · 오늘의 미션 · 만보기 · 행운 찬스 · 친구 초대 · 추천 앱)에서 iOS 는 화면 **왼쪽 가장자리를 오른쪽으로 밀면 `onBack`** 이 불린다. 안드로이드는 그대로(뒤로 키).
+- prop **`swipeBack?: boolean`**(기본 **true**, `false` 일 때만 끔)을 `PageFrame` 과 6개 화면이 받는다. 이미 앱 바깥에서 밀기를 감싼 화면(당근 · 머니트리 · 꾹테크)은 `swipeBack={false}`.
+- **새 네이티브 의존 0** — React Native `PanResponder` 만. 가장자리에 띠 View 를 덮지 않고 루트 View 의 **캡처** 핸들러로 「왼쪽 `EDGE_WIDTH`(24) 안에서 시작한 가로 밀기」만 가로챈다 → 안쪽 탭 · 세로 스크롤 · 머리줄 ‹ 단추는 그대로 동작한다.
+- 판정은 쇼핑 미션 화면과 같다: 가로로 10 넘게 · 세로보다 더(`edgeSwipeStarts`), 손을 뗄 때 60 이상 밀었거나 빠르게 튕겼으면(`edgeSwipeDone`) 뒤로. 순수 함수 `edgeBackHandlers(getBack)`(missionNav.ts)로 시험한다.
+- 가장자리에서 시작하지 않은 밀기는 아무 일도 하지 않고, `onBack` 은 늘 최신 것이 불린다(ref).
