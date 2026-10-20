@@ -97,17 +97,18 @@ export declare function LotterySheet({ open, state, winners, busy, onOpen, onEar
 /**
  * 당첨 결과 — **전체 화면**(0.1.3, 대표님 15:57 「당첨 화면은 전체 화면으로 나오게 해」): 탭 메뉴 · 상태줄까지 덮는다(앱 루트에 그리거나 `presentation="modal"`).
  * 위: X(오른쪽) → 가운데 「축하해요!」 + 큰 「5P 당첨!」 + 복권 그림(`icon` 이 있으면 그것) → 아래: 큰 버튼 + 「확인」 + 알림 켜기 링크 + 네이티브 광고(`renderNative`).
- * 남은 복권이 있으면 「다음 복권 열기 (N장 남았어요)」, 없으면 「한 번 더! ○ 복권 받기」(다음 단계), 둘 다 없으면 「확인」만. 원 표 단계는 「○원 복권」 한 줄이 더 붙고 포인트 표는 P 만 보인다.
+ * 남은 복권이 있으면 「다음 복권 열기 (N장 남았어요)」 — 없으면 큰 버튼 없이 X(와 `confirm` 일 때 「확인」)만. **「한 번 더! ○ 복권 받기」 버튼은 없다**(0.1.7, 대표님 17:38 「빼」). 원 표 단계는 「○원 복권」 한 줄이 더 붙고 포인트 표는 P 만 보인다.
  * `topInset`/`bottomInset` 은 안전 영역(상태줄 · 홈 바) 값.
  */
-export declare function LotteryResult({ result, state, onOpenNext, onMore, onClose, renderNative, theme, nextAd, adLabel, notify, icon, topInset, bottomInset, presentation, open, confirm }: {
+export declare function LotteryResult({ result, onOpenNext, onClose, renderNative, theme, nextAd, adLabel, notify, icon, topInset, bottomInset, presentation, open, confirm }: {
     result: Pick<LotteryOpenResult, 'won' | 'points' | 'unopened'> & {
         unit?: 'won' | 'points';
     };
+    /** (0.1.7 사용 안 함) 예전에는 「한 번 더」 문구를 만들 때 읽었다 — 넘겨도 무시한다 */
     state?: LotteryState | null;
     /** 남은 복권이 있을 때 「다음 복권 열기」 */
     onOpenNext?: () => void;
-    /** 남은 복권이 없을 때 「한 번 더! ○ 복권 받기」 */
+    /** (0.1.7 사용 안 함) 「한 번 더! ○ 복권 받기」 버튼이 없어졌다 — 예전 앱이 넘겨도 오류 없이 무시한다 */
     onMore?: () => void;
     onClose: () => void;
     renderNative?: () => ReactNode;
@@ -126,7 +127,7 @@ export declare function LotteryResult({ result, state, onOpenNext, onMore, onClo
     confirm?: boolean;
 } & ThemeProp): React.JSX.Element;
 /**
- * 황금 복권 팝업 — 「황금 복권이 나타났어요!」 하루 한 번(0.1.2: 읽기 쉽게, 0.1.3: **바텀 시트**로 — 딤 · X · 손잡이 · 안전 영역). 위에서 아래로: 황금 복권 그림(`icon` 이 있으면 그것) → 제목 → 쉬운 말 3줄 → 작은 글씨 → 버튼 → 「다음에 열기」.
+ * 황금 복권 팝업 — 「황금 복권이 나타났어요!」 (**앱이 켤 때 자동으로 띄우지 않는다** — 황금은 복권 목록의 황금 줄 「열기」로만 연다, 대표님 17:36 「앱 열릴 때 이게 실행이 돼」. 0.1.2: 읽기 쉽게, 0.1.3: **바텀 시트**로 — 딤 · X · 손잡이 · 안전 영역). 위에서 아래로: 황금 복권 그림(`icon` 이 있으면 그것) → 제목 → 쉬운 말 3줄 → 작은 글씨 → 버튼 → 「다음에 열기」.
  * 값(최대 금액 · 포인트)은 서버 state 에서 읽어 넘긴다 — `maxWon`(필수) · `maxPoints` · **`unit`**(포인트 표면 'points' → 「최대 1,000P가 바로 들어와요」, 원 병기 없음). 문구는 `lines`/`note` 로 통째로 바꿀 수 있다(다국어).
  * 버튼은 「광고 보고 황금 복권 열기」: 앱이 `onOpen` 에서 **보상형 광고(용도 lottery_basic)를 보여 준 뒤** `useLottery.open(tier, 'basic')` 을 부른다
  * — 광고 시청은 서버가 구글 SSV 로 확인한다(앱 말만 믿지 않는다). 광고가 바로 열리므로 버튼 안 오른쪽에 「광고」 칩(`ad` 가 false 면 칩 · 광고 문구 없음). busy 동안은 다시 눌리지 않는다.
@@ -184,7 +185,7 @@ export declare const RESULT: {
 };
 /**
  * 당첨 전체 화면에서 **네이티브 광고 위**가 차지하는 높이(pt, 위 안전 영역 `topInset` 은 빼고) — 광고 카드 밑 여백(`RESULT.bottom`)도 뺀 값.
- * 큰 버튼(`big`: 다음 복권 열기 · 한 번 더) · 「확인」(`confirm`) · 알림 줄(`notify`) · 원 표 한 줄(`wonLine`) 이 있으면 더해진다. 시험에서 SE 기준 270pt 이하인지 본다.
+ * 큰 버튼(`big`: 다음 복권 열기) · 「확인」(`confirm`) · 알림 줄(`notify`) · 원 표 한 줄(`wonLine`) 이 있으면 더해진다. 시험에서 SE 기준 270pt 이하인지 본다.
  */
 export declare function lotteryResultTopHeight(o?: {
     big?: boolean;

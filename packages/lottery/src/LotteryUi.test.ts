@@ -281,7 +281,7 @@ describe('LotteryResult — 당첨 전체 화면', () => {
     expect(text(won)).toContain('100원 복권');
   });
 
-  it('남은 복권이 있으면 「다음 복권 열기 (N장 남았어요)」(+nextAd 일 때만 광고 칩) · 없으면 「한 번 더! ○ 복권 받기」 · 둘 다 아래에 「확인」', () => {
+  it('남은 복권이 있으면 「다음 복권 열기 (N장 남았어요)」(+nextAd 일 때만 광고 칩) · 없으면 큰 버튼 없이 「확인」뿐 — 「한 번 더! ○ 복권 받기」는 없다(0.1.7)', () => {
     const onOpenNext = vi.fn(); const onMore = vi.fn();
     const withNext = full({ result: { won: 100, points: 5, unopened: 2, unit: 'points' }, onOpenNext, nextAd: true });
     const next = buttons(withNext).find(b => b.props.accessibilityLabel === '다음 복권 열기')!;
@@ -290,15 +290,12 @@ describe('LotteryResult — 당첨 전체 화면', () => {
     next.props.onPress();
     expect(onOpenNext).toHaveBeenCalledOnce();
     expect(nodes(buttons(full({ result: { won: 100, points: 5, unopened: 2 }, onOpenNext })).find(b => b.props.accessibilityLabel === '다음 복권 열기')!.props.children).some(n => n?.props?.children === '광고')).toBe(false);
+    // 남은 복권이 없고 다음 단계가 있어도(state · onMore 를 넘겨도) 「한 번 더」 버튼은 없다 — 닫기와 「확인」뿐
     const st = state([{ missionState: 'opened', unit: 'points', maxPoints: 1000, maxWon: 625 }, { missionState: 'locked', missions: 5, unit: 'points', maxPoints: 1000, maxWon: 625 }], 0);
-    const more = full({ state: st, onMore });
-    const moreBtn = buttons(more).find(b => String(b.props.accessibilityLabel).startsWith('한 번 더!'))!;
-    expect(moreBtn.props.accessibilityLabel).toBe('한 번 더! 최대 1,000P 복권 받기');
-    moreBtn.props.onPress();
-    expect(onMore).toHaveBeenCalledOnce();
-    const order = (tree: any[]) => [idx(tree, n => n?.type === 'Pressable' && String(n.props?.accessibilityLabel).startsWith('한 번 더!')), idx(tree, n => n?.type === 'Pressable' && n.props?.accessibilityLabel === '확인')];
-    const [a, b] = order(more);
-    expect(a).toBeLessThan(b);
+    const none = full({ state: st, onMore });
+    expect(buttons(none).map(b => b.props.accessibilityLabel)).toEqual(['닫기', '확인']);
+    expect(text(none)).not.toContain('한 번 더!');
+    expect(onMore).not.toHaveBeenCalled();
   });
 
   it('알림 링크와 네이티브 광고는 버튼 아래에 — 알림이 켜져 있으면 링크가 없다', () => {
@@ -468,11 +465,11 @@ describe('당첨 전체 화면 — 「확인」 삭제 · 위쪽 압축 (0.1.4, 
     expect(nodes(buttons(tree).find(b => b.props.accessibilityLabel === '다음 복권 열기')!.props.children).filter(x => typeof x === 'string' || typeof x === 'number').join('')).toContain('다음 복권 열기 (7장 남았어요)');
     expect(tree.some(n => n?.type === 'NativeAd')).toBe(true);
     expect(tree.some(n => n?.type === 'View' && flat(n.props.style).transform?.[0]?.scale === 0.6)).toBe(true);        // 그림은 약 60%
-    // 남은 복권 0 · 다음 단계 없음 → X 만 / 다음 단계가 있으면 「한 번 더!」 만 더
+    // 남은 복권 0 이면 X 만 — 다음 단계가 있고 onMore 를 넘겨도 「한 번 더!」 버튼은 없다(0.1.7)
     const done = { won: 100, points: 5, unopened: 0, unit: 'points' };
     expect(labels(res({ confirm: false, result: done, onOpenNext: undefined }))).toEqual(['닫기']);
     const st = state([{ missionState: 'opened', unit: 'points', maxPoints: 1000, maxWon: 625 }, { missionState: 'locked', missions: 5, unit: 'points', maxPoints: 1000, maxWon: 625 }], 0);
-    expect(labels(res({ confirm: false, result: done, state: st, onOpenNext: undefined, onMore: vi.fn() }))).toEqual(['닫기', '한 번 더! 최대 1,000P 복권 받기']);
+    expect(labels(res({ confirm: false, result: done, state: st, onOpenNext: undefined, onMore: vi.fn() }))).toEqual(['닫기']);        // 0.1.7: 다음 단계가 있어도 「한 번 더」 버튼은 없다
     // 안 주면 예전 그대로(다른 앱이 쓰는 경우)
     expect(labels(res())).toContain('확인');
   });
