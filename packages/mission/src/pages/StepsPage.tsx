@@ -1,0 +1,113 @@
+/**
+ * 만보기 — 1,000걸음마다 광고 보고 포인트 (0.4.0, carrot StepsScreen 의 보이는 모양만).
+ *
+ * **이 패키지는 @jcurve/steps 를 가져오지 않는다.** 걸음 수 · 단계 · 받기는 전부 props 로 받는다.
+ * 옛 빌드(걸음 기능 없음)는 `stepsAvailable={false}` 로 두면 화면은 읽기만 되고, 받기 · 단추는
+ * 「업데이트하면 걸음 보상을 받을 수 있어요」 안내와 onUpdate() 로 간다(2026-10-20 · 옛 빌드 충돌 방지).
+ */
+import React, { useState, type ReactNode } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import { PageFrame, PageButton, resolvePageTheme, type MissionPageTheme } from './PageFrame';
+import { stepsBubble, stepsSummary, UPDATE_NOTICE, type StepsStage } from './logic';
+
+export type StepsPageProps = {
+  /** 오늘 걸음 수 — 앱이 센다 */
+  todaySteps: number;
+  /** 단계 목록 — 앱이 1,000걸음 · 5P 같은 값을 정해 준다 */
+  stages: readonly StepsStage[];
+  /** 오늘 받은 포인트 합 — 「오늘 받은 포인트 {n}P」 */
+  earnedToday?: number;
+  /** 걸음 기능이 켜져 있나(new 빌드). false 면 읽기만 되고 받기는 onUpdate 로 간다 */
+  stepsAvailable: boolean;
+  /** 업데이트 창 열기 — 앱이 스토어 · 업데이트 안내를 연다 */
+  onUpdate: () => void;
+  /** 단계 받기 — 광고 · 서버 지급은 앱이 한다. reject 하면 「다시 시도」 안내 */
+  onClaim: (stage: StepsStage) => void | Promise<void>;
+  onBack: () => void;
+  /** 「1,000걸음마다」 의 걸음 수 — 기본 1000 */
+  everySteps?: number;
+  /** 안내 줄(목록) — 기본은 carrot 안내 문구 중 기기 중립인 것 */
+  guide?: readonly string[];
+  title?: string;
+  theme?: Partial<MissionPageTheme>;
+  footer?: ReactNode;
+};
+
+const DEFAULT_GUIDE = [
+  '1,000걸음마다 광고 보기를 완료하면 포인트를 받아요.',
+  '걸음 수와 남은 횟수는 매일 자정(한국 시간)에 초기화되고, 받지 않은 횟수는 다음 날로 넘어가지 않아요.',
+  '배터리 절약 모드 등에서는 걸음 수가 정확하지 않을 수 있어요.',
+  '만보기 보상과 조건은 사정에 따라 바뀔 수 있어요.',
+];
+
+export function StepsPage({ todaySteps, stages, earnedToday = 0, stepsAvailable, onUpdate, onClaim, onBack, everySteps = 1000, guide = DEFAULT_GUIDE, title = '만보기', theme: themeIn, footer }: StepsPageProps) {
+  const theme = resolvePageTheme(themeIn);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const summary = stepsSummary(todaySteps, stages);
+  const points = stages[0]?.points ?? 0;
+  const first = summary.claimable[0];
+  const canClaim = stepsAvailable && !!first && !busy;
+
+  const claim = async () => {
+    // 옛 빌드는 받기 대신 업데이트 창으로(carrot ensureStepsVersion 과 같은 자리)
+    if (!stepsAvailable) { onUpdate(); return; }
+    if (!first || busy) return;
+    setBusy(true);
+    setFailed(false);
+    try {
+      await onClaim(first);
+    } catch {
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return <PageFrame title={title} onBack={onBack} theme={theme} footer={footer}>
+    <View style={s.top}>
+      <Text style={[s.count, { color: theme.text }]}>{todaySteps.toLocaleString()}<Text style={[s.unit, { color: theme.sub }]}> 걸음</Text></Text>
+      <View style={[s.bubble, { backgroundColor: theme.card }]}><Text style={[s.bubbleText, { color: theme.text }]}>{stepsBubble({ available: stepsAvailable, todaySteps, stages })}</Text></View>
+      <View style={[s.tail, { backgroundColor: theme.card }]} />
+      <Text style={s.shoe} accessible={false}>👟</Text>
+    </View>
+
+    {!stepsAvailable ? <View style={[s.notice, { backgroundColor: theme.card }]}>
+      <Text style={[s.noticeTitle, { color: theme.text }]}>{UPDATE_NOTICE}</Text>
+      <PageButton big label="업데이트하기" theme={theme} on onPress={onUpdate} />
+    </View> : null}
+
+    {failed ? <Text accessibilityLiveRegion="polite" style={[s.message, { color: theme.sub }]}>광고 확인이 늦어지고 있어요. 잠시 후 다시 눌러 주세요</Text> : null}
+
+    <View style={[s.claimCard, { backgroundColor: theme.card }]}>
+      <Text style={[s.claimLeft, { color: theme.text }]}>남은 횟수 <Text style={[s.claimNum, { color: theme.accent }]}>{`${stepsAvailable ? summary.claimable.length : 0}번`}</Text></Text>
+      <Text style={[s.claimSub, { color: theme.sub }]}>{`${everySteps.toLocaleString()}걸음마다 광고 보고 ${points}P · 오늘 받은 포인트 ${earnedToday}P`}</Text>
+      <PageButton big label={busy ? '확인 중…' : `광고 보고 ${points}P 받기`} theme={theme} on={canClaim || !stepsAvailable} disabled={stepsAvailable && !canClaim} onPress={() => { void claim(); }} />
+    </View>
+
+    <View style={[s.guide, { backgroundColor: theme.card }]}>
+      <Text style={[s.guideTitle, { color: theme.text }]}>만보기 안내사항</Text>
+      {guide.map(line => <Text key={line} style={[s.guideLine, { color: theme.sub }]}>· {line}</Text>)}
+    </View>
+  </PageFrame>;
+}
+
+const s = StyleSheet.create({
+  top: { alignItems: 'center', paddingTop: 8 },
+  count: { fontSize: 44, fontWeight: '800' },
+  unit: { fontSize: 18, fontWeight: '600' },
+  bubble: { marginTop: 14, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 18 },
+  bubbleText: { fontSize: 15 },
+  tail: { width: 12, height: 12, transform: [{ rotate: '45deg' }], marginTop: -6 },
+  shoe: { fontSize: 96, marginTop: 4 },
+  notice: { borderRadius: 16, padding: 16, gap: 10 },
+  noticeTitle: { fontSize: 15, fontWeight: '700', textAlign: 'center' },
+  message: { textAlign: 'center', fontSize: 13 },
+  claimCard: { marginTop: 8, borderRadius: 20, padding: 20, alignItems: 'center', gap: 8 },
+  claimLeft: { fontSize: 18, fontWeight: '700' },
+  claimNum: { fontSize: 22, fontWeight: '800' },
+  claimSub: { fontSize: 13 },
+  guide: { borderRadius: 16, padding: 20, gap: 6 },
+  guideTitle: { fontSize: 15, fontWeight: '700', marginBottom: 4 },
+  guideLine: { fontSize: 13, lineHeight: 20 },
+});
