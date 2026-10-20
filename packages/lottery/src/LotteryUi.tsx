@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, type ReactNode } from 'react';
-import { AccessibilityInfo, Animated, BackHandler, Dimensions, Easing, Modal, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Animated, BackHandler, Dimensions, Easing, Modal, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View, type TextProps } from 'react-native';
 import {
   goldenLines, goldenRow, lotteryMissionButton, lotteryMissionHint, lotteryMoreLabel, lotteryMoreMissionLabel, lotteryResultHeadline, lotteryTierTitle, lotteryWinnerParts,
   type LotteryOpenResult, type LotteryState, type LotteryTier, type LotteryWinner,
@@ -16,6 +16,14 @@ export const DEFAULT_LOTTERY_THEME: LotteryTheme = {
  * Modal 이 아니라 화면 위 덮개다 — 보상형 광고가 Modal 뒤에 깔리지 않게(앱의 TicketSheet 와 같은 이유). 앱이 화면 맨 위(탭 바 위)에 둔다.
  */
 type ThemeProp = { theme?: Partial<LotteryTheme> };
+
+/**
+ * (0.1.4) 한글 줄바꿈은 **단어(띄어쓰기) 단위로** — iOS 기본은 글자 단위로 끊어 「받아가요!」가 「받아가」 / 「요!」 로 갈라졌다(감자밭 캡처). lineBreakStrategyIOS="hangul-word" 를 모든 글자에 준다(Android 는 무시).
+ * 이 패키지의 글자는 모두 이것을 쓴다 — 제목 · 줄 설명은 줄 수 · 너비에 맞춰 줄어들고(adjustsFontSizeToFit) 한 글자만 남는 줄이 없게 한다
+ */
+function Txt(props: TextProps) {
+  return <Text lineBreakStrategyIOS="hangul-word" {...props} />;
+}
 
 const th = (t?: Partial<LotteryTheme>): LotteryTheme => ({ ...DEFAULT_LOTTERY_THEME, ...(t ?? {}) });
 
@@ -61,7 +69,7 @@ export function LotteryChip({ count, onPress, label, bottomOffset = 16, floating
   const text = label ?? '복권 ' + count + '장';
   if (!floating) {
     return <Pressable accessibilityRole="button" accessibilityLabel={text} onPress={onPress} style={({ pressed }) => [s.chip, { backgroundColor: c.accent }, pressed && { opacity: 0.85 }]}>
-      <Text style={[s.chipText, { color: c.accentText }]}>{text}</Text>
+      <Txt style={[s.chipText, { color: c.accentText }]}>{text}</Txt>
     </Pressable>;
   }
 
@@ -71,8 +79,8 @@ export function LotteryChip({ count, onPress, label, bottomOffset = 16, floating
         <View accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           {icon ?? <View style={[s.ticket, { borderColor: c.accent }]}><View style={[s.ticketLine, { borderColor: c.accent }]} /></View>}
         </View>
-        <Text style={s.floatingText}>{text}</Text>
-        <Text accessible={false} style={s.arrow}>›</Text>
+        <Txt style={s.floatingText}>{text}</Txt>
+        <Txt accessible={false} style={s.arrow}>›</Txt>
       </Pressable>
     </Animated.View>
   </View>;
@@ -83,7 +91,7 @@ export function LotteryChip({ count, onPress, label, bottomOffset = 16, floating
  * `onColor` 는 칩이 올라가는 바탕에서 읽히는 글자색(채운 버튼 위면 accentText, 연한 버튼 위면 accent)
  */
 function AdChip({ label = '광고', onColor, onFilled }: { label?: string; onColor: string; onFilled?: boolean }) {
-  return <View accessible={false} importantForAccessibility="no-hide-descendants" style={[s.adChip, onFilled ? s.adChipOnFilled : { borderColor: onColor }]}><Text style={[s.adChipText, { color: onColor }]}>{label}</Text></View>;
+  return <View accessible={false} importantForAccessibility="no-hide-descendants" style={[s.adChip, onFilled ? s.adChipOnFilled : { borderColor: onColor }]}><Txt style={[s.adChipText, { color: onColor }]}>{label}</Txt></View>;
 }
 
 /**
@@ -98,11 +106,11 @@ function NotifyRow({ notify, theme }: { notify?: LotteryNotify; theme: LotteryTh
 
   return <View style={s.notifyBox}>
     <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!notify.busy }} disabled={!!notify.busy} onPress={notify.onPress} hitSlop={8} style={[s.notifyLink, notify.busy && { opacity: 0.6 }]}>
-      <Text accessible={false} style={s.notifyBell}>🔔</Text>
-      <Text style={[s.notifyTitle, { color: theme.accent }]}>{label}</Text>
-      <Text accessible={false} style={[s.notifyChevron, { color: theme.accent }]}>›</Text>
+      <Txt accessible={false} style={s.notifyBell}>🔔</Txt>
+      <Txt style={[s.notifyTitle, { color: theme.accent }]}>{label}</Txt>
+      <Txt accessible={false} style={[s.notifyChevron, { color: theme.accent }]}>›</Txt>
     </Pressable>
-    <Text style={[s.notifyHint, { color: theme.sub }]}>{notify.hint ?? '매일 새 복권이 나오면 알려 드릴게요'}</Text>
+    <Txt style={[s.notifyHint, { color: theme.sub }]}>{notify.hint ?? '매일 새 복권이 나오면 알려 드릴게요'}</Txt>
   </View>;
 }
 
@@ -146,7 +154,7 @@ function BottomSheet({ open, onClose, theme, topInset, bottomInset = 0, presenta
     <View style={[s.bsheet, { backgroundColor: theme.card, maxHeight: sheetMaxHeight(Dimensions.get('window').height, topInset), paddingBottom: SHEET_PAD + Math.max(0, bottomInset) }]}>
       <View accessible={false} style={s.handleWrap}><View style={[s.handle, { backgroundColor: theme.done }]} /></View>
       <View style={s.bsHeader}>
-        <Pressable accessibilityRole="button" accessibilityLabel="닫기" hitSlop={12} onPress={onClose} style={s.bsClose}><Text style={[s.closeText, { color: theme.sub }]}>✕</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="닫기" hitSlop={12} onPress={onClose} style={s.bsClose}><Txt style={[s.closeText, { color: theme.sub }]}>✕</Txt></Pressable>
       </View>
       <ScrollView bounces={false} showsVerticalScrollIndicator={false} contentContainerStyle={s.bsBody}>{children}</ScrollView>
     </View>
@@ -157,7 +165,7 @@ function BottomSheet({ open, onClose, theme, topInset, bottomInset = 0, presenta
 function NumberCard({ label, color }: { label: string; color: string }) {
   return <View accessible={false} importantForAccessibility="no-hide-descendants" style={s.cardWrap}>
     <View style={[s.cardBack, { backgroundColor: color }]} />
-    <View style={[s.cardFront, { backgroundColor: color }]}><Text style={s.cardText} numberOfLines={1} adjustsFontSizeToFit>{label}</Text></View>
+    <View style={[s.cardFront, { backgroundColor: color }]}><Txt style={s.cardText} numberOfLines={1} adjustsFontSizeToFit>{label}</Txt></View>
   </View>;
 }
 
@@ -168,9 +176,9 @@ function CardRow({ icon, color, title, hint, button, ad, adLabel, theme, busy, o
 
   return <Pressable accessibilityRole="button" accessibilityLabel={title + ', ' + button.label + (ad ? ', ' + (adLabel ?? '광고') : '')} accessibilityState={{ disabled: !active || !!busy }} disabled={!active || !!busy} onPress={onPress} style={s.row}>
     <NumberCard label={icon} color={color} />
-    <View style={s.rowCopy}><Text style={[s.rowTitle, { color: theme.text }]}>{title}</Text><Text style={[s.rowHint, { color: theme.sub }]}>{hint}</Text></View>
+    <View style={s.rowCopy}><Txt style={[s.rowTitle, { color: theme.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{title}</Txt><Txt style={[s.rowHint, { color: theme.sub }]} numberOfLines={2}>{hint}</Txt></View>
     <View pointerEvents="none" style={[s.rowButton, { backgroundColor: active ? theme.accentSoft : theme.done }]}>
-      <Text style={[s.rowButtonText, { color: active ? theme.accent : theme.sub }]}>{button.label}</Text>
+      <Txt style={[s.rowButtonText, { color: active ? theme.accent : theme.sub }]}>{button.label}</Txt>
       {ad && button.kind === 'open' ? <AdChip label={adLabel} onColor={theme.accent} /> : null}
     </View>
   </Pressable>;
@@ -223,9 +231,9 @@ export function LotterySheet({ open, state, winners, busy, onOpen, onEarn, onMor
   const parts = last ? lotteryWinnerParts(last) : null;
 
   return <BottomSheet open={open} onClose={onClose} theme={c} topInset={topInset} bottomInset={bottomInset} presentation={presentation}>
-    <Text accessibilityRole="header" style={[s.sheetTitle, { color: c.text }]}>{'꽝 없는 복권\n지금 열고 행운 받아가요!'}</Text>
-    <Text style={[s.sheetSub, { color: c.sub }]}>받은 복권은 매일 자정에 사라져요</Text>
-    {parts ? <View style={[s.ticker, { backgroundColor: c.bg }]}><Text style={[s.tickerText, { color: c.text }]} numberOfLines={1}>{parts.pre}<Text style={{ color: c.accent, fontWeight: '800' }}>{parts.amount}</Text>{parts.post}</Text></View> : null}
+    <Txt accessibilityRole="header" style={[s.sheetTitle, { color: c.text }]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8}>{'꽝 없는 복권\n지금 열고 행운 받아가요!'}</Txt>
+    <Txt style={[s.sheetSub, { color: c.sub }]}>받은 복권은 매일 자정에 사라져요</Txt>
+    {parts ? <View style={[s.ticker, { backgroundColor: c.bg }]}><Txt style={[s.tickerText, { color: c.text }]} numberOfLines={1}>{parts.pre}<Txt style={{ color: c.accent, fontWeight: '800' }}>{parts.amount}</Txt>{parts.post}</Txt></View> : null}
     <View style={s.rows}>
       {state.tiers.map((t, i) => {
         const b = lotteryMissionButton(t);
@@ -237,8 +245,8 @@ export function LotterySheet({ open, state, winners, busy, onOpen, onEarn, onMor
         button={gold.unopened > 0 ? { label: '열기', kind: 'open' } : { label: '받기 완료', kind: 'done' }} ad={basicAd && gold.unopened > 0} adLabel={adLabel} theme={c} busy={busy}
         onPress={() => onOpen(gold.tier.tier, 'basic')} /> : null}
     </View>
-    {more && next ? <Pressable accessibilityRole="button" accessibilityLabel={more} disabled={!!busy} onPress={() => (onMore ?? onEarn)(next.tier)} style={[s.big, { backgroundColor: c.accent }]}><Text style={[s.bigText, { color: c.accentText }]}>{more}</Text></Pressable> : null}
-    {notify ? <NotifyRow notify={notify} theme={c} /> : onEnableNotify ? <Pressable accessibilityRole="button" accessibilityLabel={notifyLabel ?? '복권 받게 알림 켜기'} onPress={onEnableNotify} style={s.link}><Text style={[s.linkText, { color: c.accent }]}>🔔 {notifyLabel ?? '복권 받게 알림 켜기'} ›</Text></Pressable> : null}
+    {more && next ? <Pressable accessibilityRole="button" accessibilityLabel={more} disabled={!!busy} onPress={() => (onMore ?? onEarn)(next.tier)} style={[s.big, { backgroundColor: c.accent }]}><Txt style={[s.bigText, { color: c.accentText }]}>{more}</Txt></Pressable> : null}
+    {notify ? <NotifyRow notify={notify} theme={c} /> : onEnableNotify ? <Pressable accessibilityRole="button" accessibilityLabel={notifyLabel ?? '복권 받게 알림 켜기'} onPress={onEnableNotify} style={s.link}><Txt style={[s.linkText, { color: c.accent }]}>🔔 {notifyLabel ?? '복권 받게 알림 켜기'} ›</Txt></Pressable> : null}
     {renderNative ? <View style={s.native}>{renderNative()}</View> : null}
   </BottomSheet>;
 }
@@ -248,9 +256,9 @@ export function LotterySheet({ open, state, winners, busy, onOpen, onEarn, onMor
  */
 function GoldenTicketArt() {
   return <View accessible={false} importantForAccessibility="no-hide-descendants" style={s.goldTicket}>
-    <Text style={s.goldStar}>★</Text>
+    <Txt style={s.goldStar}>★</Txt>
     <View style={s.goldPerforation} />
-    <View style={s.goldStub}><Text style={s.goldStubText}>GOLD</Text></View>
+    <View style={s.goldStub}><Txt style={s.goldStubText}>GOLD</Txt></View>
   </View>;
 }
 
@@ -289,19 +297,19 @@ export function LotteryResult({ result, state, onOpenNext, onMore, onClose, rend
   return <Layer open={open} onClose={onClose} presentation={presentation}>
     <View style={[s.full, { backgroundColor: c.card, paddingTop: Math.max(0, topInset) + 8, paddingBottom: Math.max(0, bottomInset) + 20 }]}>
       <View style={s.fullHeader}>
-        <Pressable accessibilityRole="button" accessibilityLabel="닫기" hitSlop={12} onPress={onClose} style={s.bsClose}><Text style={[s.closeText, { color: c.sub }]}>✕</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="닫기" hitSlop={12} onPress={onClose} style={s.bsClose}><Txt style={[s.closeText, { color: c.sub }]}>✕</Txt></Pressable>
       </View>
       <ScrollView bounces={false} showsVerticalScrollIndicator={false} contentContainerStyle={s.fullBody}>
         <View style={s.fullCenter}>
-          <Text style={[s.fullKicker, { color: c.sub }]}>축하해요!</Text>
-          <Text accessibilityRole="header" style={[s.fullHeadline, { color: c.text }]}>{lotteryResultHeadline(result.points)}</Text>
-          {wonLine ? <Text style={[s.fullSub, { color: c.sub }]}>{wonLine}</Text> : null}
+          <Txt style={[s.fullKicker, { color: c.sub }]}>축하해요!</Txt>
+          <Txt accessibilityRole="header" style={[s.fullHeadline, { color: c.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{lotteryResultHeadline(result.points)}</Txt>
+          {wonLine ? <Txt style={[s.fullSub, { color: c.sub }]}>{wonLine}</Txt> : null}
           <View style={s.fullArt}>{icon ?? <GoldenTicketArt />}</View>
         </View>
         <View style={s.fullActions}>
-          {hasNext && onOpenNext ? <Pressable accessibilityRole="button" accessibilityLabel="다음 복권 열기" onPress={onOpenNext} style={[s.big, s.bigRow, { backgroundColor: c.accent }]}><Text style={[s.bigText, { color: c.accentText }]}>다음 복권 열기 ({result.unopened}장 남았어요)</Text>{nextAd ? <AdChip label={adLabel} onColor={c.accentText} onFilled /> : null}</Pressable> : null}
-          {!hasNext && moreLabel && onMore ? <Pressable accessibilityRole="button" accessibilityLabel={moreLabel} onPress={onMore} style={[s.big, { backgroundColor: c.accent }]}><Text style={[s.bigText, { color: c.accentText }]}>{moreLabel}</Text></Pressable> : null}
-          <Pressable accessibilityRole="button" accessibilityLabel="확인" onPress={onClose} style={s.link}><Text style={[s.linkText, { color: c.sub }]}>확인</Text></Pressable>
+          {hasNext && onOpenNext ? <Pressable accessibilityRole="button" accessibilityLabel="다음 복권 열기" onPress={onOpenNext} style={[s.big, s.bigRow, { backgroundColor: c.accent }]}><Txt style={[s.bigText, { color: c.accentText }]}>다음 복권 열기 ({result.unopened}장 남았어요)</Txt>{nextAd ? <AdChip label={adLabel} onColor={c.accentText} onFilled /> : null}</Pressable> : null}
+          {!hasNext && moreLabel && onMore ? <Pressable accessibilityRole="button" accessibilityLabel={moreLabel} onPress={onMore} style={[s.big, { backgroundColor: c.accent }]}><Txt style={[s.bigText, { color: c.accentText }]}>{moreLabel}</Txt></Pressable> : null}
+          <Pressable accessibilityRole="button" accessibilityLabel="확인" onPress={onClose} style={s.link}><Txt style={[s.linkText, { color: c.sub }]}>확인</Txt></Pressable>
           <NotifyRow notify={notify} theme={c} />
           {renderNative ? <View style={s.native}>{renderNative()}</View> : null}
         </View>
@@ -350,17 +358,17 @@ export function GoldenLotteryPopup({ open, maxWon, maxPoints, unit, busy, onOpen
 
   return <BottomSheet open={open} onClose={onClose} theme={c} topInset={topInset} bottomInset={bottomInset} presentation={presentation}>
     <View style={s.goldArt}>{icon ?? <GoldenTicketArt />}</View>
-    <Text accessibilityRole="header" style={[s.goldTitle, { color: c.text }]}>황금 복권이 나타났어요!</Text>
+    <Txt accessibilityRole="header" style={[s.goldTitle, { color: c.text }]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8}>황금 복권이 나타났어요!</Txt>
     <View style={s.goldLines}>
-      {body.map((line, i) => <Text key={i} style={[s.goldLine, { color: c.text }]}>{line}</Text>)}
+      {body.map((line, i) => <Txt key={i} style={[s.goldLine, { color: c.text }]}>{line}</Txt>)}
     </View>
-    <Text style={[s.goldNote, { color: c.sub }]}>{small}</Text>
+    <Txt style={[s.goldNote, { color: c.sub }]}>{small}</Txt>
     <Pressable accessibilityRole="button" accessibilityLabel={label + (ad && !label.includes(adLabel ?? '광고') ? ', ' + (adLabel ?? '광고') : '')} accessibilityState={{ disabled: !!busy }} disabled={!!busy} onPress={onOpen}
       style={[s.big, s.bigRow, { backgroundColor: c.accent }, busy && { opacity: 0.6 }]}>
-      <Text style={[s.bigText, { color: c.accentText }]}>{label}</Text>
+      <Txt style={[s.bigText, { color: c.accentText }]}>{label}</Txt>
       {ad ? <AdChip label={adLabel} onColor={c.accentText} onFilled /> : null}
     </Pressable>
-    <Pressable accessibilityRole="button" accessibilityLabel={later} onPress={onClose} style={s.goldLater}><Text style={[s.linkText, { color: c.sub }]}>{later}</Text></Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel={later} onPress={onClose} style={s.goldLater}><Txt style={[s.linkText, { color: c.sub }]}>{later}</Txt></Pressable>
     <NotifyRow notify={notify} theme={c} />
   </BottomSheet>;
 }
@@ -388,7 +396,7 @@ const s = StyleSheet.create({
   bsClose: { width: 40, height: 40, alignItems: 'flex-end', justifyContent: 'center' },
   bsBody: { paddingBottom: 4 },
   closeText: { fontSize: 22, fontWeight: '600' },
-  sheetTitle: { fontSize: 26, lineHeight: 36, fontWeight: '800', textAlign: 'center', marginTop: 4 },
+  sheetTitle: { fontSize: 24, lineHeight: 34, fontWeight: '800', textAlign: 'center', marginTop: 4 },
   sheetSub: { fontSize: 14, lineHeight: 20, textAlign: 'center', marginTop: 12 },
   ticker: { borderRadius: 22, paddingVertical: 14, paddingHorizontal: 16, alignItems: 'center', marginTop: 24 },
   tickerText: { fontSize: 14, fontWeight: '600' },

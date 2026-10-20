@@ -254,12 +254,15 @@ export function lotteryMissionButton(t: Pick<LotteryTier, 'missionState'>): { la
   return { label: '받기', kind: 'earn' };
 }
 
-/** 미션 줄 설명 — 「쇼핑 · 플레이스 미션 1개 하면 받아요」 */
+/**
+ * 미션 줄 설명 — 「미션 1개 하면 받아요」(5개 · 10개도 같은 꼴, 0.1.4 — 받은 뒤에도 같은 말: 「미션 1개로 받았어요」 폐지, 대표님 16:37). 일부 했으면 「미션 3개 더 하면 받아요」,
+ * 하루 한도에 막혔으면 「오늘 받을 수 있는 복권을 모두 받았어요」
+ */
 export function lotteryMissionHint(t: Pick<LotteryTier, 'missions' | 'missionsLeft' | 'missionState'>): string {
-  if (t.missionState === 'ready' || t.missionState === 'opened') return '쇼핑 · 플레이스 미션 ' + t.missions + '개로 받았어요';
   if (t.missionState === 'capped') return '오늘 받을 수 있는 복권을 모두 받았어요';
+  if (t.missionState === 'locked' && t.missionsLeft > 0 && t.missionsLeft < t.missions) return '미션 ' + t.missionsLeft + '개 더 하면 받아요';
 
-  return t.missionsLeft > 0 && t.missionsLeft < t.missions ? '미션 ' + t.missionsLeft + '개 더 하면 받아요' : '쇼핑 · 플레이스 미션 ' + t.missions + '개 하면 받아요';
+  return '미션 ' + t.missions + '개 하면 받아요';
 }
 
 /** 황금 복권 줄 — 기본 복권이 있는 단계(없으면 null). `unopened` 가 0 이면 이미 연 것 */
