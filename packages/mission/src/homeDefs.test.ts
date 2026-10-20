@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
-import { FREE_DONE_LABEL, HOME_ORDER, buildHomeItems, homeItem, type HomeActions } from './homeDefs';
+import { FREE_DONE_LABEL, HOME_ORDER, STEPS_PERMISSION_LABEL, buildHomeItems, homeItem, type HomeActions } from './homeDefs';
 import { HOME_KEYS, composeHomeRows, resolveHomeKeys, type HomeRow } from './home';
 
 /** 당근 기준표(ota/carrot-ios-106-benefit-1020 814f2f4, FarmScreen HOME_BENEFITS + theme.ts carrotSoft #FFEEE2 · heartSoft #E6F5EA) — 대표님 10-20 20:23 「갖다 넣으면 똑같은 게 그냥 튀어 나와야」 */
@@ -152,5 +152,37 @@ describe('순수성 — react / react-native 를 가져오지 않는다(0.4.x �
     expect(imports.every(l => /^\s*import type\b/.test(l))).toBe(true);
     expect(imports.some(l => /['"]react(-native)?['"]/.test(l))).toBe(false);
     expect(src).not.toMatch(/from ['"]\.\/pages\/rows['"]/);                    // 0.7 전용 모듈에 기대지 않는다
+  });
+});
+
+describe('걸음 권한 없음 — 걸음 줄 버튼 「걸음 켜기」 (0.4.10, 대표님 20:11 아이폰 만보기 줄)', () => {
+  const steps = (c: Record<string, unknown>) => buildHomeItems(c as any, all()).find(i => i.key === 'steps')!;
+
+  it('기본(생략 · false)은 「보상 받기」', () => {
+    expect(steps({}).ctaLabel).toBe('보상 받기');
+    expect(steps({ stepsNeedsPermission: false }).ctaLabel).toBe('보상 받기');
+    expect(STEPS_PERMISSION_LABEL).toBe('걸음 켜기');
+  });
+  it('stepsNeedsPermission === true 일 때만 「걸음 켜기」 — 다른 값(문자열 · 숫자)은 켜짐으로 읽지 않는다', () => {
+    expect(steps({ stepsNeedsPermission: true }).ctaLabel).toBe('걸음 켜기');
+    for (const v of ['true', 1, 'yes', null]) expect(steps({ stepsNeedsPermission: v }).ctaLabel).toBe('보상 받기');
+  });
+  it('제목 · 부제 · 아이콘 · 바탕색은 그대로이고 다른 줄은 영향이 없다', () => {
+    const on = buildHomeItems({ steps: 4200, stepsNeedsPermission: true }, all());
+    const off = buildHomeItems({ steps: 4200 }, all());
+    const strip = (items: ReturnType<typeof buildHomeItems>) => items.map(i => ({ key: i.key, title: i.title, subtitle: i.subtitle, icon: i.icon, tint: i.tint, ctaLabel: i.ctaLabel }));
+    const a = strip(on);
+    const b = strip(off);
+    expect(a.find(i => i.key === 'steps')!.title).toBe('오늘 4,200걸음');
+    expect(a.map(i => i.key)).toEqual(b.map(i => i.key));
+    expect(a.filter(i => i.key !== 'steps')).toEqual(b.filter(i => i.key !== 'steps'));
+    expect({ ...a.find(i => i.key === 'steps')!, ctaLabel: '' }).toEqual({ ...b.find(i => i.key === 'steps')!, ctaLabel: '' });
+  });
+  it('서버 home_rows 가 걸음 줄 button 을 적어 두면 그 값이 덮는다(서버 규칙 그대로) · 안 적으면 걸음 켜기가 보인다', () => {
+    const base = buildHomeItems({ stepsNeedsPermission: true }, all());
+    const rows = (button: string): HomeRow[] => [{ key: 'steps', title: '', desc: '', button, badge: '', visible: true, order: 0 }];
+    const keys = resolveHomeKeys(base);
+    expect(composeHomeRows(base, rows(''), keys, {}).find(i => i.key === 'steps')!.ctaLabel).toBe('걸음 켜기');
+    expect(composeHomeRows(base, rows('받기'), keys, {}).find(i => i.key === 'steps')!.ctaLabel).toBe('받기');
   });
 });

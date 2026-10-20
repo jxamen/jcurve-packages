@@ -296,3 +296,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';   // ⚠ 0
 - 걸음 · 추천 앱 줄 바탕 = 당근 `carrotSoft` **#FFEEE2**, 무료 아이템 줄 바탕 = `heartSoft` **#E6F5EA**(당근 814f2f4 `src/ui/theme.ts`).
 - `homeContext.tints`(`steps` · `free_item` · `recommend` 세 줄만, 선택): 앱 테마의 soft 색이 따로 있으면 그것이 우선. 나머지 줄(퀴즈 · 출석 · 오늘의 미션 · 행운 찬스 · 초대)의 바탕색과 모든 아이콘은 못 바꾼다.
 - 추천 앱 줄의 캐릭터 그림은 앱 자산이라 `homeContext.recommend.icon` 으로 받는다(없으면 별 아이콘).
+
+## 0.4.10 — 걸음 권한이 없으면 걸음 줄 버튼 「걸음 켜기」 (`homeContext.stepsNeedsPermission`, 대표님 20:11 아이폰 만보기 줄)
+
+0.4.8~0.4.9 는 걸음 줄 버튼 글자를 「보상 받기」로 고정해서 앱이 권한 상태에 맞게 바꿀 수 없었다. 앱이 권한 상태를 `homeContext.stepsNeedsPermission` 으로 넘기면 된다.
+- `stepsNeedsPermission === true` 일 때만 걸음 줄 버튼이 「걸음 켜기」, 아니면(false · 생략 · 다른 값) 「보상 받기」. 제목(「오늘 N걸음」/「만보기」) · 부제 · 아이콘 · 바탕색은 그대로, 다른 줄은 영향 없음.
+- 서버 home_rows 가 걸음 줄 `button` 을 적어 두면 그 값이 덮는다(서버 규칙 그대로) — 걸음 켜기를 보이려면 서버 걸음 줄 버튼은 비워 둔다.
+- `homeContext={{ steps: todaySteps, stepsNeedsPermission: !stepsPermissionGranted, … }}`

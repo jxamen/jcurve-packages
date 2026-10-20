@@ -27,6 +27,11 @@ export type HomeContext = {
   pointUnit?: string;
   /** 오늘 걸음 수 — 주면 「오늘 N걸음」, 없으면 「만보기」 */
   steps?: number | null;
+  /**
+   * (0.4.10) 걸음 권한이 없다 — `true` 일 때만 걸음 줄 버튼이 「걸음 켜기」(아니면 「보상 받기」). 앱이 권한 상태를 보고 넘긴다(대표님 20:11 아이폰 만보기 줄).
+   * 제목 · 부제 · 아이콘 · 바탕색은 그대로, 다른 줄은 영향 없음. 서버 home_rows 가 걸음 줄 `button` 을 적어 두면 그 값이 덮는다(서버 규칙 그대로)
+   */
+  stepsNeedsPermission?: boolean;
   /** 무료 아이템 줄 — 하루 방문 칸 수(기본 3) · 남은 칸(left) · 받은 횟수(received) */
   free?: { total?: number; left?: number; received?: number };
   /** 무료 아이템 그림(앱 아이템 그림) — 없으면 🌱 */
@@ -41,6 +46,9 @@ export type HomeContext = {
    */
   tints?: Partial<Record<'steps' | 'free_item' | 'recommend', string>>;
 };
+
+/** 걸음 권한이 없을 때 걸음 줄 버튼 글자(stepsNeedsPermission) */
+export const STEPS_PERMISSION_LABEL = '걸음 켜기';
 
 const DEFAULT_NAME = '포인트';
 /** 당근의 soft 주황(carrotSoft) — 걸음 · 추천 줄 바탕. 당근 theme.ts(814f2f4) 값 */
@@ -106,7 +114,8 @@ export function homeItem(key: HomeRowKey, c: HomeContext, onPress: () => void): 
   const icon = key === 'free_item' ? (c.itemIcon ?? look.icon) : key === 'recommend' ? (c.recommend?.icon ?? look.icon) : look.icon;
   // 바탕색은 고정 — 앱 테마색을 따르는 걸음 · 무료 · 추천 세 줄만 앱 값(tints)이 우선
   const themed = key === 'steps' || key === 'free_item' || key === 'recommend' ? c.tints?.[key]?.trim() : undefined;
-  const item: BenefitQuickItem = { key, title, subtitle, ctaLabel: look.ctaLabel, icon, tint: themed || look.tint, onPress };
+  const ctaLabel = key === 'steps' && c.stepsNeedsPermission === true ? STEPS_PERMISSION_LABEL : look.ctaLabel;
+  const item: BenefitQuickItem = { key, title, subtitle, ctaLabel, icon, tint: themed || look.tint, onPress };
   if (key === 'free_item') {
     return { ...item, doneLabel: FREE_DONE_LABEL, ...freeState(Math.max(1, Math.floor(c.free?.total ?? 3)), c.free?.left, c.free?.received) };
   }
