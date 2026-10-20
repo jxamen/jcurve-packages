@@ -79,13 +79,18 @@ export function PageFrame({ title, onBack, swipeBack = true, theme, footer, chil
 }
 
 /** 줄 · 카드 안의 작은 버튼 — 기본 72x34, 끝난 상태는 `done` 바탕 */
-export function PageButton({ label, onPress, disabled, theme, width = PAGE_BUTTON.width, height = PAGE_BUTTON.height, on = true, big = false }: {
+export function PageButton({ label, onPress, disabled, theme, width = PAGE_BUTTON.width, height, on = true, big = false, fontSize, radius }: {
   label: string;
   onPress: () => void;
   disabled?: boolean;
   theme: MissionPageTheme;
   width?: number;
+  /** 높이 — 안 주면 줄 버튼 34 · 큰 단추 52(0.4.14: 큰 단추도 준 높이를 따른다) */
   height?: number;
+  /** (0.4.14) 글자 크기 — 안 주면 줄 버튼 14 · 큰 단추 16 */
+  fontSize?: number;
+  /** (0.4.14) 모서리 — 안 주면 줄 버튼 12 · 큰 단추 14 */
+  radius?: number;
   /** 끄면 바탕이 연한 주황 · 글자는 흐리게(받을 수 없는 칸) */
   on?: boolean;
   /** 큰 단추(가로 전체) — `width` 무시 */
@@ -94,8 +99,8 @@ export function PageButton({ label, onPress, disabled, theme, width = PAGE_BUTTO
   const bg = disabled ? theme.done : on ? theme.accent : theme.accentSoft;
   const fg = disabled ? theme.sub : on ? theme.accentText : theme.sub;
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled }} disabled={disabled} onPress={onPress}
-    style={({ pressed }) => [s.button, big ? s.big : { width, height }, { backgroundColor: bg }, pressed && !disabled && { opacity: 0.8 }]}>
-    <Text style={[big ? s.bigText : s.buttonText, { color: fg }]} numberOfLines={1} adjustsFontSizeToFit>{label}</Text>
+    style={({ pressed }) => [s.button, big ? s.big : { width, height: height ?? PAGE_BUTTON.height }, big && height != null && { height }, radius != null && { borderRadius: radius }, { backgroundColor: bg }, pressed && !disabled && { opacity: 0.8 }]}>
+    <Text style={[big ? s.bigText : s.buttonText, fontSize != null && { fontSize }, { color: fg }]} numberOfLines={1} adjustsFontSizeToFit>{label}</Text>
   </Pressable>;
 }
 
