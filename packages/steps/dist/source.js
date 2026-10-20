@@ -14,7 +14,32 @@ const IOS_DAYS = 1;
 const ANDROID_DAYS = 1;
 /** 헬스 커넥트 사용 가능(SdkAvailabilityStatus.SDK_AVAILABLE) */
 const HC_AVAILABLE = 3;
+/*
+ | **네이티브가 있는지 먼저 본다 — 없는 모듈을 require 하면 앱이 죽는다**(0.1.1, 당근 10-19 23:00 운영 사고).
+ | 앱이 다 뜬 뒤 함수 안에서 부른 require 는 Metro 가 `guardedLoadModule` 로 감싸, 모듈을 읽다 던진 오류를
+ | 호출한 쪽 try 로 돌려주지 않고 `ErrorUtils.reportFatalError` 로 보낸다(expo-updates 가 복구 못 하면 강제 종료).
+ | expo-sensors 의 Pedometer 는 읽을 때 `requireNativeModule('ExponentPedometer')`, 헬스 커넥트는
+ | `TurboModuleRegistry.getEnforcing('HealthConnect')` 라 옛 빌드(모듈 없음)에서 바로 이 길로 간다.
+ | 그래서 던지지 않는 조회로 있을 때만 require 한다.
+ */
+function nativeExists(name) {
+    try {
+        const core = require('expo-modules-core');
+        if (core.requireOptionalNativeModule?.(name))
+            return true;
+    }
+    catch { /* 아래 */ }
+    try {
+        const rn = require('react-native');
+        return !!(rn.TurboModuleRegistry?.get?.(name) ?? rn.NativeModules?.[name]);
+    }
+    catch {
+        return false;
+    }
+}
 function pedometer() {
+    if (!nativeExists('ExponentPedometer'))
+        return null;
     try {
         return require('expo-sensors').Pedometer;
     }
@@ -29,6 +54,8 @@ function healthConnect() {
         return Promise.resolve(null);
     if (!hcReady) {
         hcReady = (async () => {
+            if (!nativeExists('HealthConnect'))
+                return null;
             try {
                 const hc = require('react-native-health-connect');
                 if ((await hc.getSdkStatus()) !== HC_AVAILABLE)

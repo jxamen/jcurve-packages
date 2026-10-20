@@ -1,0 +1,34 @@
+import React from 'react';
+import { act, create } from 'react-test-renderer';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+vi.mock('react-native', () => ({
+ Platform: { OS: 'ios' }, StyleSheet: { create: (s: unknown) => s },
+ Text: 'Text', View: 'View', Pressable: 'Pressable', ScrollView: 'ScrollView', RefreshControl: 'RefreshControl',
+ AppState: { currentState: 'inactive', addEventListener: () => ({ remove() {} }) },
+ BackHandler: { addEventListener: () => ({ remove() {} }) }, Linking: { openSettings: vi.fn() },
+}));
+vi.mock('./source', () => ({ readToday: vi.fn(), watchSteps: () => () => {}, requestStepsPermission: vi.fn() }));
+import { readToday } from './source';
+import { StepsScreen } from './StepsScreen';
+import type { StepsState } from './stages';
+(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+const sample: StepsState = { ok: true, day: '2026-10-20', today_steps: 3450, daily_max: 25, earned_today: 10, stages: [1000, 2000, 3000, 4000, 5000].map((threshold, i) => ({ stage_id: String(i), threshold, points: 5, claimed: i < 2, available: true, ad_purpose: 'steps_' + i })) };
+async function screen(options: any = {}) {
+ const api = { fetchStages: vi.fn(async () => options.state ?? sample), sync: vi.fn(async () => ({})), claimStage: vi.fn(async () => ({ ...sample, gained: 5, balance: 15 })) };
+ const props = { api, showRewardedAd: vi.fn(async () => ({ earned: true })), onBalance: vi.fn(), onPendingClaim: vi.fn(), onClose: vi.fn(), memberId: '1', ...options };
+ let root: any; await act(async () => { root = create(React.createElement(StepsScreen, props)); });
+ const text = () => root.root.findAllByType('Text').map((n: any) => n.children.filter((c: any) => typeof c === 'string').join('')).join(' ');
+ const press = async () => { const button = root.root.findAllByType('Pressable').find((n: any) => n.props.accessibilityRole === 'button' && n.props.disabled !== undefined); await act(async () => { button.props.onPress(); }); };
+ return { root, props, text, press };
+}
+beforeEach(() => { vi.mocked(readToday).mockResolvedValue({ status: 'ready', steps: 3450, days: [], sensorOnly: false }); });
+describe('StepsScreen', () => {
+ it('calculates remaining stage and claim button after two claims', async () => { const s = await screen(); expect(s.text()).toContain('포인트를 1번 받을 수 있어요'); expect(s.text()).toContain('3,450'); await act(async () => s.root.unmount()); });
+ it('claims only after earned and refreshes balance', async () => { const s = await screen(); await s.press(); expect(s.props.api.claimStage).toHaveBeenCalledWith('2', sample.day, true); expect(s.props.onBalance).toHaveBeenCalled(); expect(s.text()).toContain('5P 받았어요'); await act(async () => s.root.unmount()); });
+ it('holds opened ads with an unconfirmed reward', async () => { const s = await screen({ showRewardedAd: vi.fn(async () => ({ earned: false, opened: true })) }); await s.press(); expect(s.props.api.claimStage).not.toHaveBeenCalled(); expect(s.props.onPendingClaim).toHaveBeenCalledWith(expect.objectContaining({ stage_id: '2', earned: false })); expect(s.text()).toContain('광고 확인을 기다리고 있어요'); await act(async () => s.root.unmount()); });
+ it('shows ad failure copy', async () => { const s = await screen({ showRewardedAd: async () => ({ earned: false, message: '광고를 불러오지 못했어요' }) }); await s.press(); expect(s.text()).toContain('광고를 불러오지 못했어요'); await act(async () => s.root.unmount()); });
+ it('shows read failures', async () => { const s = await screen({ api: { fetchStages: async () => { throw Error('offline'); } } }); expect(s.text()).toContain('걸음 수를 읽지 못했어요. 다시 시도해 주세요.'); await act(async () => s.root.unmount()); });
+ it('preserves server failure copy', async () => { const s = await screen({ api: { fetchStages: async () => { throw { code: 'daily_max' }; } } }); expect(s.text()).toContain('오늘은 여기까지예요. 내일 다시 만나요'); await act(async () => s.root.unmount()); });
+ it('disables claim at zero steps', async () => { const s = await screen({ state: { ...sample, today_steps: 0, earned_today: 0, stages: sample.stages.map(s => ({ ...s, claimed: false })) } }); expect(s.text()).toContain('1,000걸음 더 걸으면 5P'); await s.press(); expect(s.props.showRewardedAd).not.toHaveBeenCalled(); await act(async () => s.root.unmount()); });
+ it('disables claim and offers settings without permission', async () => { vi.mocked(readToday).mockResolvedValue({ status: 'denied', steps: null, days: [], sensorOnly: false }); const s = await screen(); expect(s.text()).toContain('걸음 수 권한이 꺼져 있어요'); await s.press(); expect(s.props.showRewardedAd).not.toHaveBeenCalled(); await act(async () => s.root.unmount()); });
+});
