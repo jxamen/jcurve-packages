@@ -135,3 +135,62 @@ import { BenefitQuickList } from '@jcurve/mission';
 `doneLabel?: string`은 완료 버튼과 접근성 문구에 쓰이며 기본값은 `완료`다.
 `buttonWidth?: number`는 모든 행의 버튼 폭으로 기본값은 100pt다(한 줄 표시).
 item의 `badge?: string`은 제목 옆 작은 배지를 표시한다.
+
+## 0.4.0 독립 페이지 6개 · 표준 줄 2개
+
+당근 화면 모양 그대로, 색 · 아이템 이름 · 데이터 · 콜백만 앱이 넣는다. **새 네이티브 의존성은 없다**(react · react-native 만).
+걸음 · 광고 · 보상 규칙은 패키지가 모른다. 광고 자리는 `footer?: ReactNode`(맨 아래)로 받는다.
+모든 페이지는 `‹ 제목` 머리글과 안드로이드 뒤로 가기 → `onBack` 을 가진다. 문구는 한국어 원문만(0.4.0에서 번역 표는 없음).
+
+```tsx
+import { FreeItemPage, freeItemRow, MissionPageTheme } from '@jcurve/mission';
+
+const theme: Partial<MissionPageTheme> = { accent: '#FFC23D', accentText: '#9A5B0E', itemName: '먹이', itemIcon: <Text>🐛</Text> };
+<FreeItemPage theme={theme} onBack={goBack} slots={slots} onClaim={(id) => claimSlot(id)} footer={<NativeAd />} />
+
+// 홈 「바로 받는 혜택」 목록에 넣는 표준 줄
+items={[freeItemRow({ itemName: '먹이', left: 2, onPress: () => openFreeItem() })]}
+```
+
+### 테마 · 공통
+
+| 이름 | 타입 | 기본값 | 설명 |
+| --- | --- | --- | --- |
+| `MissionPageTheme` | 타입 | — | `bg, card, text, sub, accent, accentText, accentSoft, line, done` + `character?`, `itemName?`, `itemIcon?` |
+| `DEFAULT_PAGE_THEME` | 값 | 주황 `#EE7A33` 계열, `itemName: '아이템'` | 기본 색 |
+| 페이지 `theme` | `Partial<MissionPageTheme>` | `{}` | 일부만 줘도 된다(나머지는 기본) |
+| `PAGE_BUTTON` | 값 | `{ width: 72, height: 34 }` | 줄 버튼 크기(carrot 홈과 같음) |
+
+### 페이지
+
+| 이름 | 주요 props (타입 · 기본값 · 설명) |
+| --- | --- |
+| `FreeItemPage` | `slots: FreeItemSlot[]` · `onClaim(slotId)` · `onBack` · `title?` 기본 「무료 {아이템} 받기」 · `subtitle?` · `theme?` · `footer?` · `buttonWidth?` 72 · `buttonHeight?` 34 |
+| `TodayMissionPage` | `rows: TodayMissionRow[]` · `bonus: number` · `claimed?` false · `onClaim()` (false/reject 면 실패 문구) · `onBack` · `title?` 「오늘의 미션」 · `theme?` · `footer?` · `buttonWidth?` · `buttonHeight?` |
+| `StepsPage` | `todaySteps: number` · `stages: StepsStage[]` · `stepsAvailable: boolean` · `onUpdate()` · `onClaim(stage)` · `onBack` · `earnedToday?` 0 · `everySteps?` 1000 · `guide?` · `title?` 「만보기」 · `theme?` · `footer?` |
+| `LuckyChancePage` | `freeLeft: number` · `adLeft: number` · `onDraw(ad: boolean)` · `waitUntil?` epoch ms · `prizes?` · `boost?` 0 · `boostText?` (0.4.1, 없으면 「확률권 N장」만) · `drawTitle?` 「행운 뽑기」(0.4.1) · `busy?` · `offerwall?: {name, onOpen}` · `onBack` · `title?` 「행운 찬스」 · `theme?` · `footer?` |
+| `InvitePage` | `code: string` · `locked?` false · `lockReason?` 'verify' · `onVerify()` · `onSignup?()` · `verifying?` · `inviterPoint` · `inviteePoint` · `inviterBoost?` 0 · `inviteeBoost?` 0 · `invited` · `waiting` · `joined?` · `rewarded?` · `onJoin(code) → {ok, message?}` · `onShare()` · `onBack` · `notice?` · `title?` 「친구 초대」 · `theme?` · `footer?` |
+| `AppHubPage` | `apps: AppHubItem[]` (`key, name, desc?, icon?, onOpen`) · `onBack` · `title?` 「추천 앱」 · `emptyText?` · `theme?` · `footer?` |
+
+슬롯 · 단계 · 줄 타입:
+
+| 타입 | 필드 |
+| --- | --- |
+| `FreeItemSlot` | `id, name, fromHour, toHour, step, reward, done, missed, claimable` — 상태는 앱이 정한다 |
+| `StepsStage` | `id, threshold(걸음), points, claimed` |
+| `TodayMissionRow` | `key, title, sub, done: boolean \| null, icon?, hidden?, onGo()` — `null` 은 모름(완료로 세지 않음) |
+
+### 만보기 — 패키지는 `@jcurve/steps` 를 가져오지 않는다
+
+`stepsAvailable={false}`(옛 빌드)면 걸음 수는 읽기만 되고, 「업데이트하면 걸음 보상을 받을 수 있어요」 안내와 「업데이트하기」 단추가 뜨며, 받기 단추는 `onUpdate()` 를 부른다(옛 바이너리 충돌 방지).
+
+### 표준 줄 (`rows.ts`)
+
+| 이름 | 인자 · 기본값 | 결과 |
+| --- | --- | --- |
+| `freeItemRow` | `itemName` · `left?` · `total?` 3 · `onPress` · `icon?` 🌱 · `tint?` · `hidden?` · `key?` 'freeItem' | 「무료 {item} 받기 · 하루 3번 광고 없이 받기 [받기]」. `left` 를 주면 칸 막대 「N번 남았어요」, 0 이면 「완료」 |
+| `appHubRow` | `onPress` · `subtitle?` 「추천 앱 둘러보기」 · `icon?` ⭐ · `tint?` · `hidden?` · `key?` 'apphub' | 「추천 앱 둘러보기 [보러가기]」 |
+
+### 친구 초대
+
+「간편 인증」이다(문자 인증 아님). 자격이 없으면 「간편 인증하면 초대할 수 있어요」 와 「간편 인증하기」 단추가 뜨고, 누르면 `onVerify` 만 부른다.
