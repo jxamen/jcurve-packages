@@ -74,16 +74,29 @@ public final class JCurveOfferwallViewManager extends SimpleViewManager<JCurveOf
             });
             addView(wall, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
             AdpopcornExtension.setCustomWebOfferwallLayout(activity, wall);
+            layoutWall();
+            post(relayout);
         }
-        // SDK WebView may request another measure after React Native's layout pass.
+        /*
+         | React Native never lays out children that native code adds (the SDK's ApRewardWebOfferWallLayout and
+         | its WebView), so on Android the wall stayed 0x0 and the chance tab was blank (2026-10-19 A32 test).
+         | Measure and place the wall ourselves on every layout pass and whenever the SDK asks for one.
+         */
+        private void layoutWall() {
+            if (wall == null || getWidth() <= 0 || getHeight() <= 0) return;
+            wall.measure(MeasureSpec.makeMeasureSpec(getWidth(), MeasureSpec.EXACTLY),
+                    MeasureSpec.makeMeasureSpec(getHeight(), MeasureSpec.EXACTLY));
+            wall.layout(0, 0, getWidth(), getHeight());
+        }
+        @Override protected void onLayout(boolean changed, int l, int t, int r, int b) {
+            super.onLayout(changed, l, t, r, b);
+            layoutWall();
+        }
+        private final Runnable relayout = this::layoutWall;
         @Override public void requestLayout() {
             super.requestLayout();
-            post(() -> {
-                if (wall == null) return;
-                measure(MeasureSpec.makeMeasureSpec(getWidth(), MeasureSpec.EXACTLY),
-                        MeasureSpec.makeMeasureSpec(getHeight(), MeasureSpec.EXACTLY));
-                layout(getLeft(), getTop(), getRight(), getBottom());
-            });
+            removeCallbacks(relayout);
+            post(relayout);
         }
         private void release() {
             if (wall == null) return;
