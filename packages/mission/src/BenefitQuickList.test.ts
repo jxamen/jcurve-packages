@@ -115,3 +115,38 @@ describe('0.4.3 한 줄 = 한 단추 · 두 번 누름 막기는 시간이 지�
     expect(b.onPress).not.toHaveBeenCalled();
   });
 });
+
+describe('0.4.4 서버 home_rows · free_item 기본 줄', () => {
+  it('새 prop 이 없으면 0.4.3 과 똑같이 그린다(줄 수 · 제목)', () => {
+    const tree = nodes(BenefitQuickList({ items: [item({ key: 'a' }), item({ key: 'b', title: '퀴즈' })] }));
+    expect(tree).toContain('출석');
+    expect(tree).toContain('퀴즈');
+    expect(tree.filter(isButton)).toHaveLength(2);
+  });
+  it('onFreeItem 을 주면 free_item 기본 줄이 맨 뒤에 생기고 누르면 onFreeItem — 없으면 줄이 없다', () => {
+    const go = vi.fn();
+    const tree = nodes(BenefitQuickList({ items: [item({ key: 'a' })], itemName: '양분', onFreeItem: go }));
+    expect(tree).toContain('무료 양분 받기');
+    expect(tree).toContain('하루 3번 들르면 양분 받기');
+    const rows = tree.filter(isButton);
+    expect(rows).toHaveLength(2);
+    rows[1].props.onPress();
+    expect(go).toHaveBeenCalledOnce();
+    expect(nodes(BenefitQuickList({ items: [item({ key: 'a' })], itemName: '양분' })).filter(isButton)).toHaveLength(1);
+  });
+  it('이미 free_item(맞춤표 기준)이 있는 앱에는 겹쳐서 만들지 않는다', () => {
+    const out = nodes(BenefitQuickList({ items: [item({ key: 'freeItem', title: '무료 양분 받기' })], homeKeys: { freeItem: 'free_item' }, itemName: '양분', onFreeItem: vi.fn() }));
+    expect(out.filter(isButton)).toHaveLength(1);
+  });
+  it('fetchJson 을 주면 서버 목록을 읽는 층(함수 컴포넌트)으로 넘기고, 없으면 그림을 바로 돌려준다', () => {
+    const fetchJson = vi.fn();
+    const out: any = BenefitQuickList({ items: [item({ key: 'a' })], fetchJson, onFreeItem: vi.fn(), onRow: vi.fn(), refreshKey: 1 });
+    expect(React.isValidElement(out)).toBe(true);
+    expect(typeof out.type).toBe('function');
+    expect(out.props.fetchJson).toBe(fetchJson);
+    expect(out.props.items.map((i: BenefitQuickItem) => i.key)).toEqual(['a', 'free_item']);
+    expect(out.props.refreshKey).toBe(1);
+    expect((BenefitQuickList({ items: [item()] }) as any).type).toBe('View');
+  });
+});
+

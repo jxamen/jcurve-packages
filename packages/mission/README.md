@@ -211,3 +211,26 @@ items={[freeItemRow({ itemName: '먹이', left: 2, onPress: () => openFreeItem()
 ```tsx
 <ShoppingMissionModal visible={shopping} fetchJson={fetchJson} source={from} safeAreaInsets={insets} onClose={() => setShopping(false)} />
 ```
+
+## 0.4.4 — 홈 「바로 받는 혜택」 목록을 서버(어드민)에서 앱별로 (대표님 10-20 17:12~17:14 「이 패키지 써」 · 「목록 순서는 어드민에서 앱별로」 · 「넣고 빼고 순서랑」)
+
+0.4.3 위에 0.5.0 의 서버 목록(`home.ts`)만 옮겼다 — **새 네이티브 0**(@jcurve/overlay · lottery 는 안 따라온다). `BenefitQuickList` 가 서버 `GET mission/home` 의 home_rows(어드민 `mission.home_rows`, 앱 DB별)를 **스스로 읽어** 앱 기본 items 에 적용한다.
+
+**앱에서 할 일 3줄**
+```tsx
+<BenefitQuickList
+  items={items}                                                     // 앱 기본 줄 그대로
+  fetchJson={fetchJson}                                             // ① 앱의 요청 함수 — 이것을 주면 서버 목록을 적용한다(없으면 예전 그대로)
+  homeKeys={{ bag: 'quiz1', pin: 'quiz2', ticket: 'lucky_chance' }} // ② 앱 줄 key → 서버 key(아래 9개) 맞춤표. key 가 이미 서버 key 와 같은 줄은 안 적어도 된다
+  itemName="양분" onFreeItem={() => openFreeItem()}                  // ③ 「무료 양분 받기 · 하루 3번 들르면 양분 받기」 기본 줄(없으면 그 줄을 안 만든다)
+  onRow={key => openByKey(key)}                                     // (선택) 서버 목록에 있는데 앱 items 에 없는 줄을 눌렀을 때 — 없으면 그런 줄은 안 그린다
+  refreshKey={tab === 'home'}                                       // (선택) 홈으로 돌아올 때 다시 읽기(앱이 앞으로 돌아올 때는 알아서 다시 읽는다)
+/>
+```
+서버 줄 key 는 9개 고정: `quiz1 · quiz2 · checkin · steps · free_item · today_missions · lucky_chance · invite · recommend`. 어드민 한 곳에서 앱별로 저장하면 모든 앱이 같은 key 로 말해 같은 목록이 된다.
+
+**규칙(앱별 서버 home_rows 를 그대로 따른다)** — 순서: home_rows 순서대로(서버 key 와 짝이 없는 앱 전용 줄은 그 뒤에) · 빼기: 서버 key 로 맞춘 앱 줄이 home_rows 에 없으면 안 그리고, 있어도 보임 false 면 숨김 · 넣기: home_rows 에 있는데 앱 items 에 없는 key 는 서버 값(제목 · 설명 · 버튼 · 배지)으로 기본 줄을 만들어 `onRow(key)` 에 넘긴다(`onRow` 없으면 안 만든다) ·
+home_rows 가 없거나 읽기에 실패하면 **앱 기본 그대로**(60초 캐시 · 앱이 앞으로 돌아올 때 · `refreshKey` 가 바뀔 때 다시). 누르는 동작 · 완료 · 칸 막대 · 앱이 숨긴 줄은 늘 앱 것 — 서버가 바꾸는 것은 제목 · 설명 · 버튼 · 배지 · 보임 · 순서뿐이다.
+**free_item 줄은 패키지 기본**: 앱 items 에 free_item(맞춤표 기준)이 이미 있으면(예: `freeItemRow` 를 쓰는 에그머니 · 머니트리 · 영테크) 겹치지 않는다.
+순수 함수도 내보낸다: `composeHomeRows` · `withFreeItemRow` · `freeItemHomeRow` · `resolveHomeKeys` · `fetchHomeConfig` · `applyHomeRows`(0.5.0 방식 — 서버에 없는 줄도 뒤에 남김) · `useHomeRows`.
+

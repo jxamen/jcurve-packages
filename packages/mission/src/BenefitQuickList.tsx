@@ -1,5 +1,7 @@
-import React, { type ReactNode } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import React, { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { AppState, View, Text, Pressable, StyleSheet } from 'react-native';
+import type { Requester } from './entry';
+import { composeHomeRows, EMPTY_HOME, fetchHomeConfig, resolveHomeKeys, withFreeItemRow, type HomeConfig, type HomeRowKey } from './home';
 
 export type BenefitQuickIcon = 'calendar' | 'bag' | 'pin' | 'star' | 'ticket' | 'friend';
 export type BenefitQuickItem = {
@@ -29,6 +31,21 @@ export type BenefitQuickListProps = {
   accentColor?: string;
   items: readonly BenefitQuickItem[];
   footer?: ReactNode;
+  /**
+   * (0.4.4) 앱의 요청 함수 — 있으면 서버 `GET mission/home` 의 home_rows(어드민 mission.home_rows)를 **스스로 읽어** items 에 적용한다(제목 · 설명 · 버튼 · 배지 · 보임 · 순서).
+   * 실패하면 앱 기본 그대로, 60초 캐시, 앱이 앞으로 돌아올 때 · `refreshKey` 가 바뀔 때 다시. 없으면 예전 그대로(적용 없음).
+   */
+  fetchJson?: Requester;
+  /** (0.4.4) 앱 줄 key → 서버 줄 key(9개 고정) 맞춤표. 안 적은 줄은 key 가 서버 key 와 같으면 그대로. 예: { bag: 'quiz1', pin: 'quiz2', ticket: 'lucky_chance' } */
+  homeKeys?: Readonly<Record<string, HomeRowKey>>;
+  /** (0.4.4) 기본 free_item 줄(「무료 ○○ 받기 · 하루 3번 들르면 ○○ 받기」)의 ○○ — 앱 아이템 이름. 없으면 「아이템」 */
+  itemName?: string;
+  /** (0.4.4) 기본 free_item 줄을 눌렀을 때. **없으면 그 줄을 만들지 않는다**. 앱 items 에 이미 free_item(맞춤표 기준)이 있으면 겹치지 않는다 */
+  onFreeItem?: () => void;
+  /** (0.4.4) 서버 home_rows 에 있는데 앱 items 에 짝이 없는 줄(퀴즈 · 출석 · 만보기 · 오늘 미션 · 행운 찬스 · 초대 · 추천 앱 …)을 누르면. **없으면 그 줄은 그리지 않는다** */
+  onRow?: (key: HomeRowKey) => void;
+  /** (0.4.4) 홈으로 돌아올 때마다 바꿔 주면(예: tab === 'home') 서버 목록을 다시 읽는다 */
+  refreshKey?: unknown;
 };
 
 const colors: Record<BenefitQuickIcon, string> = {
@@ -64,7 +81,49 @@ export function pressOnce(run: () => void, now: number = Date.now()): boolean {
 /** 시험용 — 누름 기록을 지운다 */
 export function resetTapGuard(): void { lastTap = 0; }
 
-export function BenefitQuickList({ title = '바로 받는 혜택', seeAllLabel, onSeeAll, accentColor = '#EE7A33', items, footer, doneLabel = '완료', buttonWidth = 100, buttonHeight = 40 }: BenefitQuickListProps) {
+/** (0.4.4) 앱이 앞으로 돌아올 때마다 올라가는 숫자 — 서버 목록을 다시 읽는 신호 */
+function useActiveTick(): number {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s: string) => { if (s === 'active') setN(v => v + 1); });
+
+    return () => sub.remove();
+  }, []);
+
+  return n;
+}
+
+type ViewProps = Omit<BenefitQuickListProps, 'fetchJson' | 'homeKeys' | 'itemName' | 'onFreeItem' | 'onRow' | 'refreshKey'>;
+
+/** 서버 home_rows 를 얹는 층 — 훅이 있어 `fetchJson` 이 있을 때만 쓴다(없으면 BenefitQuickList 가 그림만 바로 그린다) */
+function ServerRowsList({ fetchJson, homeKeys, onRow, refreshKey, items, view }: { fetchJson: Requester; homeKeys?: Readonly<Record<string, HomeRowKey>>; onRow?: (key: HomeRowKey) => void; refreshKey?: unknown; items: readonly BenefitQuickItem[]; view: Omit<ViewProps, 'items'> }) {
+  const [config, setConfig] = useState<HomeConfig>(EMPTY_HOME);
+  const tick = useActiveTick();
+  const key = useMemo(() => [refreshKey, tick], [refreshKey, tick]);
+  useEffect(() => {
+    let live = true;
+    void fetchHomeConfig(fetchJson).then(c => { if (live) setConfig(c); });
+
+    return () => { live = false; };
+  }, [fetchJson, key]);
+  const keys = useMemo(() => resolveHomeKeys(items, homeKeys), [items, homeKeys]);
+  const merged = useMemo(() => composeHomeRows(items, config.rows, keys, { onRow }), [items, config.rows, keys, onRow]);
+
+  return <QuickListView {...view} items={merged} />;
+}
+
+/**
+ * 「바로 받는 혜택」 목록. (0.4.4) `fetchJson` 을 주면 서버 home_rows 를 스스로 적용하고, `onFreeItem` 을 주면 free_item 기본 줄이 생긴다 — 둘 다 없으면 0.4.3 과 똑같이 그린다.
+ */
+export function BenefitQuickList(props: BenefitQuickListProps) {
+  const { fetchJson, homeKeys, itemName, onFreeItem, onRow, refreshKey, items, ...view } = props;
+  const base = withFreeItemRow(items, homeKeys, itemName, onFreeItem);
+  if (!fetchJson) return QuickListView({ ...view, items: base });
+
+  return <ServerRowsList fetchJson={fetchJson} homeKeys={homeKeys} onRow={onRow} refreshKey={refreshKey} items={base} view={view} />;
+}
+
+function QuickListView({ title = '바로 받는 혜택', seeAllLabel, onSeeAll, accentColor = '#EE7A33', items, footer, doneLabel = '완료', buttonWidth = 100, buttonHeight = 40 }: ViewProps) {
   const visible = items.filter(item => !item.hidden);
   return <View style={s.root}>
     {/* 제목도 「전체보기」도 없으면 머리 줄을 그리지 않는다(2026-10-19 당근 대표님 「바로 받는 혜택 · 혜택 전체보기 제거」) */}
