@@ -309,3 +309,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';   // ⚠ 0
 - **`homeContext.checkinDone?: boolean`**: `=== true` 일 때만 출석 줄이 완료 모양 — `done: true` + 버튼 글자 「출석 완료」(`CHECKIN_DONE_LABEL`), 다른 줄 done 과 같은 회색. 제목 · 부제 · 아이콘 · 바탕색은 그대로, 다른 값(문자열 · 1)은 완료로 안 읽는다.
 - **`homeContext.free.claimableNow?: boolean`**: `=== true` 이고 무료 줄이 done 이 아닐 때만 무료 줄에 배지 「지금 받기」(`FREE_NOW_BADGE`). 서버 home_rows 에 badge 가 있으면 서버 값이 이긴다(서버 badge 가 비어 있으면 우리 배지가 남는다).
 - 행운 찬스 부제는 코드 변경 없음(시험으로 고정): 아이템 이름(`itemName`)이 없으면 「하루 기회로 포인트 뽑기」, 있으면 「하루 기회로 {itemName} 뽑기」 — 앱 이름은 쓰지 않는다. 「보러가기」는 그대로.
+
+## 0.4.12 — 걸음(👟) · 무료 아이템(🌱) 줄 아이콘이 빈 칸으로 나오던 것 (대표님 10-20 감자밭 「오늘 N걸음」 줄)
+
+**원인**: `BenefitQuickList` 의 아이콘 그리기가 팔레트 이름(calendar · bag · pin · star · ticket · friend)이 아닌 문자열을 `<Text>` 없이 `<View>` 안에 그대로 내보냈다 — React Native 는 View 안의 문자열을 그리지 못해(iOS 는 빈 칸, Android 는 오류) 이모지 아이콘(걸음 👟 · 무료 아이템 🌱 · `freeItemRow` 기본 🌱)이 비었다.
+- **고침**: 팔레트 이름이 아닌 문자열은 `<Text>` 로 감싸 그린다(글자 크기 22). ReactNode 아이콘과 팔레트 아이콘은 그대로. 팔레트 판정은 자기 키만 본다(`toString` 같은 문자열이 팔레트로 읽히지 않게).
+- **시험**: 실제 렌더 트리를 걸어 「`<Text>` 가 아닌 부모 밑의 문자열」이 없음을 확인(`BenefitQuickListIcon.test.ts` — homeDefs 9줄 전부 포함). 수정 전 코드에서는 이 시험이 실패한다.
+- 겸해서 `index.ts` 가 상수 `CHECKIN_DONE_LABEL` · `FREE_NOW_BADGE` · `STEPS_PERMISSION_LABEL` 을 export 한다(0.7.8 과 같게).
