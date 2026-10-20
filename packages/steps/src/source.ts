@@ -26,7 +26,29 @@ type HcMod = {
   aggregateGroupByDuration(options: { recordType: 'Steps'; timeRangeFilter: { operator: 'between'; startTime: string; endTime: string }; timeRangeSlicer: { duration: 'DAYS'; length: number } }): Promise<Array<{ startTime: string; result: { COUNT_TOTAL?: number } }>>;
 };
 
+/*
+ | **네이티브가 있는지 먼저 본다 — 없는 모듈을 require 하면 앱이 죽는다**(0.1.1, 당근 10-19 23:00 운영 사고).
+ | 앱이 다 뜬 뒤 함수 안에서 부른 require 는 Metro 가 `guardedLoadModule` 로 감싸, 모듈을 읽다 던진 오류를
+ | 호출한 쪽 try 로 돌려주지 않고 `ErrorUtils.reportFatalError` 로 보낸다(expo-updates 가 복구 못 하면 강제 종료).
+ | expo-sensors 의 Pedometer 는 읽을 때 `requireNativeModule('ExponentPedometer')`, 헬스 커넥트는
+ | `TurboModuleRegistry.getEnforcing('HealthConnect')` 라 옛 빌드(모듈 없음)에서 바로 이 길로 간다.
+ | 그래서 던지지 않는 조회로 있을 때만 require 한다.
+ */
+function nativeExists(name: string): boolean {
+  try {
+    const core = require('expo-modules-core') as { requireOptionalNativeModule?: (n: string) => unknown };
+    if (core.requireOptionalNativeModule?.(name)) return true;
+  } catch { /* 아래 */ }
+  try {
+    const rn = require('react-native') as { TurboModuleRegistry?: { get?: (n: string) => unknown }; NativeModules?: Record<string, unknown> };
+    return !!(rn.TurboModuleRegistry?.get?.(name) ?? rn.NativeModules?.[name]);
+  } catch {
+    return false;
+  }
+}
+
 function pedometer(): PedometerMod | null {
+  if (!nativeExists('ExponentPedometer')) return null;
   try {
     return (require('expo-sensors') as { Pedometer: PedometerMod }).Pedometer;
   } catch {
@@ -41,6 +63,7 @@ function healthConnect(): Promise<HcMod | null> {
   if (Platform.OS !== 'android') return Promise.resolve(null);
   if (!hcReady) {
     hcReady = (async () => {
+      if (!nativeExists('HealthConnect')) return null;
       try {
         const hc = require('react-native-health-connect') as HcMod;
         if ((await hc.getSdkStatus()) !== HC_AVAILABLE) return null;
