@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.lotteryChipCount = exports.lotteryGoldHint = exports.lotteryWinnerLine = exports.lotteryResultHeadline = exports.lotteryResultTitle = exports.lotteryTierTitle = exports.lotteryTierAmount = void 0;
+exports.lotteryChipCount = exports.lotteryGoldHint = exports.DEFAULT_QUIZ = exports.lotteryWinnerLine = exports.lotteryResultHeadline = exports.lotteryResultTitle = exports.lotteryTierTitle = exports.lotteryTierAmount = void 0;
 exports.parseLotteryState = parseLotteryState;
 exports.parseWinners = parseWinners;
 exports.toLotteryError = toLotteryError;
@@ -17,6 +17,8 @@ exports.lotteryMoreMissionLabel = lotteryMoreMissionLabel;
 exports.lotteryWinnerParts = lotteryWinnerParts;
 exports.lotteryMissionButton = lotteryMissionButton;
 exports.lotteryMissionHint = lotteryMissionHint;
+exports.lotteryGroupTiers = lotteryGroupTiers;
+exports.lotteryTierRow = lotteryTierRow;
 exports.goldenRow = goldenRow;
 exports.goldenTier = goldenTier;
 exports.opensWithAd = opensWithAd;
@@ -221,17 +223,59 @@ function lotteryMissionButton(t) {
     return { label: '받기', kind: 'earn' };
 }
 /**
- * 미션 줄 설명 — 늘 **받는 방법**으로 말한다(0.1.4, 대표님 16:37 「미션한개 다섯 개를 해서 내가 복권을 받았다는 건가?」: 「미션 1개로 받았어요」는 이미 받은 이유로 읽혔다).
- * 1 · 5 · 10 · 20 · 30 줄이 같은 꼴 — 「미션 N개 하면 받아요」(받았든 안 받았든 열 수 있든). 일부 했으면 「미션 M개 더 하면 받아요」.
- * 하루 한도에 막힌 줄은 버튼 「내일 받아요」와 같은 말 — 「내일 다시 받을 수 있어요」.
- * 한 줄에 들어오게 짧다(대표님 16:47 「쇼핑 플레이스 미션 한 개로 받았어요. 이거를 두줄로 안 밀리게. 한 줄로 카피 줄여」 — 「쇼핑 · 플레이스」는 뺐다)
+ * (0.1.5, 대표님 17:06:56 「미션 말고 쇼핑 · 플레이스 퀴즈로」) 미션 줄 설명의 이름 — 기본 「쇼핑 · 플레이스 퀴즈」. 앱마다 이름이 다르면 `quiz` 로 바꾼다(예: 「미션」).
  */
-function lotteryMissionHint(t) {
+exports.DEFAULT_QUIZ = '쇼핑 · 플레이스 퀴즈';
+const WAIT_HINT = '내일 다시 받을 수 있어요';
+/**
+ * 미션 줄 설명 — 늘 **받는 방법**으로 말한다(0.1.4, 대표님 16:37 「미션한개 다섯 개를 해서 내가 복권을 받았다는 건가?」: 「미션 1개로 받았어요」는 이미 받은 이유로 읽혔다).
+ * 1 · 5 · 10 · 20 · 30 줄이 같은 꼴 — 「쇼핑 · 플레이스 퀴즈 N개 하면 받아요」(받았든 안 받았든 열 수 있든). 일부 했으면 「쇼핑 · 플레이스 퀴즈 M개 더 하면 받아요」.
+ * 하루 한도에 막힌 줄은 버튼 「내일 받아요」와 같은 말 — 「내일 다시 받을 수 있어요」. 한 줄에 들어오게 짧다(대표님 16:47). `quiz` 로 이름을 바꿀 수 있다(0.1.5)
+ */
+function lotteryMissionHint(t, quiz = exports.DEFAULT_QUIZ) {
     if (t.missionState === 'capped')
-        return '내일 다시 받을 수 있어요';
+        return WAIT_HINT;
     if (t.missionState === 'locked' && t.missionsLeft > 0 && t.missionsLeft < t.missions)
-        return '미션 ' + t.missionsLeft + '개 더 하면 받아요';
-    return '미션 ' + t.missions + '개 하면 받아요';
+        return quiz + ' ' + t.missionsLeft + '개 더 하면 받아요';
+    return quiz + ' ' + t.missions + '개 하면 받아요';
+}
+const stepOfTen = (t) => t.missions >= 10 && t.missions % 10 === 0;
+const sameTable = (a, b) => a.maxWon === b.maxWon && a.maxPoints === b.maxPoints && a.unit === b.unit;
+/**
+ * (0.1.5, 대표님 17:06 「20개 · 30개짜리는 없애고 열 개짜리를 10개마다 받을 수 있다」) 서버는 1 · 5 · 10 · 20 · 30 문턱을 그대로 준다(20 · 30 은 10 과 같은 표).
+ * **같은 표(maxWon · maxPoints · unit) + 문턱이 10 의 배수(≥10)** 인 이어진 단계들을 한 묶음으로 — 나머지(1 · 5 · 표가 다른 단계 · 20 · 30 이 없는 3단계)는 한 단계씩.
+ */
+function lotteryGroupTiers(tiers) {
+    const groups = [];
+    for (const t of tiers) {
+        const head = groups[groups.length - 1]?.[0];
+        if (head && stepOfTen(head) && stepOfTen(t) && sameTable(head, t))
+            groups[groups.length - 1].push(t);
+        else
+            groups.push([t]);
+    }
+    return groups;
+}
+/**
+ * (0.1.5) 묶음 → 한 줄. 한 단계면 예전 그대로(버튼 · 설명), 묶였으면 설명 「쇼핑 · 플레이스 퀴즈 10개마다 받아요」 + 버튼 「열기」 / 열 수 있는 장이 둘 이상이면 「열기 N」
+ * (단계마다 미션 복권은 하루 한 장 — 열 수 있는 장 수 = missionState 가 ready 인 단계 수), 누르면 안 연 첫 단계. 못 받은 단계가 남았으면 「받기」, 한도에 막혔으면 「내일 받아요」, 다 열었으면 「받기 완료」
+ */
+function lotteryTierRow(group, quiz = exports.DEFAULT_QUIZ) {
+    const rep = group[0];
+    const earnTier = (group.find(t => t.missionState === 'locked') ?? rep).tier;
+    if (group.length === 1) {
+        const b = lotteryMissionButton(rep);
+        return { rep, tiers: group, hint: lotteryMissionHint(rep, quiz), button: b, openTier: b.kind === 'open' ? rep.tier : null, earnTier };
+    }
+    const every = quiz + ' ' + rep.missions + '개마다 받아요';
+    const ready = group.filter(t => t.missionState === 'ready');
+    if (ready.length > 0)
+        return { rep, tiers: group, hint: every, button: { label: ready.length > 1 ? '열기 ' + ready.length : '열기', kind: 'open' }, openTier: ready[0].tier, earnTier };
+    if (group.some(t => t.missionState === 'locked'))
+        return { rep, tiers: group, hint: every, button: { label: '받기', kind: 'earn' }, openTier: null, earnTier };
+    if (group.some(t => t.missionState === 'capped'))
+        return { rep, tiers: group, hint: WAIT_HINT, button: { label: '내일 받아요', kind: 'wait' }, openTier: null, earnTier };
+    return { rep, tiers: group, hint: every, button: { label: '받기 완료', kind: 'done' }, openTier: null, earnTier };
 }
 /** (0.1.4) 황금 복권 줄 설명 — 한 줄: 광고가 열리면 「하루 1번 광고 보고 받아요」, 광고 없이 열리면(`basicAd` false) 「하루 1번 받아요」 */
 const lotteryGoldHint = (basicAd) => (basicAd ? '하루 1번 광고 보고 받아요' : '하루 1번 받아요');

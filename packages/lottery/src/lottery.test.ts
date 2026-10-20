@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  createLotteryOpener, fetchLotteryState, goldenLines, goldenRow, goldenTier, lotteryChipCount, lotteryMissionButton, lotteryMissionHint, lotteryMoreLabel, lotteryMoreMissionLabel,
+  createLotteryOpener, fetchLotteryState, goldenLines, goldenRow, goldenTier, lotteryChipCount, lotteryMissionButton, lotteryMissionHint, lotteryGroupTiers, lotteryTierRow, lotteryMoreLabel, lotteryMoreMissionLabel,
   lotteryResultHeadline, lotteryResultTitle, lotteryTierAmount, lotteryTierButton, lotteryTierHint, lotteryTierTitle, lotteryWinnerLine, lotteryWinnerParts,
   newLotteryKey, nextTierToEarn, openLottery, parseLotteryState, parseWinners, readyTiers, toLotteryError, type LotteryTier,
 } from './lottery';
@@ -179,11 +179,11 @@ describe('포인트 표(unit:points) — 읽기와 문구(0.1.3)', () => {
     expect(lotteryMissionButton({ missionState: 'locked' })).toEqual({ label: '받기', kind: 'earn' });
     expect(lotteryMissionButton({ missionState: 'opened' })).toEqual({ label: '받기 완료', kind: 'done' });
     expect(lotteryMissionButton({ missionState: 'capped' })).toEqual({ label: '내일 받아요', kind: 'wait' });
-    expect(lotteryMissionHint({ missions: 1, missionsLeft: 1, missionState: 'locked' })).toBe('미션 1개 하면 받아요');
-    expect(lotteryMissionHint({ missions: 5, missionsLeft: 3, missionState: 'locked' })).toBe('미션 3개 더 하면 받아요');
+    expect(lotteryMissionHint({ missions: 1, missionsLeft: 1, missionState: 'locked' })).toBe('쇼핑 · 플레이스 퀴즈 1개 하면 받아요');
+    expect(lotteryMissionHint({ missions: 5, missionsLeft: 3, missionState: 'locked' })).toBe('쇼핑 · 플레이스 퀴즈 3개 더 하면 받아요');
     // 받은 뒤(ready · opened)에도 같은 말 — 「미션 N개로 받았어요」 폐지(0.1.4, 대표님 16:37)
-    expect(lotteryMissionHint({ missions: 5, missionsLeft: 0, missionState: 'opened' })).toBe('미션 5개 하면 받아요');
-    expect(lotteryMissionHint({ missions: 10, missionsLeft: 0, missionState: 'ready' })).toBe('미션 10개 하면 받아요');
+    expect(lotteryMissionHint({ missions: 5, missionsLeft: 0, missionState: 'opened' })).toBe('쇼핑 · 플레이스 퀴즈 5개 하면 받아요');
+    expect(lotteryMissionHint({ missions: 10, missionsLeft: 0, missionState: 'ready' })).toBe('쇼핑 · 플레이스 퀴즈 10개 하면 받아요');
     expect(lotteryMissionHint({ missions: 5, missionsLeft: 0, missionState: 'capped' })).toBe('내일 다시 받을 수 있어요');
   });
   it('미션 줄 설명은 어느 상태에서도 「받았어요」를 쓰지 않고, 1 · 5 · 10 · 20 · 30 줄이 같은 문장 꼴이다(0.1.4)', () => {
@@ -195,10 +195,63 @@ describe('포인트 표(unit:points) — 읽기와 문구(0.1.3)', () => {
         }
       }
       for (const missionState of ['ready', 'opened'] as const) {
-        expect(lotteryMissionHint({ missions, missionsLeft: 0, missionState })).toBe('미션 ' + missions + '개 하면 받아요');
+        expect(lotteryMissionHint({ missions, missionsLeft: 0, missionState })).toBe('쇼핑 · 플레이스 퀴즈 ' + missions + '개 하면 받아요');
       }
-      expect(lotteryMissionHint({ missions, missionsLeft: missions, missionState: 'locked' })).toBe('미션 ' + missions + '개 하면 받아요');   // 안 했으면 ready · opened 와 같은 문장
+      expect(lotteryMissionHint({ missions, missionsLeft: missions, missionState: 'locked' })).toBe('쇼핑 · 플레이스 퀴즈 ' + missions + '개 하면 받아요');   // 안 했으면 ready · opened 와 같은 문장
     }
+  });
+  it('줄 이름은 바꿀 수 있다(quiz) — 기본은 「쇼핑 · 플레이스 퀴즈」(0.1.5)', () => {
+    expect(lotteryMissionHint({ missions: 5, missionsLeft: 5, missionState: 'locked' }, '미션')).toBe('미션 5개 하면 받아요');
+    expect(lotteryMissionHint({ missions: 5, missionsLeft: 2, missionState: 'locked' }, '미션')).toBe('미션 2개 더 하면 받아요');
+    expect(lotteryMissionHint({ missions: 5, missionsLeft: 5, missionState: 'capped' }, '미션')).toBe('내일 다시 받을 수 있어요');
+  });
+  describe('줄 묶기 — 같은 표 + 문턱이 10 의 배수(0.1.5, 대표님 17:06 「열 개짜리를 10개마다 받을 수 있다」)', () => {
+    type S = 'locked' | 'ready' | 'opened' | 'capped';
+    const t = (n: number, missions: number, max: number, ms: S) => ({
+      tier: n, missions, maxWon: max, maxPoints: max * 1.6, state: ms, missionState: ms, missionsLeft: ms === 'locked' ? missions : 0,
+      tickets: ms === 'ready' || ms === 'opened' ? 1 : 0, unopened: ms === 'ready' ? 1 : 0, basic: 0, basicUnopened: 0, prize: null,
+    });
+    const five = (s: [S, S, S, S, S]) => parseLotteryState({
+      ok: true, day: 'd', wonToPoint: 160, participated: 0, unopened: 0,
+      tiers: [t(1, 1, 100, s[0]), t(2, 5, 500, s[1]), t(3, 10, 1000, s[2]), t(4, 20, 1000, s[3]), t(5, 30, 1000, s[4])],
+    })!;
+    const row = (s: [S, S, S, S, S]) => lotteryTierRow(lotteryGroupTiers(five(s).tiers)[2]);
+
+    it('1 · 5 · 10 · 20 · 30 → 1 · 5 · 10(10 · 20 · 30 한 줄) 세 줄 · 20 · 30 이 없거나 표가 다르면 묶지 않는다 · 5 는 10 의 배수가 아니다', () => {
+      expect(lotteryGroupTiers(five(['locked', 'locked', 'locked', 'locked', 'locked']).tiers).map(g => g.map(x => x.missions))).toEqual([[1], [5], [10, 20, 30]]);
+      expect(lotteryGroupTiers(five(['locked', 'locked', 'locked', 'locked', 'locked']).tiers.slice(0, 3)).map(g => g.length)).toEqual([1, 1, 1]);
+      const other = parseLotteryState({ ok: true, tiers: [t(3, 10, 1000, 'locked'), t(4, 20, 2000, 'locked')] })!.tiers;
+      expect(lotteryGroupTiers(other).map(g => g.length)).toEqual([1, 1]);
+      // 표가 같아도 문턱 1 · 5 는 10 의 배수가 아니라 묶이지 않는다
+      const flatTable = parseLotteryState({ ok: true, tiers: [t(1, 1, 1000, 'locked'), t(2, 5, 1000, 'locked'), t(3, 10, 1000, 'locked'), t(4, 20, 1000, 'locked')] })!.tiers;
+      expect(lotteryGroupTiers(flatTable).map(g => g.map(x => x.missions))).toEqual([[1], [5], [10, 20]]);
+    });
+    it('묶인 줄 설명은 「쇼핑 · 플레이스 퀴즈 10개마다 받아요」 · 열 수 있는 장 수만큼 「열기 N」 · 누르면 안 연 첫 단계', () => {
+      const m = row(['locked', 'locked', 'locked', 'locked', 'locked']);
+      expect(m.hint).toBe('쇼핑 · 플레이스 퀴즈 10개마다 받아요');
+      expect(m.hint).not.toMatch(/받았어요|20|30/);
+      expect(m.rep.missions).toBe(10);
+      expect(row(['opened', 'opened', 'ready', 'locked', 'locked']).button).toEqual({ label: '열기', kind: 'open' });
+      expect(row(['opened', 'opened', 'ready', 'locked', 'locked']).openTier).toBe(3);
+      const two = row(['opened', 'opened', 'ready', 'ready', 'locked']);
+      expect([two.button.label, two.openTier]).toEqual(['열기 2', 3]);
+      expect(row(['opened', 'opened', 'ready', 'ready', 'ready']).button.label).toBe('열기 3');
+    });
+    it('하나 열고 나면 남은 장 수로 · 못 받은 단계가 남으면 「받기」(earnTier 는 그 단계) · 모두 열면 「받기 완료」 · 한도면 「내일 받아요」', () => {
+      expect(row(['opened', 'opened', 'opened', 'ready', 'locked']).button.label).toBe('열기');
+      const earn = row(['opened', 'opened', 'opened', 'opened', 'locked']);
+      expect([earn.button, earn.openTier, earn.earnTier]).toEqual([{ label: '받기', kind: 'earn' }, null, 5]);
+      expect(row(['opened', 'opened', 'opened', 'opened', 'opened']).button).toEqual({ label: '받기 완료', kind: 'done' });
+      const wait = row(['opened', 'opened', 'opened', 'capped', 'capped']);
+      expect([wait.button, wait.hint]).toEqual([{ label: '내일 받아요', kind: 'wait' }, '내일 다시 받을 수 있어요']);
+    });
+    it('묶이지 않은 줄(1 · 5)은 한 단계 설명과 패키지 버튼 그대로 · quiz 이름을 따른다', () => {
+      const [g1, g5] = lotteryGroupTiers(five(['ready', 'locked', 'locked', 'locked', 'locked']).tiers);
+      const a = lotteryTierRow(g1);
+      expect([a.hint, a.button, a.openTier]).toEqual(['쇼핑 · 플레이스 퀴즈 1개 하면 받아요', { label: '열기', kind: 'open' }, 1]);
+      expect(lotteryTierRow(g5, '미션').hint).toBe('미션 5개 하면 받아요');
+      expect(lotteryTierRow(lotteryGroupTiers(five(['locked', 'locked', 'locked', 'locked', 'locked']).tiers)[2], '미션').hint).toBe('미션 10개마다 받아요');
+    });
   });
   it('goldenRow: 기본 복권이 있는 단계, 없으면 null · goldenLines 포인트 표는 P 만', () => {
     const mk = (tiers: any[]) => parseLotteryState({ ok: true, day: 'd', wonToPoint: 160, participated: 0, unopened: 0, tiers: tiers.map((t, i) => ({ tier: i + 1, missions: i + 1, maxWon: 100, maxPoints: 160, state: 'locked', missionState: 'locked', missionsLeft: 1, tickets: 0, unopened: 0, basic: 0, basicUnopened: 0, ...t })) });

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, Animated, BackHandler, Dimensions, Easing, Modal, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View, type TextProps } from 'react-native';
 import {
-  goldenLines, goldenRow, lotteryGoldHint, lotteryMissionButton, lotteryMissionHint, lotteryMoreLabel, lotteryMoreMissionLabel, lotteryResultHeadline, lotteryTierTitle, lotteryWinnerParts,
+  DEFAULT_QUIZ, goldenLines, goldenRow, lotteryGoldHint, lotteryGroupTiers, lotteryTierRow, lotteryMoreLabel, lotteryMoreMissionLabel, lotteryResultHeadline, lotteryTierTitle, lotteryWinnerParts,
   type LotteryOpenResult, type LotteryState, type LotteryTier, type LotteryWinner,
 } from './lottery';
 
@@ -162,21 +162,13 @@ function BottomSheet({ open, onClose, theme, topInset, bottomInset = 0, presenta
   </Layer>;
 }
 
-/** 왼쪽 숫자 카드 아이콘 — 단계마다 다른 색(참고 캡처의 100 · 500 · 1000 카드). 황금 줄은 별 */
-function NumberCard({ label, color }: { label: string; color: string }) {
-  return <View accessible={false} importantForAccessibility="no-hide-descendants" style={s.cardWrap}>
-    <View style={[s.cardBack, { backgroundColor: color }]} />
-    <View style={[s.cardFront, { backgroundColor: color }]}><Txt style={s.cardText} numberOfLines={1} adjustsFontSizeToFit>{label}</Txt></View>
-  </View>;
-}
-
-function CardRow({ icon, color, title, hint, button, ad, adLabel, theme, busy, onPress }: {
-  icon: string; color: string; title: string; hint: string; button: { label: string; kind: 'open' | 'earn' | 'done' | 'wait' }; ad?: boolean; adLabel?: string; theme: LotteryTheme; busy?: boolean; onPress: () => void;
+/** 목록 줄 — (0.1.5, 대표님 17:08) 왼쪽 숫자 박스(1 · 5 · 10 · 황금 별)는 없다: 제목 · 설명이 맨 왼쪽부터, 오른쪽에 버튼 */
+function CardRow({ title, hint, button, ad, adLabel, theme, busy, onPress }: {
+  title: string; hint: string; button: { label: string; kind: 'open' | 'earn' | 'done' | 'wait' }; ad?: boolean; adLabel?: string; theme: LotteryTheme; busy?: boolean; onPress: () => void;
 }) {
   const active = button.kind === 'open' || button.kind === 'earn';
 
   return <Pressable accessibilityRole="button" accessibilityLabel={title + ', ' + button.label + (ad ? ', ' + (adLabel ?? '광고') : '')} accessibilityState={{ disabled: !active || !!busy }} disabled={!active || !!busy} onPress={onPress} style={s.row}>
-    <NumberCard label={icon} color={color} />
     <View style={s.rowCopy}><Txt style={[s.rowTitle, { color: theme.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{title}</Txt><Txt style={[s.rowHint, { color: theme.sub }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{hint}</Txt></View>
     <View pointerEvents="none" style={[s.rowButton, { backgroundColor: active ? theme.accentSoft : theme.done }]}>
       <Txt style={[s.rowButtonText, { color: active ? theme.accent : theme.sub }]}>{button.label}</Txt>
@@ -185,17 +177,13 @@ function CardRow({ icon, color, title, hint, button, ad, adLabel, theme, busy, o
   </Pressable>;
 }
 
-/** 단계마다 다른 카드 색 — 첫 색은 앱 강조색, 나머지는 고정 보조색(마지막은 황금) */
-const cardColors = (c: LotteryTheme, n: number): string[] => [c.accent, '#8E6CF0', '#F28C28', '#35A7F0', '#2DB77E'].slice(0, Math.max(1, n));
-const GOLD_COLOR = '#E8B100';
-
 /**
  * 복권 시트 — 참고 캡처(IMG_9331) 구성: 딤 · 둥근 흰 시트 · X · 손잡이 → 큰 제목 2줄 + 회색 한 줄 → 회색 둥근 당첨 띠(**서버 winners 의 실제 기록이 있을 때만**, 가짜 이름 없음)
  * → 줄 목록(왼쪽 숫자 카드 · 「최대 ○ 복권」 굵게 · 회색 설명 · 오른쪽 「받기」 연한 버튼 / 「받기 완료」 회색) → 맨 아래 큰 「한 번 더! ○ 복권 받기」 + 「🔔 복권 받게 알림 켜기 ›」 링크.
  * 줄: 미션 복권 줄(단계마다, 미션 복권만의 상태) + 하루 기본(황금) 복권 줄(있을 때). 포인트 표 단계는 「최대 1,000P 복권」(unit:'points'), 원 표는 「최대 100원 복권」.
  * 광고가 바로 열리는 줄(황금 복권을 여는 버튼)에만 「광고」 칩. `onOpen(tier, src)` — 미션 줄은 'mission', 황금 줄은 'basic'(앱은 'basic' 일 때 보상형 광고를 먼저 보여 준다).
  */
-export function LotterySheet({ open, state, winners, busy, onOpen, onEarn, onMore, onClose, onEnableNotify, notifyLabel, notify, theme, renderNative, topInset, bottomInset, basicAd = true, adLabel, presentation }: {
+export function LotterySheet({ open, state, winners, busy, onOpen, onEarn, onMore, onClose, onEnableNotify, notifyLabel, notify, theme, renderNative, topInset, bottomInset, basicAd = true, adLabel, presentation, quiz = DEFAULT_QUIZ }: {
   open: boolean;
   state: LotteryState | null;
   winners?: LotteryWinner[];
@@ -221,6 +209,8 @@ export function LotterySheet({ open, state, winners, busy, onOpen, onEarn, onMor
   basicAd?: boolean;
   adLabel?: string;
   presentation?: LotteryPresentation;
+  /** (0.1.5) 줄 설명의 이름 — 기본 「쇼핑 · 플레이스 퀴즈」(「쇼핑 · 플레이스 퀴즈 5개 하면 받아요」). 앱마다 다르면 바꾼다 */
+  quiz?: string;
 } & ThemeProp) {
   if (!open || !state) return null;
   const c = th(theme);
@@ -228,7 +218,6 @@ export function LotterySheet({ open, state, winners, busy, onOpen, onEarn, onMor
   const next = state.tiers.find(t => t.missionState === 'locked') ?? null;
   const more = next ? lotteryMoreLabel(state) : null;
   const last = winners && winners.length > 0 ? winners[0] : null;
-  const colors = cardColors(c, state.tiers.length);
   const parts = last ? lotteryWinnerParts(last) : null;
 
   return <BottomSheet open={open} onClose={onClose} theme={c} topInset={topInset} bottomInset={bottomInset} presentation={presentation}>
@@ -236,13 +225,14 @@ export function LotterySheet({ open, state, winners, busy, onOpen, onEarn, onMor
     <Txt style={[s.sheetSub, { color: c.sub }]}>받은 복권은 매일 자정에 사라져요</Txt>
     {parts ? <View style={[s.ticker, { backgroundColor: c.bg }]}><Txt style={[s.tickerText, { color: c.text }]} numberOfLines={1}>{parts.pre}<Txt style={{ color: c.accent, fontWeight: '800' }}>{parts.amount}</Txt>{parts.post}</Txt></View> : null}
     <View style={s.rows}>
-      {state.tiers.map((t, i) => {
-        const b = lotteryMissionButton(t);
+      {lotteryGroupTiers(state.tiers).map(group => {
+        const r = lotteryTierRow(group, quiz);
 
-        return <CardRow key={t.tier} icon={String(t.missions)} color={colors[i % colors.length]} title={lotteryTierTitle(t)} hint={lotteryMissionHint(t)} button={b} theme={c} busy={busy}
-          onPress={() => { if (b.kind === 'open') onOpen(t.tier, 'mission'); else if (b.kind === 'earn') onEarn(t.tier); }} />;
+        // 같은 표 + 문턱이 10 의 배수인 이어진 단계(10 · 20 · 30)는 한 줄 — 「열기 2」처럼 열 수 있는 장 수, 누르면 안 연 첫 단계(0.1.5)
+        return <CardRow key={r.rep.tier} title={lotteryTierTitle(r.rep)} hint={r.hint} button={r.button} theme={c} busy={busy}
+          onPress={() => { if (r.button.kind === 'open' && r.openTier !== null) onOpen(r.openTier, 'mission'); else if (r.button.kind === 'earn') onEarn(r.earnTier); }} />;
       })}
-      {gold ? <CardRow icon="★" color={GOLD_COLOR} title={lotteryTierTitle(gold.tier)} hint={lotteryGoldHint(basicAd)}
+      {gold ? <CardRow title={lotteryTierTitle(gold.tier)} hint={lotteryGoldHint(basicAd)}
         button={gold.unopened > 0 ? { label: '열기', kind: 'open' } : { label: '받기 완료', kind: 'done' }} ad={basicAd && gold.unopened > 0} adLabel={adLabel} theme={c} busy={busy}
         onPress={() => onOpen(gold.tier.tier, 'basic')} /> : null}
     </View>
@@ -428,10 +418,6 @@ const s = StyleSheet.create({
   rowHint: { fontSize: 14, lineHeight: 20 },
   rowButton: { minWidth: 84, height: 44, paddingHorizontal: 14, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
   rowButtonText: { fontSize: 15, fontWeight: '800' },
-  cardWrap: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center' },
-  cardBack: { position: 'absolute', width: 40, height: 40, borderRadius: 11, opacity: 0.35, transform: [{ rotate: '8deg' }], right: 2, top: 2 },
-  cardFront: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-6deg' }] },
-  cardText: { color: '#FFFFFF', fontSize: 17, fontWeight: '900', paddingHorizontal: 4 },
   big: { height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, marginTop: 20 },
   bigRow: { flexDirection: 'row', gap: 8 },
   bigText: { fontSize: 17, fontWeight: '800' },
@@ -441,12 +427,13 @@ const s = StyleSheet.create({
   link: { alignItems: 'center', justifyContent: 'center', minHeight: 48, marginTop: 4 },
   linkText: { fontSize: 15, fontWeight: '700' },
   native: { marginTop: 12 },
-  notifyBox: { alignItems: 'center', marginTop: 8, gap: 2 },
-  notifyLink: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, paddingVertical: 6 },
+  // 알림 켜기 상자는 안쪽을 모두 가운데로 — 종 · 제목 · 화살표 줄과 설명(여러 줄이어도 가운데), 시트 · 황금 팝업 · 당첨 화면 같은 상자(0.1.5, 대표님 17:08:49)
+  notifyBox: { alignSelf: 'stretch', alignItems: 'center', marginTop: 8, gap: 2 },
+  notifyLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 40, paddingVertical: 6 },
   notifyBell: { fontSize: 18 },
-  notifyTitle: { fontSize: 15, fontWeight: '700' },
+  notifyTitle: { fontSize: 15, fontWeight: '700', textAlign: 'center' },
   notifyChevron: { fontSize: 22, lineHeight: 22, fontWeight: '600' },
-  notifyHint: { fontSize: 12, lineHeight: 18, textAlign: 'center' },
+  notifyHint: { alignSelf: 'stretch', fontSize: 12, lineHeight: 18, textAlign: 'center' },
   goldArt: { alignItems: 'center', marginTop: 4 },
   goldTicket: { width: 120, height: 72, borderRadius: 14, backgroundColor: '#FFD54A', borderWidth: 2, borderColor: '#E5A400', flexDirection: 'row', alignItems: 'center', overflow: 'hidden', transform: [{ rotate: '-6deg' }] },
   goldStar: { flex: 1, textAlign: 'center', fontSize: 34, lineHeight: 40, color: '#B77900', fontWeight: '800' },

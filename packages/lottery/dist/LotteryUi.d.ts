@@ -60,7 +60,7 @@ export declare function sheetMaxHeight(windowHeight: number, topInset?: number, 
  * 줄: 미션 복권 줄(단계마다, 미션 복권만의 상태) + 하루 기본(황금) 복권 줄(있을 때). 포인트 표 단계는 「최대 1,000P 복권」(unit:'points'), 원 표는 「최대 100원 복권」.
  * 광고가 바로 열리는 줄(황금 복권을 여는 버튼)에만 「광고」 칩. `onOpen(tier, src)` — 미션 줄은 'mission', 황금 줄은 'basic'(앱은 'basic' 일 때 보상형 광고를 먼저 보여 준다).
  */
-export declare function LotterySheet({ open, state, winners, busy, onOpen, onEarn, onMore, onClose, onEnableNotify, notifyLabel, notify, theme, renderNative, topInset, bottomInset, basicAd, adLabel, presentation }: {
+export declare function LotterySheet({ open, state, winners, busy, onOpen, onEarn, onMore, onClose, onEnableNotify, notifyLabel, notify, theme, renderNative, topInset, bottomInset, basicAd, adLabel, presentation, quiz }: {
     open: boolean;
     state: LotteryState | null;
     winners?: LotteryWinner[];
@@ -86,6 +86,8 @@ export declare function LotterySheet({ open, state, winners, busy, onOpen, onEar
     basicAd?: boolean;
     adLabel?: string;
     presentation?: LotteryPresentation;
+    /** (0.1.5) 줄 설명의 이름 — 기본 「쇼핑 · 플레이스 퀴즈」(「쇼핑 · 플레이스 퀴즈 5개 하면 받아요」). 앱마다 다르면 바꾼다 */
+    quiz?: string;
 } & ThemeProp): React.JSX.Element | null;
 /**
  * 당첨 결과 — **전체 화면**(0.1.3, 대표님 15:57 「당첨 화면은 전체 화면으로 나오게 해」): 탭 메뉴 · 상태줄까지 덮는다(앱 루트에 그리거나 `presentation="modal"`).
