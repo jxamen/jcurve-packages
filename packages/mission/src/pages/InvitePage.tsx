@@ -8,7 +8,7 @@
 import React, { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { PageFrame, PageButton, resolvePageTheme, type MissionPageTheme } from './PageFrame';
-import { inviteHeadline, normalizeInviteCode } from './logic';
+import { inviteHeadline, normalizeInviteCode, settleWithin } from './logic';
 
 export type InvitePageProps = {
   /** 내 초대 코드 — 자격이 없으면 안 그린다 */
@@ -67,7 +67,8 @@ export function InvitePage({ code, locked = false, lockReason = 'verify', onVeri
     if (!canJoin) return;
     setBusy(true);
     try {
-      const r = await onJoin(value.trim());
+      const r = await settleWithin(Promise.resolve(onJoin(value.trim())));   // 서버가 안 돌아와도 잠금은 풀린다(0.4.3)
+      if (!r) { setMessage('초대 코드를 넣지 못했어요'); return; }
       setMessage(r.message ?? (r.ok ? '' : '초대 코드를 넣지 못했어요'));
       if (r.ok) setValue('');
     } catch {

@@ -194,3 +194,20 @@ items={[freeItemRow({ itemName: '먹이', left: 2, onPress: () => openFreeItem()
 ### 친구 초대
 
 「간편 인증」이다(문자 인증 아님). 자격이 없으면 「간편 인증하면 초대할 수 있어요」 와 「간편 인증하기」 단추가 뜨고, 누르면 `onVerify` 만 부른다.
+
+## 0.4.3 — 목록 눌림 · 쇼핑 미션 나가기(대표님 10-20 11:42 · 11:44)
+
+- **`BenefitQuickList` 줄 하나 = Pressable 하나.** 0.4.0~0.4.2 는 줄 Pressable 안에 버튼 Pressable 이 겹쳐 있었다. 이제 오른쪽 버튼은 그림(`View`, `pointerEvents="none"`)이고 줄 전체가 한 단추(`accessibilityRole="button"`, 라벨 「제목, 버튼 글」)다.
+- 빠른 두 번 누름은 `TAP_GUARD_MS`(700ms) 동안만 무시한다(`pressOnce`). 잠금 상태가 없어서 영영 남지 않는다 — 화면 이동 · 실패 · 취소를 기다리지 않는다.
+- 페이지(`StepsPage` · `InvitePage`) 「확인 중…」 잠금은 앱 약속이 끝나지 않아도 `BUSY_LIMIT_MS`(75초) 뒤 반드시 풀린다(`settleWithin`).
+- **`ShoppingMission` 나가는 길**
+  - 「뒤로가기」는 늘 켜져 있다: 웹 기록이 있으면 웹에서 한 칸, 없으면 화면 닫기. 전에는 웹 기록이 없으면 꺼져 있었다.
+  - 안드로이드 뒤로(`BackHandler`)는 로딩 · 오류 화면에서도 같은 규칙을 쓴다.
+  - iOS 는 왼쪽 가장자리(24pt)를 오른쪽으로 밀면 뒤로가기다.
+  - iOS 에서 `safeAreaInsets.top` 이 0 으로 오면(Modal 안에서 읽은 값) 47(노치 기기) · 20 으로 짐작한다. 이제 「닫기」가 상태 표시줄 밑에 깔리지 않는다.
+  - 닫기 기록(trace)이 실패해도 닫는다.
+- **`ShoppingMissionModal`(새)**: 안드로이드 뒤로 버튼은 Modal 안에서 `BackHandler` 가 아니라 `onRequestClose` 로 온다. 앱이 `onRequestClose={() => 닫기}` 로 직접 물리면 웹 기록을 건너뛴다. 이 껍데기를 쓰면 같은 규칙(웹 기록 → 닫기)이 된다. 자기 Modal 을 계속 쓰려면 `backRef` 를 넘기고 `onRequestClose={() => backRef.current?.()}` 로 바꾼다.
+
+```tsx
+<ShoppingMissionModal visible={shopping} fetchJson={fetchJson} source={from} safeAreaInsets={insets} onClose={() => setShopping(false)} />
+```

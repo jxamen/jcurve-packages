@@ -8,7 +8,7 @@
 import React, { useState, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { PageFrame, PageButton, resolvePageTheme, type MissionPageTheme } from './PageFrame';
-import { stepsBubble, stepsSummary, UPDATE_NOTICE, type StepsStage } from './logic';
+import { settleWithin, stepsBubble, stepsSummary, UPDATE_NOTICE, type StepsStage } from './logic';
 
 export type StepsPageProps = {
   /** 오늘 걸음 수 — 앱이 센다 */
@@ -56,7 +56,7 @@ export function StepsPage({ todaySteps, stages, earnedToday = 0, stepsAvailable,
     setBusy(true);
     setFailed(false);
     try {
-      await onClaim(first);
+      await settleWithin(Promise.resolve(onClaim(first)));   // 광고가 안 돌아와도 잠금은 풀린다(0.4.3)
     } catch {
       setFailed(true);
     } finally {

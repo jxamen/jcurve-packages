@@ -31,4 +31,10 @@ export type BenefitQuickListProps = {
     items: readonly BenefitQuickItem[];
     footer?: ReactNode;
 };
+/** 빠른 두 번 누름을 막는 시간(0.4.3) — 잠금 상태가 없어 영영 남을 수 없다. 이 시간이 지나면 다음 누름은 늘 들어간다 */
+export declare const TAP_GUARD_MS = 700;
+/** 줄 누름 — 직전 누름에서 TAP_GUARD_MS 안이면 무시. 처리 함수가 던져도 다음 누름은 막히지 않는다 */
+export declare function pressOnce(run: () => void, now?: number): boolean;
+/** 시험용 — 누름 기록을 지운다 */
+export declare function resetTapGuard(): void;
 export declare function BenefitQuickList({ title, seeAllLabel, onSeeAll, accentColor, items, footer, doneLabel, buttonWidth, buttonHeight }: BenefitQuickListProps): React.JSX.Element;

@@ -153,3 +153,13 @@ export function boostLine(boost: number, text?: string): string {
   const t = text?.trim();
   return t ? `확률권 ${boost}장 — ${t}` : `확률권 ${boost}장`;
 }
+
+/** 페이지 단추 잠금(「확인 중…」)의 최대 길이(0.4.3) — 앱이 준 약속(광고 · 받기)이 끝나지 않아도 이 시간 뒤엔 반드시 풀린다 */
+export const BUSY_LIMIT_MS = 75_000;
+/** 약속이 끝나거나 ms 가 지나면 끝난다(시간이 지나면 undefined). 실패는 그대로 던진다 — 잠금은 부르는 쪽 finally 에서 푼다 */
+export function settleWithin<T>(p: Promise<T>, ms: number = BUSY_LIMIT_MS): Promise<T | undefined> {
+  return new Promise<T | undefined>((resolve, reject) => {
+    const t = setTimeout(() => resolve(undefined), ms);
+    p.then(v => { clearTimeout(t); resolve(v); }, e => { clearTimeout(t); reject(e); });
+  });
+}

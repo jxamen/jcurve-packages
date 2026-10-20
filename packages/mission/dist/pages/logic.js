@@ -4,7 +4,7 @@
  * 앱이 이미 가진 값(완료 · 놓침 · 걸음 수 · 남은 시간)을 넘기면 글자 · 칸 · 상태만 정한다.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.UPDATE_NOTICE = void 0;
+exports.BUSY_LIMIT_MS = exports.UPDATE_NOTICE = void 0;
 exports.slotButtonLabel = slotButtonLabel;
 exports.slotStatusLine = slotStatusLine;
 exports.slotWindowLabel = slotWindowLabel;
@@ -21,6 +21,7 @@ exports.prizeLine = prizeLine;
 exports.normalizeInviteCode = normalizeInviteCode;
 exports.inviteHeadline = inviteHeadline;
 exports.boostLine = boostLine;
+exports.settleWithin = settleWithin;
 /** 칸 버튼 글자 — 받았으면 「받았어요」, 지났으면 「놓쳤어요」, 받을 수 있으면 「받기」, 그 밖은 「아직」 */
 function slotButtonLabel(slot) {
     if (slot.done)
@@ -125,4 +126,13 @@ function inviteHeadline(inviterPoint) {
 function boostLine(boost, text) {
     const t = text?.trim();
     return t ? `확률권 ${boost}장 — ${t}` : `확률권 ${boost}장`;
+}
+/** 페이지 단추 잠금(「확인 중…」)의 최대 길이(0.4.3) — 앱이 준 약속(광고 · 받기)이 끝나지 않아도 이 시간 뒤엔 반드시 풀린다 */
+exports.BUSY_LIMIT_MS = 75000;
+/** 약속이 끝나거나 ms 가 지나면 끝난다(시간이 지나면 undefined). 실패는 그대로 던진다 — 잠금은 부르는 쪽 finally 에서 푼다 */
+function settleWithin(p, ms = exports.BUSY_LIMIT_MS) {
+    return new Promise((resolve, reject) => {
+        const t = setTimeout(() => resolve(undefined), ms);
+        p.then(v => { clearTimeout(t); resolve(v); }, e => { clearTimeout(t); reject(e); });
+    });
 }

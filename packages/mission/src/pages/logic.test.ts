@@ -99,3 +99,12 @@ describe('boostLine (0.4.1)', () => {
     expect(boostLine(1, '다음 뽑기 확률이 올라가요')).toBe('확률권 1장 — 다음 뽑기 확률이 올라가요');
   });
 });
+
+describe('settleWithin — 페이지 잠금은 반드시 풀린다(0.4.3)', () => {
+  it('끝나는 약속은 그 값, 안 끝나는 약속은 시간 뒤 undefined, 실패는 그대로', async () => {
+    const { settleWithin } = await import('./logic');
+    await expect(settleWithin(Promise.resolve(3), 50)).resolves.toBe(3);
+    await expect(settleWithin(new Promise(() => undefined), 10)).resolves.toBeUndefined();
+    await expect(settleWithin(Promise.reject(new Error('x')), 50)).rejects.toThrow('x');
+  });
+});

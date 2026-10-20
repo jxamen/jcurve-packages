@@ -31,7 +31,11 @@ function InvitePage({ code, locked = false, lockReason = 'verify', onVerify, onS
             return;
         setBusy(true);
         try {
-            const r = await onJoin(value.trim());
+            const r = await (0, logic_1.settleWithin)(Promise.resolve(onJoin(value.trim()))); // 서버가 안 돌아와도 잠금은 풀린다(0.4.3)
+            if (!r) {
+                setMessage('초대 코드를 넣지 못했어요');
+                return;
+            }
             setMessage(r.message ?? (r.ok ? '' : '초대 코드를 넣지 못했어요'));
             if (r.ok)
                 setValue('');

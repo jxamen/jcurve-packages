@@ -38,7 +38,7 @@ function StepsPage({ todaySteps, stages, earnedToday = 0, stepsAvailable, onUpda
         setBusy(true);
         setFailed(false);
         try {
-            await onClaim(first);
+            await (0, logic_1.settleWithin)(Promise.resolve(onClaim(first))); // 광고가 안 돌아와도 잠금은 풀린다(0.4.3)
         }
         catch {
             setFailed(true);

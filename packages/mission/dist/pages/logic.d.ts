@@ -87,3 +87,7 @@ export declare function normalizeInviteCode(raw: string): string;
 export declare function inviteHeadline(inviterPoint: number): string;
 /** 확률권 줄 — 「확률권 N장」, 앱 설명이 있으면 「 — 설명」을 붙인다(앱 이름이 박히지 않게, 0.4.1) */
 export declare function boostLine(boost: number, text?: string): string;
+/** 페이지 단추 잠금(「확인 중…」)의 최대 길이(0.4.3) — 앱이 준 약속(광고 · 받기)이 끝나지 않아도 이 시간 뒤엔 반드시 풀린다 */
+export declare const BUSY_LIMIT_MS = 75000;
+/** 약속이 끝나거나 ms 가 지나면 끝난다(시간이 지나면 undefined). 실패는 그대로 던진다 — 잠금은 부르는 쪽 finally 에서 푼다 */
+export declare function settleWithin<T>(p: Promise<T>, ms?: number): Promise<T | undefined>;

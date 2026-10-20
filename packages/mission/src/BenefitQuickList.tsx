@@ -51,6 +51,19 @@ function Icon({ icon }: { icon: BenefitQuickItem['icon'] }) {
   </View>;
 }
 
+/** 빠른 두 번 누름을 막는 시간(0.4.3) — 잠금 상태가 없어 영영 남을 수 없다. 이 시간이 지나면 다음 누름은 늘 들어간다 */
+export const TAP_GUARD_MS = 700;
+let lastTap = 0;
+/** 줄 누름 — 직전 누름에서 TAP_GUARD_MS 안이면 무시. 처리 함수가 던져도 다음 누름은 막히지 않는다 */
+export function pressOnce(run: () => void, now: number = Date.now()): boolean {
+  if (now - lastTap >= 0 && now - lastTap < TAP_GUARD_MS) return false;
+  lastTap = now;
+  run();
+  return true;
+}
+/** 시험용 — 누름 기록을 지운다 */
+export function resetTapGuard(): void { lastTap = 0; }
+
 export function BenefitQuickList({ title = '바로 받는 혜택', seeAllLabel, onSeeAll, accentColor = '#EE7A33', items, footer, doneLabel = '완료', buttonWidth = 100, buttonHeight = 40 }: BenefitQuickListProps) {
   const visible = items.filter(item => !item.hidden);
   return <View style={s.root}>
@@ -60,18 +73,21 @@ export function BenefitQuickList({ title = '바로 받는 혜택', seeAllLabel, 
       {seeAllLabel && onSeeAll ? <Pressable accessibilityRole="button" onPress={onSeeAll} hitSlop={8}><Text style={[s.seeAll, { color: accentColor }]}>{seeAllLabel}</Text></Pressable> : null}
     </View> : null}
     <View style={s.card}>
-      {/* 버튼뿐 아니라 줄 어디를 눌러도 이동(당근 대표님 10-19 20:55 「아예 리스트에서 그 줄을 눌러도 이동되게」) */}
-      {visible.map((item, index) => <Pressable key={item.key} accessible={false} disabled={item.done} onPress={() => { if (!item.done) item.onPress(); }}
+      {/*
+        줄 하나 = Pressable 하나(0.4.3). 0.4.0 은 줄 Pressable 안에 버튼 Pressable 을 또 넣어(당근 대표님 10-19 20:55 「줄을 눌러도 이동」)
+        누름이 두 겹으로 갈렸다 — 대표님 10-20 11:42 「행운 찬스 눌렸다 안눌렸다」. 이제 버튼은 그림(View)이고 줄 전체가 한 단추다.
+        빠른 두 번 누름은 TAP_GUARD_MS 동안만 무시한다 — 시간이 지나면 반드시 풀린다(화면 이동 · 실패 · 취소를 기다리지 않는다)
+      */}
+      {visible.map((item, index) => <Pressable key={item.key} accessibilityRole="button" accessibilityLabel={item.title + ', ' + (item.done ? doneLabel : item.ctaLabel)}
+        accessibilityState={{ disabled: !!item.done }} disabled={item.done} onPress={() => { if (!item.done) pressOnce(item.onPress); }}
         style={({ pressed }) => [s.row, index < visible.length - 1 && s.border, pressed && !item.done && { opacity: 0.85 }]}>
         <View style={[s.icon, { backgroundColor: item.tint }]}><Icon icon={item.icon} /></View>
         <View style={s.copy}><View style={s.nameRow}><Text style={s.name}>{item.title}</Text>{item.badge ? <View style={s.badge}><Text style={s.badgeText}>{item.badge}</Text></View> : null}</View>{item.progress && item.progress.total > 0
           ? <View accessibilityLabel={item.progress.done + '/' + item.progress.total} style={s.steps}>{Array.from({ length: item.progress.total }, (_, i) => <View key={i} style={[s.step, { backgroundColor: i < item.progress!.done ? accentColor : '#ECE6DE' }]} />)}{item.progressLabel ? <Text style={s.stepsLabel} numberOfLines={1}>{item.progressLabel}</Text> : null}</View>
           : <Text style={s.subtitle} numberOfLines={1} adjustsFontSizeToFit>{item.subtitle}</Text>}</View>
-        <Pressable accessibilityRole="button" accessibilityLabel={item.title + ', ' + (item.done ? doneLabel : item.ctaLabel)} accessibilityState={{ disabled: !!item.done }} disabled={item.done}
-          onPress={() => { if (!item.done) item.onPress(); }}
-          style={({ pressed }) => [s.button, { width: buttonWidth, height: buttonHeight, backgroundColor: item.done ? '#D3D7DD' : accentColor }, pressed && !item.done && { opacity: 0.8 }]}>
+        <View pointerEvents="none" style={[s.button, { width: buttonWidth, height: buttonHeight, backgroundColor: item.done ? '#D3D7DD' : accentColor }]}>
           <Text style={s.cta} numberOfLines={1} adjustsFontSizeToFit>{item.done ? doneLabel : item.ctaLabel}</Text>
-        </Pressable>
+        </View>
       </Pressable>)}
     </View>
     {footer != null ? <View style={s.footer}>{footer}</View> : null}
