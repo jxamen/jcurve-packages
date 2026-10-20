@@ -14,5 +14,6 @@ const en = {
     '광고를 불러오지 못했어요 ({0})': 'Couldn\'t load the ad ({0})',
     '광고를 불러오지 못했어요. 잠시 후 다시 시도해 주세요 ({0})': 'Couldn\'t load the ad. Please try again in a moment ({0})',
     '광고를 그만뒀어요': 'You stopped the ad',
+    '설치': 'Install',
 };
 exports.default = en;

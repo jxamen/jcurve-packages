@@ -25,7 +25,7 @@ function harness(result: Promise<any>) {
   };
   const sdk = { default: () => ({ initialize: async () => {} }),
     NativeAd: { createForAdRequest: vi.fn(() => result) },
-    NativeAdView: 'NativeAdView', NativeAsset: 'NativeAsset', NativeAssetType: { ICON: 'icon', HEADLINE: 'headline' },
+    NativeAdView: 'NativeAdView', NativeAsset: 'NativeAsset', NativeAssetType: { ICON: 'icon', HEADLINE: 'headline', CALL_TO_ACTION: 'callToAction' },
     BannerAd: 'BannerAd', BannerAdSize: { ANCHORED_ADAPTIVE_BANNER: 'adaptive' } };
   const rn = { Platform: { OS: 'ios' }, View: 'View', Text: 'Text', Image: 'Image', Dimensions: { get: () => ({ width: 390, height: 844 }) } };
   Module._load = function(id: string, ...args: any[]) {
@@ -346,5 +346,106 @@ describe('TabBarBanner onState diagnostics (1.9.9)', () => {
     const ad = { destroy: vi.fn() }; resolve(ad); await flush();
     expect(seen).toEqual([{ state: 'requesting', tries: 1 }]);
     expect(ad.destroy).toHaveBeenCalledOnce();
+  });
+});
+
+/** Every element under a rendered node (depth first), strings and nulls skipped. */
+const walk = (node: any): any[] => {
+  if (!node || typeof node !== 'object') return [];
+  const kids = [].concat(node.props?.children ?? []) as any[];
+  return [node, ...kids.flatMap(walk)];
+};
+const textOf = (node: any): string => [].concat(node?.props?.children ?? []).filter((c: any) => typeof c === 'string').join('');
+const assets = (h: any) => walk(inner(h)).filter(n => n.type === 'NativeAsset');
+/** The single element wrapped by a NativeAsset (the mock createElement keeps children as an array). */
+const assetChild = (n: any): any => ([] as any[]).concat(n.props.children)[0];
+const ctaOf = (h: any) => assetChild(assets(h).find(n => n.props.assetType === 'callToAction'));
+const assetTypes = (h: any) => assets(h).map(n => n.props.assetType);
+
+describe('native row call-to-action (1.9.10, AdMob policy: Call to action is a required element)', () => {
+  const shown = async (ad: any, props: Record<string, unknown> = {}) => {
+    const h = harness(Promise.resolve(ad));
+    h.mount({ enabled: true, unitId: 'u', format: 'native', ...props });
+    h.render(); const cleanup = h.start(); await flush();
+    return { h, cleanup };
+  };
+
+  it('registers icon, headline and call to action as the clickable assets, CTA text = the ad callToAction', async () => {
+    const { h, cleanup } = await shown({ headline: 'Great game', callToAction: 'Play now', icon: { url: 'https://x/i.png' }, destroy: vi.fn() });
+    expect(assetTypes(h)).toEqual(['icon', 'headline', 'callToAction']);
+    expect(ctaOf(h).type).toBe('Text');
+    expect(textOf(ctaOf(h))).toBe('Play now');
+    cleanup?.();
+  });
+  it('without an icon the assets are headline + call to action', async () => {
+    const { h, cleanup } = await shown({ headline: 'No icon ad', callToAction: 'Open', destroy: vi.fn() });
+    expect(assetTypes(h)).toEqual(['headline', 'callToAction']);
+    cleanup?.();
+  });
+  it('no callToAction text -> "설치" (blank and non-string too); the app language "en" -> "Install"', async () => {
+    for (const callToAction of [undefined, null, '', '   ', 7]) {
+      const { h, cleanup } = await shown({ headline: 'x', callToAction, destroy: vi.fn() });
+      expect(textOf(ctaOf(h))).toBe('설치');
+      cleanup?.();
+    }
+    const en = await shown({ headline: 'x', destroy: vi.fn() }, { lang: 'en-US' });
+    expect(textOf(ctaOf(en.h))).toBe('Install');
+    en.cleanup?.();
+    const trimmed = await shown({ headline: 'x', callToAction: '  Install  ', destroy: vi.fn() });
+    expect(textOf(ctaOf(trimmed.h))).toBe('Install');
+    trimmed.cleanup?.();
+  });
+  it('the background is not clickable: only the three assets can be tapped — no touchables, no handlers on the wrapper, row or badge', async () => {
+    const { h, cleanup } = await shown({ headline: 'x', callToAction: 'Go', icon: { url: 'u' }, destroy: vi.fn() });
+    const all = walk(inner(h));
+    expect(all.some(n => /Pressable|Touchable|Button/.test(String(n.type)))).toBe(false);
+    for (const n of all) expect(Object.keys(n.props ?? {}).filter(k => /^on[A-Z]|accessible$/.test(k))).toEqual([]);   // no onPress / onTouch* / onStartShouldSetResponder ...
+    const row = inner(h).props.children[0];
+    expect(Object.keys(inner(h).props).sort()).toEqual(['children', 'nativeAd', 'style']);
+    expect(Object.keys(row.props).sort()).toEqual(['children', 'collapsable', 'style']);
+    const badge = row.props.children[0];
+    expect(badge.type).toBe('Text'); expect(textOf(badge)).toBe('AD');
+    expect(assets(h).filter(n => assetChild(n) === badge)).toEqual([]);   // the AD badge is not an asset
+    cleanup?.();
+  });
+  it('heights stay 40 (outer slot, NativeAdView, row) before and after the ad, with or without a CTA text', async () => {
+    const h = harness(Promise.resolve({ headline: 'x', callToAction: 'Play', destroy: vi.fn() }));
+    h.mount({ enabled: true, unitId: 'u', format: 'native' });
+    expect(outer(h)).toBe(40);
+    h.render(); const cleanup = h.start(); await flush();
+    expect(outer(h)).toBe(40);
+    expect(inner(h).props.style.height).toBe(40);
+    expect(inner(h).props.children[0].props.style.height).toBe(40);
+    cleanup?.();
+    const bare = await shown({ headline: 'x', destroy: vi.fn() });
+    expect(outer(bare.h)).toBe(40); expect(inner(bare.h).props.style.height).toBe(40);
+    bare.cleanup?.();
+  });
+  it('layout keeps the button whole and clear of AdChoices: headline shrinks, CTA does not, side padding stays 28, one line', async () => {
+    const { h, cleanup } = await shown({ headline: 'A very very long headline that must not push the button out of the row', callToAction: 'Download the app now please', destroy: vi.fn() });
+    const row = inner(h).props.children[0];
+    expect(row.props.style).toMatchObject({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 });
+    const headline = assetChild(assets(h).find(n => n.props.assetType === 'headline'));
+    const cta = ctaOf(h);
+    expect(headline.props.style.flexShrink).toBe(1);
+    expect(cta.props.style).toMatchObject({ flexShrink: 0, maxWidth: 96, backgroundColor: '#555', color: '#fff' });
+    expect(cta.props.numberOfLines).toBe(1);
+    expect(row.props.children[row.props.children.length - 1].props.assetType).toBe('callToAction');   // CTA is the last (right-end) item
+    cleanup?.();
+  });
+  it('banner format is untouched: the SDK draws it, no native assets', async () => {
+    const h = harness(Promise.resolve(null));
+    h.mount({ enabled: true, unitId: 'b' });
+    h.render(); h.start(); await flush();
+    expect(inner(h).type).toBe('BannerAd');
+    expect(walk(h.render()).some(n => n.type === 'NativeAsset')).toBe(false);
+  });
+  it('nativeCtaLabel is exported for apps that want the same word', () => {
+    harness(Promise.resolve(null));
+    const { nativeCtaLabel } = require(require.resolve('../dist/TabBarBanner.js'));
+    expect(nativeCtaLabel('Get', 'ko')).toBe('Get');
+    expect(nativeCtaLabel('', 'ko')).toBe('설치');
+    expect(nativeCtaLabel('', 'en')).toBe('Install');
+    expect(nativeCtaLabel('', 'fr')).toBe('설치');       // no table for fr: the Korean original, like every other package word
   });
 });

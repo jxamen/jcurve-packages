@@ -36,7 +36,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.NATIVE_REFRESH_MS = exports.NATIVE_RETRY_MS = exports.NATIVE_SLOT_HEIGHT = void 0;
 exports.bannerSlotHeight = bannerSlotHeight;
 exports.TabBarBanner = TabBarBanner;
+exports.nativeCtaLabel = nativeCtaLabel;
 const react_1 = __importStar(require("react"));
+const i18n_1 = require("./i18n");
 /** Outer height of a native slot (dp). Reserved from the first render. */
 exports.NATIVE_SLOT_HEIGHT = 40;
 /**
@@ -58,7 +60,7 @@ function bannerSlotHeight(windowWidth, windowHeight) {
  * before load, no fill, exhausted retries, video filtered out and creative swaps all keep the same height (empty slot = `backgroundColor`).
  * Only `enabled=false`, a missing unit, web, or no ads SDK reserve nothing (0 height).
  */
-function TabBarBanner({ unitId, enabled, format = 'banner', backgroundColor = '#fff', bannerHeight, onState }) {
+function TabBarBanner({ unitId, enabled, format = 'banner', backgroundColor = '#fff', bannerHeight, lang, onState }) {
     if (!enabled || !unitId)
         return null;
     // Optional native peers: importing this package must remain safe on web/Expo Go.
@@ -73,12 +75,25 @@ function TabBarBanner({ unitId, enabled, format = 'banner', backgroundColor = '#
     }
     if (rn.Platform.OS === 'web')
         return null;
-    return react_1.default.createElement(LoadedBanner, { key: `${format}:${unitId}`, sdk, rn, unitId, format, backgroundColor, bannerHeight, onState });
+    return react_1.default.createElement(LoadedBanner, { key: `${format}:${unitId}`, sdk, rn, unitId, format, backgroundColor, bannerHeight, lang, onState });
 }
 /** Retry delays after no fill / video creative (ms). After the last one the slot stays reserved but empty. */
 exports.NATIVE_RETRY_MS = [3000, 10000, 30000, 60000];
 /** Swap the creative while it stays on screen. */
 exports.NATIVE_REFRESH_MS = 60000;
+/**
+ * (1.9.10) Label of the native row's call-to-action button: the ad's own `callToAction` text, or "설치" (en: "Install") when the ad has none.
+ * AdMob lists "Call to action" as a required element of a native ad (policy table), so the row always shows one.
+ */
+function nativeCtaLabel(callToAction, lang) {
+    const text = typeof callToAction === 'string' ? callToAction.trim() : '';
+    return text || (0, i18n_1.t)('설치', lang);
+}
+/** Small filled button, right end of the 40dp row. `flexShrink: 0` keeps it whole — the headline is what shrinks. */
+const CTA_STYLE = {
+    flexShrink: 0, maxWidth: 96, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 4, overflow: 'hidden',
+    backgroundColor: '#555', color: '#fff', fontSize: 12, fontWeight: '700', textAlign: 'center',
+};
 /** Short, single-line description of an SDK error for `TabBarBannerState.error` (never throws). */
 function describeError(e) {
     if (e == null)
@@ -91,7 +106,7 @@ function describeError(e) {
         return undefined;
     }
 }
-function LoadedBanner({ sdk, rn, unitId, format, backgroundColor, bannerHeight, onState }) {
+function LoadedBanner({ sdk, rn, unitId, format, backgroundColor, bannerHeight, lang, onState }) {
     const [ready, setReady] = (0, react_1.useState)(false);
     const [failed, setFailed] = (0, react_1.useState)(false);
     const [ad, setAd] = (0, react_1.useState)(null);
@@ -185,6 +200,9 @@ function LoadedBanner({ sdk, rn, unitId, format, backgroundColor, bannerHeight, 
     if (!ad || failed)
         return slot(null);
     // NativeAdView supplies AdChoices. Native attribution is required separately by AdMob.
-    // Centered row (2026-10-19 owner 「가운데 정렬로」); side padding keeps clear of the AdChoices corner.
-    return slot(h(sdk.NativeAdView, { nativeAd: ad, style: { height: exports.NATIVE_SLOT_HEIGHT, width: '100%', backgroundColor } }, h(rn.View, { collapsable: false, style: { height: exports.NATIVE_SLOT_HEIGHT, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28, gap: 8 } }, h(rn.Text, { style: { fontSize: 11, color: '#666', backgroundColor: '#eee', paddingHorizontal: 4 } }, 'AD'), ad.icon ? h(sdk.NativeAsset, { assetType: sdk.NativeAssetType.ICON }, h(rn.Image, { source: { uri: ad.icon.url }, style: { width: 28, height: 28 } })) : null, h(sdk.NativeAsset, { assetType: sdk.NativeAssetType.HEADLINE }, h(rn.Text, { numberOfLines: 1, style: { flexShrink: 1, fontSize: 13, color: '#555' } }, ad.headline)))));
+    // Centered row (2026-10-19 owner 「가운데 정렬로」); side padding keeps clear of the AdChoices corner (top right by default).
+    // (1.9.10) Only the registered assets — icon, headline, call to action — take taps: the badge, the row and the NativeAdView carry no
+    // handlers and are not registered, so the background is not clickable (AdMob: "The background of the ad must be not clickable").
+    // Video creatives never get here (dropped in load), so no MediaView is needed.
+    return slot(h(sdk.NativeAdView, { nativeAd: ad, style: { height: exports.NATIVE_SLOT_HEIGHT, width: '100%', backgroundColor } }, h(rn.View, { collapsable: false, style: { height: exports.NATIVE_SLOT_HEIGHT, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28, gap: 8 } }, h(rn.Text, { style: { fontSize: 11, color: '#666', backgroundColor: '#eee', paddingHorizontal: 4 } }, 'AD'), ad.icon ? h(sdk.NativeAsset, { assetType: sdk.NativeAssetType.ICON }, h(rn.Image, { source: { uri: ad.icon.url }, style: { width: 28, height: 28 } })) : null, h(sdk.NativeAsset, { assetType: sdk.NativeAssetType.HEADLINE }, h(rn.Text, { numberOfLines: 1, style: { flexShrink: 1, fontSize: 13, color: '#555' } }, ad.headline)), h(sdk.NativeAsset, { assetType: sdk.NativeAssetType.CALL_TO_ACTION }, h(rn.Text, { numberOfLines: 1, style: CTA_STYLE }, nativeCtaLabel(ad.callToAction, lang))))));
 }

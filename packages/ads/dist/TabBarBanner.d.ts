@@ -29,6 +29,8 @@ export type TabBarBannerProps = {
      * The outer height never changes after mount; if the SDK's real banner is a few dp different it is centered and clipped inside the slot.
      */
     bannerHeight?: number;
+    /** (1.9.10) App language ('ko' / 'en' / 'en-US' ...) for the package's own words — only the fallback CTA label today. Absent = Korean. */
+    lang?: string;
     /** (1.9.9) Optional diagnostics callback — see `TabBarBannerState`. Absent means nothing is reported; a throwing callback is ignored. */
     onState?: (s: TabBarBannerState) => void;
 };
@@ -48,8 +50,13 @@ export declare function bannerSlotHeight(windowWidth: number, windowHeight?: num
  * before load, no fill, exhausted retries, video filtered out and creative swaps all keep the same height (empty slot = `backgroundColor`).
  * Only `enabled=false`, a missing unit, web, or no ads SDK reserve nothing (0 height).
  */
-export declare function TabBarBanner({ unitId, enabled, format, backgroundColor, bannerHeight, onState }: TabBarBannerProps): React.FunctionComponentElement<any> | null;
+export declare function TabBarBanner({ unitId, enabled, format, backgroundColor, bannerHeight, lang, onState }: TabBarBannerProps): React.FunctionComponentElement<any> | null;
 /** Retry delays after no fill / video creative (ms). After the last one the slot stays reserved but empty. */
 export declare const NATIVE_RETRY_MS: number[];
 /** Swap the creative while it stays on screen. */
 export declare const NATIVE_REFRESH_MS = 60000;
+/**
+ * (1.9.10) Label of the native row's call-to-action button: the ad's own `callToAction` text, or "설치" (en: "Install") when the ad has none.
+ * AdMob lists "Call to action" as a required element of a native ad (policy table), so the row always shows one.
+ */
+export declare function nativeCtaLabel(callToAction: unknown, lang?: string): string;

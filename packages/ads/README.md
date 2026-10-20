@@ -116,6 +116,17 @@ ads.setLang('en');   // 켠 뒤 바꿀 때 — 다음 광고부터
 둘 다 있으면 같은 이벤트가 두 번 나간다). `expo-build-properties` 의 JitPack 줄은 남겨도 된다(플러그인이 겹치면 건너뛴다).
 
 
+## TabBarBanner — native 줄에 CTA 버튼 (1.9.10, AdMob 정책 필수 요소)
+
+AdMob 네이티브 광고 정책 표(`support.google.com/admob/answer/6329638`, 2026-10-20 확인)는 **Ad badge · Title · Call to action 을 Required**, Icon 을 「Required if provided」로 적고, 「The native app install ad must include a call to action button that users can click to download/install the app. You can display an app download icon instead of a button or text」, 「The background of the ad must be not clickable (no clickable "white space")」라고 한다. 1.9.9 까지 native 한 줄은 AD 배지 · 아이콘 · 제목뿐이라 **CTA 가 빠져 있었다.**
+
+**1.9.10**: `format="native"` 의 40dp 한 줄 오른쪽 끝에 **작은 CTA 버튼**(`NativeAsset CALL_TO_ACTION`)을 더한다.
+- **글자** = 광고의 `callToAction`, **비어 있으면 「설치」**(앱 언어 `lang="en"` 이면 「Install」). 앞뒤 공백은 자른다. 함수 `nativeCtaLabel(callToAction, lang)` 도 내보낸다.
+- **모양**: 짙은 회색(`#555`) 바탕 + 흰 글자 12pt 굵게, 한 줄, 폭 최대 96. **버튼은 줄어들지 않고(`flexShrink: 0`) 제목이 줄어든다**(긴 문구에 밀려 CTA 가 잘리지 않게). 양옆 28 여백은 그대로 — AdChoices 가 기본으로 **오른쪽 위**에 붙으니 CTA 와 겹치지 않게 비워 둔다. 줄은 여전히 가운데 정렬(10-19 대표님), CTA 가 묶음의 오른쪽 끝이다.
+- **높이 40 불변**(바깥 자리 · NativeAdView · 줄 모두). banner(BannerAd) 형식은 SDK 가 그리므로 **그대로**. 새 네이티브 0.
+- **배경 · 빈 자리는 눌리지 않는다**: 눌림은 SDK 가 **등록된 자산**(아이콘 · 제목 · CTA)과 AdChoices 에만 건다. NativeAdView · 줄 · AD 배지는 자산으로 등록하지 않았고, Pressable · 터치 핸들러도 달지 않았다(시험으로 고정). 영상 소재는 위 1.9.9 와 같이 버리므로 MediaView 가 필요 없다.
+- ⚠ **실기기 눌림은 이 PC 에서 못 봤다.** 구조(어느 뷰가 자산인가)는 시험으로 보장하지만, 실제 눌림 처리는 구글 SDK 몫이다 — 시험판에서 **CTA · 제목 · 아이콘을 눌러 광고가 열리는지**, **배지 옆 빈 자리를 눌러도 아무 일 없는지**, 좁은 폰(폭 360)에서 CTA 가 AdChoices 와 겹치지 않는지 한 번 봐 주세요.
+
 ## TabBarBanner — 왜 비었는지 보기 `onState` (1.9.9, 대표님 10-20 21:39 「꼬꼬농장 배너 광고가 안 나와」 진단용)
 
 선택 prop **`onState?(s: TabBarBannerState)`** — 슬롯이 채워지는 **과정**을 앱에 알려 준다. **동작 · 높이 · 시각은 그대로**(콜백만 더함, 안 주면 아무 일도 없다), 새 네이티브 0. 콜백이 던져도 무시한다. 렌더마다 새 함수를 넘겨도 로더가 다시 시작되지 않는다(늘 최신 콜백을 부른다). 언마운트 뒤에는 부르지 않는다.
