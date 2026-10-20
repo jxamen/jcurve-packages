@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { adSlotIndex, applyHomeRows, composeHomeRows, EMPTY_HOME, fetchHomeConfig, fetchHomeResult, freeItemHomeRow, HOME_STORAGE_KEY, homeInitial, homeReduce, parseHomeResponse, readStoredHome, resetHomeConfig, resolveHomeKeys, saveStoredHome, withFreeItemRow, type HomeEvent, type HomeRow, type HomeState, type HomeStorage } from './home';
+import { adSlotIndex, applyHomeRows, composeHomeRows, EMPTY_HOME, fetchHomeConfig, fetchHomeResult, freeItemHomeRow, HOME_STORAGE_KEY, homeInitial, homeReduce, homeStorageUsable, parseHomeResponse, readStoredHome, resetHomeConfig, resolveHomeKeys, saveStoredHome, withFreeItemRow, type HomeEvent, type HomeRow, type HomeState, type HomeStorage } from './home';
 import type { BenefitQuickItem } from './BenefitQuickList';
 
 const item = (key: string, over: Partial<BenefitQuickItem> = {}): BenefitQuickItem => ({ key, title: key + ' 제목', subtitle: key + ' 설명', ctaLabel: '가기', icon: 'star', tint: '#EEE', onPress: vi.fn(), ...over });
@@ -364,5 +364,58 @@ describe('0.4.6 켜는 순서 — 저장값 → 서버 응답(homeReduce)', () =
     expect(drawn.map(i => i.key)).toEqual(['invite', 'steps']);                          // 마지막 서버 순서로 첫 그림 — quiz1 은 서버 목록에 없어 빠진다
     const baseline = composeHomeRows(items, null, resolveHomeKeys(items), {});
     expect(baseline.map(i => i.key)).toEqual(['steps', 'invite', 'quiz1']);              // 저장값이 없으면 앱 기본 순서
+  });
+});
+
+// ── 0.7.3: AsyncStorage 모양(getItem/setItem)도 받는다 ──
+/** 순정 AsyncStorage 와 같은 모양 — 메서드가 this 를 쓴다(붙여 부르지 않으면 깨진다) */
+class FakeAsyncStorage {
+  private data = new Map<string, string>();
+  gets = 0;
+  sets = 0;
+  async getItem(key: string): Promise<string | null> { this.gets++; return this.data.get(key) ?? null; }
+  async setItem(key: string, value: string): Promise<void> { this.sets++; this.data.set(key, value); }
+}
+
+describe('0.7.3 저장소 모양 — get/set 과 getItem/setItem 둘 다', () => {
+  it('순정 AsyncStorage 모양(getItem/setItem)으로 저장하고 읽는다', async () => {
+    const as = new FakeAsyncStorage();
+    const cfg = parseHomeResponse(serverRows('steps', 'quiz1'));
+    await saveStoredHome(as, cfg);
+    expect(as.sets).toBe(1);
+    expect(await readStoredHome(as)).toEqual(cfg);
+    expect(as.gets).toBe(1);
+  });
+  it('서버 응답을 받으면 AsyncStorage 모양에도 저장한다(fetchHomeResult)', async () => {
+    const as = new FakeAsyncStorage();
+    const r = await fetchHomeResult(vi.fn(async () => serverRows('invite', 'steps')), { now: 1000, storage: as });
+    await flush();
+    expect(r.ok).toBe(true);
+    expect(as.sets).toBe(1);
+    expect((await readStoredHome(as))!.rows!.map(x => x.key)).toEqual(['invite', 'steps']);
+  });
+  it('둘 다 있으면 get/set 이 먼저', async () => {
+    const both = { calls: [] as string[], async get() { both.calls.push('get'); return null; }, async set() { both.calls.push('set'); }, async getItem() { both.calls.push('getItem'); return null; }, async setItem() { both.calls.push('setItem'); } };
+    await readStoredHome(both);
+    await saveStoredHome(both, parseHomeResponse(serverRows('quiz1')));
+    expect(both.calls).toEqual(['get', 'set']);
+  });
+  it('모양이 안 맞는 저장소는 안 넘긴 것과 같다 — 던지지 않고 null, 목록을 기다리지 않는다', async () => {
+    const wrong = [{}, { get: 1, set: 2 }, { getItem: async () => null }, { setItem: async () => undefined }, { get: async () => null }, null, undefined, 'storage', 7] as unknown as HomeStorage[];
+    for (const w of wrong) {
+      expect(homeStorageUsable(w)).toBe(false);
+      expect(await readStoredHome(w)).toBeNull();
+      await saveStoredHome(w, parseHomeResponse(serverRows('quiz1')));
+    }
+    expect(homeStorageUsable(new FakeAsyncStorage())).toBe(true);
+    expect(homeStorageUsable(memoryStorage().storage)).toBe(true);
+    expect(homeInitial(homeStorageUsable({} as HomeStorage))).toMatchObject({ ready: true });        // 쓸 수 없는 저장소 때문에 목록을 늦추지 않는다
+  });
+  it('AsyncStorage 모양이 던지거나 거절해도 목록은 그대로(null · 삼킴)', async () => {
+    const bad = { getItem: async () => { throw new Error('disk'); }, setItem: async () => { throw new Error('full'); } };
+    expect(await readStoredHome(bad)).toBeNull();
+    await saveStoredHome(bad, parseHomeResponse(serverRows('quiz1')));
+    const r = await fetchHomeResult(vi.fn(async () => serverRows('quiz1')), { now: 1000, storage: bad });
+    expect(r.ok).toBe(true);
   });
 });

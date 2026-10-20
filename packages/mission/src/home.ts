@@ -57,7 +57,34 @@ export function parseHomeResponse(response: unknown): HomeConfig {
  * (0.4.6) 앱이 넘기는 간단한 저장소 — React Native 의 AsyncStorage 가 그대로 맞는다(새 네이티브 의존 없음).
  * 마지막으로 받은 서버 목록을 저장해 두었다가 **앱을 켤 때 그 값으로 먼저 그린 뒤** 서버 응답으로 갱신한다 — 켤 때 앱 기본 순서로 그렸다가 서버 순서로 바뀌는 것(대표님 10-20 18:54)을 막는다.
  */
-export type HomeStorage = { get(key: string): Promise<string | null>; set(key: string, value: string): Promise<void> };
+export type HomeStorage =
+  | { get(key: string): Promise<string | null>; set(key: string, value: string): Promise<unknown> }
+  | { getItem(key: string): Promise<string | null>; setItem(key: string, value: string): Promise<unknown> };
+
+type StorageIo = { get: (key: string) => Promise<string | null>; set: (key: string, value: string) => Promise<unknown> };
+
+/**
+ * (0.7.3) `get`/`set` 모양과 `getItem`/`setItem` 모양(AsyncStorage 가 이쪽이다 · MMKV 어댑터 …) 둘 다 받는다 — 둘 다 있으면 get/set 이 먼저.
+ * 어느 쪽도 아니면 null(저장소 없음과 같다). 메서드는 저장소 객체에 붙여 부른다(this 를 쓰는 저장소도 그대로 동작).
+ */
+function storageIo(storage: HomeStorage | undefined | null): StorageIo | null {
+  if (!storage || typeof storage !== 'object') return null;
+  if ('get' in storage && typeof storage.get === 'function' && 'set' in storage && typeof storage.set === 'function') {
+    const s = storage;
+    return { get: k => s.get(k), set: (k, v) => s.set(k, v) };
+  }
+  if ('getItem' in storage && typeof storage.getItem === 'function' && 'setItem' in storage && typeof storage.setItem === 'function') {
+    const s = storage;
+    return { get: k => s.getItem(k), set: (k, v) => s.setItem(k, v) };
+  }
+
+  return null;
+}
+
+/** 이 저장소를 쓸 수 있는가(get/set 또는 getItem/setItem). 쓸 수 없으면 저장소를 안 넘긴 것과 같다 — 목록을 기다리게 하지 않는다 */
+export function homeStorageUsable(storage: HomeStorage | undefined | null): boolean {
+  return storageIo(storage) !== null;
+}
 /** 저장 키 기본값 — 앱이 서버 · 계정마다 다른 목록을 쓰면 `storageKey` 로 바꾼다 */
 export const HOME_STORAGE_KEY = 'jcurve.mission.home.v1';
 /** 저장값을 읽는 데 이만큼(ms)까지만 기다린다 — 저장소가 응답이 없어도 목록이 영영 안 뜨지 않게 */
@@ -66,9 +93,10 @@ const STORED_MAX_CHARS = 20_000;
 
 /** 저장해 둔 마지막 서버 목록 — 없음 · 깨짐 · 모르는 판 · 저장소 오류는 null(앱 기본). 읽을 때도 서버 응답처럼 다시 거른다 */
 export async function readStoredHome(storage: HomeStorage | undefined, key: string = HOME_STORAGE_KEY): Promise<HomeConfig | null> {
-  if (!storage) return null;
+  const io = storageIo(storage);
+  if (!io) return null;
   try {
-    const raw = await storage.get(key);
+    const raw = await io.get(key);
     if (typeof raw !== 'string' || raw === '' || raw.length > STORED_MAX_CHARS) return null;
     const saved = JSON.parse(raw) as { v?: unknown; response?: unknown } | null;
     if (!saved || typeof saved !== 'object' || saved.v !== 1) return null;
@@ -82,9 +110,10 @@ export async function readStoredHome(storage: HomeStorage | undefined, key: stri
 
 /** 서버에서 **정상으로** 받은 목록을 저장한다 — 저장소 오류는 삼킨다(목록은 이미 그려졌다) */
 export async function saveStoredHome(storage: HomeStorage | undefined, config: HomeConfig, key: string = HOME_STORAGE_KEY): Promise<void> {
-  if (!storage) return;
+  const io = storageIo(storage);
+  if (!io) return;
   try {
-    await storage.set(key, JSON.stringify({ v: 1, at: Date.now(), response: { ok: true, rows: config.rows, list: config.list } }));
+    await io.set(key, JSON.stringify({ v: 1, at: Date.now(), response: { ok: true, rows: config.rows, list: config.list } }));
   } catch { /* 저장 실패는 다음에 다시 */ }
 }
 

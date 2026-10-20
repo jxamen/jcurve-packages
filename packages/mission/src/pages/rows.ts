@@ -9,8 +9,16 @@ import type { BenefitQuickItem } from '../BenefitQuickList';
 export function freeItemRow(args: {
   /** 아이템 이름 — 양분 · 캡슐 · 열매 · 먹이 */
   itemName: string;
-  /** 오늘 남은 방문 수(0~total). 주면 칸 막대 「N번 남았어요」, 0 이면 「완료」 */
+  /** 오늘 남은 방문 수(0~total). 주면 「N번 남았어요」, 0 이면 완료(done) — 놓친 칸이 있으면 받은 수와 다를 수 있다(`received` 를 같이 준다) */
   left?: number;
+  /**
+   * (0.7.4) 오늘 **받은** 횟수(0~total). 방문형은 아침 · 점심을 놓친 칸이 있어 「남은 칸 0 = 다 받음」이 아니다(저녁 1번만 받아도 left=0).
+   * 주면 칸 막대의 초록 칸은 `received` 만큼, 완료 글자는 받은 횟수대로 — 0<r<total 「오늘 r번 받았어요」 · r=total 「오늘 다 받았어요」 · r=0 「오늘은 시간이 지났어요」.
+   * 아직 받을 칸이 남았으면(left>0) 글자는 「N번 남았어요」. `left` 없이 `received` 만 주면 막대와 받은 횟수 글자만 그린다(done 은 아님)
+   */
+  received?: number;
+  /** (0.7.4) 완료(done) 줄의 버튼 글자 — 이 줄만. 안 주면 목록의 `doneLabel`(기본 「완료」). 예: 방문형 「내일 다시」 */
+  doneLabel?: string;
   /** 하루 방문 수 — 기본 3 */
   total?: number;
   onPress: () => void;
@@ -26,6 +34,10 @@ export function freeItemRow(args: {
   const hasLeft = args.left !== undefined;
   const left = Math.max(0, Math.min(total, args.left ?? total));
   const done = hasLeft && left === 0;
+  const hasReceived = args.received !== undefined;
+  const received = Math.max(0, Math.min(total, Math.floor(args.received ?? 0)));
+  // 받은 횟수 글자 — 다 받음 · 일부 받음 · (놓쳐서) 하나도 못 받음. received 가 없으면 예전처럼 「다 받았어요」(left=0)
+  const receivedLabel = received >= total ? '오늘 다 받았어요' : received > 0 ? `오늘 ${received}번 받았어요` : '오늘은 시간이 지났어요';
 
   return {
     key: args.key ?? 'freeItem',
@@ -37,9 +49,10 @@ export function freeItemRow(args: {
     hidden: args.hidden,
     done,
     onPress: args.onPress,
-    ...(hasLeft ? {
-      progress: { done: total - left, total },
-      progressLabel: done ? '오늘 다 받았어요' : `${left}번 남았어요`,
+    ...(args.doneLabel !== undefined ? { doneLabel: args.doneLabel } : {}),
+    ...(hasLeft || hasReceived ? {
+      progress: { done: hasReceived ? received : total - left, total },
+      progressLabel: hasLeft && !done ? `${left}번 남았어요` : hasReceived ? receivedLabel : '오늘 다 받았어요',
     } : {}),
   };
 }
