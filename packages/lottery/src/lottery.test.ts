@@ -179,9 +179,11 @@ describe('포인트 표(unit:points) — 읽기와 문구(0.1.3)', () => {
     expect(lotteryMissionButton({ missionState: 'locked' })).toEqual({ label: '받기', kind: 'earn' });
     expect(lotteryMissionButton({ missionState: 'opened' })).toEqual({ label: '받기 완료', kind: 'done' });
     expect(lotteryMissionButton({ missionState: 'capped' })).toEqual({ label: '내일 받아요', kind: 'wait' });
-    expect(lotteryMissionHint({ missions: 1, missionsLeft: 1, missionState: 'locked' })).toBe('쇼핑 · 플레이스 미션 1개 하면 받아요');
+    expect(lotteryMissionHint({ missions: 1, missionsLeft: 1, missionState: 'locked' })).toBe('미션 1개 하면 받아요');
     expect(lotteryMissionHint({ missions: 5, missionsLeft: 3, missionState: 'locked' })).toBe('미션 3개 더 하면 받아요');
-    expect(lotteryMissionHint({ missions: 5, missionsLeft: 0, missionState: 'opened' })).toBe('쇼핑 · 플레이스 미션 5개로 받았어요');
+    // 받은 뒤(ready · opened)에도 같은 말 — 「미션 N개로 받았어요」 폐지(0.1.4)
+    expect(lotteryMissionHint({ missions: 5, missionsLeft: 0, missionState: 'opened' })).toBe('미션 5개 하면 받아요');
+    expect(lotteryMissionHint({ missions: 10, missionsLeft: 0, missionState: 'ready' })).toBe('미션 10개 하면 받아요');
     expect(lotteryMissionHint({ missions: 5, missionsLeft: 0, missionState: 'capped' })).toBe('오늘 받을 수 있는 복권을 모두 받았어요');
   });
   it('goldenRow: 기본 복권이 있는 단계, 없으면 null · goldenLines 포인트 표는 P 만', () => {
