@@ -116,6 +116,26 @@ ads.setLang('en');   // 켠 뒤 바꿀 때 — 다음 광고부터
 둘 다 있으면 같은 이벤트가 두 번 나간다). `expo-build-properties` 의 JitPack 줄은 남겨도 된다(플러그인이 겹치면 건너뛴다).
 
 
+## TabBarBanner — 자리 고정 (1.9.8, 대표님 10-20 21:22)
+
+> 「탭 메뉴 아래 광고가 나오는데, 광고가 나오면 메뉴가 위로 툭 올라가. 광고 자리를 고정해 두고 광고만 나왔으면 좋겠어.」
+
+**1.9.7 까지** 는 광고가 오기 전·실패·재시도 소진일 때 높이 0 이었다가(`No fill means no space`) 광고가 오면 0 → 높이로 커져서 **탭 줄이 밀려 올라갔다.** **1.9.8 부터** 광고 자리를 **처음부터 고정 높이 View 한 개**로 그린다 — 광고는 그 안에서만 나타난다.
+
+- **바깥 높이는 mount 뒤 어떤 상태에서도 안 바뀐다** — 로드 전 · SDK 초기화 중 · 실패(`onAdFailedToLoad`) · 재시도 소진 · 영상 광고 거름 · 광고 교체 중 모두 같은 높이. 빈 자리는 배경색(`backgroundColor`)만 보인다.
+- **`backgroundColor`**(기본 `'#fff'`): 빈 자리 색. **앱 탭바 색을 넘기면** 빈 자리가 눈에 안 띈다. 예: `<TabBarBanner unitId={u} enabled={on} backgroundColor={theme.tabBar} />`.
+- **native**(`format="native"`): 높이 **40** 고정(`NATIVE_SLOT_HEIGHT`) — 예전에도 광고 높이가 40 이었고, 이제 자리를 먼저 잡는다.
+- **banner**(기본, ANCHORED_ADAPTIVE): 높이를 **화면 폭으로 미리 계산**해 고정한다 — `bannerSlotHeight(width, height)` =
+  `ceil(폭 × 50 / 320)` 를 **[50, min(90, 화면 높이의 15%)]** 로 자른다. 예) 폭 360 → 57, 390 → 61, 412 → 65, 태블릿 → 90, 가로 모드 844×390 → 58.
+  - **근거**: 구글 문서는 앵커 적응형 배너가 「320×50 표준 배너와 비슷한 고정 가로세로 비」를 쓰고, 높이는 **50 이상 · 기기 높이의 15% 이하**(Unity 안내는 90 상한도 적음)라고만 적고 **공식 계산식은 공개하지 않는다.** 그래서 위 값은 **추정**이다.
+  - SDK 가 실제로 주는 높이가 추정과 몇 dp 달라도 **바깥 높이는 안 바뀐다** — 광고를 가운데 두고 `overflow: hidden` 으로 자른다(작으면 위아래에 배경색 여백, 크면 가장자리가 조금 잘림). 올림(`ceil`)이라 대개 여백 쪽이다.
+  - 실기기에서 실제 높이를 재면 **`bannerHeight={실제값}`** 으로 넘겨 맞춘다(native 에는 무시). 모르면 안 넘겨도 된다.
+- **자리가 0 인 경우**(옛날과 같음): `enabled=false` · `unitId` 없음 · 웹 · 광고 SDK 없음(Expo Go) → `null`, 자리도 없다. 원격으로 끈 앱은 자리도 없다.
+- **`enabled` 가 false → true 로 바뀌는 순간**에는 자리가 한 번 생긴다(탭 줄이 한 번 올라감). 앱에서 막으려면 **원격 설정이 오기 전에는 마지막으로 받은 값**(AsyncStorage 등에 저장해 둔 `enabled`)을 첫 값으로 쓰고, 값이 같으면 아무것도 안 바뀐다. 처음 설치라 저장값이 없으면 `false` 로 시작해 한 번만 생기는 건 어쩔 수 없다.
+- 새 네이티브 의존 0 — `react-native` 의 `View` · `Dimensions` 만 더 쓴다. 보상형·ATT·틱톡·미디에이션 동작은 그대로. 1.9.5 는 금지판이라 1.9.6 이상에서 올라온다.
+
+아래는 1.9.3 에 쓴 기본 사용법이다(「zero height」 문장은 위 1.9.8 로 대체됨).
+
 ## TabBarBanner (1.9.3)
 
 Place `<TabBarBanner unitId={existingUnit} enabled={remoteOn} />` immediately after the tab row,
@@ -124,7 +144,7 @@ The default `format="banner"` uses the SDK anchored adaptive BannerAd, including
 For an existing **native** unit use `format="native"`: a 40dp single-line NativeAdView with icon/headline,
 SDK AdChoices, and the mandatory AD attribution (native SDK does not supply attribution text).
 Never send a native unit ID to BannerAd. Video-only native responses are destroyed without retries.
-Disabled, missing-unit, pending and failed requests occupy zero height. Unmount destroys native ads;
+(1.9.8: only disabled / missing-unit / web / no-SDK occupy zero height — pending and failed requests keep the fixed slot.) Unmount destroys native ads;
 a late response after unmount is destroyed too. Existing SDK test device configuration is retained.
 Pass a Google test unit from the app's existing test-mode logic when appropriate.
 No native module, plugin, reward, frequency or mediation changes are required relative to 1.9.2.
