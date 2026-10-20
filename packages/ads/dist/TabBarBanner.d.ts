@@ -5,12 +5,13 @@ import React from 'react';
  * - `loaded`: a creative is on screen.
  * - `video-dropped`: a video creative came back and was destroyed (a 40dp row cannot render the required video).
  * - `no-fill`: the request failed or came back empty (`error` = SDK message when there is one).
- * - `retries-exhausted`: native gave up after the last retry (follows the `video-dropped` / `no-fill` of that attempt).
+ * - `waiting`: native used up its quick retries (3, 10, 30, 60 s) and now keeps asking every 60 s while the app is in front
+ *   (and once right away when the app comes back to the front). Reported once, right after the `video-dropped` / `no-fill` of that attempt.
  * - `init-failed`: the ads SDK did not initialize.
  * `tries` = requests made in this run since the last `loaded` (first request = 1; banner always 1).
  */
 export type TabBarBannerState = {
-    state: 'requesting' | 'loaded' | 'video-dropped' | 'no-fill' | 'retries-exhausted' | 'init-failed';
+    state: 'requesting' | 'loaded' | 'video-dropped' | 'no-fill' | 'waiting' | 'init-failed';
     tries: number;
     error?: string;
 };
@@ -51,10 +52,12 @@ export declare function bannerSlotHeight(windowWidth: number, windowHeight?: num
  * Only `enabled=false`, a missing unit, web, or no ads SDK reserve nothing (0 height).
  */
 export declare function TabBarBanner({ unitId, enabled, format, backgroundColor, bannerHeight, lang, onState }: TabBarBannerProps): React.FunctionComponentElement<any> | null;
-/** Retry delays after no fill / video creative (ms). After the last one the slot stays reserved but empty. */
+/** Quick retry delays after no fill / video creative (ms). After the last one the slot stays reserved and keeps asking every `NATIVE_REFRESH_MS`. */
 export declare const NATIVE_RETRY_MS: number[];
-/** Swap the creative while it stays on screen. */
+/** Swap the creative while it stays on screen — also how often an empty slot keeps asking after the quick retries (1.9.12). */
 export declare const NATIVE_REFRESH_MS = 60000;
+/** (1.9.12) Least time between two native requests when the app returns to the front, so flipping apps cannot spam requests. */
+export declare const NATIVE_MIN_GAP_MS = 10000;
 /**
  * (1.9.10) Label of the native row's call-to-action button: the ad's own `callToAction` text, or "설치" (en: "Install") when the ad has none.
  * AdMob lists "Call to action" as a required element of a native ad (policy table), so the row always shows one.

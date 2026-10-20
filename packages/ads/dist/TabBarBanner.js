@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.NATIVE_REFRESH_MS = exports.NATIVE_RETRY_MS = exports.NATIVE_SLOT_HEIGHT = void 0;
+exports.NATIVE_MIN_GAP_MS = exports.NATIVE_REFRESH_MS = exports.NATIVE_RETRY_MS = exports.NATIVE_SLOT_HEIGHT = void 0;
 exports.bannerSlotHeight = bannerSlotHeight;
 exports.TabBarBanner = TabBarBanner;
 exports.nativeCtaLabel = nativeCtaLabel;
@@ -77,10 +77,12 @@ function TabBarBanner({ unitId, enabled, format = 'banner', backgroundColor = '#
         return null;
     return react_1.default.createElement(LoadedBanner, { key: `${format}:${unitId}`, sdk, rn, unitId, format, backgroundColor, bannerHeight, lang, onState });
 }
-/** Retry delays after no fill / video creative (ms). After the last one the slot stays reserved but empty. */
+/** Quick retry delays after no fill / video creative (ms). After the last one the slot stays reserved and keeps asking every `NATIVE_REFRESH_MS`. */
 exports.NATIVE_RETRY_MS = [3000, 10000, 30000, 60000];
-/** Swap the creative while it stays on screen. */
+/** Swap the creative while it stays on screen — also how often an empty slot keeps asking after the quick retries (1.9.12). */
 exports.NATIVE_REFRESH_MS = 60000;
+/** (1.9.12) Least time between two native requests when the app returns to the front, so flipping apps cannot spam requests. */
+exports.NATIVE_MIN_GAP_MS = 10000;
 /**
  * (1.9.10) Label of the native row's call-to-action button: the ad's own `callToAction` text, or "설치" (en: "Install") when the ad has none.
  * AdMob lists "Call to action" as a required element of a native ad (policy table), so the row always shows one.
@@ -129,10 +131,41 @@ function LoadedBanner({ sdk, rn, unitId, format, backgroundColor, bannerHeight, 
         let timer = null;
         let tries = 0; // retries used (picks the next delay)
         let requests = 0; // requests since the last loaded (reported as `tries`)
-        const later = (ms) => { timer = setTimeout(() => { void load(); }, ms); };
+        let started = false; // the ads SDK is initialized — before that, app state changes must not trigger a request
+        let paused = false; // a due request was held back because the app is behind
+        let inflight = false;
+        let lastStart = 0;
+        let waiting = false; // `waiting` was reported (the quick retries are used up)
+        const isActive = () => { const st = rn.AppState?.currentState; return st !== 'background' && st !== 'inactive'; };
+        const later = (ms) => {
+            if (timer)
+                clearTimeout(timer);
+            timer = setTimeout(() => {
+                timer = null;
+                if (!alive)
+                    return;
+                if (!isActive()) {
+                    paused = true;
+                    return;
+                } // behind the app: stop asking until it comes back (1.9.12)
+                void load();
+            }, ms);
+        };
+        const load = async () => {
+            inflight = true;
+            lastStart = Date.now();
+            try {
+                await attempt();
+            }
+            finally {
+                inflight = false;
+            }
+        };
         // A one-line native slot cannot display mandatory video media: drop video and ask again
         // (2026-10-19 owner: 「배너 광고가 하나도 안 나와」 — one video creative used to leave the slot empty for the whole session).
-        const load = async () => {
+        // (1.9.12) It never gives up while the app is in front: after the quick retries it asks every minute. The slot is reserved
+        // since 1.9.8, so a late creative cannot move the tab row.
+        const attempt = async () => {
             let next = null;
             let error;
             requests++;
@@ -166,10 +199,15 @@ function LoadedBanner({ sdk, rn, unitId, format, backgroundColor, bannerHeight, 
                 later(exports.NATIVE_REFRESH_MS);
                 return;
             } // keep the current creative
-            if (tries < exports.NATIVE_RETRY_MS.length)
+            if (tries < exports.NATIVE_RETRY_MS.length) {
                 later(exports.NATIVE_RETRY_MS[tries++]);
-            else
-                report('retries-exhausted', requests);
+                return;
+            }
+            if (!waiting) {
+                waiting = true;
+                report('waiting', requests);
+            }
+            later(exports.NATIVE_REFRESH_MS);
         };
         void Promise.resolve().then(() => sdk.default().initialize()).then(() => {
             if (!alive)
@@ -179,13 +217,28 @@ function LoadedBanner({ sdk, rn, unitId, format, backgroundColor, bannerHeight, 
                 report('requesting', 1);
                 return;
             }
+            started = true;
             return load();
         }).catch((e) => { if (alive) {
             setFailed(true);
             report('init-failed', requests, e);
         } });
+        // (1.9.12) native only (the BannerAd manages itself): a request that comes due while the app is behind is held back (see `later`);
+        // when the app is back in front, an empty slot asks right away and a full one resumes its normal swap
+        const appSub = format === 'native' ? rn.AppState?.addEventListener?.('change', (st) => {
+            if (!alive || !started || st !== 'active' || inflight)
+                return; // an answer on its way schedules the next request itself
+            if (!shown)
+                later(Math.max(0, lastStart + exports.NATIVE_MIN_GAP_MS - Date.now())); // empty slot: ask right away (spaced)
+            else if (paused)
+                later(exports.NATIVE_REFRESH_MS); // a creative is on screen: just resume the normal swap
+            paused = false;
+        }) : null;
         return () => { alive = false; if (timer)
-            clearTimeout(timer); shown?.destroy(); };
+            clearTimeout(timer); try {
+            appSub?.remove?.();
+        }
+        catch { /* noop */ } shown?.destroy(); };
     }, [sdk, unitId, format]);
     const h = react_1.default.createElement;
     // One outer View for every state — its height is decided here, once, and nothing below can change it.

@@ -116,6 +116,15 @@ ads.setLang('en');   // 켠 뒤 바꿀 때 — 다음 광고부터
 둘 다 있으면 같은 이벤트가 두 번 나간다). `expo-build-properties` 의 JitPack 줄은 남겨도 된다(플러그인이 겹치면 건너뛴다).
 
 
+## TabBarBanner — 영상만 올 때도 포기하지 않는다 (1.9.12, 대표님 10-20 23:00 「꼬꼬 홈이 계속 빈칸」)
+
+**1.9.11 까지**: native 한 줄이 첫 요청 + 빠른 재시도(3 · 10 · 30 · 60초)까지 영상 소재만 받으면 그 화면에서는 **영영 포기**해서 홈이 계속 비었다. 자리는 1.9.8 부터 고정이라 늦게 와도 탭 줄이 움찔하지 않으니, **포기하지 않는다**.
+- **빠른 재시도가 끝나도 앱이 앞에 있는 동안 60초(`NATIVE_REFRESH_MS`)마다 계속 요청한다.** 영상이 아닌 소재가 오면 바로 보이고, 그 뒤는 예전처럼 60초마다 교체.
+- **앱이 뒤로 가 있는 동안은 멈춘다**(`AppState` 의 `background` · `inactive`). 뒤에서 때가 된 요청은 잃지 않고 보류했다가, **앞으로 돌아오면** — 자리가 **비어 있으면 즉시 한 번**, 광고가 떠 있으면 요청 없이 교체 주기만 이어 간다. 요청은 마지막 요청에서 **10초(`NATIVE_MIN_GAP_MS`)** 이상 지난 뒤에만 나가서, 앱을 오가도 요청이 쏟아지지 않는다. 요청이 아직 답을 기다리는 중이면 두 번째를 보내지 않고, 광고 SDK 초기화가 끝나기 전에는 앱 상태 변화로 아무것도 시작하지 않는다.
+- **`onState`**: 옛 `retries-exhausted` 는 **`waiting`** 으로 바뀌었다 — 빠른 재시도를 다 쓴 직후 **한 번만** 알리고, 그 뒤에도 `requesting` · `video-dropped`/`no-fill` · `loaded` 는 계속 알린다(`tries` 는 계속 올라간다).
+- 자리 높이 · 모양 · 정책 처리(영상은 여전히 버린다)는 그대로. banner(BannerAd) 형식은 SDK 가 알아서 하므로 **그대로**이고 앱 상태도 듣지 않는다. 새 네이티브 0.
+- ⚠ 요청이 늘어나는 만큼 광고 요청 수가 늘어난다: 앱이 앞에 있고 계속 영상만 오는 화면은 분당 1회. 실기기 · 운영 숫자는 시험판 이후 확인이 필요하다.
+
 ## TabBarBanner — native 줄에 CTA 버튼 (1.9.10, AdMob 정책 필수 요소)
 
 AdMob 네이티브 광고 정책 표(`support.google.com/admob/answer/6329638`, 2026-10-20 확인)는 **Ad badge · Title · Call to action 을 Required**, Icon 을 「Required if provided」로 적고, 「The native app install ad must include a call to action button that users can click to download/install the app. You can display an app download icon instead of a button or text」, 「The background of the ad must be not clickable (no clickable "white space")」라고 한다. 1.9.9 까지 native 한 줄은 AD 배지 · 아이콘 · 제목뿐이라 **CTA 가 빠져 있었다.**
@@ -137,7 +146,7 @@ AdMob 네이티브 광고 정책 표(`support.google.com/admob/answer/6329638`, 
 | `loaded` | 광고가 화면에 있다 |
 | `video-dropped` | **영상 소재가 와서 버렸다**(아래 「영상은 왜 버리나」) |
 | `no-fill` | 요청이 실패했거나 광고가 없다 — `error` 에 SDK 메시지(`코드: 메시지`, 200자까지) |
-| `retries-exhausted` | native 가 마지막 재시도(3 · 10 · 30 · 60초)까지 실패해 포기했다 — 그 시도의 `video-dropped`/`no-fill` **바로 뒤**에 한 번 |
+| `waiting` | native 가 빠른 재시도(3 · 10 · 30 · 60초)를 다 썼다 — 이제 **앱이 앞에 있는 동안 60초마다** 계속 묻는다(1.9.12). 그 시도의 `video-dropped`/`no-fill` **바로 뒤**에 한 번만 알린다(옛 이름 `retries-exhausted` 는 1.9.12 에서 이것으로 바뀌었다) |
 | `init-failed` | 광고 SDK 초기화 실패 |
 
 `tries` = 마지막 `loaded` 이후 보낸 요청 수(첫 요청 = 1, banner 는 1). 광고가 떠 있는 동안 갱신 요청이 실패하면 `no-fill`/`video-dropped` 만 알리고(포기 아님) 광고는 그대로 둔다.
@@ -146,20 +155,20 @@ AdMob 네이티브 광고 정책 표(`support.google.com/admob/answer/6329638`, 
 <TabBarBanner unitId={u} format="native" enabled={on}
   onState={s => log('tabbanner', s.state, s.tries, s.error)} />   // 서버 로그 · 개발 화면 등 앱이 정한 곳으로
 ```
-꼬꼬식 판별: `requesting → video-dropped → … → retries-exhausted` 면 **영상 소재가 계속 와서** 비는 것, `no-fill` 이면 AdMob 이 채우지 못한 것(`error` 확인), `init-failed` 면 SDK 쪽이다.
+꼬꼬식 판별: `requesting → video-dropped → … → waiting` 면 **영상 소재가 계속 와서** 비는 것, `no-fill` 이면 AdMob 이 채우지 못한 것(`error` 확인), `init-failed` 면 SDK 쪽이다.
 
 **영상은 왜 버리나** (정책 근거, 2026-10-20 AdMob 네이티브 광고 정책 페이지 `support.google.com/admob/answer/6329638` 확인):
 - 필수 요소 표에서 영상 광고는 **「Video (for video ads) — Required」**(영상 광고에 한해 표시 필수)이고, 「MediaView is required to render the main video asset in an ad.」 영상용 MediaView 는 **120×120dp 이상**이어야 한다(그보다 작으면 영상 광고가 안 나간다고 적혀 있다).
-- 40dp 한 줄 슬롯은 영상을 규정대로 그릴 수 없다. 그래서 **영상 소재를 아이콘 · 제목만으로 보여 주는 것은 정책상 맞지 않아** 지금처럼 버리고 다시 요청한다. **영상이 계속 오면 슬롯이 비는 것이 설계**다 — 영상까지 보이려면 120dp 이상의 MediaView 를 가진 더 큰 카드가 필요하다(이 슬롯의 일이 아니다).
+- 40dp 한 줄 슬롯은 영상을 규정대로 그릴 수 없다. 그래서 **영상 소재를 아이콘 · 제목만으로 보여 주는 것은 정책상 맞지 않아** 지금처럼 버리고 다시 요청한다. **영상만 오는 동안은 자리가 비어 있는 것이 설계**다(1.9.12 부터는 포기하지 않고 계속 다시 묻는다) — 영상까지 보이려면 120dp 이상의 MediaView 를 가진 더 큰 카드가 필요하다(이 슬롯의 일이 아니다).
 - 반대로 **영상이 아닌 소재**는 같은 표에서 이미지가 「Recommended」(권장)이고 「A main video or image asset is not required.」라 아이콘 · 제목만으로 보여도 된다.
 
 ## TabBarBanner — 자리 고정 (1.9.8, 대표님 10-20 21:22)
 
 > 「탭 메뉴 아래 광고가 나오는데, 광고가 나오면 메뉴가 위로 툭 올라가. 광고 자리를 고정해 두고 광고만 나왔으면 좋겠어.」
 
-**1.9.7 까지** 는 광고가 오기 전·실패·재시도 소진일 때 높이 0 이었다가(`No fill means no space`) 광고가 오면 0 → 높이로 커져서 **탭 줄이 밀려 올라갔다.** **1.9.8 부터** 광고 자리를 **처음부터 고정 높이 View 한 개**로 그린다 — 광고는 그 안에서만 나타난다.
+**1.9.7 까지** 는 광고가 오기 전·실패일 때 높이 0 이었다가(`No fill means no space`) 광고가 오면 0 → 높이로 커져서 **탭 줄이 밀려 올라갔다.** **1.9.8 부터** 광고 자리를 **처음부터 고정 높이 View 한 개**로 그린다 — 광고는 그 안에서만 나타난다.
 
-- **바깥 높이는 mount 뒤 어떤 상태에서도 안 바뀐다** — 로드 전 · SDK 초기화 중 · 실패(`onAdFailedToLoad`) · 재시도 소진 · 영상 광고 거름 · 광고 교체 중 모두 같은 높이. 빈 자리는 배경색(`backgroundColor`)만 보인다.
+- **바깥 높이는 mount 뒤 어떤 상태에서도 안 바뀐다** — 로드 전 · SDK 초기화 중 · 실패(`onAdFailedToLoad`) · 영상 광고 거름 · 계속 묻는 중 · 광고 교체 중 모두 같은 높이. 빈 자리는 배경색(`backgroundColor`)만 보인다.
 - **`backgroundColor`**(기본 `'#fff'`): 빈 자리 색. **앱 탭바 색을 넘기면** 빈 자리가 눈에 안 띈다. 예: `<TabBarBanner unitId={u} enabled={on} backgroundColor={theme.tabBar} />`.
 - **native**(`format="native"`): 높이 **40** 고정(`NATIVE_SLOT_HEIGHT`) — 예전에도 광고 높이가 40 이었고, 이제 자리를 먼저 잡는다.
 - **banner**(기본, ANCHORED_ADAPTIVE): 높이를 **화면 폭으로 미리 계산**해 고정한다 — `bannerSlotHeight(width, height)` =
