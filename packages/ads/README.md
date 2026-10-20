@@ -195,62 +195,71 @@ a late response after unmount is destroyed too. Existing SDK test device configu
 Pass a Google test unit from the app's existing test-mode logic when appropriate.
 No native module, plugin, reward, frequency or mediation changes are required relative to 1.9.2.
 
-## ATT 안내 — `AttDeniedSheet` · `ensureTrackingBeforeOfferwall`(1.9.5 → **1.9.11 개편**, 대표님 10-20 22:5x · 애플 심사 대비)
+## ATT 안내 — `AttDeniedSheet` · `ensureTrackingBeforeOfferwall`(1.9.5 → 1.9.11 개편 → **1.9.13 가운데 팝업**, 대표님 10-21 00:20 · 애플 심사 대비)
 
 > 1.9.6: `expo-tracking-transparency` 는 네이티브(`ExpoTrackingTransparency`)가 바이너리에 있는지 **먼저 본 뒤에만** require 한다(`src/native.ts`, @jcurve/steps 0.1.1 과 같은 방식). 없으면 안내는 안 뜨고 함수는 던지지 않고 돌아온다.
 
-**1.9.11 에서 바뀐 것** — 애플은 ATT 동의를 **조건이나 대가로 삼는 것**을 허용하지 않고(5.1.2(i)), 시스템 창 **앞에 설명을 보여 주는 것**은 투명하게 하면 허용한다(5.1.1(iv)) — 앱관리가 인용한 애플 개발자 FAQ(`developer.apple.com/app-store/user-privacy-and-data-use`) 기준이다.
-- **지웠다**: 앱을 켤 때(거부 · 제한이면 하루 한 번) 홈에 뜨던 시트, 그리고 추적 허용에 **이익을 걸던 문구 전부**(소스 · 빌드 결과 · 번역표 어디에도 없고 시험이 막는다).
-- **새로**: 시스템 ATT 창 **바로 앞의 중립 안내**(한 번). 확정 문구 · 버튼 「계속」 하나.
-- **살렸다**: 거부 · 제한일 때의 **단계 안내 시트**(설정 앱 → 앱 → 「{appName}」 → 「추적 허용」). 단, **사용자가 오퍼월/참여형 미션을 눌렀을 때만** 열리고, 첫 줄이 사실 설명으로 바뀌었다.
+애플은 ATT 동의를 **조건이나 대가로 삼는 것**을 허용하지 않고(5.1.2(i)), 시스템 창 **앞에 설명을 보여 주는 것**은 투명하게 하면 허용한다(5.1.1(iv)) — 앱관리가 인용한 애플 개발자 FAQ(`developer.apple.com/app-store/user-privacy-and-data-use`) 기준이다. 그래서 안내는 **두 가지**이고, **어느 쪽도 오퍼월 진입을 막지 않는다.**
 
 | 상황 | 앱을 켤 때 (`ads.requestTracking()`) | 오퍼월 · 미션을 누를 때 (`ensureTrackingBeforeOfferwall()`) |
 | --- | --- | --- |
-| **미정** | 중립 안내(한 번) → 시스템 ATT 창 | 중립 안내(이미 봤으면 생략) → 시스템 ATT 창, 결과 상태를 돌려준다 |
-| **거부 · 제한** | **아무것도 안 뜬다** | 단계 시트. 닫으면 다시 읽은 상태를 돌려준다(**오퍼월 진입을 막지 않는다**) |
-| 허용 | 아무것도 안 뜬다 | 바로 상태를 돌려준다 |
-| Android · 모듈 없음 | 아무것도 안 한다 | `unavailable` |
+| **미정** | 중립 안내(한 번) → 시스템 ATT 창 | 중립 안내(이미 봤으면 생략) → 시스템 ATT 창 |
+| **거부 · 제한** | **아무것도 안 뜬다** | **가운데 팝업(하루 한 번)** → 어느 버튼이든 이어서 진입 |
+| 허용 | 아무것도 안 뜬다 | 바로 진입 |
+| Android · 모듈 없음 | 아무것도 안 한다 | 바로 진입 |
 
 ```tsx
 import { AttDeniedSheet, ensureTrackingBeforeOfferwall } from '@jcurve/ads';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// 앱 루트에 한 번 — 붙이는 것만으로는 아무것도 뜨지 않는다(호출이 있을 때만 열린다). 옛 코드 그대로 쓰면 된다
-<AttDeniedSheet appName="꼬꼬농장" />
+// 앱 루트에 한 번 — 붙이는 것만으로는 아무것도 뜨지 않는다(호출이 있을 때만 열린다).
+// storage 를 주면 「하루 한 번」이 앱을 껐다 켜도 지켜진다(안 주면 껐다 켜면 다시 한 번 뜬다)
+<AttDeniedSheet storage={AsyncStorage} />
 
 // 오퍼월 · 참여형 미션에 들어가기 전 (앱을 켤 때 ATT 는 기존대로 ads.requestTracking())
-const status = await ensureTrackingBeforeOfferwall();   // 'granted' | 'denied' | 'restricted' | 'undetermined' | 'unavailable' | 'unknown'
-// status 와 상관없이 오퍼월을 연다 — 못 열면 그건 오퍼월 SDK 의 몫이다
+const status = await ensureTrackingBeforeOfferwall();
+openOfferwall();   // ⚠ status 가 무엇이든 연다 — 돌려주는 값으로 오퍼월을 막지 않는다
 ```
+
+### 돌려주는 값 — 오퍼월을 막는 분기를 두지 않는다 (1.9.13)
+
+`ensureTrackingBeforeOfferwall()` 은 **오퍼월을 열어도 되는지**를 돌려준다. 어떤 값이 와도 연다 — 값은 참고용이다.
+- `granted` · `unavailable`(Android · 모듈 없음) · `unknown`(읽기 실패): 그대로.
+- **`proceed`** (새 값): 추적이 꺼져 있다(거부 · 제한 — 시스템 창에서 방금 거부한 경우 포함). **그래도 오퍼월은 열어도 된다**는 뜻이다. 옛 값 `denied` · `restricted` 는 더 이상 돌려주지 않는다.
+- ⚠ **앱 쪽**: 예전에 `denied`/`restricted` 면 오퍼월을 안 열던 분기가 있으면 **지운다.** (`status !== 'granted'` 로 막는 분기도 지운다 — `proceed` 가 오기 때문이다.)
 
 ### 안내 문구 (확정)
 
-**① 시스템 창 앞 중립 안내** (`ATT_PRIMER_TEXTS`, 상태가 **미정일 때만 · 한 번 · 버튼 하나 · 닫기 없음**)
+**① 시스템 창 앞 중립 안내** (`ATT_PRIMER_TEXTS`, 상태가 **미정일 때만 · 한 번 · 버튼 하나 · 닫기 없음**, 가운데 카드)
 - 제목 「다음 화면에서 앱 추적 허용 여부를 물어봐요」
 - 본문 「허용하면 앱 사용 기록이 광고와 참여형 미션 참여 확인에 쓰여요. 허용하지 않아도 앱은 그대로 이용할 수 있어요.」
 - 버튼 「계속」 → 안내가 사라진 뒤(0.4초) 곧바로 시스템 창.
-- 시스템 창을 흉내 내지 않고(허용/거부 두 버튼 없음), 닫거나 건너뛴 뒤 다시 묻지 않으며, 거부된 뒤에는 뜨지 않는다. 본문의 「허용하지 않아도 …」는 오퍼월에서는 사실과 다를 수 있어 상수 하나로 두었다 — 앱이 `primerTexts` 로 덮어쓴다.
+- 시스템 창을 흉내 내지 않고(허용/거부 두 버튼 없음), 닫거나 건너뛴 뒤 다시 묻지 않으며, 거부된 뒤에는 뜨지 않는다. 앱이 `primerTexts` 로 문구를 덮어쓸 수 있다.
 
-**② 거부 · 제한 단계 시트** (`ATT_SHEET_TEXTS`, **오퍼월 진입 + 거부/제한일 때만**)
-- 첫 줄 「애드팝콘 참여형 미션은 설치 · 참여 확인을 위해 추적 허용이 필요해요」
-- ① 「설정」 앱을 열어요 ② 「앱」으로 가요 ③ 「{appName}」을 찾아 눌러요 ④ 「추적 허용」을 켜요 ⑤ 앱으로 돌아오면 바로 이용할 수 있어요
-- 안내 「아래 「설정에서 허용하기」를 누르면 3단계까지 바로 가요」 · 작은 글씨 「앱 화면에 「추적 허용」이 안 보이면: 설정 → 개인정보 보호 및 보안 → 추적 → 맨 위 「앱이 추적을 요청하도록 허용」을 먼저 켜요」
-- 버튼 「설정에서 허용하기」(`Linking.openSettings()` — 돌아와 허용됐으면 시트를 닫는다) · 「나중에」(닫으면 0.4초 뒤 오퍼월 진입이 이어진다).
-- **오퍼월을 누를 때마다** 열린다(탭할 때만 — 홈 · 루트에서 스스로 열리는 일은 없다). 하루 한 번 같은 횟수 제한이 필요하면 알려 주세요.
+**② 추적이 꺼져 있을 때의 가운데 팝업** (`ATT_DENIED_TEXTS`, **오퍼월 진입 + 거부/제한일 때만 · 하루 한 번**)
+- 제목 「추적이 꺼져 있어요」
+- 본문 「추적이 꺼져 있으면 일부 미션은 참여 확인이 안 될 수 있어요. 원하시면 설정에서 켤 수 있어요.」
+- 버튼 「그냥 보기」 · 「설정 열기」 — **같은 모양 · 같은 크기**(한쪽으로 몰아가지 않는다).
+  - 「그냥 보기」: 닫고 바로 이어서 진입.
+  - 「설정 열기」: `Linking.openSettings()` 로 설정 앱에 가고, **앱이 다시 앞으로 돌아오면** 이어서 진입한다(설정 앱으로 못 넘어갔으면 2초 뒤에 이어서). 돌아와서 켜져 있으면 `granted`.
+- **하루 한 번**: 기기 로컬 날짜 기준. 오늘 이미 봤으면 팝업 없이 바로 진입. 앱을 껐다 켜도 지키려면 `<AttDeniedSheet storage={AsyncStorage}>` 로 저장소를 준다(없으면 실행 안에서만 센다). 날짜는 팝업을 띄우기 **전에** 적는다.
+- 앱을 켤 때 · 홈 · 루트 마운트로는 **절대** 열리지 않는다. 앱이 `deniedTexts` 로 문구를 덮어쓸 수 있다.
+- 대가 · 압박 말 없음, 업체 이름 없음(시험이 소스 · 빌드 결과 · 번역표를 스캔한다). 1.9.11 의 5단계 시트 문구는 번들에서 지웠다.
 
 ### `AttDeniedSheet` props
 
 | 이름 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
-| `appName` | `string` | 예 | 단계 시트 셋째 줄 「{appName}을 찾아 눌러요」에 들어가는 앱 이름 |
+| `storage` | `{ getItem(key), setItem(key, value) }` | 아니오 | 가운데 팝업을 띄운 날을 적어 둘 곳(예 AsyncStorage) |
 | `theme` | `{ background?, text?, subText?, primary?, primaryText?, overlay? }` | 아니오 | 색 토큰. 빠진 것은 기본 색 |
-| `texts` | `Partial<AttSheetTexts>` | 아니오 | 단계 시트 문구 덮어쓰기. 빠진 항목은 `ATT_SHEET_TEXTS` |
 | `primerTexts` | `Partial<{ title, body, button }>` | 아니오 | 중립 안내 문구 덮어쓰기. 빠진 항목은 `ATT_PRIMER_TEXTS` |
-| `storage` | — | 아니오 | **1.9.11 부터 쓰이지 않는다**(옛 호출 코드가 그대로 컴파일되도록 남김). `ensureTrackingBeforeOfferwall(storage?)` 도 같다 |
+| `deniedTexts` | `Partial<{ title, body, openSettings, proceed }>` | 아니오 | 가운데 팝업 문구 덮어쓰기. 빠진 항목은 `ATT_DENIED_TEXTS` |
+| `appName` · `texts` | — | 아니오 | **쓰이지 않는다**(옛 단계 시트용 — 옛 호출 코드가 그대로 컴파일되도록 남김) |
 
-문구는 한국어 하나다(다국어 표 없음) — 영어 앱은 `texts` · `primerTexts` 로 넘긴다.
+문구는 한국어 하나다(다국어 표 없음) — 영어 앱은 `primerTexts` · `deniedTexts` 로 넘긴다. `ATT_SHEET_TEXTS`(옛 단계 시트 문구)는 이름만 남고 값은 모두 비어 있다.
 
 ### 알아 둘 것
-- **`<AttDeniedSheet />` 를 안 붙인 앱**은 안내가 없다: 중립 안내와 단계 시트를 건너뛰고, 시스템 ATT 창은 예전처럼 바로 묻는다(상태만 돌려준다).
-- 중립 안내는 **이번 실행 안에서 한 번**이다. 상태가 미정이면 안내를 본 적 없는 사용자이므로 나중 실행에서 다시 한 번 보일 수 있지만, 시스템 창에 한 번 답하면(허용 · 거부) 그 뒤로는 다시 뜨지 않는다.
-- 안내가 사라지는 0.4초를 기다린 뒤에 시스템 창 · 오퍼월 화면을 올린다 — 겹치면 iOS 가 뒤의 것을 놓친다.
+- **`<AttDeniedSheet />` 를 안 붙인 앱**은 안내가 없다: 중립 안내와 팝업을 건너뛰고, 시스템 ATT 창은 예전처럼 바로 묻는다.
+- 중립 안내는 **이번 실행 안에서 한 번**이다. 시스템 창에 한 번 답하면(허용 · 거부) 그 뒤로는 다시 뜨지 않는다.
+- 안내가 사라지는 0.4초를 기다린 뒤에 시스템 창을 올린다 — 겹치면 iOS 가 뒤의 것을 놓친다.
 - 새 네이티브 0 · 권한 · Info.plist 변경 없음(OTA). **앱 쪽 확인**: `NSUserTrackingUsageDescription`(시스템 창의 설명 글)에도 이익을 내세우는 말이 없는지 한 번 봐 주세요 — 심사관이 보는 글이다(이 패키지 밖).

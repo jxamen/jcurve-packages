@@ -1,7 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ATT_PRIMER_TEXTS = exports.ATT_SHEET_TEXTS = void 0;
-exports.attSheetTexts = attSheetTexts;
+exports.SETTINGS_LEAVE_MS = exports.ATT_DENIED_STORAGE_KEY = exports.ATT_DENIED_TEXTS = exports.ATT_PRIMER_TEXTS = exports.ATT_SHEET_TEXTS = void 0;
 exports.localDay = localDay;
 exports.decideAttAction = decideAttAction;
 exports.loadTracking = loadTracking;
@@ -10,16 +9,17 @@ exports.readStatus = readStatus;
 exports.requestStatus = requestStatus;
 exports.registerAttHost = registerAttHost;
 exports.showAttPrimerOnce = showAttPrimerOnce;
-exports.showAttSheet = showAttSheet;
+exports.showAttDeniedOncePerDay = showAttDeniedOncePerDay;
+exports.waitForReturn = waitForReturn;
 exports.ensureTrackingBeforeOfferwallWith = ensureTrackingBeforeOfferwallWith;
 exports.ensureTrackingBeforeOfferwall = ensureTrackingBeforeOfferwall;
 /**
  * iOS ATT — 상태 읽기 · 시스템 요청 · 안내 두 가지의 판단 로직(화면은 `AttDeniedSheet.ts`).
  *
- * (1.9.11) 애플 심사 기준(5.1.2(i) — ATT 동의를 조건이나 대가로 삼을 수 없다)에 맞춰 안내를 다시 짰다.
+ * 애플 심사 기준(5.1.2(i) — ATT 동의를 조건이나 대가로 삼을 수 없다)에 맞춘 안내다.
  *  ① **시스템 ATT 창 바로 앞의 중립 안내 — 한 번.** 상태가 미정(undetermined)일 때만, 「계속」 버튼 하나. 대가 · 압박 문구 없음.
- *  ② **거부 · 제한 안내(단계 시트) — 사용자가 오퍼월/참여형 미션을 눌러 `ensureTrackingBeforeOfferwall` 이 불렸을 때만.**
- *     앱을 켤 때 · 루트 마운트로는 절대 열리지 않는다. 닫아도 오퍼월 진입은 막지 않는다.
+ *  ② **추적이 꺼져 있을 때(거부 · 제한)의 가운데 팝업 — 오퍼월/미션을 눌러 `ensureTrackingBeforeOfferwall` 이 불렸을 때만, 하루 한 번.**
+ *     앱을 켤 때 · 루트 마운트로는 절대 열리지 않는다. 어느 버튼을 눌러도 **오퍼월 진입을 막지 않는다**(반환값으로도).
  * 시스템 ATT 창 자체는 `ads.requestTracking()`(앱을 켤 때)과 `ensureTrackingBeforeOfferwall()` 이 띄운다 — 둘 다 ① 을 거친다.
  *
  * ⚠ 네이티브 모듈은 `expo-tracking-transparency` 하나만, **네이티브가 있는지 먼저 본 뒤**(native.ts) 읽는다 — 없으면
@@ -27,21 +27,15 @@ exports.ensureTrackingBeforeOfferwall = ensureTrackingBeforeOfferwall;
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const native_1 = require("./native");
-/** 거부 · 제한 단계 시트 기본 문구(1.9.11: 첫 줄만 사실 설명으로 바꾸고 이익을 내세우던 문구는 지웠다 — 단계 안내는 그대로) */
+/** 1.9.13 부터 비어 있다 — 옛 단계 시트 문구를 지웠다(번들에 남기지 않는다). 앱이 import 해도 컴파일은 유지된다 */
 exports.ATT_SHEET_TEXTS = {
-    title: '애드팝콘 참여형 미션은 설치 · 참여 확인을 위해 추적 허용이 필요해요',
+    title: '',
     body: '',
-    steps: [
-        '「설정」 앱을 열어요',
-        '「앱」으로 가요',
-        '「{appName}」을 찾아 눌러요',
-        '「추적 허용」을 켜요',
-        '앱으로 돌아오면 바로 이용할 수 있어요',
-    ],
-    guide: '아래 「설정에서 허용하기」를 누르면 3단계까지 바로 가요',
-    fallback: '앱 화면에 「추적 허용」이 안 보이면: 설정 → 개인정보 보호 및 보안 → 추적 → 맨 위 「앱이 추적을 요청하도록 허용」을 먼저 켜요',
-    openSettings: '설정에서 허용하기',
-    later: '나중에',
+    steps: [],
+    guide: '',
+    fallback: '',
+    openSettings: '',
+    later: '',
 };
 /** 시스템 ATT 창 앞 중립 안내 기본 문구(대표님 확정 문구 — 앱이 `primerTexts` 로 덮어쓸 수 있다) */
 exports.ATT_PRIMER_TEXTS = {
@@ -49,13 +43,14 @@ exports.ATT_PRIMER_TEXTS = {
     body: '허용하면 앱 사용 기록이 광고와 참여형 미션 참여 확인에 쓰여요. 허용하지 않아도 앱은 그대로 이용할 수 있어요.',
     button: '계속',
 };
-/** 문구를 합친다 — 덮어쓴 값이 있으면 그것을, 단계의 `{appName}` 을 앱 이름으로 바꾼다 */
-function attSheetTexts(appName, overrides) {
-    const m = { ...exports.ATT_SHEET_TEXTS, ...(overrides ?? {}) };
-    const name = String(appName ?? '');
-    return { ...m, steps: m.steps.map((s) => s.split('{appName}').join(name)) };
-}
-/** 로컬 달력 날짜(YYYY-MM-DD) */
+/** 추적이 꺼져 있을 때의 가운데 팝업 기본 문구(대표님 확정 문구 — 앱이 `deniedTexts` 로 덮어쓸 수 있다) */
+exports.ATT_DENIED_TEXTS = {
+    title: '추적이 꺼져 있어요',
+    body: '추적이 꺼져 있으면 일부 미션은 참여 확인이 안 될 수 있어요. 원하시면 설정에서 켤 수 있어요.',
+    openSettings: '설정 열기',
+    proceed: '그냥 보기',
+};
+/** 로컬 달력 날짜(YYYY-MM-DD) — 「하루 한 번」은 기기 시간대의 자정 기준이다 */
 function localDay(d) {
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
@@ -65,7 +60,7 @@ function localDay(d) {
  * 무엇을 할지 — 기기 없이 판단하는 순수 함수.
  * - Android·웹 등 iOS 가 아니면 아무것도 안 한다.
  * - 미정이면 시스템 창(`request`) — 어느 시점이든. 그 앞에 중립 안내가 한 번 붙는다.
- * - 거부·제한이면 **오퍼월 진입 때만** 단계 시트(`show`). 앱을 켤 때(`launch`)는 절대 아니다.
+ * - 거부·제한이면 **오퍼월 진입 때만** 가운데 팝업(`show`, 하루 한 번은 호출 쪽이 센다). 앱을 켤 때(`launch`)는 절대 아니다.
  */
 function decideAttAction(i) {
     if (i.os !== 'ios')
@@ -123,6 +118,29 @@ function normStatus(s) {
             return 'unknown';
     }
 }
+/** 메모리 저장소 — 앱이 저장소를 안 넘겼을 때. 앱을 끄면 잊으므로 하루 한 번 규칙은 그 실행 안에서만 지켜진다 */
+const memory = new Map();
+const memoryStorage = {
+    getItem: (k) => memory.get(k) ?? null,
+    setItem: (k, v) => { memory.set(k, v); },
+};
+/** 저장소 열쇠 — 마지막으로 가운데 팝업을 띄운 날(YYYY-MM-DD) */
+exports.ATT_DENIED_STORAGE_KEY = 'jcurve.ads.attDenied.lastShown';
+async function readLastShown(storage) {
+    try {
+        const v = await storage.getItem(exports.ATT_DENIED_STORAGE_KEY);
+        return typeof v === 'string' && v !== '' ? v : null;
+    }
+    catch {
+        return null;
+    }
+}
+async function writeLastShown(storage, day) {
+    try {
+        await storage.setItem(exports.ATT_DENIED_STORAGE_KEY, day);
+    }
+    catch { /* 저장 실패 — 다음 실행에 한 번 더 뜰 수 있을 뿐이다 */ }
+}
 let host = null;
 function registerAttHost(h) { host = h; }
 let primerRun = null;
@@ -141,27 +159,90 @@ function showAttPrimerOnce() {
     }));
     return primerRun;
 }
-let sheetRun = null;
-/** 거부 · 제한 단계 시트 — 닫히면 돌아온다. 동시에 부르면 하나를 같이 기다린다. 화면이 없으면 바로 돌아온다 */
-function showAttSheet() {
+let deniedRun = null;
+/**
+ * 추적이 꺼져 있을 때의 가운데 팝업 — **하루 한 번**(기기 로컬 날짜). 오늘 이미 보였으면 띄우지 않고 바로 돌아온다.
+ * 닫힐 때까지(「설정 열기」는 설정 앱에서 돌아올 때까지) 기다린다. 동시에 부르면 하나를 같이 기다린다. 화면이 없으면 바로 돌아온다.
+ */
+async function showAttDeniedOncePerDay(today = localDay(new Date())) {
     const h = host;
     if (!h)
-        return Promise.resolve();
-    sheetRun ?? (sheetRun = new Promise((resolve) => {
+        return;
+    if (deniedRun) {
+        await deniedRun;
+        return;
+    }
+    const storage = h.storage ?? memoryStorage;
+    if ((await readLastShown(storage)) === today)
+        return;
+    if (deniedRun) {
+        await deniedRun;
+        return;
+    } // 읽는 사이에 다른 호출이 먼저 열었다
+    await writeLastShown(storage, today); // 띄우기 전에 적는다 — 도중에 꺼져도 오늘 또 뜨지 않는다
+    deniedRun ?? (deniedRun = new Promise((resolve) => {
         try {
-            h.sheet(resolve);
+            h.denied(resolve);
         }
         catch {
             resolve();
         }
-    }).then(() => { sheetRun = null; }));
-    return sheetRun;
+    }).then(() => { deniedRun = null; }));
+    await deniedRun;
+}
+/** 설정 앱에 다녀온 뒤 — 앱이 다시 앞으로 오면 돌아온다. 설정 앱으로 안 넘어가면(열기가 안 먹으면) `leaveMs` 뒤에 돌아온다 */
+exports.SETTINGS_LEAVE_MS = 2000;
+function waitForReturn(appState, leaveMs = exports.SETTINGS_LEAVE_MS) {
+    return new Promise((resolve) => {
+        if (!appState || typeof appState.addEventListener !== 'function') {
+            resolve();
+            return;
+        }
+        let left = false;
+        let sub = null;
+        let timer = null;
+        const end = () => {
+            try {
+                sub?.remove?.();
+            }
+            catch { /* noop */ }
+            if (timer)
+                clearTimeout(timer);
+            resolve();
+        };
+        try {
+            sub = appState.addEventListener('change', (s) => {
+                if (s !== 'active') {
+                    left = true;
+                    if (timer) {
+                        clearTimeout(timer);
+                        timer = null;
+                    }
+                    return;
+                }
+                if (left)
+                    end();
+            });
+        }
+        catch {
+            resolve();
+            return;
+        }
+        timer = setTimeout(() => { if (!left)
+            end(); }, leaveMs);
+    });
+}
+/** 최종 상태 → 돌려줄 값: 추적이 꺼져 있으면(거부 · 제한) `proceed` — 오퍼월은 열어도 된다는 뜻이다 */
+function forEntry(status) {
+    return status === 'denied' || status === 'restricted' ? 'proceed' : status;
 }
 /**
- * 오퍼월에 들어가기 전 — ATT 상태를 확인하고 **결과 상태**를 돌려준다. 오퍼월을 막지 않는다.
+ * 오퍼월에 들어가기 전 — ATT 상태를 확인하고 **오퍼월을 열어도 되는지**를 돌려준다. 오퍼월을 막지 않는다.
  * - 미정: 중립 안내(한 번) → 시스템 창 → 그 결과.
- * - 거부 · 제한: 단계 시트를 열고, 닫히면 다시 읽은 상태(설정에서 켰을 수 있다). 시트가 안 붙어 있으면 그 상태를 바로 돌려준다.
+ * - 거부 · 제한: 가운데 팝업(하루 한 번) → 닫히면 다시 읽은 상태(설정에서 켰을 수 있다). 팝업이 안 붙어 있거나 오늘 이미 봤으면 바로.
  * - 허용 · Android · 모듈 없음: 바로 돌려준다.
+ * 돌려주는 값: `granted` · `unavailable` · `unknown` 은 그대로, 추적이 꺼져 있으면(거부 · 제한, 시스템 창에서 막 거부한 경우 포함) **`proceed`**.
+ * 앱은 어떤 값이 와도 오퍼월을 연다 — 값은 참고용이다.
  */
 async function ensureTrackingBeforeOfferwallWith(d) {
     if (d.os !== 'ios' || !d.tracking)
@@ -173,18 +254,18 @@ async function ensureTrackingBeforeOfferwallWith(d) {
             await (d.primer ?? showAttPrimerOnce)();
         }
         catch { /* 안내가 안 떠도 시스템 창은 묻는다 */ }
-        return requestStatus(d.tracking);
+        return forEntry(await requestStatus(d.tracking));
     }
     if (action === 'show') {
         try {
-            await (d.sheet ?? showAttSheet)();
+            await (d.denied ?? showAttDeniedOncePerDay)();
         }
-        catch { /* 시트가 안 떠도 오퍼월은 막지 않는다 */ }
-        return readStatus(d.tracking);
+        catch { /* 팝업이 안 떠도 오퍼월은 막지 않는다 */ }
+        return forEntry(await readStatus(d.tracking));
     }
-    return status;
+    return forEntry(status);
 }
-/** 앱이 오퍼월에 들어가기 전에 부른다 — 실제 기기 값과 마운트된 화면을 쓴다. `storage` 는 1.9.11 부터 쓰이지 않는다(호출 코드가 그대로 컴파일되도록 남김) */
+/** 앱이 오퍼월에 들어가기 전에 부른다 — 실제 기기 값과 마운트된 화면을 쓴다. `storage` 는 `<AttDeniedSheet storage>` 로 넘긴다(여기 인자는 쓰이지 않는다) */
 function ensureTrackingBeforeOfferwall(_storage) {
     try {
         const rn = loadRN();
