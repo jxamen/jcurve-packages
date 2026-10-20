@@ -12,6 +12,8 @@ export type FreeItemPageProps = {
     /** 칸 받기 — 광고 · 서버 지급은 앱이 한다. Promise 를 주면 그동안 누름을 막지 않는다(앱이 상태로 막는다) */
     onClaim: (slotId: string) => void | Promise<void>;
     onBack: () => void;
+    /** (0.4.13) iOS 왼쪽 가장자리를 오른쪽으로 밀면 onBack(기본 true). 안드로이드는 그대로. 이미 앱에서 밀기를 감싼 화면은 false */
+    swipeBack?: boolean;
     /** 머리 제목 — 기본 「무료 {아이템} 받기」 */
     title?: string;
     /** 카드 아래 한 줄 — 기본 「하루 {칸 수}번 들르면 {아이템} 받기」 */
@@ -24,4 +26,4 @@ export type FreeItemPageProps = {
     buttonWidth?: number;
     buttonHeight?: number;
 };
-export declare function FreeItemPage({ slots, onClaim, onBack, title, subtitle, theme: themeIn, footer, buttonWidth, buttonHeight }: FreeItemPageProps): React.JSX.Element;
+export declare function FreeItemPage({ slots, onClaim, onBack, swipeBack, title, subtitle, theme: themeIn, footer, buttonWidth, buttonHeight }: FreeItemPageProps): React.JSX.Element;

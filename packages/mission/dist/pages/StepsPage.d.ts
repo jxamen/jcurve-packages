@@ -25,6 +25,8 @@ export type StepsPageProps = {
     /** 단계 받기 — 광고 · 서버 지급은 앱이 한다. reject 하면 「다시 시도」 안내 */
     onClaim: (stage: StepsStage) => void | Promise<void>;
     onBack: () => void;
+    /** (0.4.13) iOS 왼쪽 가장자리를 오른쪽으로 밀면 onBack(기본 true). 안드로이드는 그대로. 이미 앱에서 밀기를 감싼 화면은 false */
+    swipeBack?: boolean;
     /** 「1,000걸음마다」 의 걸음 수 — 기본 1000 */
     everySteps?: number;
     /** 안내 줄(목록) — 기본은 carrot 안내 문구 중 기기 중립인 것 */
@@ -34,4 +36,4 @@ export type StepsPageProps = {
     /** 광고 자리 — 앱이 네이티브 광고를 넣는다(패키지는 광고를 모른다). 0.4.6 부터 「남은 횟수」 카드 아래 · 「만보기 안내사항」 위 */
     footer?: ReactNode;
 };
-export declare function StepsPage({ todaySteps, stages, earnedToday, stepsAvailable, onUpdate, onClaim, onBack, everySteps, guide, title, theme: themeIn, footer }: StepsPageProps): React.JSX.Element;
+export declare function StepsPage({ todaySteps, stages, earnedToday, stepsAvailable, onUpdate, onClaim, onBack, swipeBack, everySteps, guide, title, theme: themeIn, footer }: StepsPageProps): React.JSX.Element;
