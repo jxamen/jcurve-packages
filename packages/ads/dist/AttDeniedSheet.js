@@ -47,7 +47,7 @@ const DEFAULT_THEME = {
 };
 /** 안내가 사라지는 동안(페이드) — 이 뒤에 시스템 창 · 오퍼월 화면을 올려야 iOS 가 겹쳐서 놓치지 않는다 */
 exports.DISMISS_MS = 400;
-function AttDeniedSheet({ theme, storage, primerTexts, deniedTexts }) {
+function AttDeniedSheet({ theme, storage, primerTexts, deniedTexts, renderPopup }) {
     const [mode, setMode] = (0, react_1.useState)('none');
     // 열려 있는 동안 기다리는 쪽 — 사라지면 풀어 준다
     const pending = (0, react_1.useRef)(null);
@@ -103,5 +103,14 @@ function AttDeniedSheet({ theme, storage, primerTexts, deniedTexts }) {
     const choice = (label, onPress) => h(rn.TouchableOpacity, { key: label, onPress, accessibilityRole: 'button',
         style: { flex: 1, borderWidth: 1, borderColor: th.subText, borderRadius: 10, paddingVertical: 13, alignItems: 'center' } }, h(rn.Text, { style: { color: th.text, fontSize: 15, fontWeight: '700' } }, label));
     const denied = card('denied', dismiss, title(dn.title), body(dn.body), h(rn.View, { style: { flexDirection: 'row', gap: 10, marginTop: 18 } }, choice(dn.proceed, dismiss), choice(dn.openSettings, openSettings)));
+    // (1.9.14) 앱이 자기 팝업으로 그린다 — 열려 있는 동안만 부른다. 문구 · 버튼 순서 · 동작은 위 기본 카드와 같다
+    if (renderPopup) {
+        const custom = mode === 'primer'
+            ? { kind: 'primer', title: pr.title, body: pr.body, buttons: [{ label: pr.button, onPress: dismiss }] }
+            : mode === 'denied'
+                ? { kind: 'denied', title: dn.title, body: dn.body, buttons: [{ label: dn.proceed, onPress: dismiss }, { label: dn.openSettings, onPress: openSettings }] }
+                : null;
+        return h(react_1.default.Fragment, null, custom ? renderPopup(custom) : null);
+    }
     return h(react_1.default.Fragment, null, primer, denied);
 }

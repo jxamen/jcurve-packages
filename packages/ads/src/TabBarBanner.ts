@@ -7,7 +7,7 @@ import { t } from './i18n';
  * - `loaded`: a creative is on screen.
  * - `video-dropped`: a video creative came back and was destroyed (a 40dp row cannot render the required video).
  * - `no-fill`: the request failed or came back empty (`error` = SDK message when there is one).
- * - `waiting`: native used up its quick retries (3, 10, 30, 60 s) and now keeps asking every 60 s while the app is in front
+ * - `waiting`: native used up its quick retries (1, 3, 10, 30 s) and now keeps asking every 60 s while the app is in front
  *   (and once right away when the app comes back to the front). Reported once, right after the `video-dropped` / `no-fill` of that attempt.
  * - `init-failed`: the ads SDK did not initialize.
  * `tries` = requests made in this run since the last `loaded` (first request = 1; banner always 1).
@@ -75,11 +75,13 @@ export function TabBarBanner({ unitId, enabled, format = 'banner', backgroundCol
 }
 
 /** Quick retry delays after no fill / video creative (ms). After the last one the slot stays reserved and keeps asking every `NATIVE_REFRESH_MS`. */
-export const NATIVE_RETRY_MS = [3000, 10000, 30000, 60000];
+export const NATIVE_RETRY_MS = [1000, 3000, 10000, 30000];   // (1.9.14) was 3, 10, 30, 60 s — the first creative reaches the slot sooner
 /** Swap the creative while it stays on screen — also how often an empty slot keeps asking after the quick retries (1.9.12). */
 export const NATIVE_REFRESH_MS = 60000;
 /** (1.9.12) Least time between two native requests when the app returns to the front, so flipping apps cannot spam requests. */
 export const NATIVE_MIN_GAP_MS = 10000;
+/** (1.9.14) How long a prefetched creative may wait for the slot to mount before it is dropped (an old creative may no longer be shown). */
+export const NATIVE_HOLD_TTL_MS = 30 * 60 * 1000;
 
 /**
  * (1.9.10) Label of the native row's call-to-action button: the ad's own `callToAction` text, or "설치" (en: "Install") when the ad has none.
@@ -106,6 +108,149 @@ function describeError(e: any): string | undefined {
   } catch { return undefined; }
 }
 
+/** What a mounted slot gives the feed: where creatives and diagnostics go. */
+type FeedSink = {
+  onAd: (ad: any) => void;
+  onInitFailed: () => void;
+  report: (state: TabBarBannerState['state'], tries: number, error?: unknown) => void;
+};
+
+type NativeFeed = {
+  start: () => void;
+  /** The slot is mounted: hand over the creative that is already there and send everything that follows to it. */
+  attach: (sink: FeedSink) => void;
+  destroy: () => void;
+};
+
+/**
+ * (1.9.14) The native request loop, outside React so it can run **before** the slot is mounted (`prefetchTabBarBanner`).
+ * With a sink (a mounted slot) it behaves exactly as before: drop video, quick retries, then one request a minute while the app
+ * is in front, the creative swapped every minute. Without a sink (prefetch, nobody mounted yet) it only fetches the **first**
+ * creative: no swap timer, and when the quick retries are used up it stops (`onGone`) — a slot that mounts later asks for itself.
+ */
+function createNativeFeed(sdk: any, rn: any, unitId: string, onGone?: () => void): NativeFeed {
+  let alive = true;
+  let sink: FeedSink | null = null;
+  let shown: any = null;
+  let timer: any = null;
+  let hold: any = null;     // drops a prefetched creative nobody took
+  let tries = 0;            // retries used (picks the next delay)
+  let requests = 0;         // requests since the last loaded (reported as `tries`)
+  let loadedRequests = 0;   // how many requests it took to get `shown`
+  let started = false;      // the ads SDK is initialized — before that, app state changes must not trigger a request
+  let paused = false;       // a due request was held back because the app is behind
+  let inflight = false;
+  let lastStart = 0;
+  let waiting = false;      // `waiting` was reported (the quick retries are used up)
+  const report = (state: TabBarBannerState['state'], n: number, error?: unknown) => { sink?.report(state, n, error); };
+  const isActive = (): boolean => { const st = rn.AppState?.currentState; return st !== 'background' && st !== 'inactive'; };
+  const destroy = () => {
+    alive = false;
+    if (timer) clearTimeout(timer);
+    if (hold) clearTimeout(hold);
+    try { appSub?.remove?.(); } catch { /* noop */ }
+    shown?.destroy();
+    shown = null;
+  };
+  const gone = () => { destroy(); onGone?.(); };
+  const later = (ms: number) => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      if (!alive) return;
+      if (!isActive()) { paused = true; return; }   // behind the app: stop asking until it comes back (1.9.12)
+      void load();
+    }, ms);
+  };
+  const load = async () => {
+    inflight = true;
+    lastStart = Date.now();
+    try { await attempt(); } finally { inflight = false; }
+  };
+  // A one-line native slot cannot display mandatory video media: drop video and ask again
+  // (2026-10-19 owner: 「배너 광고가 하나도 안 나와」 — one video creative used to leave the slot empty for the whole session).
+  // (1.9.12) It never gives up while the app is in front: after the quick retries it asks every minute. The slot is reserved
+  // since 1.9.8, so a late creative cannot move the tab row.
+  const attempt = async () => {
+    let next: any = null;
+    let error: unknown;
+    requests++;
+    report('requesting', requests);
+    try { next = await sdk.NativeAd.createForAdRequest(unitId, { startVideoMuted: true }); } catch (e) { next = null; error = e; }
+    if (!alive) { next?.destroy(); return; }
+    if (next && !next.mediaContent?.hasVideoContent) {
+      const old = shown; shown = next;
+      loadedRequests = requests; tries = 0; requests = 0;
+      if (sink) { sink.onAd(next); report('loaded', loadedRequests); later(NATIVE_REFRESH_MS); }
+      else hold = setTimeout(gone, NATIVE_HOLD_TTL_MS);   // nobody mounted yet: keep it ready, no swap
+      old?.destroy();
+      return;
+    }
+    next?.destroy();
+    report(next ? 'video-dropped' : 'no-fill', requests, error);
+    if (shown) { requests = 0; later(NATIVE_REFRESH_MS); return; }   // keep the current creative
+    if (tries < NATIVE_RETRY_MS.length) { later(NATIVE_RETRY_MS[tries++]); return; }
+    if (!sink) { gone(); return; }                                   // prefetch: quick retries used up and nobody waits — stop
+    if (!waiting) { waiting = true; report('waiting', requests); }
+    later(NATIVE_REFRESH_MS);
+  };
+  // (1.9.12) a request that comes due while the app is behind is held back (see `later`);
+  // when the app is back in front, an empty slot asks right away and a full one resumes its normal swap
+  const appSub = rn.AppState?.addEventListener?.('change', (st: string) => {
+    if (!alive || !started || st !== 'active' || inflight) return;     // an answer on its way schedules the next request itself
+    if (!shown) later(Math.max(0, lastStart + NATIVE_MIN_GAP_MS - Date.now()));   // empty slot: ask right away (spaced)
+    else if (paused && sink) later(NATIVE_REFRESH_MS);                 // a creative is on screen: just resume the normal swap
+    paused = false;
+  });
+
+  return {
+    start() {
+      void Promise.resolve().then(() => sdk.default().initialize()).then(() => {
+        if (!alive) return;
+        started = true;
+        return load();
+      }).catch((e) => {
+        if (!alive) return;
+        if (sink) { sink.onInitFailed(); sink.report('init-failed', requests, e); } else gone();   // prefetch: drop it, the slot will try itself
+      });
+    },
+    attach(s) {
+      if (!alive) return;
+      sink = s;
+      if (hold) { clearTimeout(hold); hold = null; }
+      if (shown) { s.onAd(shown); s.report('loaded', loadedRequests); later(NATIVE_REFRESH_MS); }
+      // otherwise the loop that is already running (or about to) carries on, now reporting to this slot
+    },
+    destroy,
+  };
+}
+
+/** Prefetched feeds waiting for their slot, and the native slots that are mounted — both by unit id. */
+const held = new Map<string, NativeFeed>();
+const mounted = new Map<string, number>();
+
+/**
+ * (1.9.14) Ask for the first native creative **before** the slot is mounted, so it can show at once when it is.
+ * Call it once at app start, after the app's own ads start-up (on iOS after the ATT answer — it initializes the ads SDK), with the
+ * same `unitId` the `<TabBarBanner format="native">` will get. Only the first creative is fetched: it waits up to
+ * `NATIVE_HOLD_TTL_MS` for the slot; if the quick retries are used up (video only / no fill) it stops and the slot asks for itself.
+ * Does nothing on web / without the ads SDK, without a unit, when called twice for one unit, or when that slot is already mounted.
+ * Video creatives are dropped exactly as in the slot. Never throws.
+ */
+export function prefetchTabBarBanner(unitId?: string): void {
+  try {
+    if (!unitId || held.has(unitId) || mounted.get(unitId)) return;
+    let sdk: any;
+    let rn: any;
+    try { sdk = require('react-native-google-mobile-ads'); rn = require('react-native'); }
+    catch { return; }
+    if (rn.Platform.OS === 'web') return;
+    const feed: NativeFeed = createNativeFeed(sdk, rn, unitId, () => { if (held.get(unitId) === feed) held.delete(unitId); });
+    held.set(unitId, feed);
+    feed.start();
+  } catch { /* a prefetch is only a head start */ }
+}
+
 function LoadedBanner({ sdk, rn, unitId, format, backgroundColor, bannerHeight, lang, onState }: any) {
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -120,69 +265,29 @@ function LoadedBanner({ sdk, rn, unitId, format, backgroundColor, bannerHeight, 
     try { fn(text ? { state, tries, error: text } : { state, tries }); } catch { /* diagnostics must never break the slot */ }
   };
   useEffect(() => {
-    let alive = true;
-    let shown: any = null;
-    let timer: any = null;
-    let tries = 0;      // retries used (picks the next delay)
-    let requests = 0;   // requests since the last loaded (reported as `tries`)
-    let started = false;   // the ads SDK is initialized — before that, app state changes must not trigger a request
-    let paused = false;    // a due request was held back because the app is behind
-    let inflight = false;
-    let lastStart = 0;
-    let waiting = false;   // `waiting` was reported (the quick retries are used up)
-    const isActive = (): boolean => { const st = rn.AppState?.currentState; return st !== 'background' && st !== 'inactive'; };
-    const later = (ms: number) => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        timer = null;
+    if (format === 'banner') {
+      // The BannerAd manages itself: start the SDK, then mount it (no request loop of ours).
+      let alive = true;
+      void Promise.resolve().then(() => sdk.default().initialize()).then(() => {
         if (!alive) return;
-        if (!isActive()) { paused = true; return; }   // behind the app: stop asking until it comes back (1.9.12)
-        void load();
-      }, ms);
+        setReady(true); report('requesting', 1);
+      }).catch((e) => { if (alive) { setFailed(true); report('init-failed', 0, e); } });
+
+      return () => { alive = false; };
+    }
+    // native: take over the feed `prefetchTabBarBanner` started (its creative shows at once), or start our own
+    const prefetched = held.get(unitId);
+    if (prefetched) held.delete(unitId);
+    const feed = prefetched ?? createNativeFeed(sdk, rn, unitId);
+    mounted.set(unitId, (mounted.get(unitId) ?? 0) + 1);
+    feed.attach({ onAd: setAd, onInitFailed: () => setFailed(true), report });
+    if (!prefetched) feed.start();
+
+    return () => {
+      feed.destroy();
+      const left = (mounted.get(unitId) ?? 1) - 1;
+      if (left > 0) mounted.set(unitId, left); else mounted.delete(unitId);
     };
-    const load = async () => {
-      inflight = true;
-      lastStart = Date.now();
-      try { await attempt(); } finally { inflight = false; }
-    };
-    // A one-line native slot cannot display mandatory video media: drop video and ask again
-    // (2026-10-19 owner: 「배너 광고가 하나도 안 나와」 — one video creative used to leave the slot empty for the whole session).
-    // (1.9.12) It never gives up while the app is in front: after the quick retries it asks every minute. The slot is reserved
-    // since 1.9.8, so a late creative cannot move the tab row.
-    const attempt = async () => {
-      let next: any = null;
-      let error: unknown;
-      requests++;
-      report('requesting', requests);
-      try { next = await sdk.NativeAd.createForAdRequest(unitId, { startVideoMuted: true }); } catch (e) { next = null; error = e; }
-      if (!alive) { next?.destroy(); return; }
-      if (next && !next.mediaContent?.hasVideoContent) {
-        const old = shown; shown = next; setAd(next); old?.destroy();
-        report('loaded', requests);
-        tries = 0; requests = 0; later(NATIVE_REFRESH_MS); return;
-      }
-      next?.destroy();
-      report(next ? 'video-dropped' : 'no-fill', requests, error);
-      if (shown) { requests = 0; later(NATIVE_REFRESH_MS); return; }   // keep the current creative
-      if (tries < NATIVE_RETRY_MS.length) { later(NATIVE_RETRY_MS[tries++]); return; }
-      if (!waiting) { waiting = true; report('waiting', requests); }
-      later(NATIVE_REFRESH_MS);
-    };
-    void Promise.resolve().then(() => sdk.default().initialize()).then(() => {
-      if (!alive) return;
-      if (format === 'banner') { setReady(true); report('requesting', 1); return; }
-      started = true;
-      return load();
-    }).catch((e) => { if (alive) { setFailed(true); report('init-failed', requests, e); } });
-    // (1.9.12) native only (the BannerAd manages itself): a request that comes due while the app is behind is held back (see `later`);
-    // when the app is back in front, an empty slot asks right away and a full one resumes its normal swap
-    const appSub = format === 'native' ? rn.AppState?.addEventListener?.('change', (st: string) => {
-      if (!alive || !started || st !== 'active' || inflight) return;     // an answer on its way schedules the next request itself
-      if (!shown) later(Math.max(0, lastStart + NATIVE_MIN_GAP_MS - Date.now()));   // empty slot: ask right away (spaced)
-      else if (paused) later(NATIVE_REFRESH_MS);   // a creative is on screen: just resume the normal swap
-      paused = false;
-    }) : null;
-    return () => { alive = false; if (timer) clearTimeout(timer); try { appSub?.remove?.(); } catch { /* noop */ } shown?.destroy(); };
   }, [sdk, unitId, format]);
   const h = React.createElement;
   // One outer View for every state — its height is decided here, once, and nothing below can change it.

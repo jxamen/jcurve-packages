@@ -5,7 +5,7 @@ import React from 'react';
  * - `loaded`: a creative is on screen.
  * - `video-dropped`: a video creative came back and was destroyed (a 40dp row cannot render the required video).
  * - `no-fill`: the request failed or came back empty (`error` = SDK message when there is one).
- * - `waiting`: native used up its quick retries (3, 10, 30, 60 s) and now keeps asking every 60 s while the app is in front
+ * - `waiting`: native used up its quick retries (1, 3, 10, 30 s) and now keeps asking every 60 s while the app is in front
  *   (and once right away when the app comes back to the front). Reported once, right after the `video-dropped` / `no-fill` of that attempt.
  * - `init-failed`: the ads SDK did not initialize.
  * `tries` = requests made in this run since the last `loaded` (first request = 1; banner always 1).
@@ -58,8 +58,19 @@ export declare const NATIVE_RETRY_MS: number[];
 export declare const NATIVE_REFRESH_MS = 60000;
 /** (1.9.12) Least time between two native requests when the app returns to the front, so flipping apps cannot spam requests. */
 export declare const NATIVE_MIN_GAP_MS = 10000;
+/** (1.9.14) How long a prefetched creative may wait for the slot to mount before it is dropped (an old creative may no longer be shown). */
+export declare const NATIVE_HOLD_TTL_MS: number;
 /**
  * (1.9.10) Label of the native row's call-to-action button: the ad's own `callToAction` text, or "설치" (en: "Install") when the ad has none.
  * AdMob lists "Call to action" as a required element of a native ad (policy table), so the row always shows one.
  */
 export declare function nativeCtaLabel(callToAction: unknown, lang?: string): string;
+/**
+ * (1.9.14) Ask for the first native creative **before** the slot is mounted, so it can show at once when it is.
+ * Call it once at app start, after the app's own ads start-up (on iOS after the ATT answer — it initializes the ads SDK), with the
+ * same `unitId` the `<TabBarBanner format="native">` will get. Only the first creative is fetched: it waits up to
+ * `NATIVE_HOLD_TTL_MS` for the slot; if the quick retries are used up (video only / no fill) it stops and the slot asks for itself.
+ * Does nothing on web / without the ads SDK, without a unit, when called twice for one unit, or when that slot is already mounted.
+ * Video creatives are dropped exactly as in the slot. Never throws.
+ */
+export declare function prefetchTabBarBanner(unitId?: string): void;

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const Module = require('node:module');
@@ -33,18 +33,23 @@ function harness(result: Promise<any>) {
     addEventListener: (_t: string, fn: (s: string) => void) => { appListeners.add(fn); return { remove: () => { appListeners.delete(fn); } }; },
   };
   const rn = { Platform: { OS: 'ios' }, View: 'View', Text: 'Text', Image: 'Image', Dimensions: { get: () => ({ width: 390, height: 844 }) }, AppState: appState };
+  let noSdk = false;
   Module._load = function(id: string, ...args: any[]) {
     if (id === 'react') return react;
     if (id === 'react-native') return rn;
-    if (id === 'react-native-google-mobile-ads') return sdk;
+    if (id === 'react-native-google-mobile-ads') { if (noSdk) throw new Error('missing ads sdk'); return sdk; }
     return originalLoad.call(this, id, ...args);
   };
   const path = require.resolve('../dist/TabBarBanner.js');
   delete require.cache[path];
-  const { TabBarBanner } = require(path);
+  const mod = require(path);
+  const { TabBarBanner } = mod;
   let child: any;
   return {
     sdk,
+    rn,
+    prefetch(unitId?: string) { mod.prefetchTabBarBanner(unitId); },
+    setNoSdk(v: boolean) { noSdk = v; },
     mount(props: any) { child = TabBarBanner(props); return child; },
     render() { cursor = 0; return child.type(child.props); },
     start() { return effect?.(); },
@@ -94,7 +99,7 @@ describe('TabBarBanner lifecycle (packed CommonJS)', () => {
       h.render(); const cleanup = h.start(); await flush();
       expect(outer(h)).toBe(40); expect(inner(h)).toBeNull(); expect(ad.destroy).toHaveBeenCalledOnce();
       expect(h.sdk.NativeAd.createForAdRequest).toHaveBeenCalledTimes(1);
-      await vi.advanceTimersByTimeAsync(3000); await flush();
+      await vi.advanceTimersByTimeAsync(1000); await flush();
       expect(h.sdk.NativeAd.createForAdRequest).toHaveBeenCalledTimes(2);
       expect(outer(h)).toBe(40);
       cleanup?.();
@@ -109,8 +114,8 @@ describe('TabBarBanner lifecycle (packed CommonJS)', () => {
       h.mount({ enabled: true, unitId: 'existing', format: 'native' });
       h.render(); const cleanup = h.start(); await flush();
       const seen = [outer(h)];
-      for (const ms of [3000, 10000, 30000, 60000]) { await vi.advanceTimersByTimeAsync(ms); await flush(); seen.push(outer(h)); }
-      expect(h.sdk.NativeAd.createForAdRequest).toHaveBeenCalledTimes(5);   // first try + 4 quick retries
+      for (const ms of [1000, 3000, 10000, 30000]) { await vi.advanceTimersByTimeAsync(ms); await flush(); seen.push(outer(h)); }
+      expect(h.sdk.NativeAd.createForAdRequest).toHaveBeenCalledTimes(5);   // first try + 4 quick retries (44 s in)
       await vi.advanceTimersByTimeAsync(600000); await flush();
       seen.push(outer(h));
       expect(new Set(seen)).toEqual(new Set([40])); expect(inner(h)).toBeNull();
@@ -233,7 +238,7 @@ describe('TabBarBanner onState diagnostics (1.9.9)', () => {
       h.mount({ enabled: true, unitId: 'u', format: 'native', onState });
       h.render(); const cleanup = h.start(); await flush();
       expect(seen).toEqual([{ state: 'requesting', tries: 1 }, { state: 'video-dropped', tries: 1 }]);
-      await vi.advanceTimersByTimeAsync(3000); await flush();
+      await vi.advanceTimersByTimeAsync(1000); await flush();
       expect(seen.slice(2)).toEqual([{ state: 'requesting', tries: 2 }, { state: 'video-dropped', tries: 2 }]);
       cleanup?.();
     } finally { vi.useRealTimers(); }
@@ -262,7 +267,7 @@ describe('TabBarBanner onState diagnostics (1.9.9)', () => {
       const { seen, onState } = collect();
       h.mount({ enabled: true, unitId: 'u', format: 'native', onState });
       h.render(); const cleanup = h.start(); await flush();
-      for (const ms of [3000, 10000, 30000, 60000]) { await vi.advanceTimersByTimeAsync(ms); await flush(); }
+      for (const ms of [1000, 3000, 10000, 30000]) { await vi.advanceTimersByTimeAsync(ms); await flush(); }
       expect(seen.filter(s => s.state === 'requesting').map(s => s.tries)).toEqual([1, 2, 3, 4, 5]);
       expect(seen.filter(s => s.state === 'waiting')).toEqual([{ state: 'waiting', tries: 5 }]);
       expect(seen[seen.length - 1]).toEqual({ state: 'waiting', tries: 5 });
@@ -476,7 +481,7 @@ describe('native keeps asking, never gives up while the app is in front (1.9.12)
     const { h, cleanup } = await mountVideoOnly();
     try {
       expect(requestsOf(h)).toBe(1);
-      for (const ms of [3000, 10000, 30000, 60000]) await advance(ms);
+      for (const ms of [1000, 3000, 10000, 30000]) await advance(ms);
       expect(requestsOf(h)).toBe(5);                       // first + the 4 quick retries (103 s in)
       for (let i = 1; i <= 5; i++) {
         await advance(60000);
@@ -489,7 +494,7 @@ describe('native keeps asking, never gives up while the app is in front (1.9.12)
   it('a non-video creative that finally comes is shown, and the normal swap goes on', async () => {
     const { h, cleanup } = await mountVideoOnly();
     try {
-      for (const ms of [3000, 10000, 30000, 60000]) await advance(ms);
+      for (const ms of [1000, 3000, 10000, 30000]) await advance(ms);
       await advance(60000);                                // a slow retry, still video
       const good = { headline: 'finally', destroy: vi.fn() };
       h.sdk.NativeAd.createForAdRequest.mockImplementation(() => Promise.resolve(good));
@@ -505,7 +510,7 @@ describe('native keeps asking, never gives up while the app is in front (1.9.12)
     const { seen, onState } = collect();
     const { h, cleanup } = await mountVideoOnly({ onState });
     try {
-      for (const ms of [3000, 10000, 30000, 60000]) await advance(ms);
+      for (const ms of [1000, 3000, 10000, 30000]) await advance(ms);
       await advance(60000); await advance(60000);
       expect(seen.filter(s => s.state === 'waiting')).toEqual([{ state: 'waiting', tries: 5 }]);
       expect(seen.filter(s => s.state === 'retries-exhausted')).toEqual([]);
@@ -518,7 +523,7 @@ describe('native keeps asking, never gives up while the app is in front (1.9.12)
   it('while the app is behind it asks nothing; coming back with an empty slot asks right away', async () => {
     const { h, cleanup } = await mountVideoOnly();
     try {
-      for (const ms of [3000, 10000, 30000, 60000]) await advance(ms);
+      for (const ms of [1000, 3000, 10000, 30000]) await advance(ms);
       await advance(60000);
       const asked = requestsOf(h);                         // 6, last request 60 s ago
       h.setApp('background');
@@ -551,15 +556,16 @@ describe('native keeps asking, never gives up while the app is in front (1.9.12)
   it('flipping apps cannot spam: the request after returning waits until 10 s since the last one', async () => {
     const { h, cleanup } = await mountVideoOnly();
     try {
-      expect(requestsOf(h)).toBe(1);                       // t = 0
+      for (const ms of [1000, 3000, 10000, 30000]) await advance(ms);      // t = 44 s: the quick retries are used up
+      expect(requestsOf(h)).toBe(5);
       await advance(1000);
       h.setApp('background'); await advance(1000);
-      h.setApp('active'); await advance(0);                // t = 2 s: too soon
-      expect(requestsOf(h)).toBe(1);
-      await advance(7000);                                 // t = 9 s
-      expect(requestsOf(h)).toBe(1);
-      await advance(1000);                                 // t = 10 s
-      expect(requestsOf(h)).toBe(2);
+      h.setApp('active'); await advance(0);                // t = 46 s: only 2 s since the last request
+      expect(requestsOf(h)).toBe(5);
+      await advance(7900);                                 // t = 53.9 s
+      expect(requestsOf(h)).toBe(5);
+      await advance(100);                                  // t = 54 s: 10 s since the last request
+      expect(requestsOf(h)).toBe(6);
     } finally { cleanup?.(); vi.useRealTimers(); }
   });
   it('a creative on screen: returning to the front does not make an extra request, the swap just resumes', async () => {
@@ -628,5 +634,190 @@ describe('native keeps asking, never gives up while the app is in front (1.9.12)
     h.render(); const cleanup = h.start(); await flush();
     expect(h.appListenerCount()).toBe(0);
     cleanup?.();
+  });
+});
+
+describe('prefetchTabBarBanner — the first native creative is asked for before the slot mounts (1.9.14)', () => {
+  const HOLD_TTL = 30 * 60 * 1000;     // dist 의 NATIVE_HOLD_TTL_MS
+  const video = () => ({ mediaContent: { hasVideoContent: true }, destroy: vi.fn() });
+  const good = (name = 'good') => ({ headline: name, destroy: vi.fn() });
+  const requestsOf = (h: any) => h.sdk.NativeAd.createForAdRequest.mock.calls.length;
+  const advance = async (ms: number) => { await vi.advanceTimersByTimeAsync(ms); await flush(); };
+  const collect = () => { const seen: any[] = []; return { seen, onState: (s: any) => { seen.push(s); } }; };
+  const mountNative = async (h: any, props: Record<string, unknown> = {}) => {
+    h.mount({ enabled: true, unitId: 'u', format: 'native', ...props });
+    h.render(); const cleanup = h.start(); await flush();
+
+    return cleanup;
+  };
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('asks as soon as the ads SDK is up — before any slot exists', async () => {
+    const h = harness(Promise.resolve(good()));
+    h.prefetch('u'); await flush();
+    expect(requestsOf(h)).toBe(1);
+    expect(h.sdk.NativeAd.createForAdRequest).toHaveBeenCalledWith('u', { startVideoMuted: true });
+  });
+  it('the slot that mounts later shows it at once: no second request, same height, `loaded` reported', async () => {
+    const ad = good();
+    const h = harness(Promise.resolve(ad));
+    h.prefetch('u'); await flush();
+    const { seen, onState } = collect();
+    const cleanup = await mountNative(h, { onState });
+    expect(inner(h).props.nativeAd).toBe(ad);
+    expect(outer(h)).toBe(40);
+    expect(requestsOf(h)).toBe(1);
+    expect(seen).toEqual([{ state: 'loaded', tries: 1 }]);
+    cleanup?.();
+    expect(ad.destroy).toHaveBeenCalledOnce();               // the slot owns it now and destroys it on unmount
+  });
+  it('after taking it over, the normal swap goes on: one request a minute from then', async () => {
+    const h = harness(Promise.resolve(good()));
+    h.prefetch('u'); await flush();
+    const cleanup = await mountNative(h);
+    await advance(59000);
+    expect(requestsOf(h)).toBe(1);
+    await advance(1000);
+    expect(requestsOf(h)).toBe(2);
+    cleanup?.();
+  });
+  it('mounting while the prefetch request is still on its way: no second request, the answer is shown when it arrives', async () => {
+    let answer: (v: any) => void = () => undefined;
+    const h = harness(Promise.resolve(null));
+    h.sdk.NativeAd.createForAdRequest.mockImplementation(() => new Promise((r) => { answer = r; }));
+    h.prefetch('u'); await flush();
+    const { seen, onState } = collect();
+    const cleanup = await mountNative(h, { onState });
+    expect(requestsOf(h)).toBe(1);
+    expect(inner(h)).toBeNull();                             // the slot is there and empty
+    const ad = good();
+    answer(ad); await flush();
+    expect(inner(h).props.nativeAd).toBe(ad);
+    expect(seen.map(s => s.state)).toEqual(['loaded']);
+    cleanup?.();
+  });
+  it('video first: the quick retries (1, 3, 10, 30 s) run while nobody is mounted and the slot gets what finally comes', async () => {
+    const h = harness(Promise.resolve(null));
+    const ad = good('third');
+    h.sdk.NativeAd.createForAdRequest.mockImplementationOnce(() => Promise.resolve(video())).mockImplementationOnce(() => Promise.resolve(video())).mockImplementation(() => Promise.resolve(ad));
+    h.prefetch('u'); await flush();
+    expect(requestsOf(h)).toBe(1);
+    await advance(1000); expect(requestsOf(h)).toBe(2);      // first retry after 1 s
+    await advance(2999); expect(requestsOf(h)).toBe(2);
+    await advance(1); expect(requestsOf(h)).toBe(3);         // second after 3 s more
+    const cleanup = await mountNative(h);
+    expect(inner(h).props.nativeAd).toBe(ad);
+    expect(requestsOf(h)).toBe(3);
+    cleanup?.();
+  });
+  it('quick retries used up with nobody mounted: it stops (no minute-by-minute loop), and a slot that mounts later asks for itself', async () => {
+    const h = harness(Promise.resolve(null));
+    h.sdk.NativeAd.createForAdRequest.mockImplementation(() => Promise.resolve(video()));
+    h.prefetch('u'); await flush();
+    for (const ms of [1000, 3000, 10000, 30000]) await advance(ms);
+    expect(requestsOf(h)).toBe(5);
+    await advance(10 * 60 * 1000);
+    expect(requestsOf(h)).toBe(5);                           // stopped — nobody is waiting
+    const cleanup = await mountNative(h);
+    expect(requestsOf(h)).toBe(6);                           // the slot's own first request
+    expect(outer(h)).toBe(40);
+    cleanup?.();
+  });
+  it('a creative nobody took is dropped after the hold time; the slot then asks for itself', async () => {
+    const ad = good();
+    const h = harness(Promise.resolve(ad));
+    h.prefetch('u'); await flush();
+    await advance(HOLD_TTL - 1);
+    expect(ad.destroy).not.toHaveBeenCalled();
+    await advance(1);
+    expect(ad.destroy).toHaveBeenCalledOnce();
+    h.sdk.NativeAd.createForAdRequest.mockImplementation(() => Promise.resolve(good('fresh')));
+    const cleanup = await mountNative(h);
+    expect(requestsOf(h)).toBe(2);
+    expect(inner(h).props.nativeAd.headline).toBe('fresh');
+    cleanup?.();
+  });
+  it('mounting just before the hold time ends keeps the creative (the timer is cancelled)', async () => {
+    const ad = good();
+    const h = harness(Promise.resolve(ad));
+    h.prefetch('u'); await flush();
+    await advance(HOLD_TTL - 1000);
+    const cleanup = await mountNative(h);
+    await advance(5000);
+    expect(inner(h).props.nativeAd).toBe(ad);
+    expect(ad.destroy).not.toHaveBeenCalled();
+    cleanup?.();
+  });
+  it('a slot that took the prefetched creative and was unmounted: mounting again asks for itself (the used-up feed is not handed out twice)', async () => {
+    const first = good('first');
+    const h = harness(Promise.resolve(first));
+    h.prefetch('u'); await flush();
+    const cleanup = await mountNative(h);
+    expect(inner(h).props.nativeAd).toBe(first);
+    cleanup?.();                                             // e.g. the tab bar is rebuilt
+    expect(first.destroy).toHaveBeenCalledOnce();
+    const second = good('second');
+    h.sdk.NativeAd.createForAdRequest.mockImplementation(() => Promise.resolve(second));
+    const cleanup2 = await mountNative(h);
+    expect(requestsOf(h)).toBe(2);
+    expect(inner(h).props.nativeAd).toBe(second);
+    cleanup2?.();
+  });
+  it('asking twice for one unit sends one request; a unit whose slot is already mounted is not prefetched', async () => {
+    const h = harness(Promise.resolve(good()));
+    h.prefetch('u'); h.prefetch('u'); await flush();
+    expect(requestsOf(h)).toBe(1);
+    const h2 = harness(Promise.resolve(good()));
+    const cleanup = await mountNative(h2);
+    h2.prefetch('u'); await flush();
+    expect(requestsOf(h2)).toBe(1);                          // only the slot's own request
+    cleanup?.();
+  });
+  it('units are independent', async () => {
+    const a = good('a'); const b = good('b');
+    const h = harness(Promise.resolve(null));
+    h.sdk.NativeAd.createForAdRequest.mockImplementation((unit: string) => Promise.resolve(unit === 'a' ? a : b));
+    h.prefetch('a'); h.prefetch('b'); await flush();
+    expect(requestsOf(h)).toBe(2);
+    const cleanup = await mountNative(h, { unitId: 'b' });
+    expect(inner(h).props.nativeAd).toBe(b);
+    expect(a.destroy).not.toHaveBeenCalled();                // 'a' is still waiting for its slot
+    cleanup?.();
+  });
+  it('does nothing without a unit, on the web, or without the ads SDK — and never throws', async () => {
+    const h = harness(Promise.resolve(good()));
+    expect(() => h.prefetch(undefined)).not.toThrow();
+    expect(() => h.prefetch('')).not.toThrow();
+    h.rn.Platform.OS = 'web';
+    expect(() => h.prefetch('u')).not.toThrow();
+    h.rn.Platform.OS = 'ios';
+    h.setNoSdk(true);
+    expect(() => h.prefetch('u')).not.toThrow();
+    await flush();
+    expect(requestsOf(h)).toBe(0);
+  });
+  it('an SDK start-up failure in the prefetch is dropped quietly; the slot then tries (and reports) for itself', async () => {
+    const h = harness(Promise.resolve(good()));
+    const ok = h.sdk.default;
+    h.sdk.default = () => ({ initialize: async () => { throw new Error('init boom'); } });
+    h.prefetch('u'); await flush();
+    expect(requestsOf(h)).toBe(0);
+    h.sdk.default = ok;
+    const { seen, onState } = collect();
+    const cleanup = await mountNative(h, { onState });
+    expect(requestsOf(h)).toBe(1);
+    expect(seen.map(s => s.state)).toEqual(['requesting', 'loaded']);
+    cleanup?.();
+  });
+  it('while the app is behind the prefetch waits too; it carries on when the app is back', async () => {
+    const h = harness(Promise.resolve(null));
+    h.sdk.NativeAd.createForAdRequest.mockImplementation(() => Promise.resolve(video()));
+    h.prefetch('u'); await flush();
+    h.setApp('background');
+    await advance(5 * 60 * 1000);
+    expect(requestsOf(h)).toBe(1);
+    h.setApp('active'); await advance(0);                    // back in front: it asks right away (the last request was long ago)
+    expect(requestsOf(h)).toBe(2);
   });
 });

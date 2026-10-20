@@ -338,3 +338,120 @@ describe('AttDeniedSheet — 호스트', () => {
     expect(await ensure(h, tracking('denied'))).toBe('proceed');   // 등록이 없으니 바로 지나간다
   });
 });
+
+describe('renderPopup — 앱이 자기 팝업 모양으로 그린다 (1.9.14, 문구 · 버튼 · 동작은 그대로)', () => {
+  const spy = () => {
+    const calls: any[] = [];
+    const renderPopup = vi.fn((p: any) => { calls.push(p); return { type: 'AppPopup', props: { kind: p.kind, children: [] } }; });
+
+    return { calls, renderPopup };
+  };
+  const popups = (out: any) => walk(out).filter((n) => n.type === 'AppPopup');
+
+  it('안내가 열려 있지 않으면 부르지 않고, 기본 카드도 그리지 않는다', async () => {
+    const { calls, renderPopup } = spy();
+    const h = harness();
+    const props = { appName: '앱', renderPopup };
+    h.mount(props);
+    await flush(); vi.advanceTimersByTime(60_000); await flush();
+    const out = h.render(props);
+    expect(calls).toEqual([]);
+    expect(popups(out)).toEqual([]);
+    expect(walk(out).some((n) => n.type === 'Modal')).toBe(false);
+  });
+  it('추적이 꺼져 있을 때: kind denied · 제목 · 본문 · 버튼 둘(그냥 보기, 설정 열기)로 부르고 앱이 돌려준 요소를 그린다', async () => {
+    const { calls, renderPopup } = spy();
+    const h = harness();
+    const props = { appName: '앱', renderPopup };
+    h.mount(props);
+    void ensure(h, tracking('denied'));
+    await flush();
+    const out = h.render(props);
+    const p = calls[calls.length - 1];
+    expect(p.kind).toBe('denied');
+    expect(p.title).toBe('추적이 꺼져 있어요');
+    expect(p.body).toBe('추적이 꺼져 있으면 일부 미션은 참여 확인이 안 될 수 있어요. 원하시면 설정에서 켤 수 있어요.');
+    expect(p.buttons.map((b: any) => b.label)).toEqual(['그냥 보기', '설정 열기']);
+    expect(popups(out)).toHaveLength(1);
+    expect(walk(out).some((n) => n.type === 'Modal')).toBe(false);       // 기본 카드는 그리지 않는다
+  });
+  it('「그냥 보기」는 닫고 바로 이어서 간다(proceed) — 기본 카드와 같은 동작', async () => {
+    const { calls, renderPopup } = spy();
+    const h = harness();
+    const props = { appName: '앱', renderPopup };
+    h.mount(props);
+    let result: string | undefined;
+    void ensure(h, tracking('denied')).then((r: string) => { result = r; });
+    await flush();
+    h.render(props);
+    calls[calls.length - 1].buttons[0].onPress();
+    expect(popups(h.render(props))).toEqual([]);                          // 닫혔다 — 더는 그리지 않는다
+    expect(result).toBeUndefined();
+    vi.advanceTimersByTime(DISMISS); await flush();
+    expect(result).toBe('proceed');
+    expect(h.rn.Linking.openSettings).not.toHaveBeenCalled();
+  });
+  it('「설정 열기」는 설정 앱을 열고, 앱이 돌아오면 이어서 간다 — 기본 카드와 같은 동작', async () => {
+    const { calls, renderPopup } = spy();
+    const h = harness();
+    const props = { appName: '앱', renderPopup };
+    h.mount(props);
+    let result: string | undefined;
+    void ensure(h, tracking('denied')).then((r: string) => { result = r; });
+    await flush();
+    h.render(props);
+    calls[calls.length - 1].buttons[1].onPress();
+    expect(h.rn.Linking.openSettings).toHaveBeenCalledTimes(1);
+    h.setApp('background'); await flush();
+    expect(result).toBeUndefined();
+    h.setApp('active'); await flush();
+    expect(result).toBe('proceed');
+  });
+  it('시스템 창 앞 중립 안내: kind primer · 버튼 하나(계속) · 누르면 곧바로 시스템 창', async () => {
+    const { calls, renderPopup } = spy();
+    const h = harness();
+    const props = { appName: '앱', renderPopup };
+    h.mount(props);
+    const t = tracking('undetermined', 'granted');
+    const result = ensure(h, t);
+    await flush();
+    h.render(props);
+    const p = calls[calls.length - 1];
+    expect(p.kind).toBe('primer');
+    expect(p.title).toBe('다음 화면에서 앱 추적 허용 여부를 물어봐요');
+    expect(p.body).toBe('허용하면 앱 사용 기록이 광고와 참여형 미션 참여 확인에 쓰여요. 허용하지 않아도 앱은 그대로 이용할 수 있어요.');
+    expect(p.buttons.map((b: any) => b.label)).toEqual(['계속']);
+    expect(t.request).not.toHaveBeenCalled();
+    p.buttons[0].onPress();
+    vi.advanceTimersByTime(DISMISS); await flush();
+    expect(t.request).toHaveBeenCalledTimes(1);
+    expect(await result).toBe('granted');
+  });
+  it('문구 덮어쓰기(primerTexts · deniedTexts)가 앱 팝업에도 그대로 간다', async () => {
+    const { calls, renderPopup } = spy();
+    const h = harness();
+    const props = { appName: '앱', renderPopup, deniedTexts: { title: '다른 제목', proceed: '계속 보기' }, primerTexts: { button: '확인' } };
+    h.mount(props);
+    void ensure(h, tracking('denied'));
+    await flush();
+    h.render(props);
+    expect(calls[calls.length - 1].title).toBe('다른 제목');
+    expect(calls[calls.length - 1].buttons.map((b: any) => b.label)).toEqual(['계속 보기', '설정 열기']);
+  });
+  it('하루 한 번 · 막지 않음은 그대로 — 두 번째 탭에는 앱 팝업도 안 뜬다', async () => {
+    const { calls, renderPopup } = spy();
+    const h = harness();
+    const props = { appName: '앱', renderPopup };
+    h.mount(props);
+    const t = tracking('denied');
+    const first = ensure(h, t);
+    await flush();
+    h.render(props);
+    calls[calls.length - 1].buttons[0].onPress();
+    vi.advanceTimersByTime(DISMISS); await flush(); await first;
+    const before = calls.length;
+    expect(await ensure(h, t)).toBe('proceed');
+    h.render(props);
+    expect(calls.length).toBe(before);
+  });
+});

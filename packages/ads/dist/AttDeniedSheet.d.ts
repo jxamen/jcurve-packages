@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { type ReactNode } from 'react';
 import { type AttDeniedTexts, type AttPrimerTexts, type AttSheetTexts, type AttStorage } from './attSheet';
 /**
  * ATT 안내 화면 — 앱 루트에 한 번 붙인다(`<AttDeniedSheet storage={AsyncStorage} />`). **붙이는 것만으로는 아무것도 뜨지 않는다.**
@@ -19,6 +19,21 @@ export type AttSheetTheme = {
     primaryText?: string;
     overlay?: string;
 };
+/**
+ * (1.9.14) 앱이 자기 팝업 모양으로 그릴 때 받는 값. 문구 · 버튼 · 동작(하루 한 번 · 진입 안 막음)은 패키지가 정하고 **모양만** 앱 것이다.
+ * - `primer`: 시스템 창 앞 중립 안내 — 버튼 하나(「계속」). 닫기 · 건너뛰기 버튼을 만들지 않는다.
+ * - `denied`: 추적이 꺼져 있을 때 — 버튼 둘(「그냥 보기」 · 「설정 열기」, 이 순서). 같은 비중으로 그린다.
+ * 버튼의 `onPress` 를 그대로 부르면 된다(안내를 닫고 이어서 간다).
+ */
+export type AttPopupRenderProps = {
+    kind: 'primer' | 'denied';
+    title: string;
+    body: string;
+    buttons: Array<{
+        label: string;
+        onPress: () => void;
+    }>;
+};
 export type AttDeniedSheetProps = {
     /** 1.9.13 부터 쓰이지 않는다(단계 시트에서 앱 이름을 넣던 자리 — 옛 호출 코드가 그대로 컴파일되도록 남김) */
     appName?: string;
@@ -31,7 +46,12 @@ export type AttDeniedSheetProps = {
     primerTexts?: Partial<AttPrimerTexts>;
     /** 추적이 꺼져 있을 때의 팝업 문구 덮어쓰기(선택) — 빠진 항목은 `ATT_DENIED_TEXTS` */
     deniedTexts?: Partial<AttDeniedTexts>;
+    /**
+     * (1.9.14) 앱이 자기 팝업으로 그린다(선택) — 안내가 열려 있는 동안에만 불리고, 돌려준 요소(보통 앱의 Modal 팝업)를 그린다. 안 주면 기본 카드.
+     * 훅을 쓰려면 함수 안에서 직접 쓰지 말고 컴포넌트를 돌려준다: `renderPopup={(p) => <AppPopup {...p} />}`.
+     */
+    renderPopup?: (p: AttPopupRenderProps) => ReactNode;
 };
 /** 안내가 사라지는 동안(페이드) — 이 뒤에 시스템 창 · 오퍼월 화면을 올려야 iOS 가 겹쳐서 놓치지 않는다 */
 export declare const DISMISS_MS = 400;
-export declare function AttDeniedSheet({ theme, storage, primerTexts, deniedTexts }: AttDeniedSheetProps): React.FunctionComponentElement<React.FragmentProps> | null;
+export declare function AttDeniedSheet({ theme, storage, primerTexts, deniedTexts, renderPopup }: AttDeniedSheetProps): React.FunctionComponentElement<React.FragmentProps> | null;

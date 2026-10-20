@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.localDay = exports.decideAttAction = exports.ensureTrackingBeforeOfferwall = exports.ATT_SHEET_TEXTS = exports.ATT_PRIMER_TEXTS = exports.ATT_DENIED_TEXTS = exports.AttDeniedSheet = exports.TabBarBanner = exports.tiktokSecret = exports.tiktokKeys = exports.tiktokIds = exports.tiktokEventFor = exports.createTikTok = exports.useTestAdUnit = exports.ssvRequestOptions = exports.readUpdateChannel = exports.isTestAds = exports.createRewarded = void 0;
+exports.localDay = exports.decideAttAction = exports.ensureTrackingBeforeOfferwall = exports.ATT_SHEET_TEXTS = exports.ATT_PRIMER_TEXTS = exports.ATT_DENIED_TEXTS = exports.AttDeniedSheet = exports.prefetchTabBarBanner = exports.TabBarBanner = exports.tiktokSecret = exports.tiktokKeys = exports.tiktokIds = exports.tiktokEventFor = exports.createTikTok = exports.useTestAdUnit = exports.ssvRequestOptions = exports.readUpdateChannel = exports.isTestAds = exports.createRewarded = void 0;
 /**
  * `@jcurve/ads` — 리워드 앱 공용 **AdMob 보상형 광고**(꼬꼬농장 방식).
  *
@@ -101,6 +101,7 @@ Object.defineProperty(exports, "tiktokKeys", { enumerable: true, get: function (
 Object.defineProperty(exports, "tiktokSecret", { enumerable: true, get: function () { return tiktok_map_1.tiktokSecret; } });
 var TabBarBanner_1 = require("./TabBarBanner");
 Object.defineProperty(exports, "TabBarBanner", { enumerable: true, get: function () { return TabBarBanner_1.TabBarBanner; } });
+Object.defineProperty(exports, "prefetchTabBarBanner", { enumerable: true, get: function () { return TabBarBanner_1.prefetchTabBarBanner; } });
 var AttDeniedSheet_1 = require("./AttDeniedSheet");
 Object.defineProperty(exports, "AttDeniedSheet", { enumerable: true, get: function () { return AttDeniedSheet_1.AttDeniedSheet; } });
 var attSheet_1 = require("./attSheet");

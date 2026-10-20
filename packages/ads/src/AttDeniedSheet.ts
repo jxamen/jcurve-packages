@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ATT_DENIED_TEXTS, ATT_PRIMER_TEXTS, loadRN, registerAttHost, waitForReturn,
   type AttDeniedTexts, type AttPrimerTexts, type AttSheetTexts, type AttStorage,
@@ -25,6 +25,19 @@ export type AttSheetTheme = {
   overlay?: string;
 };
 
+/**
+ * (1.9.14) 앱이 자기 팝업 모양으로 그릴 때 받는 값. 문구 · 버튼 · 동작(하루 한 번 · 진입 안 막음)은 패키지가 정하고 **모양만** 앱 것이다.
+ * - `primer`: 시스템 창 앞 중립 안내 — 버튼 하나(「계속」). 닫기 · 건너뛰기 버튼을 만들지 않는다.
+ * - `denied`: 추적이 꺼져 있을 때 — 버튼 둘(「그냥 보기」 · 「설정 열기」, 이 순서). 같은 비중으로 그린다.
+ * 버튼의 `onPress` 를 그대로 부르면 된다(안내를 닫고 이어서 간다).
+ */
+export type AttPopupRenderProps = {
+  kind: 'primer' | 'denied';
+  title: string;
+  body: string;
+  buttons: Array<{ label: string; onPress: () => void }>;
+};
+
 export type AttDeniedSheetProps = {
   /** 1.9.13 부터 쓰이지 않는다(단계 시트에서 앱 이름을 넣던 자리 — 옛 호출 코드가 그대로 컴파일되도록 남김) */
   appName?: string;
@@ -37,6 +50,11 @@ export type AttDeniedSheetProps = {
   primerTexts?: Partial<AttPrimerTexts>;
   /** 추적이 꺼져 있을 때의 팝업 문구 덮어쓰기(선택) — 빠진 항목은 `ATT_DENIED_TEXTS` */
   deniedTexts?: Partial<AttDeniedTexts>;
+  /**
+   * (1.9.14) 앱이 자기 팝업으로 그린다(선택) — 안내가 열려 있는 동안에만 불리고, 돌려준 요소(보통 앱의 Modal 팝업)를 그린다. 안 주면 기본 카드.
+   * 훅을 쓰려면 함수 안에서 직접 쓰지 말고 컴포넌트를 돌려준다: `renderPopup={(p) => <AppPopup {...p} />}`.
+   */
+  renderPopup?: (p: AttPopupRenderProps) => ReactNode;
 };
 
 const DEFAULT_THEME: Required<AttSheetTheme> = {
@@ -53,7 +71,7 @@ export const DISMISS_MS = 400;
 
 type Mode = 'none' | 'primer' | 'denied';
 
-export function AttDeniedSheet({ theme, storage, primerTexts, deniedTexts }: AttDeniedSheetProps) {
+export function AttDeniedSheet({ theme, storage, primerTexts, deniedTexts, renderPopup }: AttDeniedSheetProps) {
   const [mode, setMode] = useState<Mode>('none');
   // 열려 있는 동안 기다리는 쪽 — 사라지면 풀어 준다
   const pending = useRef<(() => void) | null>(null);
@@ -119,6 +137,17 @@ export function AttDeniedSheet({ theme, storage, primerTexts, deniedTexts }: Att
   const denied = card('denied', dismiss,
     title(dn.title), body(dn.body),
     h(rn.View, { style: { flexDirection: 'row', gap: 10, marginTop: 18 } }, choice(dn.proceed, dismiss), choice(dn.openSettings, openSettings)));
+
+  // (1.9.14) 앱이 자기 팝업으로 그린다 — 열려 있는 동안만 부른다. 문구 · 버튼 순서 · 동작은 위 기본 카드와 같다
+  if (renderPopup) {
+    const custom: AttPopupRenderProps | null = mode === 'primer'
+      ? { kind: 'primer', title: pr.title, body: pr.body, buttons: [{ label: pr.button, onPress: dismiss }] }
+      : mode === 'denied'
+        ? { kind: 'denied', title: dn.title, body: dn.body, buttons: [{ label: dn.proceed, onPress: dismiss }, { label: dn.openSettings, onPress: openSettings }] }
+        : null;
+
+    return h(React.Fragment, null, custom ? renderPopup(custom) : null);
+  }
 
   return h(React.Fragment, null, primer, denied);
 }
