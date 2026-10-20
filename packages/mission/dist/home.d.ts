@@ -28,13 +28,75 @@ export type HomeConfig = {
 export declare const EMPTY_HOME: HomeConfig;
 /** 서버 응답을 믿지 않고 다시 거른다 — 모르는 key · 빈 제목 · 같은 key 두 번째는 버린다. 깨진 응답은 EMPTY_HOME */
 export declare function parseHomeResponse(response: unknown): HomeConfig;
+/**
+ * (0.4.6) 앱이 넘기는 간단한 저장소 — React Native 의 AsyncStorage 가 그대로 맞는다(새 네이티브 의존 없음).
+ * 마지막으로 받은 서버 목록을 저장해 두었다가 **앱을 켤 때 그 값으로 먼저 그린 뒤** 서버 응답으로 갱신한다 — 켤 때 앱 기본 순서로 그렸다가 서버 순서로 바뀌는 것(대표님 10-20 18:54)을 막는다.
+ */
+export type HomeStorage = {
+    get(key: string): Promise<string | null>;
+    set(key: string, value: string): Promise<unknown>;
+} | {
+    getItem(key: string): Promise<string | null>;
+    setItem(key: string, value: string): Promise<unknown>;
+};
+/** 이 저장소를 쓸 수 있는가(get/set 또는 getItem/setItem). 쓸 수 없으면 저장소를 안 넘긴 것과 같다 — 목록을 기다리게 하지 않는다 */
+export declare function homeStorageUsable(storage: HomeStorage | undefined | null): boolean;
+/** 저장 키 기본값 — 앱이 서버 · 계정마다 다른 목록을 쓰면 `storageKey` 로 바꾼다 */
+export declare const HOME_STORAGE_KEY = "jcurve.mission.home.v1";
+/** 저장값을 읽는 데 이만큼(ms)까지만 기다린다 — 저장소가 응답이 없어도 목록이 영영 안 뜨지 않게 */
+export declare const HOME_STORAGE_WAIT_MS = 300;
+/** 저장해 둔 마지막 서버 목록 — 없음 · 깨짐 · 모르는 판 · 저장소 오류는 null(앱 기본). 읽을 때도 서버 응답처럼 다시 거른다 */
+export declare function readStoredHome(storage: HomeStorage | undefined, key?: string): Promise<HomeConfig | null>;
+/** 서버에서 **정상으로** 받은 목록을 저장한다 — 저장소 오류는 삼킨다(목록은 이미 그려졌다) */
+export declare function saveStoredHome(storage: HomeStorage | undefined, config: HomeConfig, key?: string): Promise<void>;
+/**
+ * (0.4.6) GET mission/home — 값과 함께 **서버에서 정상으로 받았는가**(`ok`)를 준다. `maxAgeMs`(기본 60초) 안이면 받아 둔 것(ok).
+ * 실패(던짐 · 깨진 응답)면 받아 둔 것 또는 EMPTY_HOME 과 ok:false — 저장값을 이미 그렸다면 호출한 쪽이 그것을 지킨다.
+ * `storage` 를 주면 **정상 응답일 때만** 저장한다(캐시 적중 · 실패 · 깨진 응답은 저장하지 않는다).
+ */
+export declare function fetchHomeResult(fetchJson: Requester, opts?: {
+    maxAgeMs?: number;
+    now?: number;
+    storage?: HomeStorage;
+    storageKey?: string;
+}): Promise<{
+    value: HomeConfig;
+    ok: boolean;
+}>;
 /** GET mission/home — `maxAgeMs`(기본 60초) 안이면 받아 둔 것. 실패하면 받아 둔 것 또는 EMPTY_HOME(앱 기본 목록) */
 export declare function fetchHomeConfig(fetchJson: Requester, opts?: {
     maxAgeMs?: number;
     now?: number;
+    storage?: HomeStorage;
+    storageKey?: string;
 }): Promise<HomeConfig>;
 /** 시험용 · 로그아웃 · 앱 전환 */
 export declare function resetHomeConfig(): void;
+/**
+ * (0.4.6) 화면에 그릴 서버 설정이 정해지는 순서 — 저장값(있으면) → 서버 응답. React 를 쓰지 않는 순수 함수라 시험이 바로 돈다.
+ *  - `ready`: 처음 그려도 되는가. 저장소를 쓰면 저장값을 읽을 때까지(최대 HOME_STORAGE_WAIT_MS) false — 앱 기본 순서를 잠깐 그렸다가 바꾸지 않으려고 목록을 늦추지 않고 **그리지 않는다**.
+ *    저장소를 안 쓰면 처음부터 true(예전과 같다)
+ *  - 서버에서 정상으로 받으면 그것이 이긴다(저장값은 그 뒤에 도착해도 무시). 서버가 실패하면 이미 그린 저장값을 지킨다(앱 기본으로 되돌리면 순서가 또 바뀐다)
+ */
+export type HomeState = {
+    config: HomeConfig;
+    ready: boolean;
+    fresh: boolean;
+    fromStorage: boolean;
+    storage: boolean;
+};
+export type HomeEvent = {
+    type: 'stored';
+    config: HomeConfig | null;
+} | {
+    type: 'server';
+    value: HomeConfig;
+    ok: boolean;
+} | {
+    type: 'timeout';
+};
+export declare function homeInitial(hasStorage: boolean): HomeState;
+export declare function homeReduce(s: HomeState, e: HomeEvent): HomeState;
 /**
  * 앱의 기본 목록에 서버 설정을 얹는다 — `keys` 는 앱 줄 key → 서버 행동 key(예 { bag: 'quiz1', pin: 'quiz2', ticket: 'lucky_chance' }).
  *  - 설정이 있는 줄: 제목은 서버 것, 설명 · 버튼 · 배지는 서버 값이 있을 때만(빈 값이면 앱 것 그대로), visible:false 면 숨김
