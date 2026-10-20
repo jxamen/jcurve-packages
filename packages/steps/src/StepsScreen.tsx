@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState, createContext, useContext } from 'react';
-import { AppState, BackHandler, Linking, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, BackHandler, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { canClaimStage, type StepsState, type StepsStage } from './stages';
 import { readToday, requestStepsPermission, watchSteps, type TodayReading } from './source';
 import { syncToday } from './sync';
-export type StepsTheme = { bg: string; card: string; text: string; sub: string; line: string; dim: string; primary: string; primarySoft: string; onPrimary: string; radius: number };
-export const defaultStepsTheme: StepsTheme = { bg: '#FFF6EC', card: '#FFFFFF', text: '#2B2118', sub: '#8A7A6B', line: '#F6EEE6', dim: '#C4B7A9', primary: '#FF7A2F', primarySoft: '#FFEEE2', onPrimary: '#fff', radius: 20 };
+export type StepsTheme = { bg: string; card: string; text: string; sub: string; line: string; dim: string; primary: string; primarySoft: string; onPrimary: string; radius: number; primaryDeep?: string; bgSoft?: string };
+export const defaultStepsTheme: StepsTheme = { bg: '#FFF6EC', card: '#FFFFFF', text: '#2B2118', sub: '#8A7A6B', line: '#F6EEE6', dim: '#C4B7A9', primary: '#F5A3B8', primarySoft: '#FFEDF2', primaryDeep: '#D9738E', bgSoft: '#FFFBF5', onPrimary: '#fff', radius: 20 };
 export type PendingStepsClaim = { stage_id: string; day: string; purpose: string; key: string; earned: boolean };
 export type StepsScreenProps = {
  api: { fetchStages(): Promise<StepsState>; claimStage(stageId: string, day: string, earned?: boolean): Promise<StepsState & { gained: number; balance: number }>; sync: Parameters<typeof syncToday>[1] };
@@ -132,9 +132,7 @@ export function StepsScreen({ api, showRewardedAd, onPendingClaim, onBalance, th
     <ScrollView contentContainerStyle={st.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load().finally(() => setRefreshing(false)); }} />}>
       <View style={st.top}>
         <Copy style={st.count}>{steps.toLocaleString()}<Copy style={st.countUnit}> 걸음</Copy></Copy>
-        <View style={st.bubble}><Copy style={st.bubbleText}>{!ready ? '걸음 수를 켜면 보상을 받을 수 있어요' : claimable.length > 0 ? `포인트를 ${claimable.length}번 받을 수 있어요` : next ? `${(next.threshold - steps).toLocaleString()}걸음 더 걸으면 ${points}P` : '오늘 걸음 보상을 다 받았어요'}</Copy></View>
-        <View style={st.bubbleTail} />
-        <Copy style={st.shoe} accessible={false}>👟</Copy>
+        <View style={st.bubble}><Copy style={st.bubbleText}>{!ready ? '걸음 수를 켜면 포인트를 받을 수 있어요' : claimable.length > 0 ? `포인트를 ${claimable.length}번 받을 수 있어요` : next ? `${(next.threshold - steps).toLocaleString()}걸음 더 걸으면 ${points}P` : '오늘 걸음 포인트를 다 받았어요'}</Copy></View>
       </View>
 
       {reading && reading.status !== 'ready' ? <View style={st.notice}>
@@ -153,10 +151,10 @@ export function StepsScreen({ api, showRewardedAd, onPendingClaim, onBalance, th
       <View style={st.claimCard}>
         <Copy style={st.claimLeft}>남은 횟수 <Copy style={st.claimLeftNum}>{claimable.length}번</Copy></Copy>
         <Copy style={st.claimSub}>1,000걸음마다 광고 보고 {points}P · 오늘 받은 포인트 {state?.earned_today ?? 0}P</Copy>
-        <Pressable accessibilityRole="button" disabled={!first || busy !== null} onPress={() => { if (first) void open(first); }}
-          style={[st.claimBtn, (!first || busy !== null) && st.boxBtnOff]}>
-          <Copy style={st.claimBtnText}>{busy ? '확인 중…' : `광고 보고 ${points}P 받기`}</Copy>
-        </Pressable>
+        <View><Pressable accessibilityRole="button" accessibilityLabel={t(busy ? '확인 중…' : `광고 보고 ${points}P 받기`) + t(', 광고가 열려요')} accessibilityState={{ disabled: !first || busy !== null }} disabled={!first || busy !== null} onPress={() => { if (first) void open(first); }}
+          style={({ pressed }) => [st.claimBtn, (!first || busy !== null) && st.boxBtnOff, pressed && first && busy === null ? { opacity: 0.85, transform: [{ scale: 0.99 }] } : null]}>
+          <Copy numberOfLines={1} style={[st.claimBtnText, (!first || busy !== null) && { color: C.primaryDeep ?? C.primary }]}>{busy ? '확인 중…' : `광고 보고 ${points}P 받기`}</Copy>
+        </Pressable></View>
       </View>
       {!state ? <Copy style={st.message}>불러오는 중이에요</Copy> : null}
 
@@ -164,9 +162,9 @@ export function StepsScreen({ api, showRewardedAd, onPendingClaim, onBalance, th
 
       <View style={st.guide}>
         <Copy style={st.guideTitle}>만보기 안내사항</Copy>
-        {['당근캐시 만보기는 1,000걸음마다 광고 보기를 완료하면 포인트를 받아요.',
+        {['꿀꿀캐시 만보기는 1,000걸음마다 광고 보기를 완료하면 포인트를 받아요.',
           '걸음 수와 남은 횟수는 매일 자정(한국 시간)에 초기화되고, 받지 않은 횟수는 다음 날로 넘어가지 않아요.',
-          Platform.OS === 'android' ? '센서는 앱이 켜진 동안의 걸음을 기록하고, Health Connect 기록이 있으면 오늘 걸음도 불러와요.' : '걸음 수는 iPhone 동작 및 피트니스 기록에서 불러와요.',
+          'Android 는 앱이 켜진 동안의 걸음을 기록하고, Health Connect 기록이 있으면 오늘 걸음도 불러와요. iPhone 은 동작 및 피트니스 기록에서 불러와요.',
           '배터리 절약 모드 등에서는 걸음 수가 정확하지 않을 수 있어요.',
           '만보기 보상과 조건은 사정에 따라 바뀔 수 있어요.'].map(line => <Copy key={line} style={st.guideLine}>· {line}</Copy>)}
       </View>
@@ -196,18 +194,18 @@ const makeStyles = (C: StepsTheme & { carrot: string }) => StyleSheet.create({
   dotOn: { borderColor: C.carrot, backgroundColor: C.carrot },
   dotText: { fontSize: 10, fontWeight: '800', color: C.dim },
   dotTextOn: { color: C.onPrimary },
-  notice: { marginTop: 16, marginHorizontal: 16, padding: 16, borderRadius: 16, backgroundColor: C.card, alignItems: 'center', gap: 10 },
+  notice: { marginTop: 16, marginHorizontal: 16, padding: 16, borderRadius: 16, backgroundColor: C.card, alignItems: 'center', gap: 8 },
   noticeTitle: { fontSize: 16, fontWeight: '700', color: C.text },
-  noticeBtn: { alignSelf: 'stretch', height: 48, borderRadius: 14, backgroundColor: C.carrot, alignItems: 'center', justifyContent: 'center' },
-  noticeBtnText: { color: C.onPrimary, fontSize: 16, fontWeight: '700' },
+  noticeBtn: { paddingHorizontal: 16, height: 48, borderRadius: 16, backgroundColor: C.carrot, alignItems: 'center', justifyContent: 'center' },
+  noticeBtnText: { color: C.onPrimary, fontSize: 19, fontWeight: '800' },
   link: { color: C.sub, fontSize: 14, textDecorationLine: 'underline' },
-  message: { marginTop: 12, textAlign: 'center', color: C.sub, fontSize: 14 },
+  message: { marginTop: 12, marginHorizontal: 16, textAlign: 'center', color: C.sub, fontSize: 14 },
   claimCard: { marginTop: 20, marginHorizontal: 16, padding: 20, borderRadius: C.radius, backgroundColor: C.card, alignItems: 'center', gap: 8 },
   claimLeft: { fontSize: 18, fontWeight: '700', color: C.text },
-  claimLeftNum: { color: C.carrot, fontSize: 22, fontWeight: '800' },
+  claimLeftNum: { color: C.primaryDeep ?? C.primary, fontSize: 22, fontWeight: '800' },
   claimSub: { fontSize: 13, color: C.sub },
-  claimBtn: { marginTop: 6, alignSelf: 'stretch', height: 52, borderRadius: 14, backgroundColor: C.carrot, alignItems: 'center', justifyContent: 'center' },
-  claimBtnText: { color: C.onPrimary, fontSize: 17, fontWeight: '800' },
+  claimBtn: { height: 48, paddingHorizontal: 16, borderRadius: 16, backgroundColor: C.carrot, alignItems: 'center', justifyContent: 'center' },
+  claimBtnText: { color: C.onPrimary, fontSize: 19, fontWeight: '800' },
   grid: { marginTop: 20, paddingHorizontal: 12, flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
   box: { width: '31%', backgroundColor: C.card, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 8, alignItems: 'center', gap: 6 },
   gift: { fontSize: 30 },
@@ -215,12 +213,12 @@ const makeStyles = (C: StepsTheme & { carrot: string }) => StyleSheet.create({
   boxLabel: { fontSize: 14, fontWeight: '700', color: C.text },
   boxLabelDim: { color: C.dim },
   boxBtn: { alignSelf: 'stretch', height: 36, borderRadius: 10, backgroundColor: C.carrot, alignItems: 'center', justifyContent: 'center' },
-  boxBtnOff: { backgroundColor: C.primarySoft === defaultStepsTheme.primarySoft ? '#F6C9AA' : C.primarySoft },
+  boxBtnOff: { backgroundColor: C.primarySoft },
   boxBtnDone: { backgroundColor: '#D3D7DD' },
   boxBtnText: { color: C.onPrimary, fontSize: 14, fontWeight: '700' },
   boxPoint: { fontSize: 12, color: C.sub },
-  today: { marginTop: 12, textAlign: 'center', color: C.sub, fontSize: 14 },
-  guide: { marginTop: 20, padding: 20, backgroundColor: '#F4EFE9', gap: 6 },
+  today: { marginTop: 12, marginHorizontal: 16, textAlign: 'center', color: C.sub, fontSize: 14 },
+  guide: { marginTop: 20, padding: 20, backgroundColor: C.bgSoft ?? C.bg, gap: 6 },
   guideTitle: { fontSize: 16, fontWeight: '700', color: C.text, marginBottom: 4 },
   guideLine: { fontSize: 13.5, color: C.sub, lineHeight: 20 },
 });

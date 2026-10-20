@@ -12,6 +12,8 @@ export type StepsTheme = {
     primarySoft: string;
     onPrimary: string;
     radius: number;
+    primaryDeep?: string;
+    bgSoft?: string;
 };
 export declare const defaultStepsTheme: StepsTheme;
 export type PendingStepsClaim = {
