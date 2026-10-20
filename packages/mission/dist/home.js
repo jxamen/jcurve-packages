@@ -17,7 +17,7 @@ exports.freeItemHomeRow = freeItemHomeRow;
 exports.withFreeItemRow = withFreeItemRow;
 exports.composeHomeRows = composeHomeRows;
 /** 서버가 아는 줄 행동 — jcurve-api MissionCardsController::HOME_KEYS 와 같다 */
-exports.HOME_KEYS = ['quiz1', 'quiz2', 'checkin', 'steps', 'free_item', 'today_missions', 'lucky_chance', 'invite', 'recommend'];
+exports.HOME_KEYS = ['quiz1', 'quiz2', 'checkin', 'steps', 'free_item', 'ad_item', 'today_missions', 'lucky_chance', 'invite', 'recommend'];
 exports.EMPTY_HOME = { rows: null, list: { adAfter: null, shoppingFirst: null } };
 const text = (v, max) => (typeof v === 'string' ? Array.from(v.trim()).slice(0, max).join('') : '');
 /** 서버 응답을 믿지 않고 다시 거른다 — 모르는 key · 빈 제목 · 같은 key 두 번째는 버린다. 깨진 응답은 EMPTY_HOME */
@@ -249,17 +249,17 @@ function withFreeItemRow(items, homeKeys, itemName, onFreeItem) {
 }
 /** 앱 items 에 없는 서버 줄을 그릴 때 쓰는 기본 그림 · 바탕색(0.4.4) */
 const DEFAULT_ICON = {
-    quiz1: 'bag', quiz2: 'pin', checkin: 'calendar', steps: 'star', free_item: '🌱', today_missions: 'pin', lucky_chance: 'ticket', invite: 'friend', recommend: 'star',
+    quiz1: 'bag', quiz2: 'pin', checkin: 'calendar', steps: 'star', free_item: '🌱', ad_item: '🌱', today_missions: 'pin', lucky_chance: 'ticket', invite: 'friend', recommend: 'star',
 };
 /** 서버 title 이 비어 있는데 앱 items 에 짝이 없어 줄을 새로 만들 때 쓰는 기본 제목(0.4.5) */
 const DEFAULT_TITLE = {
-    quiz1: '쇼핑 태그 퀴즈1', quiz2: '플레이스 · 쇼핑 태그 퀴즈2', checkin: '출석 체크', steps: '만보기', free_item: '무료 아이템 받기',
+    quiz1: '쇼핑 태그 퀴즈1', quiz2: '플레이스 · 쇼핑 태그 퀴즈2', checkin: '출석 체크', steps: '만보기', free_item: '무료 아이템 받기', ad_item: '광고 보고 아이템 받기',
     today_missions: '오늘의 미션', lucky_chance: '행운 찬스', invite: '친구 초대', recommend: '추천 앱 둘러보기',
 };
 /**
  * (0.4.4) 앱별 서버 home_rows 를 **그대로 따른다**(대표님 17:14 「목록 순서는 어드민에서 앱별로 · 넣고 빼고 순서랑」):
  *  - **순서**: home_rows 순서대로(설정에 있는 줄이 앞, 서버 key 와 짝이 없는 앱 전용 줄은 그 뒤에 원래 순서로)
- *  - **빼기**: 서버 key 로 맞춰진 앱 줄인데 home_rows 에 없으면 그리지 않는다. 있어도 visible:false 면 숨긴다
+ *  - **빼기**: 서버 key 로 맞춰진 앱 줄인데 home_rows 에 없으면 그리지 않는다. 있어도 visible:false 면 숨긴다 (`keepUnlisted`(homeActions 방식, 0.7.13)면 목록에 없다고 빼지 않는다 — 패키지 기본 자리에 둔다)
  *  - **넣기**: home_rows 에 있는데 앱 items 에 짝이 없는 key 는 그 줄(제목 · 설명 · 버튼 · 배지는 서버 값)을 기본 그림으로 만들어 넣고, 누르면 `onRow(key)` 를 부른다 — `onRow` 가 없으면 그 줄은 만들지 않는다(눌러도 갈 곳이 없다)
  *  - **제목**(0.4.5): 서버 title 이 비어 있으면 앱 제목을 그대로 둔다(동적 제목 보호) — 적혀 있을 때만 덮는다. 새로 만드는 줄은 비었으면 key별 기본 제목
  *  - rows 가 null(설정 없음 · 실패)이면 앱 기본 그대로
@@ -271,6 +271,7 @@ function composeHomeRows(items, rows, keys, opts = {}) {
     const byKey = new Map(rows.map((r, i) => [r.key, { r, i }]));
     const configured = [];
     const rest = [];
+    const unlisted = [];
     const seen = new Set();
     for (const item of items) {
         const k = keys[item.key];
@@ -279,8 +280,11 @@ function composeHomeRows(items, rows, keys, opts = {}) {
             continue;
         } // 서버 key 와 짝이 없는 앱 전용 줄 — 그대로
         const hit = byKey.get(k);
-        if (!hit)
-            continue; // 서버가 빼라고 한 줄(목록에 없음)
+        if (!hit) { // 서버 목록에 없는 줄 — 앱 items 방식은 빼라는 뜻, keepUnlisted 는 패키지 기본 자리에 둔다(0.7.13)
+            if (opts.keepUnlisted)
+                unlisted.push(item);
+            continue;
+        }
         seen.add(k);
         const { r } = hit;
         configured.push({
@@ -305,5 +309,20 @@ function composeHomeRows(items, rows, keys, opts = {}) {
         }
     }
     configured.sort((a, b) => a.i - b.i);
-    return [...configured.map(c => c.item), ...rest];
+    const placed = configured.map(c => c.item);
+    // 목록에 없는 줄(unlisted)은 기본 순서에서 앞선 줄 중 이미 자리 잡은 가장 뒤의 줄 바로 뒤에, 없으면 맨 앞에 둔다 — 기본 순서대로 하나씩
+    for (const item of unlisted) {
+        const at = exports.HOME_KEYS.indexOf(keys[item.key]);
+        let best = -1;
+        let pos = 0;
+        placed.forEach((p, idx) => {
+            const o = exports.HOME_KEYS.indexOf(keys[p.key] ?? '');
+            if (o >= 0 && o < at && o > best) {
+                best = o;
+                pos = idx + 1;
+            }
+        });
+        placed.splice(pos, 0, item);
+    }
+    return [...placed, ...rest];
 }

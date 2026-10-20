@@ -1,7 +1,7 @@
 import React, { type ReactNode } from 'react';
 import type { Requester } from './entry';
 import { type HomeRowKey, type HomeStorage } from './home';
-import { type HomeActions, type HomeContext } from './homeDefs';
+import { type HomeActions, type HomeContext, type RemoteValues } from './homeDefs';
 export type BenefitQuickIcon = 'calendar' | 'bag' | 'pin' | 'star' | 'ticket' | 'friend';
 export type BenefitQuickItem = {
     key: string;
@@ -37,12 +37,14 @@ export type BenefitQuickListProps = {
     items?: readonly BenefitQuickItem[];
     /**
      * (0.7.5) **줄 정의 전체를 패키지가 가진다**(당근 기준 9줄 — 제목 · 부제 · 버튼 · 아이콘 · 바탕색 · 순서): 앱은 줄마다 누르기 동작만 넘기면 그 줄이 그려지고,
-     * **넘기지 않은 줄은 그 앱에서 빠진다**. 서버 home_rows 는 이 위에 제목 · 설명 · 버튼 · 배지 · 보임 · 순서만 얹고 아이콘 · 바탕색은 늘 패키지 정의다. 앱이 아이콘 · 부제 · 숨김을 덮어쓸 수 없다.
+     * **줄은 앱에서 빠지지 않는다**(0.7.13 — 동작은 전 줄 필수, 숨기는 길은 `remoteValues` 의 `home.row.<줄id>` · 걸음 줄 `steps.on` · 서버 home_rows visible:false 뿐). 서버 home_rows 는 이 위에 제목 · 설명 · 버튼 · 배지 · 보임 · 순서만 얹고 아이콘 · 바탕색은 늘 패키지 정의다. 앱이 아이콘 · 부제 · 숨김을 덮어쓸 수 없다.
      * 이 prop 을 주면 `items` · `homeKeys` · `itemName` · `onFreeItem` · `onRow` 는 쓰지 않는다(서버에만 있고 동작이 없는 줄은 그리지 않는다)
      */
     homeActions?: HomeActions;
     /** (0.7.5) `homeActions` 와 함께 — 아이템 이름 · 포인트 이름 · 걸음 수 · 무료 받은/남은 횟수 같은 값(글자 일부만 앱 값) */
     homeContext?: HomeContext;
+    /** (0.7.13) `homeActions` 와 함께 — 어드민 앱 설정 값 맵(예 `values`). `home.row.<줄id>` 가 '0' / 'false' 면 그 줄을 숨기고 값이 없으면 켜짐, 걸음 줄은 `steps.on` 이 '1' / 'true' 일 때만 보임. 안 넘기면 원격 규칙은 적용하지 않는다 */
+    remoteValues?: RemoteValues;
     footer?: ReactNode;
     /**
      * (0.4.4) 앱의 요청 함수 — 있으면 서버 `GET mission/home` 의 home_rows(어드민 mission.home_rows)를 **스스로 읽어** items 에 적용한다(제목 · 설명 · 버튼 · 배지 · 보임 · 순서).

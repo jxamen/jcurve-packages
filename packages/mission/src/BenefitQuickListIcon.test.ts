@@ -51,10 +51,10 @@ describe('아이콘 그리기 — 글자(이모지) 아이콘은 반드시 <Text
     expect(r.stray).toEqual([]);
     expect(r.texts.some(t => ['bag', 'calendar'].includes(t))).toBe(false);          // 이름이 글자로 새어 나오지 않는다
   });
-  it('homeDefs 가 만드는 9줄 전부 — View 밑에 문자열이 그대로 놓이지 않는다', () => {
+  it('homeDefs 가 만드는 10줄 전부(광고 아이템 포함) — View 밑에 문자열이 그대로 놓이지 않는다', () => {
     const actions = Object.fromEntries(HOME_ORDER.map(k => [k, vi.fn()])) as HomeActions;
     const items = buildHomeItems({ steps: 4200, free: { left: 2, received: 1, claimableNow: true }, todayMissions: { progress: { done: 1, total: 3 } }, checkinDone: true }, actions);
-    expect(items).toHaveLength(9);
+    expect(items).toHaveLength(10);
     const r = render(items);
     expect(r.stray).toEqual([]);
     expect(r.texts).toEqual(expect.arrayContaining(['👟', '🌱', '오늘 4,200걸음', '지금 받기', '출석 완료']));

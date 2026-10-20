@@ -5,6 +5,8 @@ vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Pressable: 'Pressab
 const isButton = (n: any) => n?.type === 'Pressable' && n.props?.accessibilityRole === 'button';
 const cta = (tree: any[]) => tree.find(n => n?.type === 'View' && n.props?.pointerEvents === 'none' && n.props.style?.[1]?.width !== undefined);
 import { BenefitQuickList, pressOnce, resetTapGuard, TAP_GUARD_MS, type BenefitQuickItem } from './BenefitQuickList';
+import { HOME_ORDER, type HomeActions } from './homeDefs';
+const everyAction = (): HomeActions => Object.fromEntries(HOME_ORDER.map(k => [k, vi.fn()])) as HomeActions;
 import { beforeEach } from 'vitest';
 beforeEach(() => resetTapGuard());
 // Walk the rendered React element tree, including functional icon components.
@@ -175,29 +177,49 @@ describe('BenefitQuickList — 줄별 완료 글자(doneLabel, 0.7.4)', () => {
 });
 
 describe('BenefitQuickList — homeActions: 줄 정의는 패키지, 동작만 앱 (0.7.5)', () => {
-  it('homeActions 를 주면 패키지 정의(당근 기준)로 그리고, 동작을 안 넘긴 줄은 빠지며, 앱 items 는 쓰지 않는다', () => {
+  it('homeActions 를 주면 패키지 정의(당근 기준)로 10줄을 그리고, 동작이 빠져도 줄은 빠지지 않으며(누름 무반응), 앱 items 는 쓰지 않는다', () => {
     const quiz = vi.fn(); const invite = vi.fn();
-    const tree = nodes(BenefitQuickList({ homeActions: { quiz1: quiz, invite }, homeContext: { pointName: '캐시' }, items: [item({ key: 'x', title: '앱이 만든 줄' })] }));
+    const tree = nodes(BenefitQuickList({ homeActions: { quiz1: quiz, invite } as unknown as HomeActions, homeContext: { pointName: '캐시' }, items: [item({ key: 'x', title: '앱이 만든 줄' })] }));
     expect(tree).toContain('쇼핑 태그 퀴즈1');
     expect(tree).toContain('친구 초대하기');
+    expect(tree).toContain('매일 출석 체크');                                           // 동작을 안 넘겨도 줄은 그려진다(0.7.13)
+    expect(tree).toContain('광고 보고 포인트 받기');                                     // 광고 아이템 줄
     expect(tree).not.toContain('앱이 만든 줄');
-    expect(tree).not.toContain('매일 출석 체크');                                       // 동작을 안 넘긴 줄은 이 앱에서 빠진다
     const rows = tree.filter(n => isButton(n));
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(10);
     rows[0].props.onPress();
     expect(quiz).toHaveBeenCalledOnce();
     expect(invite).not.toHaveBeenCalled();
+    expect(() => rows[2].props.onPress()).not.toThrow();                                // 동작 없는 출석 줄 — 무반응
     // 아이콘 바탕색은 패키지 값 — 퀴즈1 #FDEBE2, 초대 #FDEBDD
     expect(JSON.stringify(tree.filter(n => n?.props?.style).map(n => n.props.style))).toContain('#FDEBE2');
     expect(JSON.stringify(tree.filter(n => n?.props?.style).map(n => n.props.style))).toContain('#FDEBDD');
   });
 
   it('무료 아이템 줄은 값(받은 횟수)과 완료 글자 「내일 다시」까지 패키지가 정한다', () => {
-    const tree = nodes(BenefitQuickList({ homeActions: { free_item: vi.fn() }, homeContext: { itemName: '감자', free: { left: 0, received: 1 } } }));
+    const tree = nodes(BenefitQuickList({ homeActions: everyAction(), homeContext: { itemName: '감자', free: { left: 0, received: 1 } } }));
     expect(tree).toContain('무료 감자 받기');
     expect(tree).toContain('오늘 1번 받았어요');
     expect(tree).toContain('내일 다시');
-    expect(tree.find(n => isButton(n)).props.disabled).toBe(true);
+    expect(tree.find(n => isButton(n) && String(n.props.accessibilityLabel).startsWith('무료 감자 받기')).props.disabled).toBe(true);
+  });
+
+  it('remoteValues: home.row.<줄id> 가 0 / false 면 그 줄만 숨기고, 값이 없으면 켜짐, 걸음 줄은 steps.on 이 1 이어야 보인다 (0.7.13)', () => {
+    const count = (props: Record<string, unknown>) => nodes(BenefitQuickList({ homeActions: everyAction(), ...props })).filter(n => isButton(n)).length;
+    expect(count({})).toBe(10);                                                          // 값 맵을 안 주면 원격 규칙 없음
+    expect(count({ remoteValues: { 'steps.on': '1' } })).toBe(10);
+    expect(count({ remoteValues: {} })).toBe(9);                                         // 맵은 줬는데 steps.on 이 없다 → 걸음만 숨김
+    const tree = nodes(BenefitQuickList({ homeActions: everyAction(), remoteValues: { 'steps.on': '1', 'home.row.invite': '0', 'home.row.ad_item': 'false' } }));
+    expect(tree.filter(n => isButton(n))).toHaveLength(8);
+    expect(tree).not.toContain('친구 초대하기');
+    expect(tree).not.toContain('광고 보고 포인트 받기');
+    expect(tree).toContain('무료 포인트 받기');
+  });
+
+  it('서버 목록을 읽는 층에는 homeActions 방식일 때만 keepUnlisted 가 켜진다(없다고 줄을 빼지 않음)', () => {
+    const fetchJson = vi.fn();
+    expect((BenefitQuickList({ homeActions: everyAction(), fetchJson }) as ReactElement<any>).props.keepUnlisted).toBe(true);
+    expect((BenefitQuickList({ items: [item()], fetchJson }) as ReactElement<any>).props.keepUnlisted).toBe(false);
   });
 
   it('homeActions 가 없으면 예전 items 방식 그대로이고, items 도 없으면 빈 목록(오류 없음)', () => {
