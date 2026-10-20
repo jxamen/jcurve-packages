@@ -3,6 +3,7 @@ import { AppState, View, Text, Pressable, StyleSheet } from 'react-native';
 import type { Requester } from './entry';
 import { composeHomeRows, resolveHomeKeys, withFreeItemRow, type HomeRowKey, type HomeStorage } from './home';
 import { useHomeConfig } from './useHomeConfig';
+import { buildHomeItems, type HomeActions, type HomeContext } from './homeDefs';
 
 export type BenefitQuickIcon = 'calendar' | 'bag' | 'pin' | 'star' | 'ticket' | 'friend';
 export type BenefitQuickItem = {
@@ -32,7 +33,16 @@ export type BenefitQuickListProps = {
   seeAllLabel?: string;
   onSeeAll?: () => void;
   accentColor?: string;
-  items: readonly BenefitQuickItem[];
+  /** 앱이 직접 만든 줄(예전 방식). `homeActions` 를 주면 이 값은 쓰지 않는다 */
+  items?: readonly BenefitQuickItem[];
+  /**
+   * (0.7.5) **줄 정의 전체를 패키지가 가진다**(당근 기준 9줄 — 제목 · 부제 · 버튼 · 아이콘 · 바탕색 · 순서): 앱은 줄마다 누르기 동작만 넘기면 그 줄이 그려지고,
+   * **넘기지 않은 줄은 그 앱에서 빠진다**. 서버 home_rows 는 이 위에 제목 · 설명 · 버튼 · 배지 · 보임 · 순서만 얹고 아이콘 · 바탕색은 늘 패키지 정의다. 앱이 아이콘 · 부제 · 숨김을 덮어쓸 수 없다.
+   * 이 prop 을 주면 `items` · `homeKeys` · `itemName` · `onFreeItem` · `onRow` 는 쓰지 않는다(서버에만 있고 동작이 없는 줄은 그리지 않는다)
+   */
+  homeActions?: HomeActions;
+  /** (0.7.5) `homeActions` 와 함께 — 아이템 이름 · 포인트 이름 · 걸음 수 · 무료 받은/남은 횟수 같은 값(글자 일부만 앱 값) */
+  homeContext?: HomeContext;
   footer?: ReactNode;
   /**
    * (0.4.4) 앱의 요청 함수 — 있으면 서버 `GET mission/home` 의 home_rows(어드민 mission.home_rows)를 **스스로 읽어** items 에 적용한다(제목 · 설명 · 버튼 · 배지 · 보임 · 순서).
@@ -103,7 +113,7 @@ function useActiveTick(): number {
   return n;
 }
 
-type ViewProps = Omit<BenefitQuickListProps, 'fetchJson' | 'homeKeys' | 'itemName' | 'onFreeItem' | 'onRow' | 'refreshKey' | 'storage' | 'storageKey'>;
+type ViewProps = Omit<BenefitQuickListProps, 'items' | 'fetchJson' | 'homeKeys' | 'itemName' | 'onFreeItem' | 'onRow' | 'refreshKey' | 'storage' | 'storageKey' | 'homeActions' | 'homeContext'> & { items: readonly BenefitQuickItem[] };
 
 /** 서버 home_rows 를 얹는 층 — 훅이 있어 `fetchJson` 이 있을 때만 쓴다(없으면 BenefitQuickList 가 그림만 바로 그린다) */
 function ServerRowsList({ fetchJson, homeKeys, onRow, refreshKey, storage, storageKey, items, view }: { fetchJson: Requester; homeKeys?: Readonly<Record<string, HomeRowKey>>; onRow?: (key: HomeRowKey) => void; refreshKey?: unknown; storage?: HomeStorage; storageKey?: string; items: readonly BenefitQuickItem[]; view: Omit<ViewProps, 'items'> }) {
@@ -122,11 +132,12 @@ function ServerRowsList({ fetchJson, homeKeys, onRow, refreshKey, storage, stora
  * 「바로 받는 혜택」 목록. (0.4.4) `fetchJson` 을 주면 서버 home_rows 를 스스로 적용하고, `onFreeItem` 을 주면 free_item 기본 줄이 생긴다 — 둘 다 없으면 0.4.3 과 똑같이 그린다.
  */
 export function BenefitQuickList(props: BenefitQuickListProps) {
-  const { fetchJson, homeKeys, itemName, onFreeItem, onRow, refreshKey, storage, storageKey, items, ...view } = props;
-  const base = withFreeItemRow(items, homeKeys, itemName, onFreeItem);
+  const { fetchJson, homeKeys, itemName, onFreeItem, onRow, refreshKey, storage, storageKey, items, homeActions, homeContext, ...view } = props;
+  // (0.7.5) homeActions 가 있으면 줄 정의는 패키지 것 — 서버에만 있는 줄은 동작이 없으니 그리지 않는다(onRow 안 씀)
+  const base = homeActions ? buildHomeItems(homeContext ?? {}, homeActions) : withFreeItemRow(items ?? [], homeKeys, itemName, onFreeItem);
   if (!fetchJson) return QuickListView({ ...view, items: base });
 
-  return <ServerRowsList fetchJson={fetchJson} homeKeys={homeKeys} onRow={onRow} refreshKey={refreshKey} storage={storage} storageKey={storageKey} items={base} view={view} />;
+  return <ServerRowsList fetchJson={fetchJson} homeKeys={homeActions ? undefined : homeKeys} onRow={homeActions ? undefined : onRow} refreshKey={refreshKey} storage={storage} storageKey={storageKey} items={base} view={view} />;
 }
 
 function QuickListView({ title = '바로 받는 혜택', seeAllLabel, onSeeAll, accentColor = '#EE7A33', items, footer, doneLabel = '완료', buttonWidth = 100, buttonHeight = 40 }: ViewProps) {

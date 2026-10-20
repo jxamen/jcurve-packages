@@ -173,3 +173,36 @@ describe('BenefitQuickList — 줄별 완료 글자(doneLabel, 0.7.4)', () => {
     expect(tree.find(n => isButton(n)).props.disabled).toBeFalsy();
   });
 });
+
+describe('BenefitQuickList — homeActions: 줄 정의는 패키지, 동작만 앱 (0.7.5)', () => {
+  it('homeActions 를 주면 패키지 정의(당근 기준)로 그리고, 동작을 안 넘긴 줄은 빠지며, 앱 items 는 쓰지 않는다', () => {
+    const quiz = vi.fn(); const invite = vi.fn();
+    const tree = nodes(BenefitQuickList({ homeActions: { quiz1: quiz, invite }, homeContext: { pointName: '캐시' }, items: [item({ key: 'x', title: '앱이 만든 줄' })] }));
+    expect(tree).toContain('쇼핑 태그 퀴즈1');
+    expect(tree).toContain('친구 초대하기');
+    expect(tree).not.toContain('앱이 만든 줄');
+    expect(tree).not.toContain('매일 출석 체크');                                       // 동작을 안 넘긴 줄은 이 앱에서 빠진다
+    const rows = tree.filter(n => isButton(n));
+    expect(rows).toHaveLength(2);
+    rows[0].props.onPress();
+    expect(quiz).toHaveBeenCalledOnce();
+    expect(invite).not.toHaveBeenCalled();
+    // 아이콘 바탕색은 패키지 값 — 퀴즈1 #FDEBE2, 초대 #FDEBDD
+    expect(JSON.stringify(tree.filter(n => n?.props?.style).map(n => n.props.style))).toContain('#FDEBE2');
+    expect(JSON.stringify(tree.filter(n => n?.props?.style).map(n => n.props.style))).toContain('#FDEBDD');
+  });
+
+  it('무료 아이템 줄은 값(받은 횟수)과 완료 글자 「내일 다시」까지 패키지가 정한다', () => {
+    const tree = nodes(BenefitQuickList({ homeActions: { free_item: vi.fn() }, homeContext: { itemName: '감자', free: { left: 0, received: 1 } } }));
+    expect(tree).toContain('무료 감자 받기');
+    expect(tree).toContain('오늘 1번 받았어요');
+    expect(tree).toContain('내일 다시');
+    expect(tree.find(n => isButton(n)).props.disabled).toBe(true);
+  });
+
+  it('homeActions 가 없으면 예전 items 방식 그대로이고, items 도 없으면 빈 목록(오류 없음)', () => {
+    const tree = nodes(BenefitQuickList({ items: [item({ key: 'a', title: '앱 줄' })] }));
+    expect(tree).toContain('앱 줄');
+    expect(nodes(BenefitQuickList({})).filter(n => isButton(n))).toHaveLength(0);
+  });
+});
