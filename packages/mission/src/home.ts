@@ -31,8 +31,8 @@ export function parseHomeResponse(response: unknown): HomeConfig {
       if (!x || typeof x !== 'object') return;
       const key = x.key;
       if (typeof key !== 'string' || !(HOME_KEYS as readonly string[]).includes(key) || seen.has(key)) return;
+      // (0.4.5) 제목이 비어도 줄은 산다 — 빈 title = 「앱 제목 그대로」(서버 home_rows 에서 title 을 비워 둔 줄, 대표님 10-20 「동적 제목은 서버 고정 제목이 덮지 않게」)
       const title = text(x.title, 30);
-      if (title === '') return;
       seen.add(key);
       rows!.push({
         key: key as HomeRowKey, title, desc: text(x.desc, 60), button: text(x.button, 12), badge: text(x.badge, 8),
@@ -100,7 +100,8 @@ export function applyHomeRows(items: readonly BenefitQuickItem[], rows: readonly
       i: hit.i,
       item: {
         ...item,
-        title: r.title,
+        // 서버 title 이 비어 있지 않을 때만 덮는다(0.4.5) — 비어 있으면 앱 제목(만보기 「오늘 N걸음」 같은 동적 제목)을 그대로
+        ...(r.title ? { title: r.title } : {}),
         ...(r.desc ? { subtitle: r.desc } : {}),
         ...(r.button ? { ctaLabel: r.button } : {}),
         ...(r.badge ? { badge: r.badge } : {}),
@@ -162,11 +163,18 @@ const DEFAULT_ICON: Record<HomeRowKey, BenefitQuickItem['icon']> = {
   quiz1: 'bag', quiz2: 'pin', checkin: 'calendar', steps: 'star', free_item: '🌱', today_missions: 'pin', lucky_chance: 'ticket', invite: 'friend', recommend: 'star',
 };
 
+/** 서버 title 이 비어 있는데 앱 items 에 짝이 없어 줄을 새로 만들 때 쓰는 기본 제목(0.4.5) */
+const DEFAULT_TITLE: Record<HomeRowKey, string> = {
+  quiz1: '쇼핑 태그 퀴즈1', quiz2: '플레이스 · 쇼핑 태그 퀴즈2', checkin: '출석 체크', steps: '만보기', free_item: '무료 아이템 받기',
+  today_missions: '오늘의 미션', lucky_chance: '행운 찬스', invite: '친구 초대', recommend: '추천 앱 둘러보기',
+};
+
 /**
  * (0.4.4) 앱별 서버 home_rows 를 **그대로 따른다**(대표님 17:14 「목록 순서는 어드민에서 앱별로 · 넣고 빼고 순서랑」):
  *  - **순서**: home_rows 순서대로(설정에 있는 줄이 앞, 서버 key 와 짝이 없는 앱 전용 줄은 그 뒤에 원래 순서로)
  *  - **빼기**: 서버 key 로 맞춰진 앱 줄인데 home_rows 에 없으면 그리지 않는다. 있어도 visible:false 면 숨긴다
  *  - **넣기**: home_rows 에 있는데 앱 items 에 짝이 없는 key 는 그 줄(제목 · 설명 · 버튼 · 배지는 서버 값)을 기본 그림으로 만들어 넣고, 누르면 `onRow(key)` 를 부른다 — `onRow` 가 없으면 그 줄은 만들지 않는다(눌러도 갈 곳이 없다)
+ *  - **제목**(0.4.5): 서버 title 이 비어 있으면 앱 제목을 그대로 둔다(동적 제목 보호) — 적혀 있을 때만 덮는다. 새로 만드는 줄은 비었으면 key별 기본 제목
  *  - rows 가 null(설정 없음 · 실패)이면 앱 기본 그대로
  * 누르는 동작 · 완료 · 칸 막대는 늘 앱 것(앱 줄) — 서버 줄이 바꾸는 것은 제목 · 설명 · 버튼 · 배지 · 보임 · 순서뿐
  */
@@ -192,7 +200,8 @@ export function composeHomeRows(
       i: hit.i,
       item: {
         ...item,
-        title: r.title,
+        // 서버 title 이 비어 있지 않을 때만 덮는다(0.4.5) — 비어 있으면 앱 제목(만보기 「오늘 N걸음」 · 오늘 미션 보너스 문구 같은 동적 제목)을 그대로
+        ...(r.title ? { title: r.title } : {}),
         ...(r.desc ? { subtitle: r.desc } : {}),
         ...(r.button ? { ctaLabel: r.button } : {}),
         ...(r.badge ? { badge: r.badge } : {}),
@@ -204,7 +213,7 @@ export function composeHomeRows(
     const onRow = opts.onRow;
     for (const [k, { r, i }] of byKey) {
       if (seen.has(k) || !r.visible) continue;
-      configured.push({ i, item: { key: k, title: r.title, subtitle: r.desc, ctaLabel: r.button || '바로가기', ...(r.badge ? { badge: r.badge } : {}), icon: DEFAULT_ICON[k], tint: '#F3F0EB', onPress: () => onRow(k) } });
+      configured.push({ i, item: { key: k, title: r.title || DEFAULT_TITLE[k], subtitle: r.desc, ctaLabel: r.button || '바로가기', ...(r.badge ? { badge: r.badge } : {}), icon: DEFAULT_ICON[k], tint: '#F3F0EB', onPress: () => onRow(k) } });
     }
   }
   configured.sort((a, b) => a.i - b.i);

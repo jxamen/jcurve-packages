@@ -261,3 +261,4 @@ home_rows 가 없거나 읽기에 실패하면 **앱 기본 그대로**(60초 �
 **free_item 줄은 패키지 기본**: 앱 items 에 free_item(맞춤표 기준)이 이미 있으면(예: `freeItemRow` 를 쓰는 에그머니 · 머니트리 · 영테크) 겹치지 않는다.
 순수 함수도 내보낸다: `composeHomeRows` · `withFreeItemRow` · `freeItemHomeRow` · `resolveHomeKeys` · `fetchHomeConfig` · `applyHomeRows`(0.5.0 방식 — 서버에 없는 줄도 뒤에 남김) · `useHomeRows`.
 (0.7.1) `freeItemRow` 의 부제 기본이 방문형 「하루 N번 들르면 ○○ 받기」로 바뀌었다 — 광고형 앱은 `subtitle` 로 덮는다.
+(0.4.5 포팅) 서버 title 이 비어 있으면 **앱 제목을 그대로** 둔다(만보기 「오늘 N걸음」 같은 동적 제목) — 빈 제목 줄도 버리지 않고 제자리에 둔다. 순서 · 보임 · 설명 · 버튼 · 배지는 서버 값대로 적용하고, 앱에 짝이 없어 새로 만드는 줄만 key별 기본 제목을 쓴다.
