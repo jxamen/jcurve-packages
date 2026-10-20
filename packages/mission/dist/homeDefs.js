@@ -6,19 +6,21 @@ exports.buildHomeItems = buildHomeItems;
 /** 줄 순서 — 서버 home_rows 기본 순서와 같다(HOME_KEYS) */
 exports.HOME_ORDER = ['quiz1', 'quiz2', 'checkin', 'steps', 'free_item', 'today_missions', 'lucky_chance', 'invite', 'recommend'];
 const DEFAULT_NAME = '포인트';
-/** 당근의 soft 주황 — 걸음 · 무료 · 추천 줄 바탕 */
-const SOFT = '#FDE6D6';
+/** 당근의 soft 주황(carrotSoft) — 걸음 · 추천 줄 바탕. 당근 theme.ts(814f2f4) 값 */
+const CARROT_SOFT = '#FFEEE2';
+/** 당근의 soft 초록 — 무료 아이템 줄 바탕(heartSoft) */
+const HEART_SOFT = '#E6F5EA';
 /** 아이콘 이름 + 바탕색 + 버튼 — 당근 기준 고정값(앱이 못 바꾼다) */
 const LOOK = {
     quiz1: { icon: 'bag', tint: '#FDEBE2', ctaLabel: '참여하기' },
     quiz2: { icon: 'pin', tint: '#E4F3EA', ctaLabel: '참여하기' },
     checkin: { icon: 'calendar', tint: '#E8F0FD', ctaLabel: '출석하기' },
-    steps: { icon: '👟', tint: '#FFEEE2', ctaLabel: '보상 받기' }, // 당근 theme.ts carrotSoft (앱관리 확인 10-20)
-    free_item: { icon: '🌱', tint: '#E6F5EA', ctaLabel: '받기' }, // 당근 theme.ts heartSoft (앱관리 확인 10-20)
+    steps: { icon: '👟', tint: CARROT_SOFT, ctaLabel: '보상 받기' },
+    free_item: { icon: '🌱', tint: HEART_SOFT, ctaLabel: '받기' },
     today_missions: { icon: 'star', tint: '#FBF1DC', ctaLabel: '보러가기' },
     lucky_chance: { icon: 'ticket', tint: '#EFE8FB', ctaLabel: '뽑기' },
     invite: { icon: 'friend', tint: '#FDEBDD', ctaLabel: '초대하기' },
-    recommend: { icon: 'star', tint: SOFT, ctaLabel: '보러가기' },
+    recommend: { icon: 'star', tint: CARROT_SOFT, ctaLabel: '보러가기' },
 };
 /** 무료 아이템 줄의 완료 버튼 글자 — 방문형이라 오늘 칸이 끝나면 「내일 다시」(대표님 10-20 19:01) */
 exports.FREE_DONE_LABEL = '내일 다시';
@@ -60,7 +62,9 @@ function homeItem(key, c, onPress) {
     const look = LOOK[key];
     const { title, subtitle } = copy(key, c);
     const icon = key === 'free_item' ? (c.itemIcon ?? look.icon) : key === 'recommend' ? (c.recommend?.icon ?? look.icon) : look.icon;
-    const item = { key, title, subtitle, ctaLabel: look.ctaLabel, icon, tint: look.tint, onPress };
+    // 바탕색은 고정 — 앱 테마색을 따르는 걸음 · 무료 · 추천 세 줄만 앱 값(tints)이 우선
+    const themed = key === 'steps' || key === 'free_item' || key === 'recommend' ? c.tints?.[key]?.trim() : undefined;
+    const item = { key, title, subtitle, ctaLabel: look.ctaLabel, icon, tint: themed || look.tint, onPress };
     if (key === 'free_item') {
         return { ...item, doneLabel: exports.FREE_DONE_LABEL, ...freeState(Math.max(1, Math.floor(c.free?.total ?? 3)), c.free?.left, c.free?.received) };
     }
