@@ -29,6 +29,7 @@ const en: Readonly<Record<string, string>> = {
   '미션': 'Mission',
   '미션에 참여하고 포인트를 받아요': 'Do missions and earn points',
   '일주일 쇼핑 미션': 'Weekly Shopping Mission',
+  '쇼핑 태그 퀴즈1': 'Shopping tag quiz 1',
   // ShoppingMission 힌트
   '상품을 10초만 구경하면 포인트가 들어와요': 'You\'ll earn points just by viewing products for 10 seconds',
 };

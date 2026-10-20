@@ -29,7 +29,8 @@ export type ShoppingMissionProps = Omit<MissionWebViewProps, 'url' | 'onClose' |
 /** (0.3.1) `source` — 요청 출처('popup'|'push'|'tab'|'card'|'other'), 단계 기록(apihub/trace). `hint` — 「10초 구경하면 포인트」 안내 표시(기본값 true). `hintText` — 안내 문구 */
 /** (0.2.1) `lang` — 머리글 · 상태 화면 문구 언어(앱이 넘긴다). 없거나 'ko' 면 지금과 같은 한국어. `title` 을 주면 그 글 그대로 */
 export function ShoppingMission({ fetchJson, onClose, title, adId, source = 'other', safeAreaInsets, theme = DEFAULT_THEME, lang, hint = true, hintText, ...webViewProps }: ShoppingMissionProps & { hint?: boolean; hintText?: string }) {
-  const heading = title === undefined ? t('일주일 쇼핑 미션', lang) : title;
+  // 기본 제목은 홈 목록 줄 · 서버 카드 이름과 같게(0.4.2, 대표님 2026-10-20 09:49 「일주일 쇼핑 미션 => 쇼핑 태그 퀴즈1」)
+  const heading = title === undefined ? t('쇼핑 태그 퀴즈1', lang) : title;
   const [result, setResult] = useState<EntryResult | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [canGoBack, setCanGoBack] = useState(false);

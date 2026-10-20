@@ -22,6 +22,8 @@ describe('언어(0.2.1) — lang 없음 · ko 는 원문, en 은 영어', () => 
   it('머리글 · 기본 제목', () => {
     expect(t('일주일 쇼핑 미션')).toBe('일주일 쇼핑 미션');
     expect(t('일주일 쇼핑 미션', 'en')).toBe('Weekly Shopping Mission');
+    expect(t('쇼핑 태그 퀴즈1')).toBe('쇼핑 태그 퀴즈1');   // 0.4.2 ShoppingMission 기본 제목
+    expect(t('쇼핑 태그 퀴즈1', 'en')).toBe('Shopping tag quiz 1');
     expect(t('뒤로가기', 'en-US')).toBe('Back');
     expect(t('뒤로가기', 'ja')).toBe('뒤로가기');
   });

@@ -45,7 +45,7 @@ iOS 는 가이드대로 `openAppTarget` 만. 페이지가 「`MocationNativeBrid
 ```tsx
 import { MissionCards, ShoppingMission } from '@jcurve/mission';
 const fetchJson = (path, options) => options?.method === 'POST' ? api.post(path, options.body) : api.get(path);
-const fallbackCards = [{ id: 'shopping', type: 'apihub_shopping', title: '일주일 쇼핑 미션', desc: '매일 상품을 구경하고 포인트를 받아요' }, { id: 'place', type: 'place_stamp', title: '일주일 장소 미션' }];
+const fallbackCards = [{ id: 'shopping', type: 'apihub_shopping', title: '쇼핑 태그 퀴즈1', desc: '매일 상품을 구경하고 포인트를 받아요' }, { id: 'place', type: 'place_stamp', title: '플레이스 & 쇼핑 태그 퀴즈2' }];
 function Missions() {
   const [shopping, setShopping] = React.useState(false);
   const insets = useSafeAreaInsets();
