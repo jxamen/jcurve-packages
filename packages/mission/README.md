@@ -188,7 +188,7 @@ items={[freeItemRow({ itemName: '먹이', left: 2, onPress: () => openFreeItem()
 
 | 이름 | 인자 · 기본값 | 결과 |
 | --- | --- | --- |
-| `freeItemRow` | `itemName` · `left?` · `total?` 3 · `onPress` · `icon?` 🌱 · `tint?` · `hidden?` · `key?` 'freeItem' | 「무료 {item} 받기 · 하루 3번 광고 없이 받기 [받기]」. `left` 를 주면 칸 막대 「N번 남았어요」, 0 이면 「완료」 |
+| `freeItemRow` | `itemName` · `left?` · `total?` 3 · `subtitle?` · `onPress` · `icon?` 🌱 · `tint?` · `hidden?` · `key?` 'freeItem' | 「무료 {item} 받기 · 하루 3번 들르면 {item} 받기 [받기]」(0.7.1: 부제 기본이 방문형 — 예전 「하루 3번 광고 없이 받기」). 광고형 앱은 `subtitle` 로 덮는다. `left` 를 주면 칸 막대 「N번 남았어요」, 0 이면 「완료」 |
 | `appHubRow` | `onPress` · `subtitle?` 「추천 앱 둘러보기」 · `icon?` ⭐ · `tint?` · `hidden?` · `key?` 'apphub' | 「추천 앱 둘러보기 [보러가기]」 |
 
 ### 친구 초대
