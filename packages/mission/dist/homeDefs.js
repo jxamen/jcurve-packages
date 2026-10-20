@@ -13,8 +13,8 @@ const LOOK = {
     quiz1: { icon: 'bag', tint: '#FDEBE2', ctaLabel: '참여하기' },
     quiz2: { icon: 'pin', tint: '#E4F3EA', ctaLabel: '참여하기' },
     checkin: { icon: 'calendar', tint: '#E8F0FD', ctaLabel: '출석하기' },
-    steps: { icon: '👟', tint: SOFT, ctaLabel: '보상 받기' },
-    free_item: { icon: '🌱', tint: SOFT, ctaLabel: '받기' },
+    steps: { icon: '👟', tint: '#FFEEE2', ctaLabel: '보상 받기' }, // 당근 theme.ts carrotSoft (앱관리 확인 10-20)
+    free_item: { icon: '🌱', tint: '#E6F5EA', ctaLabel: '받기' }, // 당근 theme.ts heartSoft (앱관리 확인 10-20)
     today_missions: { icon: 'star', tint: '#FBF1DC', ctaLabel: '보러가기' },
     lucky_chance: { icon: 'ticket', tint: '#EFE8FB', ctaLabel: '뽑기' },
     invite: { icon: 'friend', tint: '#FDEBDD', ctaLabel: '초대하기' },
