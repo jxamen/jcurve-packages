@@ -175,8 +175,20 @@ export declare class AuthError extends Error {
      * 예: 카카오톡이 없는 기기에서 카카오 계정 창을 못 열었을 때(10-04 디저트나우 iOS 시뮬).
      */
     readonly hint?: string;
-    constructor(code: AuthErrorCode, tag: string, hint?: string);
+    /**
+     * (2.10.1) 서버가 알려 준 **거절 사유 코드** — 웹 로그인 되돌림의 `error=`(예 `device_already_registered`). 화면이 갈래를 고를 때 쓴다.
+     * 사유가 `device_already_registered` 면 `hint` 에 서버 문장(「이 폰에는 이미 계정이 있어요 …」)이 담긴다 — 앱은 새 문장을 짓지 않고 그대로 보여 준다.
+     */
+    readonly reason?: string;
+    constructor(code: AuthErrorCode, tag: string, hint?: string, reason?: string);
 }
+/** 서버의 「이 기기에는 이미 계정이 있어요」 거절(409 `device_already_registered`, 10-16 기기당 가입 하나) */
+export declare const DEVICE_ALREADY_REGISTERED = "device_already_registered";
+/**
+ * (2.10.1) 이 오류가 「이 기기에는 이미 계정이 있어요」 거절인가 — 웹 로그인 되돌림의 AuthError(`reason`)든,
+ * 앱 로그인 → 서버 교환에서 앱의 요청 도우미가 던진 오류(상태 409 + 몸의 `error`)든 같게 가른다.
+ */
+export declare function isDeviceAlreadyRegistered(e: unknown): boolean;
 /** 카카오톡 없는 기기에서 카카오 계정 로그인 창이 안 열렸을 때 안내(2.9.4) */
 export declare const KAKAO_ACCOUNT_HINT = "\uCE74\uCE74\uC624 \uACC4\uC815 \uB85C\uADF8\uC778 \uCC3D\uC744 \uC5F4\uC9C0 \uBABB\uD588\uC5B4\uC694. \uCE74\uCE74\uC624\uD1A1\uC744 \uC124\uCE58\uD558\uAC70\uB098 \uB2E4\uB978 \uBC29\uBC95\uC73C\uB85C \uB85C\uADF8\uC778\uD574 \uC8FC\uC138\uC694.";
 export type Auth<T> = {
@@ -355,6 +367,7 @@ export declare function createReturnWatch(deps?: ReturnWatchDeps): {
 export declare function parseReturn(url: string): {
     ticket?: string;
     error?: string;
+    message?: string;
 };
 /**
  * 기기와 닿는 것 — **시험에서만** 갈아 끼운다.

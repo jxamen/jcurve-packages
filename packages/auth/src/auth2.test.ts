@@ -6,7 +6,7 @@
  * 갈래마다 **실제로 무엇이 불렸는지**를 본다.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AuthError, createAuth, isCancel, parseReturn, type AuthDeps, type AuthEnv } from './auth';
+import { AuthError, createAuth, DEVICE_ALREADY_REGISTERED, isCancel, isDeviceAlreadyRegistered, parseReturn, type AuthDeps, type AuthEnv } from './auth';
 
 type Session = { s: string };
 
@@ -1259,5 +1259,78 @@ describe('nativeOnly — 앱 로그인이 안 되면 웹으로 넘기지 않는�
     const { auth } = setup({ os: 'android', browser: b, providers: ['apple', 'apple_web'], nativeOnly: [...ALL] });
     expect(await auth.signIn('apple')).toEqual({ s: 'W' });
     expect(b.opened.length).toBe(1);
+  });
+});
+
+describe('(2.10.1) 「이 기기에는 이미 계정이 있어요」 409 — 웹으로 넘기지 않고 서버 문장을 싣는다', () => {
+  const MSG = '이 폰에는 이미 계정이 있어요. 기존 계정으로 로그인해 주세요';
+  /** 앱의 요청 도우미가 던지는 모양 — 상태 409 + 몸의 error · message */
+  const apiErr409 = () => Object.assign(new Error('device_already_registered'), { status: 409, body: { ok: false, error: 'device_already_registered', message: MSG } });
+
+  it('앱 로그인 → 서버 교환이 409 면 앱의 오류를 그대로 던지고 웹 로그인 창을 열지 않는다', async () => {
+    const b = browserFake({ type: 'success', url: RET + '?ticket=T9' });
+    const err = apiErr409();
+    const { auth, tracked } = setup({ browser: b, server: { kakao: async () => { throw err; } } });
+    const e = await auth.signIn('kakao').catch((x) => x);
+    expect(e).toBe(err);
+    expect(isDeviceAlreadyRegistered(e)).toBe(true);
+    expect(b.opened, '브라우저가 한 번 더 뜨지 않는다').toEqual([]);
+    expect(codes(tracked)).toContain('server_reject');
+  });
+
+  it('상태 없이 error 글자만 있어도, 409 만 있어도 같다', async () => {
+    for (const err of [new Error('device_already_registered'), Object.assign(new Error('Conflict'), { status: 409 })]) {
+      const b = browserFake({ type: 'success', url: RET + '?ticket=T8' });
+      const { auth } = setup({ browser: b, server: { kakao: async () => { throw err; } } });
+      expect(await auth.signIn('kakao').catch((x) => x)).toBe(err);
+      expect(b.opened).toEqual([]);
+    }
+  });
+
+  it('nativeOnly 여도 409 는 <제공자>_native 로 감싸지 않고 그대로', async () => {
+    const err = apiErr409();
+    const b = browserFake({ type: 'success', url: RET + '?ticket=T6' });
+    const { auth } = setup({ browser: b, nativeOnly: ['kakao'], server: { kakao: async () => { throw err; } } });
+    expect(await auth.signIn('kakao').catch((x) => x)).toBe(err);
+  });
+
+  it('다른 거절은 예전처럼 웹으로 한 번 더(회귀)', async () => {
+    const b = browserFake({ type: 'success', url: RET + '?ticket=T7' });
+    const { auth } = setup({ browser: b, server: { kakao: async () => { throw Object.assign(new Error('invalid_token'), { status: 401 }); } } });
+    expect(await auth.signIn('kakao')).toEqual({ s: 'W' });
+  });
+
+  it('웹 로그인 되돌림이 error=device_already_registered 면 reason 과 서버 문장(hint)을 싣는다', async () => {
+    const b = browserFake({ type: 'success', url: RET + '?error=device_already_registered&message=' + encodeURIComponent(MSG).replace(/%20/g, '+') });
+    const { auth } = setup({ kakao: null, browser: b });
+    const e = await auth.signIn('kakao').catch((x) => x);
+    expect(e).toBeInstanceOf(AuthError);
+    expect([e.code, e.tag, e.reason, e.hint]).toEqual(['failed', 'ret:device_already_registered', DEVICE_ALREADY_REGISTERED, MSG]);
+    expect(isDeviceAlreadyRegistered(e)).toBe(true);
+    expect(e.message, '메시지는 예전처럼 고정값').toBe('auth_failed');
+  });
+
+  it('다른 ret: 오류는 reason 만 싣고 hint 는 없다', async () => {
+    const b = browserFake({ type: 'success', url: RET + '?error=provider_error&message=boom' });
+    const { auth } = setup({ kakao: null, browser: b });
+    const e = await auth.signIn('kakao').catch((x) => x);
+    expect([e.tag, e.reason, e.hint]).toEqual(['ret:provider_error', 'provider_error', undefined]);
+    expect(isDeviceAlreadyRegistered(e)).toBe(false);
+  });
+
+  it('parseReturn 은 서버 문장을 줄바꿈 · 제어 문자 없이 200자까지', () => {
+    expect(parseReturn(RET + '?error=x&message=' + encodeURIComponent('한 줄\n둘째\u0007'))).toEqual({ error: 'x', message: '한 줄 둘째', ticket: undefined });
+    expect(parseReturn(RET + '?error=x&message=' + 'a'.repeat(300)).message).toHaveLength(200);
+    expect(parseReturn(RET + '?error=x').message).toBeUndefined();
+  });
+
+  it('isDeviceAlreadyRegistered — 몸 · data · 코드 · 메시지 낱말로 가르고 비슷한 글자는 아니다', () => {
+    expect(isDeviceAlreadyRegistered({ data: { error: 'device_already_registered' } })).toBe(true);
+    expect(isDeviceAlreadyRegistered({ code: 'device_already_registered' })).toBe(true);
+    expect(isDeviceAlreadyRegistered(new Error('HTTP 409 device_already_registered'))).toBe(true);
+    expect(isDeviceAlreadyRegistered(new Error('not_device_already_registered_x'))).toBe(false);
+    expect(isDeviceAlreadyRegistered(new Error('invalid_token'))).toBe(false);
+    expect(isDeviceAlreadyRegistered(null)).toBe(false);
+    expect(isDeviceAlreadyRegistered('device_already_registered')).toBe(false);
   });
 });

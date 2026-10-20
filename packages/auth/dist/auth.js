@@ -1,8 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isCancel = exports.PLACEHOLDER = exports.KAKAO_ACCOUNT_HINT = exports.AuthError = void 0;
+exports.isCancel = exports.PLACEHOLDER = exports.KAKAO_ACCOUNT_HINT = exports.DEVICE_ALREADY_REGISTERED = exports.AuthError = void 0;
 exports.isNewMember = isNewMember;
 exports.memberLabel = memberLabel;
+exports.isDeviceAlreadyRegistered = isDeviceAlreadyRegistered;
 exports.createReturnWatch = createReturnWatch;
 exports.parseReturn = parseReturn;
 exports.createAuth = createAuth;
@@ -52,16 +53,33 @@ function memberLabel(member) {
  * 실패면 `auth_failed` 라 거짓이다 — 태그에 `cancel` 같은 글자가 섞여도 판정이 흔들리지 않는다.
  */
 class AuthError extends Error {
-    constructor(code, tag, hint) {
+    constructor(code, tag, hint, reason) {
         super(code === 'cancelled' ? 'user_cancel' : 'auth_' + code);
         this.name = 'AuthError';
         this.code = code;
         this.tag = tag;
         if (hint)
             this.hint = hint;
+        if (reason)
+            this.reason = reason;
     }
 }
 exports.AuthError = AuthError;
+/** 서버의 「이 기기에는 이미 계정이 있어요」 거절(409 `device_already_registered`, 10-16 기기당 가입 하나) */
+exports.DEVICE_ALREADY_REGISTERED = 'device_already_registered';
+/**
+ * (2.10.1) 이 오류가 「이 기기에는 이미 계정이 있어요」 거절인가 — 웹 로그인 되돌림의 AuthError(`reason`)든,
+ * 앱 로그인 → 서버 교환에서 앱의 요청 도우미가 던진 오류(상태 409 + 몸의 `error`)든 같게 가른다.
+ */
+function isDeviceAlreadyRegistered(e) {
+    const x = e;
+    if (!x || typeof x !== 'object')
+        return false;
+    const said = [x.reason, x.error, x.code, x.body?.error, x.data?.error].map((v) => String(v ?? ''));
+    if (said.includes(exports.DEVICE_ALREADY_REGISTERED))
+        return true;
+    return new RegExp('(^|[^a-z_])' + exports.DEVICE_ALREADY_REGISTERED + '([^a-z_]|$)').test(String(x.message ?? ''));
+}
 /** 카카오톡 없는 기기에서 카카오 계정 로그인 창이 안 열렸을 때 안내(2.9.4) */
 exports.KAKAO_ACCOUNT_HINT = '카카오 계정 로그인 창을 열지 못했어요. 카카오톡을 설치하거나 다른 방법으로 로그인해 주세요.';
 /**
@@ -159,7 +177,9 @@ function parseReturn(url) {
             // 깨진 % 인코딩 — 그 조각만 버린다
         }
     }
-    return { ticket: out.ticket || undefined, error: out.error || undefined };
+    // 서버 문장(message) — 화면에 그대로 보일 수 있으니 줄바꿈 · 제어 문자를 빼고 200자까지(2.10.1)
+    const message = (out.message ?? '').replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, 200);
+    return { ticket: out.ticket || undefined, error: out.error || undefined, message: message || undefined };
 }
 /** 모듈이 없으면 null — 크래시 대신 그 버튼만 숨긴다(②) */
 function mod(load) {
@@ -557,6 +577,12 @@ function createAuth(deps, env = defaultEnv()) {
         }
         catch (e) {
             track('login_native_fallback', { provider, code: 'server_reject', detail: shortCode(e) });
+            /*
+             | 「이 기기에는 이미 계정이 있어요」(409 device_already_registered)는 **웹으로 넘기지 않고 그대로 던진다**(2.10.1, 10-20 가입 409 안내).
+             | 웹 로그인으로 가도 같은 기기라 같은 409 이고 브라우저만 한 번 더 뜬다. 앱의 요청 도우미가 실은 서버 문장(message)을 앱이 그대로 보여 준다
+             */
+            if (isDeviceAlreadyRegistered(e) || Number(e?.status ?? NaN) === 409)
+                throw e;
             if (webFor(provider))
                 return FALL; // 서버 웹 로그인으로 한 번 더 기회를 준다
             if (nativeOnly.has(provider))
@@ -853,7 +879,11 @@ function createAuth(deps, env = defaultEnv()) {
                 return tryCandidates(f, alive);
             if (error === 'cancelled')
                 throw new AuthError('cancelled', provider);
-            throw new AuthError('failed', ticket ? 'late:rejected' : 'ret:' + (error ?? 'no_ticket'));
+            // 서버의 거절 사유를 reason 에 싣는다 — 「이 기기에는 이미 계정이 있어요」면 서버 문장도 hint 로(2.10.1, 앱이 그대로 보여 준다)
+            if (!ticket && error === exports.DEVICE_ALREADY_REGISTERED) {
+                throw new AuthError('failed', 'ret:' + error, parseReturn(res.url).message, error);
+            }
+            throw new AuthError('failed', ticket ? 'late:rejected' : 'ret:' + (error ?? 'no_ticket'), undefined, ticket ? undefined : error);
         }
         // 창이 먼저 닫혔어도 복귀 주소가 곧 따로 올 수 있다(안드로이드) — 잠깐 기다려 본다
         if (env.os() === 'android') {

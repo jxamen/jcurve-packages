@@ -204,14 +204,36 @@ export class AuthError extends Error {
    * 예: 카카오톡이 없는 기기에서 카카오 계정 창을 못 열었을 때(10-04 디저트나우 iOS 시뮬).
    */
   readonly hint?: string;
+  /**
+   * (2.10.1) 서버가 알려 준 **거절 사유 코드** — 웹 로그인 되돌림의 `error=`(예 `device_already_registered`). 화면이 갈래를 고를 때 쓴다.
+   * 사유가 `device_already_registered` 면 `hint` 에 서버 문장(「이 폰에는 이미 계정이 있어요 …」)이 담긴다 — 앱은 새 문장을 짓지 않고 그대로 보여 준다.
+   */
+  readonly reason?: string;
 
-  constructor(code: AuthErrorCode, tag: string, hint?: string) {
+  constructor(code: AuthErrorCode, tag: string, hint?: string, reason?: string) {
     super(code === 'cancelled' ? 'user_cancel' : 'auth_' + code);
     this.name = 'AuthError';
     this.code = code;
     this.tag = tag;
     if (hint) this.hint = hint;
+    if (reason) this.reason = reason;
   }
+}
+
+/** 서버의 「이 기기에는 이미 계정이 있어요」 거절(409 `device_already_registered`, 10-16 기기당 가입 하나) */
+export const DEVICE_ALREADY_REGISTERED = 'device_already_registered';
+
+/**
+ * (2.10.1) 이 오류가 「이 기기에는 이미 계정이 있어요」 거절인가 — 웹 로그인 되돌림의 AuthError(`reason`)든,
+ * 앱 로그인 → 서버 교환에서 앱의 요청 도우미가 던진 오류(상태 409 + 몸의 `error`)든 같게 가른다.
+ */
+export function isDeviceAlreadyRegistered(e: unknown): boolean {
+  const x = e as { reason?: unknown; error?: unknown; code?: unknown; body?: { error?: unknown }; data?: { error?: unknown }; message?: unknown } | null;
+  if (!x || typeof x !== 'object') return false;
+  const said = [x.reason, x.error, x.code, x.body?.error, x.data?.error].map((v) => String(v ?? ''));
+  if (said.includes(DEVICE_ALREADY_REGISTERED)) return true;
+
+  return new RegExp('(^|[^a-z_])' + DEVICE_ALREADY_REGISTERED + '([^a-z_]|$)').test(String(x.message ?? ''));
 }
 
 /** 카카오톡 없는 기기에서 카카오 계정 로그인 창이 안 열렸을 때 안내(2.9.4) */
@@ -439,7 +461,7 @@ export function createReturnWatch(deps?: ReturnWatchDeps): {
  * 구글 재로그인(자동 리다이렉트)은 주소 끝에 `#` 가 남는다. 쿼리에 섞이면 티켓이 `XXXX#` 가 되어
  * 서버가 못 찾는다(꼬꼬농장 2026-08-26, 구글만 로그인 실패).
  */
-export function parseReturn(url: string): { ticket?: string; error?: string } {
+export function parseReturn(url: string): { ticket?: string; error?: string; message?: string } {
   const q = String(url ?? '').split('#')[0].split('?')[1];
   if (!q) return {};
   const out: Record<string, string> = {};
@@ -454,7 +476,10 @@ export function parseReturn(url: string): { ticket?: string; error?: string } {
     }
   }
 
-  return { ticket: out.ticket || undefined, error: out.error || undefined };
+  // 서버 문장(message) — 화면에 그대로 보일 수 있으니 줄바꿈 · 제어 문자를 빼고 200자까지(2.10.1)
+  const message = (out.message ?? '').replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, 200);
+
+  return { ticket: out.ticket || undefined, error: out.error || undefined, message: message || undefined };
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -885,6 +910,11 @@ export function createAuth<T>(deps: AuthDeps<T>, env: AuthEnv = defaultEnv()): A
       return await withRetry(call);
     } catch (e) {
       track('login_native_fallback', { provider, code: 'server_reject', detail: shortCode(e) });
+      /*
+       | 「이 기기에는 이미 계정이 있어요」(409 device_already_registered)는 **웹으로 넘기지 않고 그대로 던진다**(2.10.1, 10-20 가입 409 안내).
+       | 웹 로그인으로 가도 같은 기기라 같은 409 이고 브라우저만 한 번 더 뜬다. 앱의 요청 도우미가 실은 서버 문장(message)을 앱이 그대로 보여 준다
+       */
+      if (isDeviceAlreadyRegistered(e) || Number((e as { status?: unknown })?.status ?? NaN) === 409) throw e;
       if (webFor(provider)) return FALL;   // 서버 웹 로그인으로 한 번 더 기회를 준다
       if (nativeOnly.has(provider)) throw nativeFail(provider, 'server_reject:' + shortCode(e));
       throw e;
@@ -1153,7 +1183,11 @@ export function createAuth<T>(deps: AuthDeps<T>, env: AuthEnv = defaultEnv()): A
        */
       if (freshCandidates().length > 0) return tryCandidates(f, alive);
       if (error === 'cancelled') throw new AuthError('cancelled', provider);
-      throw new AuthError('failed', ticket ? 'late:rejected' : 'ret:' + (error ?? 'no_ticket'));
+      // 서버의 거절 사유를 reason 에 싣는다 — 「이 기기에는 이미 계정이 있어요」면 서버 문장도 hint 로(2.10.1, 앱이 그대로 보여 준다)
+      if (!ticket && error === DEVICE_ALREADY_REGISTERED) {
+        throw new AuthError('failed', 'ret:' + error, parseReturn(res.url).message, error);
+      }
+      throw new AuthError('failed', ticket ? 'late:rejected' : 'ret:' + (error ?? 'no_ticket'), undefined, ticket ? undefined : error);
     }
 
     // 창이 먼저 닫혔어도 복귀 주소가 곧 따로 올 수 있다(안드로이드) — 잠깐 기다려 본다
