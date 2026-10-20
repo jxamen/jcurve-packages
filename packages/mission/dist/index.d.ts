@@ -13,6 +13,9 @@ export { safeTop, backTarget, edgeSwipeStarts, edgeSwipeDone, EDGE_WIDTH, EDGE_S
 export type { MissionNavigation } from './MissionWebView';
 export { HOME_KEYS, EMPTY_HOME, parseHomeResponse, fetchHomeConfig, resetHomeConfig, applyHomeRows, adSlotIndex, type HomeRow, type HomeRowKey, type HomeConfig } from './home';
 export { useHomeRows } from './useHomeRows';
+export { parseLotteryState, parseWinners, fetchLotteryState, fetchLotteryWinners, openLottery, createLotteryOpener, newLotteryKey, lotteryTierTitle, lotteryTierHint, lotteryTierButton, nextTierToEarn, lotteryMoreLabel, lotteryMoreMissionLabel, lotteryResultTitle, lotteryWinnerLine, lotteryChipCount, goldenTier, readyTiers, type LotteryState, type LotteryTier, type LotteryTierState, type LotteryOpenResult, type LotteryWinner, type LotteryError, type OpenOutcome, } from './lottery';
+export { useLottery } from './useLottery';
+export { LotteryChip, LotterySheet, LotteryResult, GoldenLotteryPopup } from './LotteryUi';
 export { BenefitQuickList, type BenefitQuickListProps, type BenefitQuickItem, type BenefitQuickIcon } from './BenefitQuickList';
 export { FloatingRewardChip, type FloatingRewardChipProps } from './FloatingRewardChip';
 export { PageFrame, PageButton, DEFAULT_PAGE_THEME, PAGE_BUTTON, resolvePageTheme, type MissionPageTheme } from './pages/PageFrame';
