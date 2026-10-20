@@ -46,6 +46,11 @@ export type HomeContext = {
         desc?: string;
         icon?: BenefitQuickItem['icon'];
     };
+    /**
+     * (0.7.6) **앱 테마색을 따르는 세 줄만** 바탕색을 앱이 넘길 수 있다 — 걸음 · 추천은 당근 carrotSoft(#FFEEE2), 무료 아이템은 heartSoft(#E6F5EA)가 기본이고 앱 테마의 soft 색이 있으면 그것이 우선.
+     * 나머지 줄(퀴즈 · 출석 · 오늘의 미션 · 행운 찬스 · 초대)의 바탕색과 모든 아이콘은 못 바꾼다
+     */
+    tints?: Partial<Record<'steps' | 'free_item' | 'recommend', string>>;
 };
 /** 무료 아이템 줄의 완료 버튼 글자 — 방문형이라 오늘 칸이 끝나면 「내일 다시」(대표님 10-20 19:01) */
 export declare const FREE_DONE_LABEL = "\uB0B4\uC77C \uB2E4\uC2DC";
