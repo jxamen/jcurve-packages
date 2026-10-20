@@ -1,8 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.OFFERWALL_KEYS_MARK = void 0;
 exports.resetOfferwall = resetOfferwall;
 exports.initializeOfferwall = initializeOfferwall;
 exports.configureOfferwall = configureOfferwall;
+exports.builtOfferwallKeys = builtOfferwallKeys;
+exports.resolveOfferwallKeys = resolveOfferwallKeys;
 exports.openOfferwall = openOfferwall;
 exports.getOfferwallTotalRewardInfo = getOfferwallTotalRewardInfo;
 exports.onOfferwallClosed = onOfferwallClosed;
@@ -50,16 +53,114 @@ function options() {
     }
     if (config)
         return config;
+    if (os !== 'android')
+        return {};
+    // (0.2.2) 안드로이드 키 고르기 — expoConfig → 빌드에 박힌 설정 → 서버(initializeOfferwall · resolveOfferwallKeys 가 받아 둔 것). 아래 pickKeys
+    const k = pickKeys('android');
+    return k.source === 'none' ? {} : { appKey: k.appKey, hashKey: k.hashKey };
+}
+const both = (k) => {
+    const appKey = typeof k?.appKey === 'string' ? k.appKey.trim() : '';
+    const hashKey = typeof k?.hashKey === 'string' ? k.hashKey.trim() : '';
+    return appKey && hashKey ? { appKey, hashKey } : null;
+};
+/** OTA manifest(또는 개발 manifest)의 extra.jcurveOfferwall — 예전(0.2.1)과 같은 자리 */
+function expoConfigKeys() {
     try {
-        const constants = require('expo-constants').default;
-        const expo = constants.expoConfig;
+        const expo = require('expo-constants').default?.expoConfig;
         // Metro/dev manifests can evaluate app.json without running config plugins.
         const entry = expo?.plugins?.find((item) => Array.isArray(item) && item[0] === '@jcurve/offerwall');
-        return os === 'android' ? (expo?.extra?.jcurveOfferwall ?? entry?.[1] ?? {}) : {};
+        return expo?.extra?.jcurveOfferwall ?? entry?.[1] ?? null;
     }
     catch {
-        return {};
+        return null;
     }
+}
+/**
+ * (0.2.2) **빌드 때 박힌** app config 의 오퍼월 키 — expo-constants 네이티브 모듈(ExponentConstants.manifest)이 들고 있는 내장 설정.
+ * OTA 는 Constants.expoConfig(업데이트 manifest)만 바꾸고 이것은 못 바꾼다. 플러그인(app.plugin.js)이 빌드 때 extra.jcurveOfferwall 에 넣은 값 그대로다.
+ * 안드로이드는 manifest 가 JSON 문자열, iOS 는 객체다. 못 읽으면(Expo Go · 웹 · 모듈 없음) null
+ */
+function embeddedKeys() {
+    try {
+        let mod = null;
+        try {
+            mod = require('expo-modules-core').requireOptionalNativeModule?.('ExponentConstants') ?? null;
+        }
+        catch {
+            mod = null;
+        }
+        if (!mod)
+            mod = require('react-native').NativeModules?.ExponentConstants ?? null;
+        let manifest = mod?.manifest;
+        if (typeof manifest === 'string')
+            manifest = JSON.parse(manifest);
+        const keys = manifest?.extra?.jcurveOfferwall;
+        return keys && typeof keys === 'object' ? keys : null;
+    }
+    catch {
+        return null;
+    }
+}
+/**
+ * (0.2.2) 키 고르기 — 대표님 10-20 오퍼월 「준비 중」(OTA 발행 환경에 ADPOPCORN_* 가 없어 manifest extra 키가 빈 문자열로 나감, A32 캐시팡팡):
+ *  1) Constants.expoConfig.extra.jcurveOfferwall — 두 키가 다 있으면
+ *  2) 빌드에 박힌 설정(ExponentConstants.manifest) — OTA 가 못 바꾼다
+ *  3) 서버 GET content/config/adpopcorn 의 그 OS 키(initializeOfferwall · resolveOfferwallKeys 가 받아 둔 것)
+ * 값은 메모리에만 두고 기록하지 않는다
+ */
+function pickKeys(os) {
+    const a = both(expoConfigKeys());
+    if (a)
+        return { ...a, source: 'expoConfig' };
+    const b = both(embeddedKeys());
+    if (b)
+        return { ...b, source: 'embedded' };
+    const s = serverConfig?.[os];
+    const c = both({ appKey: s?.mediaKey, hashKey: s?.hashKey });
+    if (c)
+        return { ...c, source: 'server' };
+    return { appKey: '', hashKey: '', source: 'none' };
+}
+/** (0.2.2) 번들 표식 — OTA 발행 검사(배포2)가 번들 문자열에서 「키를 빌드 · 서버에서도 찾는 판」인지 본다 */
+exports.OFFERWALL_KEYS_MARK = 'jcurve-offerwall-keys:expoConfig>embedded>server';
+const report = (k) => ({ appKey: k.appKey, hasAppKey: k.appKey !== '', hasHashKey: k.hashKey !== '', source: k.source });
+/**
+ * (0.2.2) 이 기기에서 쓸 오퍼월 키 — 앱의 키 가드(offerwallKeyGuard)가 Constants.expoConfig.extra 대신 이것을 본다.
+ * appKey(매체 키)는 서버 mediaKey 와 맞대야 해서 값을 주고, hashKey 는 있음/없음만 준다(값은 내보내지 않는다).
+ */
+function builtOfferwallKeys() {
+    let os = 'android';
+    try {
+        os = require('react-native').Platform.OS === 'ios' ? 'ios' : 'android';
+    }
+    catch { /* 기본 안드로이드 */ }
+    return report(pickKeys(os));
+}
+/**
+ * (0.2.2) 1 · 2 가 다 비었으면 서버 키까지 — `fetcher` 는 앱이 준다(앱 api 주소 · 토큰을 패키지가 모르게): content/config/adpopcorn 응답 JSON 을 돌려준다.
+ * 받은 키는 SDK 를 열 때도 쓴다(안드로이드 options). 실패하면 조용히 none
+ */
+async function resolveOfferwallKeys(fetcher) {
+    const now = builtOfferwallKeys();
+    if (now.source !== 'none' || !fetcher)
+        return now;
+    const current = generation;
+    try {
+        const data = await fetcher();
+        if (current !== generation || data?.ok !== true || !data.config || typeof data.config !== 'object')
+            return now;
+        const clean = {};
+        for (const os of ['android', 'ios']) {
+            const value = data.config[os];
+            clean[os] = { mediaKey: typeof value?.mediaKey === 'string' ? value.mediaKey.trim() : '', hashKey: typeof value?.hashKey === 'string' ? value.hashKey.trim() : '' };
+        }
+        serverConfig = clean;
+    }
+    catch {
+        return now;
+    }
+    return builtOfferwallKeys();
 }
 function sdk() {
     try {

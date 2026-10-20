@@ -36,6 +36,29 @@ export declare function initializeOfferwall({ configUrl, headers }: {
 }): Promise<OfferwallResult>;
 /** Explicit injection of fetched SDK keys. Only Android reads bundled plugin keys. */
 export declare function configureOfferwall(options: OfferwallConfig): void;
+type Picked = {
+    appKey: string;
+    hashKey: string;
+    source: 'expoConfig' | 'embedded' | 'server' | 'none';
+};
+/** (0.2.2) 번들 표식 — OTA 발행 검사(배포2)가 번들 문자열에서 「키를 빌드 · 서버에서도 찾는 판」인지 본다 */
+export declare const OFFERWALL_KEYS_MARK = "jcurve-offerwall-keys:expoConfig>embedded>server";
+export type BuiltOfferwallKeys = {
+    appKey: string;
+    hasAppKey: boolean;
+    hasHashKey: boolean;
+    source: Picked['source'];
+};
+/**
+ * (0.2.2) 이 기기에서 쓸 오퍼월 키 — 앱의 키 가드(offerwallKeyGuard)가 Constants.expoConfig.extra 대신 이것을 본다.
+ * appKey(매체 키)는 서버 mediaKey 와 맞대야 해서 값을 주고, hashKey 는 있음/없음만 준다(값은 내보내지 않는다).
+ */
+export declare function builtOfferwallKeys(): BuiltOfferwallKeys;
+/**
+ * (0.2.2) 1 · 2 가 다 비었으면 서버 키까지 — `fetcher` 는 앱이 준다(앱 api 주소 · 토큰을 패키지가 모르게): content/config/adpopcorn 응답 JSON 을 돌려준다.
+ * 받은 키는 SDK 를 열 때도 쓴다(안드로이드 options). 실패하면 조용히 none
+ */
+export declare function resolveOfferwallKeys(fetcher?: () => Promise<unknown>): Promise<BuiltOfferwallKeys>;
 export declare function openOfferwall({ usn }: {
     usn: string;
 }): OfferwallResult;
@@ -57,3 +80,4 @@ export type OfferwallViewProps = {
 };
 /** SDK ViewType list. Mount only after initializeOfferwall succeeds; unmount on exit/logout. */
 export declare function OfferwallView({ usn, style, onLoaded, onError }: OfferwallViewProps): import('react').ReactElement | null;
+export {};

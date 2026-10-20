@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const Module = require('node:module');
 const original = Module._load;
 let native, events, loads, reactHooks, viewLinked = true;
+let embedded;   // ExponentConstants.manifest(빌드에 박힌 설정) — undefined 면 모듈 없음
 function setup(config = {}, os = 'ios', linked = true) {
   events = new Map(); loads = 0;
   native = {
@@ -16,6 +17,7 @@ function setup(config = {}, os = 'ios', linked = true) {
   Module._load = function(id, ...args) {
     if (id === 'react' && reactHooks) return reactHooks;
     if (id === 'expo-constants') return { default: { expoConfig: { extra: { jcurveOfferwall: config } } } };
+    if (id === 'expo-modules-core') return { requireOptionalNativeModule: (name) => (name === 'ExponentConstants' && embedded !== undefined ? { manifest: embedded } : null) };
     if (id === 'react-native') return { UIManager: { getViewManagerConfig() { return viewLinked ? {} : null; } }, requireNativeComponent: () => 'EmbeddedNativeView', Platform: { OS: os }, NativeModules: linked ? { RNAdPopcornRewardModule: {} } : {} };
     if (id === 'react-native-adpopcorn-reward') { loads++; return { default: native }; }
     return original.call(this, id, ...args);
@@ -25,7 +27,7 @@ function setup(config = {}, os = 'ios', linked = true) {
   if (os === 'ios' && (config.appKey || config.hashKey)) api.configureOfferwall(config);
   return api;
 }
-afterEach(() => { Module._load = original; reactHooks = undefined; viewLinked = true; });
+afterEach(() => { Module._load = original; reactHooks = undefined; viewLinked = true; embedded = undefined; });
 const keys = { appKey: 'test-app', hashKey: 'test-hash' };
 const usn = 'a'.repeat(64);
 test('empty or partial keys return 준비 중 without loading SDK', async () => {
@@ -148,4 +150,46 @@ test('embedded view fails closed on invalid alias, missing keys or old binary', 
     assert.equal(failures[0].ok, false);
     assert.equal(native.opened, undefined);
   }
+});
+
+// ── 0.2.2 키 고르기: expoConfig → 빌드에 박힌 설정 → 서버 ──
+test('OTA 를 하나도 안 받은 내장 번들 — expoConfig 와 내장 설정이 같다: expoConfig 로 연다', () => {
+  embedded = JSON.stringify({ extra: { jcurveOfferwall: keys } });
+  const api = setup(keys, 'android');
+  assert.deepEqual(api.builtOfferwallKeys(), { appKey: 'test-app', hasAppKey: true, hasHashKey: true, source: 'expoConfig' });
+  assert.deepEqual(api.openOfferwall({ usn }), { ok: true });
+});
+test('OTA 를 받아 expoConfig 키가 빈 문자열 — 빌드에 박힌 키(안드 JSON 문자열)로 연다(준비 중이 아니다)', () => {
+  embedded = JSON.stringify({ extra: { jcurveOfferwall: keys } });
+  const api = setup({ appKey: '', hashKey: '' }, 'android');
+  assert.deepEqual(api.openOfferwall({ usn }), { ok: true });
+  const b = api.builtOfferwallKeys();
+  assert.deepEqual(b, { appKey: 'test-app', hasAppKey: true, hasHashKey: true, source: 'embedded' });
+  assert.equal(JSON.stringify(b).includes('test-hash'), false, 'hashKey 값은 내보내지 않는다');
+});
+test('iOS 내장 설정은 객체로 온다', () => {
+  embedded = { extra: { jcurveOfferwall: { appKey: ' ios-app ', hashKey: 'h' } } };
+  assert.deepEqual(setup({}, 'ios').builtOfferwallKeys(), { appKey: 'ios-app', hasAppKey: true, hasHashKey: true, source: 'embedded' });
+});
+test('1 · 2 가 다 비면 서버 키(fetcher) — 받은 키로 안드 SDK 도 연다 · 실패 · 깨진 응답은 조용히 none', async () => {
+  embedded = '{not json';
+  const api = setup({ appKey: '', hashKey: '' }, 'android');
+  assert.equal(api.openOfferwall({ usn }).message, '준비 중');
+  assert.deepEqual(await api.resolveOfferwallKeys(async () => { throw new Error('net'); }), { appKey: '', hasAppKey: false, hasHashKey: false, source: 'none' });
+  assert.equal((await api.resolveOfferwallKeys(async () => ({ ok: false }))).source, 'none');
+  const r = await api.resolveOfferwallKeys(async () => ({ ok: true, config: { android: { mediaKey: ' srv-app ', hashKey: 'srv-hash' }, ios: {} } }));
+  assert.deepEqual(r, { appKey: 'srv-app', hasAppKey: true, hasHashKey: true, source: 'server' });
+  assert.deepEqual(api.openOfferwall({ usn }), { ok: true });
+});
+test('resolveOfferwallKeys 는 1 · 2 가 있으면 서버를 부르지 않는다', async () => {
+  embedded = JSON.stringify({ extra: { jcurveOfferwall: keys } });
+  let called = 0;
+  const r = await setup({}, 'android').resolveOfferwallKeys(async () => { called++; return {}; });
+  assert.equal(r.source, 'embedded');
+  assert.equal(called, 0);
+});
+test('모듈이 없으면(웹 · Expo Go) none — 예외 없이', () => {
+  const api = setup({}, 'android');
+  Module._load = function(id, ...args) { if (id === 'expo-constants') throw new Error('none'); if (id === 'expo-modules-core') return {}; if (id === 'react-native') return { Platform: { OS: 'android' }, NativeModules: {} }; return original.call(this, id, ...args); };
+  assert.deepEqual(api.builtOfferwallKeys(), { appKey: '', hasAppKey: false, hasHashKey: false, source: 'none' });
 });
