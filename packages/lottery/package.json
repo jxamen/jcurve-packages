@@ -1,0 +1,39 @@
+{
+  "name": "@jcurve/lottery",
+  "version": "0.1.0",
+  "description": "공용 복권 — 칩 · 복권 시트 · 결과 · 황금 복권 팝업 · 서버 호출 훅 (서버 jcurve-api lottery/*)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-native": ">=0.74"
+  },
+  "peerDependenciesMeta": {
+    "react-native": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.0",
+    "react": "^19.2.0",
+    "react-native": "^0.86.3",
+    "typescript": "~5.9.2",
+    "vitest": "^3.2.4"
+  },
+  "license": "UNLICENSED",
+  "private": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jxamen/jcurve-packages",
+    "directory": "packages/lottery"
+  }
+}

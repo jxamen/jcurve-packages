@@ -1,18 +1,36 @@
 import React, { type ReactNode } from 'react';
 import { type LotteryOpenResult, type LotteryState, type LotteryWinner } from './lottery';
-import { type MissionPageTheme } from './pages/PageFrame';
+/** 색 — 앱이 넘기는 값(@jcurve/mission 의 MissionPageTheme 을 그대로 넘겨도 된다, 필요한 칸만 쓴다) */
+export type LotteryTheme = {
+    bg: string;
+    card: string;
+    text: string;
+    sub: string;
+    accent: string;
+    accentText: string;
+    accentSoft: string;
+    done: string;
+};
+export declare const DEFAULT_LOTTERY_THEME: LotteryTheme;
 /**
- * (0.6.0) 복권 화면 조각들 — 모두 **상태가 없다**(앱이 useLottery 의 값을 넘긴다). 색만 theme 으로 받고 모양은 패키지가 정한다.
+ * 복권 화면 조각들(mission 0.6.0 에서 옮겨 왔다 — 이름 · props 그대로) — 모두 **상태가 없다**(앱이 useLottery 의 값을 넘긴다). 색만 theme 으로 받고 모양은 패키지가 정한다.
  * Modal 이 아니라 화면 위 덮개다 — 보상형 광고가 Modal 뒤에 깔리지 않게(앱의 TicketSheet 와 같은 이유). 앱이 화면 맨 위(탭 바 위)에 둔다.
  */
 type ThemeProp = {
-    theme?: Partial<MissionPageTheme>;
+    theme?: Partial<LotteryTheme>;
 };
-/** 안 연 복권이 있을 때만 — 다 열면 사라진다(count 0 이면 null) */
-export declare function LotteryChip({ count, onPress, label, theme }: {
+/**
+ * 안 연 복권이 있을 때만 — 다 열면 사라진다(count 0 이면 null).
+ * 기본은 **띠 없이 떠 있는 흰 알약**(그림자, FloatingRewardChip 과 같은 모양 · 대표님 「떠 있는 알약」): 안쪽 화면의 탭 바 위에 두고 `bottomOffset`(아래에서 띄울 거리)만 준다.
+ * `floating={false}` 면 줄 안에 놓는 작은 색 알약(0.6.0 모양).
+ */
+export declare function LotteryChip({ count, onPress, label, bottomOffset, floating, icon, theme }: {
     count: number;
     onPress: () => void;
     label?: string;
+    bottomOffset?: number;
+    floating?: boolean;
+    icon?: ReactNode;
 } & ThemeProp): React.JSX.Element | null;
 /** 복권 시트 — 3단계 줄 · 받기 / 열기 / 획득 완료 · 당첨 띠 · 「한 번 더! ○원 복권 받기」 · 알림 켜기 */
 export declare function LotterySheet({ open, state, winners, busy, onOpen, onEarn, onMore, onClose, onEnableNotify, notifyLabel, theme, renderNative }: {

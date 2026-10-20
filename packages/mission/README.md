@@ -234,24 +234,7 @@ const { items } = useHomeRows(fetchJson, baseItems, KEYS, tab === 'home');   // 
 - 낱개로도 쓸 수 있다: `fetchHomeConfig(fetchJson)` · `parseHomeResponse(json)` · `applyHomeRows(items, rows, KEYS)` · `adSlotIndex(items, list.adAfter, 앱기본)`
 - `list.shoppingFirst`(혜택 탭 쇼핑 먼저) · `list.adAfter`(목록 광고 자리)는 앱이 읽어 쓴다.
 
-## 0.6.0 — 복권(대표님 14:08 · 14:15)
+## 0.7.0 — 복권을 @jcurve/lottery 로 옮김(대표님 14:24 「이것도 패키지로 빼」)
 
-미션 1 · 5 · 10개(서로 다른 **쇼핑 · 플레이스 미션**) 참여하면 최대 100 · 500 · 1000원 복권, **매일 기본(황금) 복권**은 미션 없이 앱에 들어오면 지급, 받은 복권은 한국 자정에 사라진다.
-장부 · 지급 · 추첨 · 금액 · 확률은 전부 서버(jcurve-api `feat/lottery-server`, 어드민 앱 설정 `lottery`)가 한다 — 패키지에는 규칙이 없다. 서버가 꺼져 있으면(404 off) state 가 null 이라 칩이 안 보인다(서버보다 먼저 앱에 넣어도 안전).
-
-```tsx
-import { useLottery, LotteryChip, LotterySheet, LotteryResult, GoldenLotteryPopup, goldenTier } from '@jcurve/mission';
-const lot = useLottery(fetchJson, tab === 'home');                  // 홈으로 돌아올 때 다시 읽는다(읽는 순간 서버가 오늘 줄 복권을 만든다)
-<LotteryChip count={lot.chip} onPress={() => { void lot.loadWinners(); setSheet(true); }} />   // 안 연 복권이 있을 때만, 다 열면 사라짐
-<LotterySheet open={sheet} state={lot.state} winners={lot.winners} busy={lot.busy}
-  onOpen={async tier => { const r = await lot.open(tier); if (r.ok) setResult(r.result); }}
-  onEarn={tier => goMission()} onClose={() => setSheet(false)} onEnableNotify={askNotify} />
-{result ? <LotteryResult result={result} state={lot.state} onOpenNext={…} onMore={goMission} onClose={…} renderNative={() => <HarvestNative />} /> : null}
-```
-
-- **열기**(`lot.open(tier, src?)`): 한 번에 하나만, 네트워크가 끊겨 다시 보낼 때는 같은 멱등 키(서버가 저장된 결과를 다시 준다), 서버가 답한 뒤에는 새 키. 잠금은 끝나면 반드시 풀린다.
-- **황금(기본) 복권**: `goldenTier(lot.state)` 가 null 이 아니면(안 연 기본 복권이 있음) 하루 한 번 `GoldenLotteryPopup` 을 띄운다(띄운 날짜 기억은 앱). 버튼 「광고 보고 황금 복권 열기」에서 앱이 **보상형 광고를 customData `lottery_basic` 으로** 보여 준 뒤 `lot.open(tier, 'basic')` 을 부른다 — 광고 시청은 서버가 구글 SSV 로 확인한다(없으면 `ad_required`). 광고 보상 지급 시각 · 확인이 늦으면 `ad_required` 가 나올 수 있어 한 번 더 시도하게 하면 된다.
-- **결과 창** `LotteryResult`: 「축하해요 보상 ○P 당첨!」, 큰 아이콘 없음. `renderNative` 에는 앱이 이미 쓰는 네이티브 광고 컴포넌트를 `() => <Ad />` 로 넘기기만 하면 된다(버튼 아래). 남은 복권이 있으면 「다음 복권 열기」, 없으면 「미션 하고 복권 더 받기」(다음 단계까지 남은 미션 수), 둘 다 「다음에 할게요」.
-- 컴포넌트는 모두 상태가 없고 Modal 이 아니라 화면 위 덮개다(보상형 광고가 뒤에 깔리지 않게) — 앱이 화면 맨 위에 둔다. 색은 `theme`(MissionPageTheme 일부)만.
-- 낱개: `fetchLotteryState` · `openLottery` · `createLotteryOpener` · `parseLotteryState` · 문구 함수(`lotteryTierTitle` · `lotteryTierHint` · `lotteryTierButton` · `lotteryMoreLabel` …).
-- 옛 「복권 뽑기 N번 남았어요」 칩(tree/draw 풀)은 새 칩이 들어가면 앱 홈에서 뺀다 — 새 복권은 별도 장부라 행운 찬스 · 오늘의 미션 chance 판정과 섞이지 않는다.
+0.6.0 의 복권 조각(`useLottery` · `LotteryChip` · `LotterySheet` · `LotteryResult` · `GoldenLotteryPopup` · `goldenTier` · `openLottery` …)은 **별도 패키지 `@jcurve/lottery`** 로 옮겼다 — 이름 · props 는 그대로라 import 만 바꾸면 된다(`from '@jcurve/mission'` → `from '@jcurve/lottery'`).
+`@jcurve/mission` 은 복권 없이도 그대로 동작한다. 0.6.0 을 쓰는 앱은 lottery 로 옮긴 뒤 0.7.0 으로 올린다(0.6.0 → 0.7.0 에서 복권 export 가 사라진다).

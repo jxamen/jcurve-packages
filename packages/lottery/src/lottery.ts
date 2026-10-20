@@ -1,9 +1,10 @@
 /**
- * (0.6.0) 공용 복권 — 대표님 2026-10-20 14:08 「미션 하나 참여하면 최대 100원 · 다섯 개 500원 · 열 개 1000원」 + 14:15 「황금 복권이 기본으로」.
+ * @jcurve/lottery — 공용 복권(mission 0.6.0 에서 옮겨 왔다) — 대표님 2026-10-20 14:08 「미션 하나 참여하면 최대 100원 · 다섯 개 500원 · 열 개 1000원」 + 14:15 「황금 복권이 기본으로」.
  * 서버(jcurve-api feat/lottery-server)가 장부 · 지급 · 추첨을 모두 하고, 이 파일은 응답을 읽고 문구를 만들고 열기 요청을 보낸다.
  * react-native 를 가져오지 않는다(시험이 바로 돈다). 규칙 · 금액 · 확률은 서버(어드민 설정)가 정한다 — 여기에는 없다.
  */
-import type { Requester } from './entry';
+/** 앱의 서버 요청 함수 — 앱이 가진 것(ApiError 를 던지는 api.get/post 계열)을 그대로 넘긴다. 경로는 `{app}/` 뒤부터(예: 'lottery/state') */
+export type Requester = (path: string, options?: { method?: string; body?: unknown }) => Promise<unknown>;
 
 export type LotteryTierState = 'locked' | 'ready' | 'opened' | 'capped';
 
@@ -82,12 +83,18 @@ export function parseWinners(response: unknown): LotteryWinner[] {
   return out;
 }
 
-/** 던져진 오류 · 응답 본문에서 서버 오류 이름을 읽는다(entry.ts 와 같은 규칙) */
-function errorOf(e: unknown): LotteryError {
-  const x = e as { status?: unknown; error?: unknown; data?: { error?: unknown }; body?: { error?: unknown } } | null;
-  const name = String(x?.error ?? x?.data?.error ?? x?.body?.error ?? '');
-  const known: readonly string[] = ['off', 'not_ready', 'not_reached', 'already_opened', 'key_conflict', 'ad_required', 'key_required', 'bad_key', 'bad_tier', 'bad_src'];
-  if (known.includes(name)) return name as LotteryError;
+const KNOWN_ERRORS: readonly string[] = ['off', 'not_ready', 'not_reached', 'already_opened', 'key_conflict', 'ad_required', 'key_required', 'bad_key', 'bad_tier', 'bad_src'];
+
+/**
+ * 던져진 오류 · 응답 본문에서 서버 오류 이름을 읽는다 — 앱마다 요청 함수가 던지는 꼴이 달라서(ApiError.code · status, {error}, {data:{error}}, {body:{error}}) 모두 읽는다.
+ * 앱이 {error, status} 로 바꿔 던질 필요 없이 `openLottery` 가 이것을 쓴다. 서버가 답한 이름이 아니면 404 → off · 503 → not_ready, 그 밖(끊김 · 시간초과 · 모름)은 network
+ */
+export function toLotteryError(e: unknown): LotteryError {
+  const x = e as { status?: unknown; code?: unknown; error?: unknown; data?: { error?: unknown; code?: unknown }; body?: { error?: unknown; code?: unknown } } | null;
+  for (const v of [x?.error, x?.code, x?.data?.error, x?.data?.code, x?.body?.error, x?.body?.code]) {
+    const name = typeof v === 'string' ? v : '';
+    if (KNOWN_ERRORS.includes(name)) return name as LotteryError;
+  }
   if (x?.status === 404) return 'off';
   if (x?.status === 503) return 'not_ready';
 
@@ -124,14 +131,14 @@ export async function openLottery(fetchJson: Requester, args: { tier: number; ke
   try {
     r = await fetchJson('lottery/open', { method: 'POST', body: { tier: args.tier, idempotency_key: args.key, ...(args.src ? { src: args.src } : {}) } });
   } catch (e) {
-    return { ok: false, error: errorOf(e) };
+    return { ok: false, error: toLotteryError(e) };
   }
   const j = r as { ok?: unknown; tier?: unknown; maxWon?: unknown; won?: unknown; points?: unknown; balance?: unknown; replayed?: unknown; unopened?: unknown; error?: unknown } | null;
   if (j?.ok === true && typeof j.won === 'number' && typeof j.points === 'number') {
     return { ok: true, result: { tier: num(j.tier), maxWon: num(j.maxWon), won: j.won, points: j.points, balance: num(j.balance), replayed: j.replayed === true, unopened: Math.max(0, num(j.unopened)) } };
   }
 
-  return { ok: false, error: j?.ok === false ? errorOf(j) : 'invalid' };
+  return { ok: false, error: j?.ok === false ? toLotteryError(j) : 'invalid' };
 }
 
 /**

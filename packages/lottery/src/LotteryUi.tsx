@@ -4,26 +4,47 @@ import {
   lotteryMoreLabel, lotteryMoreMissionLabel, lotteryResultTitle, lotteryTierButton, lotteryTierHint, lotteryTierTitle, lotteryWinnerLine,
   type LotteryOpenResult, type LotteryState, type LotteryTier, type LotteryWinner,
 } from './lottery';
-import { DEFAULT_PAGE_THEME, type MissionPageTheme } from './pages/PageFrame';
+
+/** 색 — 앱이 넘기는 값(@jcurve/mission 의 MissionPageTheme 을 그대로 넘겨도 된다, 필요한 칸만 쓴다) */
+export type LotteryTheme = { bg: string; card: string; text: string; sub: string; accent: string; accentText: string; accentSoft: string; done: string };
+export const DEFAULT_LOTTERY_THEME: LotteryTheme = {
+  bg: '#FBF7F2', card: '#FFFFFF', text: '#2B2118', sub: '#6B5E52', accent: '#EE7A33', accentText: '#FFFFFF', accentSoft: '#FDE6D6', done: '#D3D7DD',
+};
 
 /**
- * (0.6.0) 복권 화면 조각들 — 모두 **상태가 없다**(앱이 useLottery 의 값을 넘긴다). 색만 theme 으로 받고 모양은 패키지가 정한다.
+ * 복권 화면 조각들(mission 0.6.0 에서 옮겨 왔다 — 이름 · props 그대로) — 모두 **상태가 없다**(앱이 useLottery 의 값을 넘긴다). 색만 theme 으로 받고 모양은 패키지가 정한다.
  * Modal 이 아니라 화면 위 덮개다 — 보상형 광고가 Modal 뒤에 깔리지 않게(앱의 TicketSheet 와 같은 이유). 앱이 화면 맨 위(탭 바 위)에 둔다.
  */
-type ThemeProp = { theme?: Partial<MissionPageTheme> };
-const th = (t?: Partial<MissionPageTheme>): MissionPageTheme => ({ ...DEFAULT_PAGE_THEME, ...(t ?? {}) });
+type ThemeProp = { theme?: Partial<LotteryTheme> };
+const th = (t?: Partial<LotteryTheme>): LotteryTheme => ({ ...DEFAULT_LOTTERY_THEME, ...(t ?? {}) });
 
-/** 안 연 복권이 있을 때만 — 다 열면 사라진다(count 0 이면 null) */
-export function LotteryChip({ count, onPress, label, theme }: { count: number; onPress: () => void; label?: string } & ThemeProp) {
+/**
+ * 안 연 복권이 있을 때만 — 다 열면 사라진다(count 0 이면 null).
+ * 기본은 **띠 없이 떠 있는 흰 알약**(그림자, FloatingRewardChip 과 같은 모양 · 대표님 「떠 있는 알약」): 안쪽 화면의 탭 바 위에 두고 `bottomOffset`(아래에서 띄울 거리)만 준다.
+ * `floating={false}` 면 줄 안에 놓는 작은 색 알약(0.6.0 모양).
+ */
+export function LotteryChip({ count, onPress, label, bottomOffset = 16, floating = true, icon, theme }: { count: number; onPress: () => void; label?: string; bottomOffset?: number; floating?: boolean; icon?: ReactNode } & ThemeProp) {
   if (!(count > 0)) return null;
   const c = th(theme);
+  const text = label ?? '복권 ' + count + '장';
+  if (!floating) {
+    return <Pressable accessibilityRole="button" accessibilityLabel={text} onPress={onPress} style={({ pressed }) => [s.chip, { backgroundColor: c.accent }, pressed && { opacity: 0.85 }]}>
+      <Text style={[s.chipText, { color: c.accentText }]}>{text}</Text>
+    </Pressable>;
+  }
 
-  return <Pressable accessibilityRole="button" accessibilityLabel={label ?? '복권 ' + count + '장'} onPress={onPress} style={({ pressed }) => [s.chip, { backgroundColor: c.accent }, pressed && { opacity: 0.85 }]}>
-    <Text style={[s.chipText, { color: c.accentText }]}>{label ?? '복권 ' + count + '장'}</Text>
-  </Pressable>;
+  return <View pointerEvents="box-none" style={[s.anchor, { bottom: bottomOffset }]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={text} onPress={onPress} style={({ pressed }) => [s.floating, pressed && { opacity: 0.8 }]}>
+      <View accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        {icon ?? <View style={[s.ticket, { borderColor: c.accent }]}><View style={[s.ticketLine, { borderColor: c.accent }]} /></View>}
+      </View>
+      <Text style={s.floatingText}>{text}</Text>
+      <Text accessible={false} style={s.arrow}>›</Text>
+    </Pressable>
+  </View>;
 }
 
-function TierRow({ t, theme, busy, onOpen, onEarn }: { t: LotteryTier; theme: MissionPageTheme; busy?: boolean; onOpen: (tier: number) => void; onEarn: (tier: number) => void }) {
+function TierRow({ t, theme, busy, onOpen, onEarn }: { t: LotteryTier; theme: LotteryTheme; busy?: boolean; onOpen: (tier: number) => void; onEarn: (tier: number) => void }) {
   const b = lotteryTierButton(t);
   const active = b.kind === 'open' || b.kind === 'earn';
   const press = () => { if (b.kind === 'open') onOpen(t.tier); else if (b.kind === 'earn') onEarn(t.tier); };
@@ -131,6 +152,13 @@ export function GoldenLotteryPopup({ open, maxWon, busy, onOpen, onClose, button
 }
 
 const s = StyleSheet.create({
+  anchor: { position: 'absolute', left: 16, right: 16, alignItems: 'center', zIndex: 10 },
+  floating: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 999, backgroundColor: '#FFFFFF',
+    shadowColor: '#17212E', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.16, shadowRadius: 8, elevation: 6 },
+  floatingText: { flexShrink: 1, fontSize: 14, fontWeight: '700', color: '#26333D' },
+  arrow: { fontSize: 24, lineHeight: 24, color: '#77818B' },
+  ticket: { width: 22, height: 16, borderWidth: 2, borderRadius: 4, transform: [{ rotate: '-12deg' }] },
+  ticketLine: { height: 10, marginLeft: 11, borderLeftWidth: 1, borderStyle: 'dashed' },
   chip: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 },
   chipText: { fontSize: 13, fontWeight: '800' },
   overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'flex-end', zIndex: 60, elevation: 60 },

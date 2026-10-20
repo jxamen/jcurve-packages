@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.lotteryChipCount = exports.lotteryWinnerLine = exports.lotteryResultTitle = exports.lotteryTierTitle = void 0;
 exports.parseLotteryState = parseLotteryState;
 exports.parseWinners = parseWinners;
+exports.toLotteryError = toLotteryError;
 exports.fetchLotteryState = fetchLotteryState;
 exports.fetchLotteryWinners = fetchLotteryWinners;
 exports.newLotteryKey = newLotteryKey;
@@ -54,13 +55,18 @@ function parseWinners(response) {
     }
     return out;
 }
-/** 던져진 오류 · 응답 본문에서 서버 오류 이름을 읽는다(entry.ts 와 같은 규칙) */
-function errorOf(e) {
+const KNOWN_ERRORS = ['off', 'not_ready', 'not_reached', 'already_opened', 'key_conflict', 'ad_required', 'key_required', 'bad_key', 'bad_tier', 'bad_src'];
+/**
+ * 던져진 오류 · 응답 본문에서 서버 오류 이름을 읽는다 — 앱마다 요청 함수가 던지는 꼴이 달라서(ApiError.code · status, {error}, {data:{error}}, {body:{error}}) 모두 읽는다.
+ * 앱이 {error, status} 로 바꿔 던질 필요 없이 `openLottery` 가 이것을 쓴다. 서버가 답한 이름이 아니면 404 → off · 503 → not_ready, 그 밖(끊김 · 시간초과 · 모름)은 network
+ */
+function toLotteryError(e) {
     const x = e;
-    const name = String(x?.error ?? x?.data?.error ?? x?.body?.error ?? '');
-    const known = ['off', 'not_ready', 'not_reached', 'already_opened', 'key_conflict', 'ad_required', 'key_required', 'bad_key', 'bad_tier', 'bad_src'];
-    if (known.includes(name))
-        return name;
+    for (const v of [x?.error, x?.code, x?.data?.error, x?.data?.code, x?.body?.error, x?.body?.code]) {
+        const name = typeof v === 'string' ? v : '';
+        if (KNOWN_ERRORS.includes(name))
+            return name;
+    }
     if (x?.status === 404)
         return 'off';
     if (x?.status === 503)
@@ -95,13 +101,13 @@ async function openLottery(fetchJson, args) {
         r = await fetchJson('lottery/open', { method: 'POST', body: { tier: args.tier, idempotency_key: args.key, ...(args.src ? { src: args.src } : {}) } });
     }
     catch (e) {
-        return { ok: false, error: errorOf(e) };
+        return { ok: false, error: toLotteryError(e) };
     }
     const j = r;
     if (j?.ok === true && typeof j.won === 'number' && typeof j.points === 'number') {
         return { ok: true, result: { tier: num(j.tier), maxWon: num(j.maxWon), won: j.won, points: j.points, balance: num(j.balance), replayed: j.replayed === true, unopened: Math.max(0, num(j.unopened)) } };
     }
-    return { ok: false, error: j?.ok === false ? errorOf(j) : 'invalid' };
+    return { ok: false, error: j?.ok === false ? toLotteryError(j) : 'invalid' };
 }
 /**
  * 열기 함수 — **한 번에 하나만**, 네트워크가 끊겨 다시 보낼 때는 같은 키(서버가 저장된 결과를 다시 준다), 서버가 답을 준 뒤에는 키를 버린다.

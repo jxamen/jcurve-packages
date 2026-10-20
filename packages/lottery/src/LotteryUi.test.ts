@@ -21,10 +21,26 @@ describe('LotteryChip', () => {
     expect(LotteryChip({ count: 0, onPress: vi.fn() })).toBeNull();
     const onPress = vi.fn();
     const tree = nodes(LotteryChip({ count: 2, onPress }));
-    expect(text(tree)).toBe('복권 2장');
+    expect(text(tree)).toContain('복권 2장');
     buttons(tree)[0].props.onPress();
     expect(onPress).toHaveBeenCalledOnce();
     expect(buttons(tree)[0].props.accessibilityLabel).toBe('복권 2장');
+  });
+  it('기본은 띠 없이 떠 있는 흰 알약(아래에서 bottomOffset 만큼) — 안쪽에 Pressable 이 겹치지 않는다', () => {
+    const tree = nodes(LotteryChip({ count: 1, onPress: vi.fn(), bottomOffset: 84 }));
+    const anchor = tree.find(n => n?.type === 'View' && n.props?.pointerEvents === 'box-none')!;
+    expect(anchor.props.style[0]).toMatchObject({ position: 'absolute', alignItems: 'center' });
+    expect(anchor.props.style[1]).toEqual({ bottom: 84 });
+    const pill = buttons(tree)[0];
+    expect(pill.props.style({ pressed: false })[0]).toMatchObject({ backgroundColor: '#FFFFFF', borderRadius: 999, elevation: 6 });
+    expect(nodes(pill.props.children).filter(n => n?.type === 'Pressable')).toHaveLength(0);
+    expect(buttons(nodes(LotteryChip({ count: 1, onPress: vi.fn() })))).toHaveLength(1);
+    expect(nodes(LotteryChip({ count: 1, onPress: vi.fn() })).find(n => n?.type === 'View' && n.props?.pointerEvents === 'box-none')!.props.style[1]).toEqual({ bottom: 16 });
+  });
+  it('floating={false} 면 줄 안에 놓는 작은 색 알약', () => {
+    const tree = nodes(LotteryChip({ count: 3, onPress: vi.fn(), floating: false, label: '복권 3장' }));
+    expect(tree.some(n => n?.type === 'View' && n.props?.pointerEvents === 'box-none')).toBe(false);
+    expect(buttons(tree)[0].props.style({ pressed: false })[0]).toMatchObject({ paddingHorizontal: 12, borderRadius: 16 });
   });
 });
 

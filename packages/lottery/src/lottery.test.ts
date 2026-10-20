@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   createLotteryOpener, fetchLotteryState, goldenTier, lotteryChipCount, lotteryMoreLabel, lotteryMoreMissionLabel, lotteryResultTitle, lotteryTierButton, lotteryTierHint, lotteryTierTitle,
-  lotteryWinnerLine, newLotteryKey, nextTierToEarn, openLottery, parseLotteryState, parseWinners, readyTiers, type LotteryTier,
+  lotteryWinnerLine, newLotteryKey, nextTierToEarn, openLottery, parseLotteryState, parseWinners, readyTiers, toLotteryError, type LotteryTier,
 } from './lottery';
 
 const tier = (over: Partial<LotteryTier> = {}): LotteryTier => ({ tier: 1, missions: 1, maxWon: 100, maxPoints: 160, state: 'locked', missionState: 'locked', missionsLeft: 1, tickets: 0, unopened: 0, basic: 0, basicUnopened: 0, prize: null, ...over });
@@ -119,5 +119,26 @@ describe('문구와 판단', () => {
     expect(goldenTier(parseLotteryState(wire([{ basic: 1, basicUnopened: 0 }]))!)).toBeNull();
     expect(goldenTier(null)).toBeNull();
     expect(readyTiers(null)).toEqual([]);
+  });
+});
+
+describe('toLotteryError — 앱 요청 함수가 던지는 꼴을 그대로 읽는다', () => {
+  it('ApiError.code · error · data.error · body.error · status', () => {
+    const e = (o: object) => Object.assign(new Error('x'), o);
+    expect(toLotteryError(e({ code: 'ad_required', status: 409 }))).toBe('ad_required');         // 앱 ApiError(code · status)
+    expect(toLotteryError(e({ error: 'already_opened' }))).toBe('already_opened');
+    expect(toLotteryError(e({ data: { error: 'key_conflict' } }))).toBe('key_conflict');
+    expect(toLotteryError(e({ body: { error: 'not_reached' } }))).toBe('not_reached');
+    expect(toLotteryError(e({ code: 'network' }))).toBe('network');
+    expect(toLotteryError(e({ code: 'timeout' }))).toBe('network');
+    expect(toLotteryError(e({ status: 404, code: 'weird' }))).toBe('off');
+    expect(toLotteryError(e({ status: 503 }))).toBe('not_ready');
+    expect(toLotteryError(null)).toBe('network');
+    expect(toLotteryError('boom')).toBe('network');
+  });
+  it('openLottery 가 앱의 ApiError 꼴을 바꿔 던지지 않아도 읽는다', async () => {
+    const apiError = (code: string, status: number) => async () => { throw Object.assign(new Error(code), { code, status }); };
+    expect(await openLottery(apiError('ad_required', 409), { tier: 3, key: 'k', src: 'basic' })).toEqual({ ok: false, error: 'ad_required' });
+    expect(await openLottery(apiError('not_found', 404), { tier: 1, key: 'k' })).toEqual({ ok: false, error: 'off' });
   });
 });

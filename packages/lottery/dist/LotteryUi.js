@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.DEFAULT_LOTTERY_THEME = void 0;
 exports.LotteryChip = LotteryChip;
 exports.LotterySheet = LotterySheet;
 exports.LotteryResult = LotteryResult;
@@ -7,14 +8,24 @@ exports.GoldenLotteryPopup = GoldenLotteryPopup;
 const jsx_runtime_1 = require("react/jsx-runtime");
 const react_native_1 = require("react-native");
 const lottery_1 = require("./lottery");
-const PageFrame_1 = require("./pages/PageFrame");
-const th = (t) => ({ ...PageFrame_1.DEFAULT_PAGE_THEME, ...(t ?? {}) });
-/** 안 연 복권이 있을 때만 — 다 열면 사라진다(count 0 이면 null) */
-function LotteryChip({ count, onPress, label, theme }) {
+exports.DEFAULT_LOTTERY_THEME = {
+    bg: '#FBF7F2', card: '#FFFFFF', text: '#2B2118', sub: '#6B5E52', accent: '#EE7A33', accentText: '#FFFFFF', accentSoft: '#FDE6D6', done: '#D3D7DD',
+};
+const th = (t) => ({ ...exports.DEFAULT_LOTTERY_THEME, ...(t ?? {}) });
+/**
+ * 안 연 복권이 있을 때만 — 다 열면 사라진다(count 0 이면 null).
+ * 기본은 **띠 없이 떠 있는 흰 알약**(그림자, FloatingRewardChip 과 같은 모양 · 대표님 「떠 있는 알약」): 안쪽 화면의 탭 바 위에 두고 `bottomOffset`(아래에서 띄울 거리)만 준다.
+ * `floating={false}` 면 줄 안에 놓는 작은 색 알약(0.6.0 모양).
+ */
+function LotteryChip({ count, onPress, label, bottomOffset = 16, floating = true, icon, theme }) {
     if (!(count > 0))
         return null;
     const c = th(theme);
-    return (0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: label ?? '복권 ' + count + '장', onPress: onPress, style: ({ pressed }) => [s.chip, { backgroundColor: c.accent }, pressed && { opacity: 0.85 }], children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.chipText, { color: c.accentText }], children: label ?? '복권 ' + count + '장' }) });
+    const text = label ?? '복권 ' + count + '장';
+    if (!floating) {
+        return (0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: text, onPress: onPress, style: ({ pressed }) => [s.chip, { backgroundColor: c.accent }, pressed && { opacity: 0.85 }], children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.chipText, { color: c.accentText }], children: text }) });
+    }
+    return (0, jsx_runtime_1.jsx)(react_native_1.View, { pointerEvents: "box-none", style: [s.anchor, { bottom: bottomOffset }], children: (0, jsx_runtime_1.jsxs)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: text, onPress: onPress, style: ({ pressed }) => [s.floating, pressed && { opacity: 0.8 }], children: [(0, jsx_runtime_1.jsx)(react_native_1.View, { accessible: false, accessibilityElementsHidden: true, importantForAccessibility: "no-hide-descendants", children: icon ?? (0, jsx_runtime_1.jsx)(react_native_1.View, { style: [s.ticket, { borderColor: c.accent }], children: (0, jsx_runtime_1.jsx)(react_native_1.View, { style: [s.ticketLine, { borderColor: c.accent }] }) }) }), (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: s.floatingText, children: text }), (0, jsx_runtime_1.jsx)(react_native_1.Text, { accessible: false, style: s.arrow, children: "\u203A" })] }) });
 }
 function TierRow({ t, theme, busy, onOpen, onEarn }) {
     const b = (0, lottery_1.lotteryTierButton)(t);
@@ -58,6 +69,13 @@ function GoldenLotteryPopup({ open, maxWon, busy, onOpen, onClose, buttonLabel, 
     return (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: s.overlay, children: [(0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: "\uB2EB\uAE30", onPress: onClose, style: s.dim }), (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: [s.sheet, { backgroundColor: c.card }], children: [(0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: "\uB2EB\uAE30", hitSlop: 12, onPress: onClose, style: s.close, children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.closeText, { color: c.sub }], children: "\u2715" }) }), (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.sheetTitle, { color: c.text }], children: "\uD669\uAE08 \uBCF5\uAD8C\uC774 \uB098\uD0C0\uB0AC\uC5B4\uC694!" }), (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.sheetSub, { color: c.sub }], children: '하루에 한번만 행운처럼 오는 기회\n최대 ' + maxWon.toLocaleString('ko-KR') + '원을 받을 수 있어요' }), icon ? (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.golden, children: icon }) : null, (0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: label, accessibilityState: { disabled: !!busy }, disabled: !!busy, onPress: onOpen, style: [s.big, { backgroundColor: c.accent }, busy && { opacity: 0.6 }], children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.bigText, { color: c.accentText }], children: label }) })] })] });
 }
 const s = react_native_1.StyleSheet.create({
+    anchor: { position: 'absolute', left: 16, right: 16, alignItems: 'center', zIndex: 10 },
+    floating: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 999, backgroundColor: '#FFFFFF',
+        shadowColor: '#17212E', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.16, shadowRadius: 8, elevation: 6 },
+    floatingText: { flexShrink: 1, fontSize: 14, fontWeight: '700', color: '#26333D' },
+    arrow: { fontSize: 24, lineHeight: 24, color: '#77818B' },
+    ticket: { width: 22, height: 16, borderWidth: 2, borderRadius: 4, transform: [{ rotate: '-12deg' }] },
+    ticketLine: { height: 10, marginLeft: 11, borderLeftWidth: 1, borderStyle: 'dashed' },
     chip: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 },
     chipText: { fontSize: 13, fontWeight: '800' },
     overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'flex-end', zIndex: 60, elevation: 60 },

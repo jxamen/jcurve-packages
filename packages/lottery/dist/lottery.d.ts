@@ -1,9 +1,13 @@
 /**
- * (0.6.0) 공용 복권 — 대표님 2026-10-20 14:08 「미션 하나 참여하면 최대 100원 · 다섯 개 500원 · 열 개 1000원」 + 14:15 「황금 복권이 기본으로」.
+ * @jcurve/lottery — 공용 복권(mission 0.6.0 에서 옮겨 왔다) — 대표님 2026-10-20 14:08 「미션 하나 참여하면 최대 100원 · 다섯 개 500원 · 열 개 1000원」 + 14:15 「황금 복권이 기본으로」.
  * 서버(jcurve-api feat/lottery-server)가 장부 · 지급 · 추첨을 모두 하고, 이 파일은 응답을 읽고 문구를 만들고 열기 요청을 보낸다.
  * react-native 를 가져오지 않는다(시험이 바로 돈다). 규칙 · 금액 · 확률은 서버(어드민 설정)가 정한다 — 여기에는 없다.
  */
-import type { Requester } from './entry';
+/** 앱의 서버 요청 함수 — 앱이 가진 것(ApiError 를 던지는 api.get/post 계열)을 그대로 넘긴다. 경로는 `{app}/` 뒤부터(예: 'lottery/state') */
+export type Requester = (path: string, options?: {
+    method?: string;
+    body?: unknown;
+}) => Promise<unknown>;
 export type LotteryTierState = 'locked' | 'ready' | 'opened' | 'capped';
 export type LotteryTier = {
     /** 단계 번호(1부터, 서버 설정 순서) — open 에 그대로 넘긴다 */
@@ -53,6 +57,11 @@ export type LotteryError = 'off' | 'not_ready' | 'not_reached' | 'already_opened
 /** 서버 응답을 믿지 않고 다시 읽는다 — 꺼진 앱(ok 아님) · 깨진 응답은 null(칩이 안 보인다) */
 export declare function parseLotteryState(response: unknown): LotteryState | null;
 export declare function parseWinners(response: unknown): LotteryWinner[];
+/**
+ * 던져진 오류 · 응답 본문에서 서버 오류 이름을 읽는다 — 앱마다 요청 함수가 던지는 꼴이 달라서(ApiError.code · status, {error}, {data:{error}}, {body:{error}}) 모두 읽는다.
+ * 앱이 {error, status} 로 바꿔 던질 필요 없이 `openLottery` 가 이것을 쓴다. 서버가 답한 이름이 아니면 404 → off · 503 → not_ready, 그 밖(끊김 · 시간초과 · 모름)은 network
+ */
+export declare function toLotteryError(e: unknown): LotteryError;
 /** GET lottery/state — 꺼졌거나 실패하면 null(복권 칩을 그리지 않는다). 읽는 순간 서버가 오늘 줄 복권을 만든다 */
 export declare function fetchLotteryState(fetchJson: Requester): Promise<LotteryState | null>;
 export declare function fetchLotteryWinners(fetchJson: Requester): Promise<LotteryWinner[]>;
