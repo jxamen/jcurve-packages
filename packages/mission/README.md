@@ -239,3 +239,21 @@ home_rows 가 없거나 읽기에 실패하면 **앱 기본 그대로**(60초 �
 서버 home_rows 줄의 **`title` 이 비어 있으면 앱 items 의 제목을 그대로** 둔다 — 만보기 「오늘 N걸음」 · 오늘 미션 보너스 문구 같은 **동적 제목**을 어드민의 고정 제목이 덮지 않게. 제목을 적은 줄만 그 제목으로 바뀐다(설명 · 버튼 · 배지가 비면 앱 값이 살아 있는 것과 같은 규칙).
 앱에 짝이 없어 새로 만드는 줄(`onRow`)은 title 이 비었으면 key별 기본 제목(만보기 · 오늘의 미션 · 행운 찬스 …). 서버가 빈 title 줄을 내려 주는 것은 jcurve-api `fix/mission-home-optional-title`(07d3286) 이 반영된 뒤 — **옛 앱(0.4.4 이하)은 빈 제목 줄을 버리므로**, 어드민에서 title 을 비우는 것은 0.4.5 가 나간 앱부터 한다.
 
+
+## 0.4.6 — 켤 때 목록 순서가 바뀌지 않게: 마지막으로 받은 서버 목록을 저장해 먼저 그린다 (대표님 10-20 18:54 「쇼핑 탭이 왜 뒤늦게 나오지?」)
+
+0.4.4~0.4.5 는 서버 home_rows 를 **60초 메모리 캐시**로만 들고 있어서, 앱을 켤 때마다 앱 기본 순서로 먼저 그렸다가 서버 순서로 바뀌었다. 이제 앱이 저장소를 넘기면 마지막으로 받은 응답을 저장해 두고 **켤 때 그 값으로 먼저** 그린 뒤 서버 응답으로 갱신한다.
+
+```tsx
+import AsyncStorage from '@react-native-async-storage/async-storage';   // 앱이 이미 쓰는 것 — 패키지는 새 네이티브 의존이 없다
+
+<BenefitQuickList fetchJson={fetchJson} storage={AsyncStorage} items={items} … />
+// 또는 훅: const { items, ready } = useHomeRows(fetchJson, baseItems, keys, tab === 'home', { storage: AsyncStorage });
+```
+
+- `storage?: { get(key): Promise<string|null>; set(key, value): Promise<void> }` — 모양만 맞으면 된다(AsyncStorage · MMKV 어댑터 …). **안 넘기면 0.4.5 와 똑같다.**
+- 저장하는 것: 서버가 **정상으로** 답한 응답만(`ok:true`). 실패 · 깨진 응답 · 60초 캐시 적중은 저장하지 않는다. 읽을 때도 서버 응답처럼 다시 거른다(모르는 key · 길이 제한). 키 기본값 `jcurve.mission.home.v1`(`storageKey` 로 바꿈), 20KB 넘거나 판(v)이 다르면 무시.
+- 켤 때: 저장값을 읽는 동안(최대 300ms) **목록을 그리지 않고** 기다렸다가 저장값으로 그린다 → 서버 응답이 오면 바뀐 것만 갱신. 저장된 값이 없는 **첫 설치**는 저장소 확인 직후 앱 기본으로 그린다. 서버가 먼저 오면 저장값은 무시.
+- 서버 호출이 실패하면 이미 그린 저장값을 **그대로 둔다**(앱 기본으로 되돌리면 순서가 또 바뀐다).
+- `useHomeRows` 는 `{ items, config, ready }` 를 준다 — 저장소를 쓰는데 훅을 직접 쓰는 앱은 `ready` 가 false 인 동안 목록을 그리지 않는다. 순서 규칙은 순수 함수 `homeReduce`(시험).
+- 새 네이티브 0 · 새 의존 0. 서버 변경 없음.

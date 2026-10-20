@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { adSlotIndex, applyHomeRows, composeHomeRows, EMPTY_HOME, fetchHomeConfig, freeItemHomeRow, parseHomeResponse, resetHomeConfig, resolveHomeKeys, withFreeItemRow, type HomeRow } from './home';
+import { adSlotIndex, applyHomeRows, composeHomeRows, EMPTY_HOME, fetchHomeConfig, fetchHomeResult, freeItemHomeRow, HOME_STORAGE_KEY, homeInitial, homeReduce, parseHomeResponse, readStoredHome, resetHomeConfig, resolveHomeKeys, saveStoredHome, withFreeItemRow, type HomeEvent, type HomeRow, type HomeState, type HomeStorage } from './home';
 import type { BenefitQuickItem } from './BenefitQuickList';
 
 const item = (key: string, over: Partial<BenefitQuickItem> = {}): BenefitQuickItem => ({ key, title: key + ' 제목', subtitle: key + ' 설명', ctaLabel: '가기', icon: 'star', tint: '#EEE', onPress: vi.fn(), ...over });
@@ -185,3 +185,184 @@ describe('0.4.5 — 빈 title = 앱 제목 그대로(동적 제목은 서버 고
   });
 });
 
+
+// ── 0.4.6: 마지막으로 받은 서버 목록을 저장해 켤 때 먼저 그린다 ──
+/** 메모리 저장소(AsyncStorage 와 같은 모양) — 호출 기록을 남긴다 */
+function memoryStorage(initial: Record<string, string> = {}) {
+  const data = new Map(Object.entries(initial));
+  const storage: HomeStorage & { gets: number; sets: number } = {
+    gets: 0, sets: 0,
+    async get(key) { storage.gets++; return data.get(key) ?? null; },
+    async set(key, value) { storage.sets++; data.set(key, value); },
+  };
+  return { storage, data };
+}
+const serverRows = (...keys: string[]) => ({ ok: true, rows: keys.map((key, i) => ({ key, title: key + ' 서버', order: i })), list: { adAfter: 3, shoppingFirst: true } });
+const flush = () => new Promise<void>(r => setTimeout(r, 0));
+
+describe('0.4.6 저장소 없음 — 예전과 같다', () => {
+  it('storage 를 안 넘기면 저장소를 건드리지 않고 값 · 캐시 · 실패 동작이 0.4.5 와 같다', async () => {
+    const req = vi.fn(async () => serverRows('quiz1', 'checkin'));
+    const r = await fetchHomeResult(req, { now: 1000 });
+    expect(r.ok).toBe(true);
+    expect(r.value.rows!.map(x => x.key)).toEqual(['quiz1', 'checkin']);
+    expect((await fetchHomeConfig(req, { now: 2000 })).rows).toHaveLength(2);     // 60초 캐시
+    expect(req).toHaveBeenCalledTimes(1);
+    expect(await readStoredHome(undefined)).toBeNull();
+    await saveStoredHome(undefined, r.value);                                        // 던지지 않는다
+  });
+  it('저장소가 없으면 처음부터 ready — 서버 실패면 받아 둔 것 → 없으면 앱 기본', () => {
+    let s = homeInitial(false);
+    expect(s).toMatchObject({ ready: true, fresh: false, config: EMPTY_HOME });
+    s = homeReduce(s, { type: 'server', value: EMPTY_HOME, ok: false });
+    expect(s).toMatchObject({ ready: true, config: EMPTY_HOME });
+    const cfg = parseHomeResponse(serverRows('quiz1'));
+    s = homeReduce(s, { type: 'server', value: cfg, ok: true });
+    expect(s.config).toBe(cfg);
+    expect(s.fresh).toBe(true);
+  });
+});
+
+describe('0.4.6 저장 있음 — 읽기', () => {
+  it('저장해 둔 마지막 목록을 그대로 읽는다(다시 거른 값)', async () => {
+    const { storage } = memoryStorage();
+    const cfg = parseHomeResponse({ ...serverRows('steps', 'quiz1', 'invite'), rows: [{ key: 'steps', title: '', desc: '만보기 설명', order: 0 }, { key: 'quiz1', title: '퀴즈', order: 1, visible: false }, { key: 'invite', title: '초대', badge: 'NEW', order: 2 }] });
+    await saveStoredHome(storage, cfg);
+    const back = await readStoredHome(storage);
+    expect(back).toEqual(cfg);
+    expect(back!.rows![0].title).toBe('');                                            // 빈 제목(앱 제목 유지)도 그대로
+    expect(back!.rows![1].visible).toBe(false);
+    expect(back!.list).toEqual({ adAfter: 3, shoppingFirst: true });
+  });
+  it('서버가 「설정 없음」(rows null)이라고 정상으로 답한 것도 저장한다 — 옛 순서가 되살아나지 않게', async () => {
+    const { storage } = memoryStorage();
+    await saveStoredHome(storage, parseHomeResponse({ ok: true, rows: null, list: { adAfter: null, shoppingFirst: null } }));
+    expect(await readStoredHome(storage)).toEqual({ rows: null, list: { adAfter: null, shoppingFirst: null } });
+  });
+  it('없음 · 깨진 JSON · 모르는 판 · 너무 큼 · 저장소 오류는 모두 null(앱 기본)', async () => {
+    const bad = (raw: string | null) => readStoredHome(memoryStorage(raw === null ? {} : { [HOME_STORAGE_KEY]: raw }).storage);
+    expect(await bad(null)).toBeNull();
+    expect(await bad('')).toBeNull();
+    expect(await bad('{not json')).toBeNull();
+    expect(await bad(JSON.stringify({ v: 2, response: serverRows('quiz1') }))).toBeNull();
+    expect(await bad(JSON.stringify({ v: 1, response: { ok: false } }))).toBeNull();
+    expect(await bad(JSON.stringify({ v: 1 }))).toBeNull();
+    expect(await bad('x'.repeat(20_001))).toBeNull();
+    const throwing: HomeStorage = { get: async () => { throw new Error('disk'); }, set: async () => { throw new Error('disk'); } };
+    expect(await readStoredHome(throwing)).toBeNull();
+  });
+  it('저장값도 서버 응답처럼 거른다 — 모르는 key · 중복은 버리고 길이를 자른다', async () => {
+    const raw = JSON.stringify({ v: 1, response: { ok: true, rows: [{ key: 'hack', title: 'x' }, { key: 'quiz1', title: '가'.repeat(60) }, { key: 'quiz1', title: '두 번째' }], list: { adAfter: 999 } } });
+    const back = await readStoredHome(memoryStorage({ 'my.key': raw }).storage, 'my.key');
+    expect(back!.rows!.map(r => r.key)).toEqual(['quiz1']);
+    expect(Array.from(back!.rows![0].title)).toHaveLength(30);
+    expect(back!.list.adAfter).toBeNull();
+  });
+  it('storageKey 로 다른 키를 쓴다', async () => {
+    const { storage, data } = memoryStorage();
+    await saveStoredHome(storage, parseHomeResponse(serverRows('quiz1')), 'app.a');
+    expect([...data.keys()]).toEqual(['app.a']);
+    expect(await readStoredHome(storage)).toBeNull();                                 // 기본 키에는 없다
+    expect(await readStoredHome(storage, 'app.a')).not.toBeNull();
+  });
+});
+
+describe('0.4.6 서버 갱신 — 저장', () => {
+  it('정상 응답이면 저장한다(마지막 응답으로 덮는다) · 캐시 적중은 다시 저장하지 않는다', async () => {
+    const { storage, data } = memoryStorage();
+    const req = vi.fn(async () => serverRows('quiz1', 'steps'));
+    const r = await fetchHomeResult(req, { now: 1000, storage });
+    await flush();
+    expect(r.ok).toBe(true);
+    expect(storage.sets).toBe(1);
+    expect((await readStoredHome(storage))!.rows!.map(x => x.key)).toEqual(['quiz1', 'steps']);
+    await fetchHomeResult(req, { now: 2000, storage });                               // 60초 안 — 캐시
+    await flush();
+    expect(storage.sets).toBe(1);
+    req.mockImplementation(async () => serverRows('steps', 'quiz1'));                   // 서버 순서가 바뀜
+    await fetchHomeResult(req, { now: 100_000, storage });
+    await flush();
+    expect(storage.sets).toBe(2);
+    expect((await readStoredHome(storage))!.rows!.map(x => x.key)).toEqual(['steps', 'quiz1']);
+    expect(data.size).toBe(1);
+  });
+  it('서버가 실패하거나 깨진 응답이면 저장하지 않고(저장값 유지) ok:false', async () => {
+    const { storage } = memoryStorage();
+    await saveStoredHome(storage, parseHomeResponse(serverRows('checkin')));
+    const before = storage.sets;
+    const failing = await fetchHomeResult(vi.fn(async () => { throw new Error('net'); }), { now: 1000, storage });
+    expect(failing).toEqual({ value: EMPTY_HOME, ok: false });
+    resetHomeConfig();
+    const broken = await fetchHomeResult(vi.fn(async () => ({ ok: false })), { now: 1000, storage });
+    expect(broken.ok).toBe(false);
+    await flush();
+    expect(storage.sets).toBe(before);
+    expect((await readStoredHome(storage))!.rows!.map(x => x.key)).toEqual(['checkin']);
+  });
+  it('저장소 쓰기가 실패해도 목록은 그대로 돌아온다', async () => {
+    const storage: HomeStorage = { get: async () => null, set: async () => { throw new Error('full'); } };
+    const r = await fetchHomeResult(vi.fn(async () => serverRows('quiz1')), { now: 1000, storage });
+    expect(r.ok).toBe(true);
+    expect(r.value.rows).toHaveLength(1);
+  });
+});
+
+describe('0.4.6 켜는 순서 — 저장값 → 서버 응답(homeReduce)', () => {
+  const stored = parseHomeResponse(serverRows('steps', 'quiz1'));
+  const server = parseHomeResponse(serverRows('quiz1', 'steps', 'invite'));
+  const run = (events: HomeEvent[], hasStorage = true): HomeState => events.reduce(homeReduce, homeInitial(hasStorage));
+
+  it('저장소를 쓰면 저장값을 읽기 전에는 ready=false(그리지 않음) — 앱 기본 순서를 잠깐 그리지 않는다', () => {
+    expect(homeInitial(true)).toMatchObject({ ready: false, config: EMPTY_HOME });
+  });
+  it('저장값이 있으면 처음 그릴 때부터 서버 순서, 서버 응답이 오면 갱신', () => {
+    const afterStored = run([{ type: 'stored', config: stored }]);
+    expect(afterStored).toMatchObject({ ready: true, fresh: false, fromStorage: true });
+    expect(afterStored.config.rows!.map(r => r.key)).toEqual(['steps', 'quiz1']);   // 앱 기본이 아니라 마지막 서버 순서로 첫 그림
+    const afterServer = homeReduce(afterStored, { type: 'server', value: server, ok: true });
+    expect(afterServer.config.rows!.map(r => r.key)).toEqual(['quiz1', 'steps', 'invite']);
+    expect(afterServer.fresh).toBe(true);
+  });
+  it('첫 설치(저장값 없음)는 저장소 확인 직후 앱 기본으로 그리고, 서버 응답으로 갱신', () => {
+    const s = run([{ type: 'stored', config: null }]);
+    expect(s).toMatchObject({ ready: true, fromStorage: false, config: EMPTY_HOME });
+    expect(homeReduce(s, { type: 'server', value: server, ok: true }).config).toBe(server);
+  });
+  it('서버가 먼저 오면 늦게 온 저장값은 무시한다', () => {
+    const s = run([{ type: 'server', value: server, ok: true }, { type: 'stored', config: stored }]);
+    expect(s.config).toBe(server);
+    expect(s).toMatchObject({ ready: true, fresh: true });
+  });
+  it('서버가 실패해도 이미 그린 저장값을 지킨다(앱 기본으로 되돌아가지 않는다)', () => {
+    const s = run([{ type: 'stored', config: stored }, { type: 'server', value: EMPTY_HOME, ok: false }]);
+    expect(s.config).toBe(stored);
+    expect(s.fromStorage).toBe(true);
+  });
+  it('서버가 저장값보다 먼저 실패하면 저장값이 도착한 뒤 저장값을 쓴다', () => {
+    const early = run([{ type: 'server', value: EMPTY_HOME, ok: false }]);
+    expect(early.ready).toBe(false);                                                   // 저장값을 기다린다
+    const s = homeReduce(early, { type: 'stored', config: stored });
+    expect(s.config).toBe(stored);
+    expect(s.ready).toBe(true);
+  });
+  it('저장소가 응답이 없으면 시간 초과로 앱 기본을 그린다 — 목록이 영영 안 뜨지 않는다. 늦게 온 저장값도 서버보다 앞서지 않는다', () => {
+    const t = run([{ type: 'timeout' }]);
+    expect(t).toMatchObject({ ready: true, config: EMPTY_HOME });
+    expect(homeReduce(t, { type: 'stored', config: stored }).config).toBe(stored);        // 아직 서버 전이면 저장값으로
+    const withServer = run([{ type: 'timeout' }, { type: 'server', value: server, ok: true }, { type: 'stored', config: stored }]);
+    expect(withServer.config).toBe(server);
+    expect(run([{ type: 'stored', config: stored }, { type: 'timeout' }]).config).toBe(stored);     // 이미 ready 면 timeout 은 아무 일도 없다
+  });
+  it('저장 → 서버 갱신 → 다음 켜기: 마지막으로 받은 순서로 첫 그림', async () => {
+    const { storage } = memoryStorage();
+    await fetchHomeResult(vi.fn(async () => serverRows('invite', 'steps')), { now: 1000, storage });
+    await flush();
+    resetHomeConfig();                                                                   // 앱을 껐다 켬(메모리 캐시 없음)
+    const items = [item('steps'), item('invite'), item('quiz1')];
+    const first = homeReduce(homeInitial(true), { type: 'stored', config: await readStoredHome(storage) });
+    const drawn = composeHomeRows(items, first.config.rows, resolveHomeKeys(items), {});
+    expect(drawn.map(i => i.key)).toEqual(['invite', 'steps']);                          // 마지막 서버 순서로 첫 그림 — quiz1 은 서버 목록에 없어 빠진다
+    const baseline = composeHomeRows(items, null, resolveHomeKeys(items), {});
+    expect(baseline.map(i => i.key)).toEqual(['steps', 'invite', 'quiz1']);              // 저장값이 없으면 앱 기본 순서
+  });
+});

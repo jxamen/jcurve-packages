@@ -53,23 +53,66 @@ export function parseHomeResponse(response: unknown): HomeConfig {
   };
 }
 
+/**
+ * (0.4.6) 앱이 넘기는 간단한 저장소 — React Native 의 AsyncStorage 가 그대로 맞는다(새 네이티브 의존 없음).
+ * 마지막으로 받은 서버 목록을 저장해 두었다가 **앱을 켤 때 그 값으로 먼저 그린 뒤** 서버 응답으로 갱신한다 — 켤 때 앱 기본 순서로 그렸다가 서버 순서로 바뀌는 것(대표님 10-20 18:54)을 막는다.
+ */
+export type HomeStorage = { get(key: string): Promise<string | null>; set(key: string, value: string): Promise<void> };
+/** 저장 키 기본값 — 앱이 서버 · 계정마다 다른 목록을 쓰면 `storageKey` 로 바꾼다 */
+export const HOME_STORAGE_KEY = 'jcurve.mission.home.v1';
+/** 저장값을 읽는 데 이만큼(ms)까지만 기다린다 — 저장소가 응답이 없어도 목록이 영영 안 뜨지 않게 */
+export const HOME_STORAGE_WAIT_MS = 300;
+const STORED_MAX_CHARS = 20_000;
+
+/** 저장해 둔 마지막 서버 목록 — 없음 · 깨짐 · 모르는 판 · 저장소 오류는 null(앱 기본). 읽을 때도 서버 응답처럼 다시 거른다 */
+export async function readStoredHome(storage: HomeStorage | undefined, key: string = HOME_STORAGE_KEY): Promise<HomeConfig | null> {
+  if (!storage) return null;
+  try {
+    const raw = await storage.get(key);
+    if (typeof raw !== 'string' || raw === '' || raw.length > STORED_MAX_CHARS) return null;
+    const saved = JSON.parse(raw) as { v?: unknown; response?: unknown } | null;
+    if (!saved || typeof saved !== 'object' || saved.v !== 1) return null;
+    const config = parseHomeResponse(saved.response);
+
+    return config === EMPTY_HOME ? null : config;
+  } catch {
+    return null;
+  }
+}
+
+/** 서버에서 **정상으로** 받은 목록을 저장한다 — 저장소 오류는 삼킨다(목록은 이미 그려졌다) */
+export async function saveStoredHome(storage: HomeStorage | undefined, config: HomeConfig, key: string = HOME_STORAGE_KEY): Promise<void> {
+  if (!storage) return;
+  try {
+    await storage.set(key, JSON.stringify({ v: 1, at: Date.now(), response: { ok: true, rows: config.rows, list: config.list } }));
+  } catch { /* 저장 실패는 다음에 다시 */ }
+}
+
 /** 마지막으로 받은 설정 — 화면이 다시 그려질 때마다 서버를 부르지 않게(서버도 max-age=60) */
 let cache: { at: number; value: HomeConfig } | null = null;
-let inflight: Promise<HomeConfig> | null = null;
+let inflight: Promise<{ value: HomeConfig; ok: boolean }> | null = null;
 
-/** GET mission/home — `maxAgeMs`(기본 60초) 안이면 받아 둔 것. 실패하면 받아 둔 것 또는 EMPTY_HOME(앱 기본 목록) */
-export async function fetchHomeConfig(fetchJson: Requester, opts: { maxAgeMs?: number; now?: number } = {}): Promise<HomeConfig> {
+/**
+ * (0.4.6) GET mission/home — 값과 함께 **서버에서 정상으로 받았는가**(`ok`)를 준다. `maxAgeMs`(기본 60초) 안이면 받아 둔 것(ok).
+ * 실패(던짐 · 깨진 응답)면 받아 둔 것 또는 EMPTY_HOME 과 ok:false — 저장값을 이미 그렸다면 호출한 쪽이 그것을 지킨다.
+ * `storage` 를 주면 **정상 응답일 때만** 저장한다(캐시 적중 · 실패 · 깨진 응답은 저장하지 않는다).
+ */
+export async function fetchHomeResult(fetchJson: Requester, opts: { maxAgeMs?: number; now?: number; storage?: HomeStorage; storageKey?: string } = {}): Promise<{ value: HomeConfig; ok: boolean }> {
   const now = opts.now ?? Date.now();
   const maxAge = opts.maxAgeMs ?? 60_000;
-  if (cache && now - cache.at >= 0 && now - cache.at < maxAge) return cache.value;
+  if (cache && now - cache.at >= 0 && now - cache.at < maxAge) return { value: cache.value, ok: true };
   if (inflight) return inflight;
   inflight = (async () => {
     try {
       const value = parseHomeResponse(await fetchJson('mission/home', { method: 'GET' }));
       cache = { at: now, value };
-      return value;
+      // 깨진 응답은 parseHomeResponse 가 EMPTY_HOME 그 자체를 준다 — 서버가 「설정 없음」(rows null)이라고 정상으로 답한 것과 구분된다
+      const ok = value !== EMPTY_HOME;
+      if (ok) void saveStoredHome(opts.storage, value, opts.storageKey);
+
+      return { value, ok };
     } catch {
-      return cache?.value ?? EMPTY_HOME;
+      return { value: cache?.value ?? EMPTY_HOME, ok: false };
     } finally {
       inflight = null;
     }
@@ -77,8 +120,40 @@ export async function fetchHomeConfig(fetchJson: Requester, opts: { maxAgeMs?: n
   return inflight;
 }
 
+/** GET mission/home — `maxAgeMs`(기본 60초) 안이면 받아 둔 것. 실패하면 받아 둔 것 또는 EMPTY_HOME(앱 기본 목록) */
+export async function fetchHomeConfig(fetchJson: Requester, opts: { maxAgeMs?: number; now?: number; storage?: HomeStorage; storageKey?: string } = {}): Promise<HomeConfig> {
+  return (await fetchHomeResult(fetchJson, opts)).value;
+}
+
 /** 시험용 · 로그아웃 · 앱 전환 */
 export function resetHomeConfig(): void { cache = null; inflight = null; }
+
+/**
+ * (0.4.6) 화면에 그릴 서버 설정이 정해지는 순서 — 저장값(있으면) → 서버 응답. React 를 쓰지 않는 순수 함수라 시험이 바로 돈다.
+ *  - `ready`: 처음 그려도 되는가. 저장소를 쓰면 저장값을 읽을 때까지(최대 HOME_STORAGE_WAIT_MS) false — 앱 기본 순서를 잠깐 그렸다가 바꾸지 않으려고 목록을 늦추지 않고 **그리지 않는다**.
+ *    저장소를 안 쓰면 처음부터 true(예전과 같다)
+ *  - 서버에서 정상으로 받으면 그것이 이긴다(저장값은 그 뒤에 도착해도 무시). 서버가 실패하면 이미 그린 저장값을 지킨다(앱 기본으로 되돌리면 순서가 또 바뀐다)
+ */
+export type HomeState = { config: HomeConfig; ready: boolean; fresh: boolean; fromStorage: boolean; storage: boolean };
+export type HomeEvent = { type: 'stored'; config: HomeConfig | null } | { type: 'server'; value: HomeConfig; ok: boolean } | { type: 'timeout' };
+
+export function homeInitial(hasStorage: boolean): HomeState {
+  return { config: EMPTY_HOME, ready: !hasStorage, fresh: false, fromStorage: false, storage: hasStorage };
+}
+
+export function homeReduce(s: HomeState, e: HomeEvent): HomeState {
+  switch (e.type) {
+    case 'stored':
+      if (s.fresh) return s.ready ? s : { ...s, ready: true };          // 서버가 먼저 왔다 — 저장값은 낡은 것
+      return { ...s, config: e.config ?? s.config, fromStorage: e.config !== null, ready: true };
+    case 'server':
+      if (e.ok) return { ...s, config: e.value, fresh: true, ready: true };
+      if (s.fromStorage) return s;                                      // 서버 실패 — 저장값을 그대로
+      return s.storage ? { ...s, config: e.value } : { ...s, config: e.value, ready: true };
+    case 'timeout':
+      return s.ready ? s : { ...s, ready: true };
+  }
+}
 
 /**
  * 앱의 기본 목록에 서버 설정을 얹는다 — `keys` 는 앱 줄 key → 서버 행동 key(예 { bag: 'quiz1', pin: 'quiz2', ticket: 'lucky_chance' }).

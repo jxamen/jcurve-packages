@@ -13,8 +13,9 @@ export { safeTop, backTarget, edgeSwipeStarts, edgeSwipeDone, EDGE_WIDTH, EDGE_S
 export type { MissionNavigation } from './MissionWebView';
 export { BenefitQuickList, type BenefitQuickListProps, type BenefitQuickItem, type BenefitQuickIcon } from './BenefitQuickList';
 export { FloatingRewardChip, type FloatingRewardChipProps } from './FloatingRewardChip';
-export { HOME_KEYS, EMPTY_HOME, parseHomeResponse, fetchHomeConfig, resetHomeConfig, applyHomeRows, adSlotIndex, resolveHomeKeys, withFreeItemRow, freeItemHomeRow, composeHomeRows, type HomeRow, type HomeRowKey, type HomeConfig } from './home';
+export { HOME_KEYS, EMPTY_HOME, parseHomeResponse, fetchHomeConfig, resetHomeConfig, applyHomeRows, adSlotIndex, resolveHomeKeys, withFreeItemRow, freeItemHomeRow, composeHomeRows, fetchHomeResult, readStoredHome, saveStoredHome, homeInitial, homeReduce, HOME_STORAGE_KEY, HOME_STORAGE_WAIT_MS, type HomeRow, type HomeRowKey, type HomeConfig, type HomeStorage, type HomeState, type HomeEvent } from './home';
 export { useHomeRows } from './useHomeRows';
+export { useHomeConfig } from './useHomeConfig';
 export { PageFrame, PageButton, DEFAULT_PAGE_THEME, PAGE_BUTTON, resolvePageTheme, type MissionPageTheme } from './pages/PageFrame';
 export { FreeItemPage, type FreeItemPageProps } from './pages/FreeItemPage';
 export { TodayMissionPage, type TodayMissionPageProps, type TodayMissionRow } from './pages/TodayMissionPage';
