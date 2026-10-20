@@ -80,7 +80,7 @@ function createMockLotteryApi(opts = {}) {
         const tk = mine.find(x => x.status === 'unopened');
         if (!tk)
             throw fail('already_opened', 409);
-        if (tk.src === 'basic' && !opts.adFree) {
+        if (tk.src === 'basic' && opts.adFree === false) {
             if (ads <= 0)
                 throw fail('ad_required', 409);
             ads--;

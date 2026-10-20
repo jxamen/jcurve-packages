@@ -11,7 +11,9 @@ export type MockLotteryOptions = {
   participated?: number;
   /** 매일 기본(황금) 복권을 줄지(기본 true) — 마지막 단계 금액의 복권 1장, 광고 확인이 있어야 열린다 */
   golden?: boolean;
-  /** 황금 복권을 광고 확인 없이 열지(기본 false = 광고가 필요, grantAd 로 한 건씩 준다) */
+  /**
+   * 황금 복권을 광고 확인 없이 열지 — **기본 true**(시뮬 · 테스트 광고는 SSV 를 못 받는다). 서버처럼 광고 확인을 요구해 `ad_required` 를 보고 싶으면 false 로 두고 grantAd 로 한 건씩 준다.
+   */
   adFree?: boolean;
   /** 100원당 P(기본 160) */
   wonToPoint?: number;
@@ -118,7 +120,7 @@ export function createMockLotteryApi(opts: MockLotteryOptions = {}): MockLottery
     if (mine.length === 0) throw fail('not_reached', 409);
     const tk = mine.find(x => x.status === 'unopened');
     if (!tk) throw fail('already_opened', 409);
-    if (tk.src === 'basic' && !opts.adFree) {
+    if (tk.src === 'basic' && opts.adFree === false) {
       if (ads <= 0) throw fail('ad_required', 409);
       ads--;
     }

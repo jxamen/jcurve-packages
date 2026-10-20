@@ -32,8 +32,13 @@ export declare function LotteryChip({ count, onPress, label, bottomOffset, float
     floating?: boolean;
     icon?: ReactNode;
 } & ThemeProp): React.JSX.Element | null;
+/**
+ * 시트가 차지할 수 있는 높이 — 화면 높이에서 위 여백(상태줄 · 노치)과 숨 쉴 자리를 뺀다. 앱이 안전 영역 위 값을 `topInset` 으로 주면 그것을, 안 주면 안드로이드 상태줄 높이 · iOS 는 44 로 짐작한다.
+ * 내용이 이보다 길면 시트 안에서 스크롤한다(0.1.1 — 시트 맨 위 줄이 상태줄 밑으로 밀려 잘리던 것, 감자밭 시뮬)
+ */
+export declare function sheetMaxHeight(windowHeight: number, topInset?: number, os?: string, statusBar?: number | null | undefined): number;
 /** 복권 시트 — 3단계 줄 · 받기 / 열기 / 획득 완료 · 당첨 띠 · 「한 번 더! ○원 복권 받기」 · 알림 켜기 */
-export declare function LotterySheet({ open, state, winners, busy, onOpen, onEarn, onMore, onClose, onEnableNotify, notifyLabel, theme, renderNative }: {
+export declare function LotterySheet({ open, state, winners, busy, onOpen, onEarn, onMore, onClose, onEnableNotify, notifyLabel, theme, renderNative, topInset }: {
     open: boolean;
     state: LotteryState | null;
     winners?: readonly LotteryWinner[];
@@ -48,6 +53,8 @@ export declare function LotterySheet({ open, state, winners, busy, onOpen, onEar
     onEnableNotify?: () => void;
     notifyLabel?: string;
     renderNative?: () => ReactNode;
+    /** 안전 영역 위 여백(`useSafeAreaInsets().top`) — 시트가 이 아래에서 끝난다. 안 주면 짐작한다 */
+    topInset?: number;
 } & ThemeProp): React.JSX.Element | null;
 /**
  * 결과 창 — 「축하해요 보상 ○P 당첨!」, **큰 아이콘 없음**(대표님 13:56). 버튼 아래에 앱이 넘기는 네이티브 광고(`renderNative`).

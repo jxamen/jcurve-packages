@@ -1,7 +1,17 @@
 import React, { type ReactElement } from 'react';
-import { describe, expect, it, vi } from 'vitest';
-vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Pressable: 'Pressable', StyleSheet: { create: (v: unknown) => v } }));
-import { GoldenLotteryPopup, LotteryChip, LotteryResult, LotterySheet } from './LotteryUi';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+// 훅과 애니메이션을 흉내 낸다(FloatingRewardChip.test 와 같은 방식) — 칩의 위아래 움직임이 켜지고 꺼지는 조건을 본다
+const h = vi.hoisted(() => ({ effects: [] as (() => any)[], reduced: true, start: vi.fn(), stop: vi.fn(), remove: vi.fn(), set: vi.fn(), listener: null as any }));
+vi.mock('react', async () => ({ ...await vi.importActual<any>('react'), useRef: (v: any) => ({ current: v }), useState: () => [h.reduced, vi.fn()], useEffect: (fn: any) => h.effects.push(fn) }));
+vi.mock('react-native', () => ({
+  View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView', StyleSheet: { create: (v: unknown) => v },
+  Dimensions: { get: () => ({ width: 360, height: 800 }) }, Platform: { OS: 'android' }, StatusBar: { currentHeight: 24 },
+  AccessibilityInfo: { isReduceMotionEnabled: () => Promise.resolve(true), addEventListener: (_: any, fn: any) => { h.listener = fn; return { remove: h.remove }; } },
+  Easing: { inOut: (v: any) => v, sin: 'sin' },
+  Animated: { View: 'AnimatedView', Value: class { setValue = h.set; }, timing: vi.fn(), sequence: vi.fn(), loop: () => ({ start: h.start, stop: h.stop }) },
+}));
+beforeEach(() => { vi.clearAllMocks(); h.effects = []; h.reduced = true; });
+import { GoldenLotteryPopup, LotteryChip, LotteryResult, LotterySheet, sheetMaxHeight } from './LotteryUi';
 import { parseLotteryState, type LotteryTier } from './lottery';
 
 function nodes(node: any): any[] {
@@ -36,6 +46,38 @@ describe('LotteryChip', () => {
     expect(nodes(pill.props.children).filter(n => n?.type === 'Pressable')).toHaveLength(0);
     expect(buttons(nodes(LotteryChip({ count: 1, onPress: vi.fn() })))).toHaveLength(1);
     expect(nodes(LotteryChip({ count: 1, onPress: vi.fn() })).find(n => n?.type === 'View' && n.props?.pointerEvents === 'box-none')!.props.style[1]).toEqual({ bottom: 16 });
+  });
+  it('떠 있는 칩은 위아래로 움직이고(동작 줄이기가 꺼졌을 때만), 꺼지면 멈추고 제자리로 돌아온다', () => {
+    h.reduced = false;
+    LotteryChip({ count: 2, onPress: vi.fn() });
+    const cleanup = h.effects[1]();
+    expect(h.start).toHaveBeenCalledOnce();
+    cleanup();
+    expect(h.stop).toHaveBeenCalledOnce();
+    expect(h.set).toHaveBeenLastCalledWith(0);
+    const sub = h.effects[0]();                                  // 접근성 설정 구독은 끝나면 끊긴다
+    expect(h.listener).toBeTypeOf('function');
+    sub();
+    expect(h.remove).toHaveBeenCalledOnce();
+  });
+  it('동작 줄이기가 켜져 있거나 · 복권이 없거나 · inline 모양이면 움직이지 않는다', () => {
+    h.reduced = true;
+    LotteryChip({ count: 2, onPress: vi.fn() });
+    h.effects[1]();
+    expect(h.start).not.toHaveBeenCalled();
+    h.effects = []; h.reduced = false;
+    LotteryChip({ count: 0, onPress: vi.fn() });
+    h.effects[1]();
+    expect(h.start).not.toHaveBeenCalled();
+    h.effects = [];
+    LotteryChip({ count: 2, onPress: vi.fn(), floating: false });
+    h.effects[1]();
+    expect(h.start).not.toHaveBeenCalled();
+  });
+  it('움직이는 칸(Animated.View) 안에 단추 하나 — 겹친 Pressable 이 없다', () => {
+    const tree = nodes(LotteryChip({ count: 1, onPress: vi.fn() }));
+    expect(tree.some(n => n?.type === 'AnimatedView')).toBe(true);
+    expect(buttons(tree)).toHaveLength(1);
   });
   it('floating={false} 면 줄 안에 놓는 작은 색 알약', () => {
     const tree = nodes(LotteryChip({ count: 3, onPress: vi.fn(), floating: false, label: '복권 3장' }));
@@ -73,6 +115,19 @@ describe('LotterySheet', () => {
     expect(onMore).toHaveBeenCalledWith(2);
     expect(text(tree)).toContain('복권 받게 알림 켜기');
   });
+  it('시트는 화면에서 위 여백을 뺀 높이 안에서 스크롤한다(맨 위 줄이 상태줄 밑으로 잘리지 않게) — topInset 을 주면 그 값, 없으면 짐작', () => {
+    expect(sheetMaxHeight(800, 40)).toBe(736);
+    expect(sheetMaxHeight(800, undefined, 'android', 24)).toBe(752);
+    expect(sheetMaxHeight(800, undefined, 'ios')).toBe(732);
+    expect(sheetMaxHeight(300, 200)).toBe(240);                       // 아주 작은 화면에서도 최소 높이
+    const s = state([{ state: 'ready', missionState: 'ready', unopened: 2 }, { missions: 5, maxWon: 500 }, { missions: 10, maxWon: 1000 }], 2);
+    const tree = nodes(LotterySheet({ open: true, state: s, winners: [{ nick: 'a****', tierMax: 100, won: 10 }], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn(), topInset: 40, onEnableNotify: vi.fn(), renderNative: () => React.createElement('NativeAd') }));
+    const sheet = tree.find(n => n?.type === 'View' && n.props?.style?.[1]?.maxHeight !== undefined)!;
+    expect(sheet.props.style[1].maxHeight).toBe(736);
+    const scroll = tree.find(n => n?.type === 'ScrollView')!;
+    expect(nodes(scroll.props.children).some(n => typeof n === 'string' && /최대 100원 복권/.test(n))).toBe(true);   // 제목 · 줄 · 광고가 스크롤 안에 있다
+    expect(nodes(scroll.props.children).some(n => n?.type === 'NativeAd')).toBe(true);
+  });
   it('열기가 진행 중(busy)이면 줄이 눌리지 않는다 · 다 받았으면 「한 번 더」 버튼이 없다', () => {
     const s = state([{ state: 'ready', missionState: 'ready', unopened: 1 }]);
     const tree = nodes(LotterySheet({ open: true, state: s, busy: true, onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn() }));
@@ -86,6 +141,10 @@ describe('LotteryResult', () => {
     const tree = nodes(LotteryResult({ result: { won: 100, points: 160, unopened: 0 }, onClose: vi.fn(), renderNative: () => React.createElement('NativeAd') }));
     expect(text(tree)).toContain('축하해요 보상 160P 당첨!');
     expect(tree.some(n => n?.type === 'NativeAd')).toBe(true);
+    // 네이티브 광고는 **버튼 아래**(대표님 13:56) — 닫기 버튼(「다음에 할게요」)보다 뒤에 온다
+    const withNext = nodes(LotteryResult({ result: { won: 10, points: 16, unopened: 1 }, onOpenNext: vi.fn(), onClose: vi.fn(), renderNative: () => React.createElement('NativeAd') }));
+    const order = withNext.map((n, i) => (n?.props?.accessibilityLabel === '다음 복권 열기' ? 'next@' + i : n?.props?.accessibilityLabel === '다음에 할게요' ? 'close@' + i : n?.type === 'NativeAd' ? 'ad@' + i : null)).filter(Boolean) as string[];
+    expect(order.map(x => x.split('@')[0])).toEqual(['next', 'close', 'ad']);
     expect(tree.some(n => n?.type === 'Image')).toBe(false);
   });
   it('남은 복권이 있으면 「다음 복권 열기」, 없으면 「미션 하고 복권 더 받기」(남은 미션 수), 둘 다 「다음에 할게요」', () => {

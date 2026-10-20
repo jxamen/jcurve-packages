@@ -1,5 +1,5 @@
-import React, { type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState, type ReactNode } from 'react';
+import { AccessibilityInfo, Animated, Dimensions, Easing, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import {
   lotteryMoreLabel, lotteryMoreMissionLabel, lotteryResultTitle, lotteryTierButton, lotteryTierHint, lotteryTierTitle, lotteryWinnerLine,
   type LotteryOpenResult, type LotteryState, type LotteryTier, type LotteryWinner,
@@ -19,11 +19,42 @@ type ThemeProp = { theme?: Partial<LotteryTheme> };
 const th = (t?: Partial<LotteryTheme>): LotteryTheme => ({ ...DEFAULT_LOTTERY_THEME, ...(t ?? {}) });
 
 /**
+ * 떠 있는 칩의 위아래 4px 움직임(FloatingRewardChip 과 같다, 앱총괄 「떠 있는 느낌」) — 접근성 「동작 줄이기」를 켜면 멈춘다.
+ * 설정을 읽기 전에는 가만히 있는다. active 가 꺼지면(칩이 사라지거나 inline 모양) 멈추고 제자리로
+ */
+function useBob(active: boolean): Animated.Value {
+  const y = useRef(new Animated.Value(0)).current;
+  const [reduceMotion, setReduceMotion] = useState(true);
+  useEffect(() => {
+    let alive = true;
+    let changed = false;
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', (v: boolean) => { changed = true; setReduceMotion(v); });
+    void AccessibilityInfo.isReduceMotionEnabled().then((v: boolean) => { if (alive && !changed) setReduceMotion(v); }).catch(() => undefined);
+
+    return () => { alive = false; sub.remove(); };
+  }, []);
+  useEffect(() => {
+    y.setValue(0);
+    if (!active || reduceMotion) return undefined;
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(y, { toValue: -4, duration: 1200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(y, { toValue: 0, duration: 1200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+    ]));
+    loop.start();
+
+    return () => { loop.stop(); y.setValue(0); };
+  }, [active, reduceMotion, y]);
+
+  return y;
+}
+
+/**
  * 안 연 복권이 있을 때만 — 다 열면 사라진다(count 0 이면 null).
  * 기본은 **띠 없이 떠 있는 흰 알약**(그림자, FloatingRewardChip 과 같은 모양 · 대표님 「떠 있는 알약」): 안쪽 화면의 탭 바 위에 두고 `bottomOffset`(아래에서 띄울 거리)만 준다.
  * `floating={false}` 면 줄 안에 놓는 작은 색 알약(0.6.0 모양).
  */
 export function LotteryChip({ count, onPress, label, bottomOffset = 16, floating = true, icon, theme }: { count: number; onPress: () => void; label?: string; bottomOffset?: number; floating?: boolean; icon?: ReactNode } & ThemeProp) {
+  const bob = useBob(count > 0 && floating);   // 훅은 늘 같은 순서로 — 아래에서 null 을 돌려줘도 먼저 부른다
   if (!(count > 0)) return null;
   const c = th(theme);
   const text = label ?? '복권 ' + count + '장';
@@ -34,13 +65,15 @@ export function LotteryChip({ count, onPress, label, bottomOffset = 16, floating
   }
 
   return <View pointerEvents="box-none" style={[s.anchor, { bottom: bottomOffset }]}>
-    <Pressable accessibilityRole="button" accessibilityLabel={text} onPress={onPress} style={({ pressed }) => [s.floating, pressed && { opacity: 0.8 }]}>
-      <View accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        {icon ?? <View style={[s.ticket, { borderColor: c.accent }]}><View style={[s.ticketLine, { borderColor: c.accent }]} /></View>}
-      </View>
-      <Text style={s.floatingText}>{text}</Text>
-      <Text accessible={false} style={s.arrow}>›</Text>
-    </Pressable>
+    <Animated.View style={{ maxWidth: '100%', transform: [{ translateY: bob }] }}>
+      <Pressable accessibilityRole="button" accessibilityLabel={text} onPress={onPress} style={({ pressed }) => [s.floating, pressed && { opacity: 0.8 }]}>
+        <View accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          {icon ?? <View style={[s.ticket, { borderColor: c.accent }]}><View style={[s.ticketLine, { borderColor: c.accent }]} /></View>}
+        </View>
+        <Text style={s.floatingText}>{text}</Text>
+        <Text accessible={false} style={s.arrow}>›</Text>
+      </Pressable>
+    </Animated.View>
   </View>;
 }
 
@@ -55,8 +88,18 @@ function TierRow({ t, theme, busy, onOpen, onEarn }: { t: LotteryTier; theme: Lo
   </Pressable>;
 }
 
+/**
+ * 시트가 차지할 수 있는 높이 — 화면 높이에서 위 여백(상태줄 · 노치)과 숨 쉴 자리를 뺀다. 앱이 안전 영역 위 값을 `topInset` 으로 주면 그것을, 안 주면 안드로이드 상태줄 높이 · iOS 는 44 로 짐작한다.
+ * 내용이 이보다 길면 시트 안에서 스크롤한다(0.1.1 — 시트 맨 위 줄이 상태줄 밑으로 밀려 잘리던 것, 감자밭 시뮬)
+ */
+export function sheetMaxHeight(windowHeight: number, topInset?: number, os: string = Platform.OS, statusBar: number | null | undefined = StatusBar.currentHeight): number {
+  const top = typeof topInset === 'number' && topInset >= 0 ? topInset : os === 'android' ? (statusBar ?? 24) : 44;
+
+  return Math.max(240, Math.round(windowHeight - top - 24));
+}
+
 /** 복권 시트 — 3단계 줄 · 받기 / 열기 / 획득 완료 · 당첨 띠 · 「한 번 더! ○원 복권 받기」 · 알림 켜기 */
-export function LotterySheet({ open, state, winners, busy, onOpen, onEarn, onMore, onClose, onEnableNotify, notifyLabel, theme, renderNative }: {
+export function LotterySheet({ open, state, winners, busy, onOpen, onEarn, onMore, onClose, onEnableNotify, notifyLabel, theme, renderNative, topInset }: {
   open: boolean;
   state: LotteryState | null;
   winners?: readonly LotteryWinner[];
@@ -71,6 +114,8 @@ export function LotterySheet({ open, state, winners, busy, onOpen, onEarn, onMor
   onEnableNotify?: () => void;
   notifyLabel?: string;
   renderNative?: () => ReactNode;
+  /** 안전 영역 위 여백(`useSafeAreaInsets().top`) — 시트가 이 아래에서 끝난다. 안 주면 짐작한다 */
+  topInset?: number;
 } & ThemeProp) {
   if (!open || !state) return null;
   const c = th(theme);
@@ -80,15 +125,17 @@ export function LotterySheet({ open, state, winners, busy, onOpen, onEarn, onMor
 
   return <View style={s.overlay}>
     <Pressable accessibilityRole="button" accessibilityLabel="닫기" onPress={onClose} style={s.dim} />
-    <View style={[s.sheet, { backgroundColor: c.card }]}>
+    <View style={[s.sheet, { backgroundColor: c.card, maxHeight: sheetMaxHeight(Dimensions.get('window').height, topInset) }]}>
       <Pressable accessibilityRole="button" accessibilityLabel="닫기" hitSlop={12} onPress={onClose} style={s.close}><Text style={[s.closeText, { color: c.sub }]}>✕</Text></Pressable>
-      <Text style={[s.sheetTitle, { color: c.text }]}>꽝 없는 복권{'\n'}지금 열고 행운 받아가요!</Text>
-      <Text style={[s.sheetSub, { color: c.sub }]}>받은 복권은 매일 자정에 사라져요</Text>
-      {last ? <View style={[s.ticker, { backgroundColor: c.bg }]}><Text style={[s.tickerText, { color: c.text }]} numberOfLines={1}>{lotteryWinnerLine(last)}</Text></View> : null}
-      {state.tiers.map(t => <TierRow key={t.tier} t={t} theme={c} busy={busy} onOpen={onOpen} onEarn={onEarn} />)}
-      {more && next ? <Pressable accessibilityRole="button" accessibilityLabel={more} disabled={!!busy} onPress={() => (onMore ?? onEarn)(next.tier)} style={[s.big, { backgroundColor: c.accent }]}><Text style={[s.bigText, { color: c.accentText }]}>{more}</Text></Pressable> : null}
-      {onEnableNotify ? <Pressable accessibilityRole="button" accessibilityLabel={notifyLabel ?? '복권 받게 알림 켜기'} onPress={onEnableNotify} style={s.link}><Text style={[s.linkText, { color: c.accent }]}>🔔 {notifyLabel ?? '복권 받게 알림 켜기'} ›</Text></Pressable> : null}
-      {renderNative ? <View style={s.native}>{renderNative()}</View> : null}
+      <ScrollView bounces={false} showsVerticalScrollIndicator={false} contentContainerStyle={s.sheetBody}>
+        <Text style={[s.sheetTitle, { color: c.text }]}>꽝 없는 복권{'\n'}지금 열고 행운 받아가요!</Text>
+        <Text style={[s.sheetSub, { color: c.sub }]}>받은 복권은 매일 자정에 사라져요</Text>
+        {last ? <View style={[s.ticker, { backgroundColor: c.bg }]}><Text style={[s.tickerText, { color: c.text }]} numberOfLines={1}>{lotteryWinnerLine(last)}</Text></View> : null}
+        {state.tiers.map(t => <TierRow key={t.tier} t={t} theme={c} busy={busy} onOpen={onOpen} onEarn={onEarn} />)}
+        {more && next ? <Pressable accessibilityRole="button" accessibilityLabel={more} disabled={!!busy} onPress={() => (onMore ?? onEarn)(next.tier)} style={[s.big, { backgroundColor: c.accent }]}><Text style={[s.bigText, { color: c.accentText }]}>{more}</Text></Pressable> : null}
+        {onEnableNotify ? <Pressable accessibilityRole="button" accessibilityLabel={notifyLabel ?? '복권 받게 알림 켜기'} onPress={onEnableNotify} style={s.link}><Text style={[s.linkText, { color: c.accent }]}>🔔 {notifyLabel ?? '복권 받게 알림 켜기'} ›</Text></Pressable> : null}
+        {renderNative ? <View style={s.native}>{renderNative()}</View> : null}
+      </ScrollView>
     </View>
   </View>;
 }
@@ -111,13 +158,14 @@ export function LotteryResult({ result, state, onOpenNext, onMore, onClose, rend
   const hasNext = result.unopened > 0;
   const moreLabel = !hasNext && state ? lotteryMoreMissionLabel(state) : null;
 
+  // 순서: 제목 → 버튼 → **네이티브 광고는 버튼 아래**(대표님 13:56 · 감자밭 시뮬에서 버튼 위에 있던 것을 바로잡음, 0.1.1)
   return <View style={[s.result, { backgroundColor: c.card }]}>
     <Text style={[s.resultTitle, { color: c.text }]}>{lotteryResultTitle(result.points)}</Text>
     <Text style={[s.resultSub, { color: c.sub }]}>{result.won.toLocaleString('ko-KR')}원 복권</Text>
-    {renderNative ? <View style={s.native}>{renderNative()}</View> : null}
     {hasNext && onOpenNext ? <Pressable accessibilityRole="button" accessibilityLabel="다음 복권 열기" onPress={onOpenNext} style={[s.big, { backgroundColor: c.accent }]}><Text style={[s.bigText, { color: c.accentText }]}>다음 복권 열기 ({result.unopened}장 남았어요)</Text></Pressable> : null}
     {!hasNext && moreLabel && onMore ? <Pressable accessibilityRole="button" accessibilityLabel={moreLabel} onPress={onMore} style={[s.big, { backgroundColor: c.accent }]}><Text style={[s.bigText, { color: c.accentText }]}>{moreLabel}</Text></Pressable> : null}
     <Pressable accessibilityRole="button" accessibilityLabel="다음에 할게요" onPress={onClose} style={s.link}><Text style={[s.linkText, { color: c.sub }]}>다음에 할게요</Text></Pressable>
+    {renderNative ? <View style={s.native}>{renderNative()}</View> : null}
   </View>;
 }
 
@@ -163,7 +211,8 @@ const s = StyleSheet.create({
   chipText: { fontSize: 13, fontWeight: '800' },
   overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'flex-end', zIndex: 60, elevation: 60 },
   dim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)' },
-  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 28, paddingBottom: 24, gap: 12 },
+  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 28, paddingBottom: 24 },
+  sheetBody: { gap: 12, paddingBottom: 4 },
   close: { position: 'absolute', top: 14, right: 16, width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   closeText: { fontSize: 20, fontWeight: '700' },
   sheetTitle: { fontSize: 22, fontWeight: '800', textAlign: 'center', lineHeight: 30, marginTop: 8 },
