@@ -297,3 +297,8 @@ home_rows 가 없거나 읽기에 실패하면 **앱 기본 그대로**(60초 �
 - 걸음 · 추천 앱 줄 바탕 = 당근 `carrotSoft` **#FFEEE2**, 무료 아이템 줄 바탕 = `heartSoft` **#E6F5EA**(당근 814f2f4 `src/ui/theme.ts`). 0.7.5 의 #FDE6D6 은 틀린 값이었다.
 - `homeContext.tints`(`steps` · `free_item` · `recommend` 세 줄만, 선택): 앱 테마의 soft 색이 따로 있으면 그것이 우선. 나머지 줄(퀴즈 · 출석 · 오늘의 미션 · 행운 찬스 · 초대)의 바탕색과 모든 아이콘은 못 바꾼다. 빈 값은 당근 기본.
 - 추천 앱 줄의 캐릭터 그림은 앱 자산(`<Character …/>`)이라 `homeContext.recommend.icon` 으로 받는다(없으면 별 아이콘).
+
+## 0.7.7 — 걸음 권한이 없을 때 걸음 줄 버튼 「걸음 켜기」 (대표님 20:11 아이폰 만보기 줄, 앱관리 요청)
+
+- `homeContext.stepsNeedsPermission`(선택, 최상위 — 숫자인 `steps` 와 나란히): **`=== true` 일 때만** 걸음 줄 버튼이 「걸음 켜기」(누르면 앱이 권한부터 받는다), 아니면(false · 생략 · 다른 값) 「보상 받기」. 제목(「오늘 N걸음」/「만보기」) · 부제 · 아이콘 · 바탕색과 다른 줄은 그대로.
+- 서버 home_rows 가 걸음 줄 `button` 을 따로 적어 두면 그 값이 덮는다(서버 규칙 그대로 — 서버가 버튼을 고정하면 앱 상태 글자는 못 이긴다). 글자 상수는 `STEPS_PERMISSION_LABEL`.

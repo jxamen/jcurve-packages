@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
-import { FREE_DONE_LABEL, HOME_ORDER, buildHomeItems, homeItem, type HomeActions } from './homeDefs';
+import { FREE_DONE_LABEL, HOME_ORDER, STEPS_PERMISSION_LABEL, buildHomeItems, homeItem, type HomeActions } from './homeDefs';
 import { HOME_KEYS, composeHomeRows, resolveHomeKeys, type HomeRow } from './home';
 
 /** 당근 기준표(ota/carrot-ios-106-benefit-1020 814f2f4, FarmScreen HOME_BENEFITS + theme.ts carrotSoft #FFEEE2 · heartSoft #E6F5EA) — 대표님 10-20 20:23 「갖다 넣으면 똑같은 게 그냥 튀어 나와야」 */
@@ -88,6 +88,18 @@ describe('줄별 값 — 걸음 · 무료 아이템 · 오늘의 미션 · 추�
   it('만보기: 걸음 수를 모르면 「만보기」, 알면 「오늘 N걸음」(천 단위 쉼표), 0 도 「오늘 0걸음」', () => {
     const t = (steps?: number | null) => homeItem('steps', { steps }, () => {}).title;
     expect([t(), t(null), t(0), t(12345), t(-5)]).toEqual(['만보기', '만보기', '오늘 0걸음', '오늘 12,345걸음', '오늘 0걸음']);
+  });
+
+  it('만보기: 걸음 권한이 없으면 버튼이 「걸음 켜기」, 있으면(기본) 「보상 받기」 — 다른 줄 버튼은 그대로 (0.7.7)', () => {
+    expect(STEPS_PERMISSION_LABEL).toBe('걸음 켜기');
+    const steps = (ctx: Parameters<typeof homeItem>[1]) => homeItem('steps', ctx, () => {});
+    expect([steps({}).ctaLabel, steps({ stepsNeedsPermission: false }).ctaLabel, steps({ stepsNeedsPermission: true }).ctaLabel]).toEqual(['보상 받기', '보상 받기', '걸음 켜기']);
+    expect([steps({ stepsNeedsPermission: 'yes' as any }).ctaLabel, steps({ stepsNeedsPermission: 1 as any }).ctaLabel]).toEqual(['보상 받기', '보상 받기']);      // true 일 때만(다른 값은 기본)
+    expect(steps({ stepsNeedsPermission: true, steps: 120 }).title).toBe('오늘 120걸음');                                  // 제목은 걸음 수대로
+    const all2 = buildHomeItems({ stepsNeedsPermission: true }, all());
+    expect(all2.find(i => i.key === 'steps')!.ctaLabel).toBe('걸음 켜기');
+    expect(all2.filter(i => i.key !== 'steps').map(i => i.ctaLabel)).toEqual(buildHomeItems({}, all()).filter(i => i.key !== 'steps').map(i => i.ctaLabel));
+    expect(homeItem('free_item', { stepsNeedsPermission: true } as any, () => {}).ctaLabel).toBe('받기');                 // 걸음 줄에만 적용
   });
 
   it('무료 아이템: 값이 없으면 막대 없이 「받기」 · 완료 글자는 「내일 다시」(방문형) · 아이템 그림은 앱 것', () => {

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.FREE_DONE_LABEL = exports.HOME_ORDER = void 0;
+exports.STEPS_PERMISSION_LABEL = exports.FREE_DONE_LABEL = exports.HOME_ORDER = void 0;
 exports.homeItem = homeItem;
 exports.buildHomeItems = buildHomeItems;
 /** 줄 순서 — 서버 home_rows 기본 순서와 같다(HOME_KEYS) */
@@ -24,6 +24,8 @@ const LOOK = {
 };
 /** 무료 아이템 줄의 완료 버튼 글자 — 방문형이라 오늘 칸이 끝나면 「내일 다시」(대표님 10-20 19:01) */
 exports.FREE_DONE_LABEL = '내일 다시';
+/** 걸음 권한이 없을 때 걸음 줄의 버튼 글자(0.7.7) */
+exports.STEPS_PERMISSION_LABEL = '걸음 켜기';
 /** 무료 아이템 줄 상태 — 막대(받은 횟수) · 글자 · 완료. 0.7.4 freeItemRow 와 같은 규칙(이 파일 안에서 끝낸다) */
 function freeState(total, left, received) {
     const hasLeft = left !== undefined;
@@ -64,7 +66,8 @@ function homeItem(key, c, onPress) {
     const icon = key === 'free_item' ? (c.itemIcon ?? look.icon) : key === 'recommend' ? (c.recommend?.icon ?? look.icon) : look.icon;
     // 바탕색은 고정 — 앱 테마색을 따르는 걸음 · 무료 · 추천 세 줄만 앱 값(tints)이 우선
     const themed = key === 'steps' || key === 'free_item' || key === 'recommend' ? c.tints?.[key]?.trim() : undefined;
-    const item = { key, title, subtitle, ctaLabel: look.ctaLabel, icon, tint: themed || look.tint, onPress };
+    const ctaLabel = key === 'steps' && c.stepsNeedsPermission === true ? exports.STEPS_PERMISSION_LABEL : look.ctaLabel;
+    const item = { key, title, subtitle, ctaLabel, icon, tint: themed || look.tint, onPress };
     if (key === 'free_item') {
         return { ...item, doneLabel: exports.FREE_DONE_LABEL, ...freeState(Math.max(1, Math.floor(c.free?.total ?? 3)), c.free?.left, c.free?.received) };
     }

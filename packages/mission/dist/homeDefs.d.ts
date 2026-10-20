@@ -24,6 +24,8 @@ export type HomeContext = {
     pointUnit?: string;
     /** 오늘 걸음 수 — 주면 「오늘 N걸음」, 없으면 「만보기」 */
     steps?: number | null;
+    /** (0.7.7) 걸음 권한이 아직 없다(묻기 전 · 거부) — true 면 걸음 줄 버튼이 「걸음 켜기」(누르면 권한부터 받는다), 아니면 「보상 받기」(대표님 20:11 아이폰 만보기 줄) */
+    stepsNeedsPermission?: boolean;
     /** 무료 아이템 줄 — 하루 방문 칸 수(기본 3) · 남은 칸(left) · 받은 횟수(received) */
     free?: {
         total?: number;
@@ -54,6 +56,8 @@ export type HomeContext = {
 };
 /** 무료 아이템 줄의 완료 버튼 글자 — 방문형이라 오늘 칸이 끝나면 「내일 다시」(대표님 10-20 19:01) */
 export declare const FREE_DONE_LABEL = "\uB0B4\uC77C \uB2E4\uC2DC";
+/** 걸음 권한이 없을 때 걸음 줄의 버튼 글자(0.7.7) */
+export declare const STEPS_PERMISSION_LABEL = "\uAC78\uC74C \uCF1C\uAE30";
 /** 한 줄을 만든다 — 줄 key 는 서버 key 그대로라 `homeKeys` 맞춤표가 필요 없다 */
 export declare function homeItem(key: HomeRowKey, c: HomeContext, onPress: () => void): BenefitQuickItem;
 /**

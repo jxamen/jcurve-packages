@@ -27,6 +27,8 @@ export type HomeContext = {
   pointUnit?: string;
   /** 오늘 걸음 수 — 주면 「오늘 N걸음」, 없으면 「만보기」 */
   steps?: number | null;
+  /** (0.7.7) 걸음 권한이 아직 없다(묻기 전 · 거부) — true 면 걸음 줄 버튼이 「걸음 켜기」(누르면 권한부터 받는다), 아니면 「보상 받기」(대표님 20:11 아이폰 만보기 줄) */
+  stepsNeedsPermission?: boolean;
   /** 무료 아이템 줄 — 하루 방문 칸 수(기본 3) · 남은 칸(left) · 받은 횟수(received) */
   free?: { total?: number; left?: number; received?: number };
   /** 무료 아이템 그림(앱 아이템 그림) — 없으면 🌱 */
@@ -63,6 +65,9 @@ const LOOK: Record<HomeRowKey, { icon: BenefitQuickItem['icon']; tint: string; c
 
 /** 무료 아이템 줄의 완료 버튼 글자 — 방문형이라 오늘 칸이 끝나면 「내일 다시」(대표님 10-20 19:01) */
 export const FREE_DONE_LABEL = '내일 다시';
+
+/** 걸음 권한이 없을 때 걸음 줄의 버튼 글자(0.7.7) */
+export const STEPS_PERMISSION_LABEL = '걸음 켜기';
 
 /** 무료 아이템 줄 상태 — 막대(받은 횟수) · 글자 · 완료. 0.7.4 freeItemRow 와 같은 규칙(이 파일 안에서 끝낸다) */
 function freeState(total: number, left: number | undefined, received: number | undefined): Pick<BenefitQuickItem, 'done' | 'progress' | 'progressLabel'> {
@@ -106,7 +111,8 @@ export function homeItem(key: HomeRowKey, c: HomeContext, onPress: () => void): 
   const icon = key === 'free_item' ? (c.itemIcon ?? look.icon) : key === 'recommend' ? (c.recommend?.icon ?? look.icon) : look.icon;
   // 바탕색은 고정 — 앱 테마색을 따르는 걸음 · 무료 · 추천 세 줄만 앱 값(tints)이 우선
   const themed = key === 'steps' || key === 'free_item' || key === 'recommend' ? c.tints?.[key]?.trim() : undefined;
-  const item: BenefitQuickItem = { key, title, subtitle, ctaLabel: look.ctaLabel, icon, tint: themed || look.tint, onPress };
+  const ctaLabel = key === 'steps' && c.stepsNeedsPermission === true ? STEPS_PERMISSION_LABEL : look.ctaLabel;
+  const item: BenefitQuickItem = { key, title, subtitle, ctaLabel, icon, tint: themed || look.tint, onPress };
   if (key === 'free_item') {
     return { ...item, doneLabel: FREE_DONE_LABEL, ...freeState(Math.max(1, Math.floor(c.free?.total ?? 3)), c.free?.left, c.free?.received) };
   }
