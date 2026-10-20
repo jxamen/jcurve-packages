@@ -13,10 +13,12 @@ describe('mission/home 응답 거르기(0.5.0)', () => {
       { key: 'hack', title: 'x' }, { key: 'invite', title: '  ' }, { key: 'checkin', title: '두 번째' }, 'bad',
       { key: 'steps', title: '가'.repeat(40), visible: false, order: 30 },
     ], list: { adAfter: 5, shoppingFirst: true } });
-    expect(c.rows!.map(r => r.key)).toEqual(['quiz1', 'checkin', 'steps']);
-    expect(c.rows![0]).toEqual({ key: 'quiz1', title: '퀴즈1', desc: '', button: '', badge: 'NEW', visible: true, order: 10 });
-    expect(Array.from(c.rows![2].title)).toHaveLength(30);
-    expect(c.rows![2].visible).toBe(false);
+    // 0.4.5: 제목이 비어도 줄은 산다(invite — 자리 번호 order 3 이라 맨 앞)
+    expect(c.rows!.map(r => r.key)).toEqual(['invite', 'quiz1', 'checkin', 'steps']);
+    expect(c.rows![0]).toEqual({ key: 'invite', title: '', desc: '', button: '', badge: '', visible: true, order: 3 });
+    expect(c.rows![1]).toEqual({ key: 'quiz1', title: '퀴즈1', desc: '', button: '', badge: 'NEW', visible: true, order: 10 });
+    expect(Array.from(c.rows![3].title)).toHaveLength(30);
+    expect(c.rows![3].visible).toBe(false);
     expect(c.list).toEqual({ adAfter: 5, shoppingFirst: true });
   });
   it('설정 없음(rows null) · 깨진 응답 · 이상한 list 값', () => {
@@ -146,3 +148,40 @@ describe('0.4.4 — 앱별 서버 home_rows 를 그대로 따른다(순서 · �
     expect(composeHomeRows(items, [row('quiz1'), row('free_item', { visible: false })], keys2).filter(i => !i.hidden).map(i => i.key)).toEqual(['bag']);
   });
 });
+
+describe('0.4.5 — 빈 title = 앱 제목 그대로(동적 제목은 서버 고정 제목이 덮지 않게)', () => {
+  const keys = { cal: 'checkin', walk: 'steps', bonus: 'today_missions' } as const;
+  it('parseHomeResponse: 빈 문자열 · 칸 없음 · 공백 · 문자열 아님 title 줄도 산다(모르는 key 는 그대로 버림)', () => {
+    const c = parseHomeResponse({ ok: true, rows: [
+      { key: 'steps', title: '', button: '걷기', order: 1 }, { key: 'today_missions', order: 2 }, { key: 'checkin', title: '  ', order: 3 },
+      { key: 'invite', title: ['배열'], order: 4 }, { key: 'quiz1', title: '퀴즈1', order: 5 }, { key: 'hack', title: '', order: 6 },
+    ] });
+    expect(c.rows!.map(r => r.key)).toEqual(['steps', 'today_missions', 'checkin', 'invite', 'quiz1']);
+    expect(c.rows!.map(r => r.title)).toEqual(['', '', '', '', '퀴즈1']);
+    expect(c.rows![0].button).toBe('걷기');
+  });
+  it('composeHomeRows: 서버 title 이 비어 있으면 앱의 동적 제목을 지키고, 적혀 있으면 덮는다 — 설명 · 버튼 · 배지 · 보임 · 순서는 그대로 서버가 정한다', () => {
+    const items = [item('walk', { title: '오늘 3,200걸음' }), item('cal', { title: '출석 체크' }), item('bonus', { title: '보너스 2번 더', subtitle: '앱 부제' })];
+    const rows = [row('today_missions', { title: '', button: '하기' }), row('steps', { title: '' }), row('checkin', { title: '매일 출석', desc: '10P' })];
+    const out = composeHomeRows(items, rows, keys);
+    expect(out.map(i => i.key)).toEqual(['bonus', 'walk', 'cal']);
+    expect(out[0].title).toBe('보너스 2번 더');                    // 서버 title 이 비어 앱 제목 유지
+    expect(out[0].subtitle).toBe('앱 부제');                        // desc 도 비면 앱 부제
+    expect(out[0].ctaLabel).toBe('하기');                           // 적힌 버튼은 서버 값
+    expect(out[1].title).toBe('오늘 3,200걸음');
+    expect(out[2].title).toBe('매일 출석');                         // 적힌 제목은 덮음
+    expect(out[2].subtitle).toBe('10P');
+  });
+  it('composeHomeRows: 앱에 짝이 없어 새로 만드는 줄은 서버 title, 비었으면 key별 기본 제목', () => {
+    const onRow = vi.fn();
+    const out = composeHomeRows([item('x')], [row('steps', { title: '' }), row('today_missions', { title: '오늘 미션 서버' }), row('lucky_chance', { title: '' })], keys, { onRow });
+    expect(out.filter(i => i.key !== 'x').map(i => [i.key, i.title])).toEqual([['steps', '만보기'], ['today_missions', '오늘 미션 서버'], ['lucky_chance', '행운 찬스']]);
+    out[0].onPress();
+    expect(onRow).toHaveBeenCalledWith('steps');
+  });
+  it('applyHomeRows(0.5.0 방식)도 빈 title 이면 앱 제목을 둔다', () => {
+    const out = applyHomeRows([item('walk', { title: '오늘 1걸음' }), item('cal', { title: '출석' })], [row('steps', { title: '' }), row('checkin', { title: '서버 출석' })], keys);
+    expect(out.map(i => i.title)).toEqual(['오늘 1걸음', '서버 출석']);
+  });
+});
+

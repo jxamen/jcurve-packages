@@ -234,3 +234,8 @@ home_rows 가 없거나 읽기에 실패하면 **앱 기본 그대로**(60초 �
 **free_item 줄은 패키지 기본**: 앱 items 에 free_item(맞춤표 기준)이 이미 있으면(예: `freeItemRow` 를 쓰는 에그머니 · 머니트리 · 영테크) 겹치지 않는다.
 순수 함수도 내보낸다: `composeHomeRows` · `withFreeItemRow` · `freeItemHomeRow` · `resolveHomeKeys` · `fetchHomeConfig` · `applyHomeRows`(0.5.0 방식 — 서버에 없는 줄도 뒤에 남김) · `useHomeRows`.
 
+## 0.4.5 — 서버 title 을 비우면 앱 제목 그대로 (대표님 10-20 「동적 제목은 서버 고정 제목이 덮지 않게 — 덮으면 그 key는 서버 title 비우기」)
+
+서버 home_rows 줄의 **`title` 이 비어 있으면 앱 items 의 제목을 그대로** 둔다 — 만보기 「오늘 N걸음」 · 오늘 미션 보너스 문구 같은 **동적 제목**을 어드민의 고정 제목이 덮지 않게. 제목을 적은 줄만 그 제목으로 바뀐다(설명 · 버튼 · 배지가 비면 앱 값이 살아 있는 것과 같은 규칙).
+앱에 짝이 없어 새로 만드는 줄(`onRow`)은 title 이 비었으면 key별 기본 제목(만보기 · 오늘의 미션 · 행운 찬스 …). 서버가 빈 title 줄을 내려 주는 것은 jcurve-api `fix/mission-home-optional-title`(07d3286) 이 반영된 뒤 — **옛 앱(0.4.4 이하)은 빈 제목 줄을 버리므로**, 어드민에서 title 을 비우는 것은 0.4.5 가 나간 앱부터 한다.
+
