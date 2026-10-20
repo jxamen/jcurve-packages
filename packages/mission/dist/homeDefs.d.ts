@@ -24,6 +24,11 @@ export type HomeContext = {
     pointUnit?: string;
     /** 오늘 걸음 수 — 주면 「오늘 N걸음」, 없으면 「만보기」 */
     steps?: number | null;
+    /**
+     * (0.4.10) 걸음 권한이 없다 — `true` 일 때만 걸음 줄 버튼이 「걸음 켜기」(아니면 「보상 받기」). 앱이 권한 상태를 보고 넘긴다(대표님 20:11 아이폰 만보기 줄).
+     * 제목 · 부제 · 아이콘 · 바탕색은 그대로, 다른 줄은 영향 없음. 서버 home_rows 가 걸음 줄 `button` 을 적어 두면 그 값이 덮는다(서버 규칙 그대로)
+     */
+    stepsNeedsPermission?: boolean;
     /** 무료 아이템 줄 — 하루 방문 칸 수(기본 3) · 남은 칸(left) · 받은 횟수(received) */
     free?: {
         total?: number;
@@ -52,6 +57,8 @@ export type HomeContext = {
      */
     tints?: Partial<Record<'steps' | 'free_item' | 'recommend', string>>;
 };
+/** 걸음 권한이 없을 때 걸음 줄 버튼 글자(stepsNeedsPermission) */
+export declare const STEPS_PERMISSION_LABEL = "\uAC78\uC74C \uCF1C\uAE30";
 /** 무료 아이템 줄의 완료 버튼 글자 — 방문형이라 오늘 칸이 끝나면 「내일 다시」(대표님 10-20 19:01) */
 export declare const FREE_DONE_LABEL = "\uB0B4\uC77C \uB2E4\uC2DC";
 /** 한 줄을 만든다 — 줄 key 는 서버 key 그대로라 `homeKeys` 맞춤표가 필요 없다 */

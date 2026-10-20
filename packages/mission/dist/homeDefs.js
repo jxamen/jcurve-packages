@@ -1,10 +1,12 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.FREE_DONE_LABEL = exports.HOME_ORDER = void 0;
+exports.FREE_DONE_LABEL = exports.STEPS_PERMISSION_LABEL = exports.HOME_ORDER = void 0;
 exports.homeItem = homeItem;
 exports.buildHomeItems = buildHomeItems;
 /** 줄 순서 — 서버 home_rows 기본 순서와 같다(HOME_KEYS) */
 exports.HOME_ORDER = ['quiz1', 'quiz2', 'checkin', 'steps', 'free_item', 'today_missions', 'lucky_chance', 'invite', 'recommend'];
+/** 걸음 권한이 없을 때 걸음 줄 버튼 글자(stepsNeedsPermission) */
+exports.STEPS_PERMISSION_LABEL = '걸음 켜기';
 const DEFAULT_NAME = '포인트';
 /** 당근의 soft 주황(carrotSoft) — 걸음 · 추천 줄 바탕. 당근 theme.ts(814f2f4) 값 */
 const CARROT_SOFT = '#FFEEE2';
@@ -64,7 +66,8 @@ function homeItem(key, c, onPress) {
     const icon = key === 'free_item' ? (c.itemIcon ?? look.icon) : key === 'recommend' ? (c.recommend?.icon ?? look.icon) : look.icon;
     // 바탕색은 고정 — 앱 테마색을 따르는 걸음 · 무료 · 추천 세 줄만 앱 값(tints)이 우선
     const themed = key === 'steps' || key === 'free_item' || key === 'recommend' ? c.tints?.[key]?.trim() : undefined;
-    const item = { key, title, subtitle, ctaLabel: look.ctaLabel, icon, tint: themed || look.tint, onPress };
+    const ctaLabel = key === 'steps' && c.stepsNeedsPermission === true ? exports.STEPS_PERMISSION_LABEL : look.ctaLabel;
+    const item = { key, title, subtitle, ctaLabel, icon, tint: themed || look.tint, onPress };
     if (key === 'free_item') {
         return { ...item, doneLabel: exports.FREE_DONE_LABEL, ...freeState(Math.max(1, Math.floor(c.free?.total ?? 3)), c.free?.left, c.free?.received) };
     }
