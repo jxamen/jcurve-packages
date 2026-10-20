@@ -13,6 +13,7 @@ export { safeTop, backTarget, edgeSwipeStarts, edgeSwipeDone, EDGE_WIDTH, EDGE_S
 export type { MissionNavigation } from './MissionWebView';
 export { HOME_KEYS, EMPTY_HOME, parseHomeResponse, fetchHomeConfig, resetHomeConfig, applyHomeRows, adSlotIndex, resolveHomeKeys, withFreeItemRow, freeItemHomeRow, composeHomeRows, fetchHomeResult, readStoredHome, saveStoredHome, homeStorageUsable, homeInitial, homeReduce, HOME_STORAGE_KEY, HOME_STORAGE_WAIT_MS, type HomeRow, type HomeRowKey, type HomeConfig, type HomeStorage, type HomeState, type HomeEvent } from './home';
 export { useHomeRows } from './useHomeRows';
+export { HOME_ORDER, FREE_DONE_LABEL, buildHomeItems, homeItem, type HomeActions, type HomeContext } from './homeDefs';
 export { useHomeConfig } from './useHomeConfig';
 export { BenefitQuickList, type BenefitQuickListProps, type BenefitQuickItem, type BenefitQuickIcon } from './BenefitQuickList';
 export { FloatingRewardChip, type FloatingRewardChipProps } from './FloatingRewardChip';

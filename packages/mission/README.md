@@ -271,3 +271,23 @@ home_rows 가 없거나 읽기에 실패하면 **앱 기본 그대로**(60초 �
   `left` 는 「N번 남았어요」(받을 칸이 남았을 때)와 완료(done) 판정에만 쓴다(`left=0` 이면 done). `received` 를 안 주면 예전 그대로(막대 = total − left, 「N번 남았어요」/「오늘 다 받았어요」).
 - **`BenefitQuickItem.doneLabel`**: done 줄의 버튼 글자를 **줄마다** 정한다(안 주면 목록의 `doneLabel`, 기본 「완료」) — 방문형은 `doneLabel: '내일 다시'`. `freeItemRow` 의 `doneLabel` 인자가 그대로 줄에 실린다.
 - 방문형 한 줄: `freeItemRow({ itemName: '감자', left, received, doneLabel: '내일 다시', onPress })`.
+
+## 0.7.5 — 홈 목록 9줄의 정의 전체를 패키지가 (대표님 10-20 20:23 「패키지잖아 갖다 넣으면 똑같은 게 그냥 튀어 나와야 하는데」)
+
+앱마다 홈 목록이 달랐던 것(아이콘 · 부제 · 숨김을 앱이 정함)을 없앤다 — **제목 · 부제 · 버튼 · 아이콘 · 바탕색 · 순서를 패키지가 가진다**(기준 = 당근캐시 홈, ota/carrot-ios-106-benefit-1020 814f2f4 FarmScreen HOME_BENEFITS).
+앱은 **아이템 이름 · 포인트 이름 · 줄마다 누르기 동작**과 값만 넘긴다. 앱이 아이콘 · 부제 · 숨김을 덮어쓸 수 없고, **동작을 안 넘긴 줄은 그 앱에서 빠진다**.
+
+```tsx
+<BenefitQuickList
+  homeActions={{ quiz1: openQuiz1, quiz2: openQuiz2, checkin: openCheckin, steps: openSteps, free_item: openFree, today_missions: openMissions, lucky_chance: openLuck, invite: openInvite, recommend: openApps }}
+  homeContext={{ itemName: '감자', pointName: '포인트', steps: todaySteps, free: { left, received }, todayMissions: { title: bonusText }, recommend: { desc: promo.desc } }}
+  fetchJson={fetchJson} storage={AsyncStorage} refreshKey={tab === 'home'}      // 서버 home_rows(순서 · 제목 · 설명 · 버튼 · 배지 · 보임)는 지금처럼 얹힌다
+/>
+```
+- **줄 key = 서버 key**(`quiz1 · quiz2 · checkin · steps · free_item · today_missions · lucky_chance · invite · recommend`) — 맞춤표(`homeKeys`)가 필요 없다. 순서는 이 순서.
+- 당근 기준 값: 쇼핑 태그 퀴즈1(쇼핑백 · 참여하기) · 플레이스 & 쇼핑 태그 퀴즈2(핀) · 매일 출석 체크(달력 · 출석하기) · 만보기/오늘 N걸음(👟 · 보상 받기) · 무료 ○○ 받기(🌱 · 받기, 부제 「하루 3번 들르면 ○○ 받기」) · 오늘의 미션(별 · 보러가기) · 행운 찬스(티켓 · 뽑기, 「하루 기회로 ○○ 뽑기」) · 친구 초대하기(사람+ · 초대하기) · 추천 앱 둘러보기(캐릭터 · 보러가기).
+- 앱 값: `itemName`(기본 「포인트」 — 「무료 ○○ 받기」「하루 기회로 ○○ 뽑기」), `pointName`(기본 「포인트」), `pointUnit`(기본 「P」, 「최대 100P」), `steps`(걸음 수 — 없으면 「만보기」), `free`(`total` 기본 3 · `left` · `received` — 막대는 받은 횟수, 놓친 칸이 있어도 다 받음으로 안 나온다, 완료 글자 「내일 다시」),
+  `itemIcon`(무료 줄 아이템 그림), `todayMissions`(앱의 동적 제목 · 막대), `recommend`(서버 부제 · 캐릭터 그림). `appName` 은 받아 두기만 한다(지금 문구에는 안 들어간다).
+- **서버 home_rows 와의 관계**: 서버가 덮는 것은 제목 · 설명 · 버튼 · 배지 · 보임 · 순서뿐(빈 제목 = 패키지 제목 유지). **아이콘 · 바탕색은 늘 패키지 정의**. 서버에만 있고 동작이 없는 줄은 그리지 않는다(`onRow` 도 이 경우 안 쓴다). 서버 설정이 없거나 실패하면 패키지 정의 그대로.
+- `homeActions` 를 안 주면 예전 `items` 방식 그대로(호환) — 단 새 앱은 `homeActions` 를 쓴다. 순수 정의는 `homeDefs.ts`(`buildHomeItems` · `homeItem` · `HOME_ORDER`)로 따로 내보낸다.
+- **줄이 빠지는 앱**(현재 서버 home_rows 기준): 꼬꼬 · 꾹테크는 무료 아이템 줄 없음(앱이 `free_item` 동작을 안 넘김. 꾹테크는 「무료 뽑기권」 줄을 붙이는 중 — 서버 `capsule/visit` 값을 `free` 로 넘기면 됨), 나머지 앱은 9줄. 당근은 서버 행이 없어 패키지 정의 9줄.

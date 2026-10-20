@@ -9,6 +9,7 @@ const react_1 = require("react");
 const react_native_1 = require("react-native");
 const home_1 = require("./home");
 const useHomeConfig_1 = require("./useHomeConfig");
+const homeDefs_1 = require("./homeDefs");
 const colors = {
     calendar: '#2F6FD6', bag: '#D2551E', pin: '#2E8B57',
     star: '#B7791F', ticket: '#7A4FD0', friend: '#C2410C',
@@ -61,11 +62,12 @@ function ServerRowsList({ fetchJson, homeKeys, onRow, refreshKey, storage, stora
  * 「바로 받는 혜택」 목록. (0.4.4) `fetchJson` 을 주면 서버 home_rows 를 스스로 적용하고, `onFreeItem` 을 주면 free_item 기본 줄이 생긴다 — 둘 다 없으면 0.4.3 과 똑같이 그린다.
  */
 function BenefitQuickList(props) {
-    const { fetchJson, homeKeys, itemName, onFreeItem, onRow, refreshKey, storage, storageKey, items, ...view } = props;
-    const base = (0, home_1.withFreeItemRow)(items, homeKeys, itemName, onFreeItem);
+    const { fetchJson, homeKeys, itemName, onFreeItem, onRow, refreshKey, storage, storageKey, items, homeActions, homeContext, ...view } = props;
+    // (0.7.5) homeActions 가 있으면 줄 정의는 패키지 것 — 서버에만 있는 줄은 동작이 없으니 그리지 않는다(onRow 안 씀)
+    const base = homeActions ? (0, homeDefs_1.buildHomeItems)(homeContext ?? {}, homeActions) : (0, home_1.withFreeItemRow)(items ?? [], homeKeys, itemName, onFreeItem);
     if (!fetchJson)
         return QuickListView({ ...view, items: base });
-    return (0, jsx_runtime_1.jsx)(ServerRowsList, { fetchJson: fetchJson, homeKeys: homeKeys, onRow: onRow, refreshKey: refreshKey, storage: storage, storageKey: storageKey, items: base, view: view });
+    return (0, jsx_runtime_1.jsx)(ServerRowsList, { fetchJson: fetchJson, homeKeys: homeActions ? undefined : homeKeys, onRow: homeActions ? undefined : onRow, refreshKey: refreshKey, storage: storage, storageKey: storageKey, items: base, view: view });
 }
 function QuickListView({ title = '바로 받는 혜택', seeAllLabel, onSeeAll, accentColor = '#EE7A33', items, footer, doneLabel = '완료', buttonWidth = 100, buttonHeight = 40 }) {
     const visible = items.filter(item => !item.hidden);
