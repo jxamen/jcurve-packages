@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createPush = exports.planItems = exports.fillVars = exports.createNotify = exports.clampQuiet = void 0;
+exports.createPush = exports.planItems = exports.ownScheduled = exports.NOTIFY_ID_PREFIX = exports.NOTIFY_DATA_KEY = exports.fillVars = exports.createNotify = exports.clampQuiet = void 0;
 /**
  * `@jcurve/notify` — 리워드 앱 공용 **로컬 알림**(기기가 스스로 띄우는 예약 알림).
  *
@@ -99,6 +99,9 @@ var notify_1 = require("./notify");
 Object.defineProperty(exports, "clampQuiet", { enumerable: true, get: function () { return notify_1.clampQuiet; } });
 Object.defineProperty(exports, "createNotify", { enumerable: true, get: function () { return notify_1.createNotify; } });
 Object.defineProperty(exports, "fillVars", { enumerable: true, get: function () { return notify_1.fillVars; } });
+Object.defineProperty(exports, "NOTIFY_DATA_KEY", { enumerable: true, get: function () { return notify_1.NOTIFY_DATA_KEY; } });
+Object.defineProperty(exports, "NOTIFY_ID_PREFIX", { enumerable: true, get: function () { return notify_1.NOTIFY_ID_PREFIX; } });
+Object.defineProperty(exports, "ownScheduled", { enumerable: true, get: function () { return notify_1.ownScheduled; } });
 Object.defineProperty(exports, "planItems", { enumerable: true, get: function () { return notify_1.planItems; } });
 var push_1 = require("./push");
 Object.defineProperty(exports, "createPush", { enumerable: true, get: function () { return push_1.createPush; } });

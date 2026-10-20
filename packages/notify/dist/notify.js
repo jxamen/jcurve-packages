@@ -10,9 +10,11 @@
  * 앱 시작 자체를 죽이고, OTA 로 옛 런타임에 같은 JS 가 내려가므로 더 그렇다.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.NOTIFY_DATA_KEY = exports.NOTIFY_ID_PREFIX = void 0;
 exports.clampQuiet = clampQuiet;
 exports.fillVars = fillVars;
 exports.planItems = planItems;
+exports.ownScheduled = ownScheduled;
 exports.createNotify = createNotify;
 /** 이보다 가까운 예약은 걸지 않는다 — 지금 화면을 보고 있는 사람에게 울릴 뿐이다 */
 const MIN_LEAD_MS = 30000;
@@ -101,12 +103,48 @@ function planItems(config, bases, opts = {}) {
     out.sort((a, b) => a.at - b.at);
     return out;
 }
+/** 이 패키지가 거는 예약의 표시 — identifier 앞머리 · content.data 열쇠(1.3.0) */
+exports.NOTIFY_ID_PREFIX = 'jcurve-notify:';
+exports.NOTIFY_DATA_KEY = 'jcurveNotify';
+/**
+ * 지울 예약 — **이 패키지가 건 것만**(1.3.0, 10-20 꿀꿀 앱보조 · 앱총괄: 앱이 앞 · 뒤로 갈 때 전부 지워 앱이 건 복권 알림까지 사라졌다).
+ *  · 표시가 있는 것(identifier 가 `jcurve-notify:` 로 시작하거나 content.data.jcurveNotify)
+ *  · 표시가 없고 content.data 도 비어 있는 것 — 1.2 이하가 건 예약(표시 없이 data 없이 걸었다). 판을 올린 첫 실행에 옛 예약이 남아 두 번 오지 않게
+ * 앱이 따로 거는 알림은 **content.data 에 아무 열쇠나** 넣으면 지워지지 않는다(넣지 않으면 옛 패키지 예약과 구별할 수 없다)
+ */
+function ownScheduled(list) {
+    const out = [];
+    for (const r of list ?? []) {
+        const id = typeof r?.identifier === 'string' ? r.identifier : '';
+        if (!id)
+            continue;
+        const data = r?.content?.data;
+        const tagged = id.startsWith(exports.NOTIFY_ID_PREFIX) || (!!data && typeof data === 'object' && data[exports.NOTIFY_DATA_KEY] === true);
+        const legacy = !data || (typeof data === 'object' && Object.keys(data).length === 0);
+        if (tagged || legacy)
+            out.push(id);
+    }
+    return out;
+}
 function mod() {
     try {
         return require('expo-notifications');
     }
     catch {
         return null; // 모듈이 빠진 빌드 — 이 경로만 조용히 접는다
+    }
+}
+/** 이 패키지가 건 예약만 지운다(ownScheduled). 목록 · 한 건 취소가 없는 판이면 예전처럼 전부 */
+async function cancelOwn(N) {
+    if (typeof N.getAllScheduledNotificationsAsync !== 'function' || typeof N.cancelScheduledNotificationAsync !== 'function') {
+        await N.cancelAllScheduledNotificationsAsync().catch(() => { });
+        return;
+    }
+    const list = await N.getAllScheduledNotificationsAsync().catch(() => null);
+    if (!list)
+        return; // 목록을 못 읽으면 아무것도 안 지운다 — 남의 알림을 지우는 것보다 하나 겹치는 쪽이 낫다
+    for (const id of ownScheduled(list)) {
+        await N.cancelScheduledNotificationAsync(id).catch(() => { });
     }
 }
 function isAndroid() {
@@ -135,7 +173,7 @@ function createNotify(deps) {
         const N = mod();
         if (!N)
             return [];
-        await N.cancelAllScheduledNotificationsAsync().catch(() => { });
+        await cancelOwn(N);
         const perm = await N.getPermissionsAsync().catch(() => null);
         if (!perm?.granted)
             return [];
@@ -148,6 +186,7 @@ function createNotify(deps) {
         for (let i = 0; i < items.length; i++) {
             try {
                 await N.scheduleNotificationAsync({
+                    identifier: exports.NOTIFY_ID_PREFIX + items[i].at + ':' + i,
                     /*
                      | sound 를 안 주면 iOS 는 **소리도 진동도 없는** 알림으로 띄운다 — 배너만 뜨고
                      | 주머니 안에서는 못 알아챈다. 안드로이드는 채널 설정이 우선이라 영향이 없다.
@@ -155,7 +194,7 @@ function createNotify(deps) {
                      | 배지는 도착 순서대로 1,2,3… 이다. iOS 배지는 '하나 더하기'가 아니라
                      | '이 숫자로 맞춰라' 라서, 늦게 오는 알림일수록 큰 수여야 한다.
                      */
-                    content: { title: items[i].title, body: items[i].body, badge: i + 1, sound: 'default' },
+                    content: { title: items[i].title, body: items[i].body, badge: i + 1, sound: 'default', data: { [exports.NOTIFY_DATA_KEY]: true } },
                     trigger: {
                         type: N.SchedulableTriggerInputTypes?.DATE ?? 'date',
                         date: new Date(items[i].at),
@@ -232,7 +271,7 @@ function createNotify(deps) {
             const N = mod();
             if (!N)
                 return;
-            await N.cancelAllScheduledNotificationsAsync().catch(() => { });
+            await cancelOwn(N);
             await N.setBadgeCountAsync(0).catch(() => { });
         },
         schedule(bases, vars) {

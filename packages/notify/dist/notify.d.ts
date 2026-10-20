@@ -81,6 +81,23 @@ export type PlanOpts = {
  * 순수 함수라 기기 없이 확인할 수 있다 — 이 패키지에서 틀리기 쉬운 것이 전부 여기 있다.
  */
 export declare function planItems(config: NotifyConfig | null | undefined, bases: Bases, opts?: PlanOpts): Planned[];
+/** 이 패키지가 거는 예약의 표시 — identifier 앞머리 · content.data 열쇠(1.3.0) */
+export declare const NOTIFY_ID_PREFIX = "jcurve-notify:";
+export declare const NOTIFY_DATA_KEY = "jcurveNotify";
+/** 예약 목록에서 보이는 모양(expo-notifications getAllScheduledNotificationsAsync 의 필요한 칸만) */
+export type ScheduledLike = {
+    identifier?: string;
+    content?: {
+        data?: Record<string, unknown> | null;
+    } | null;
+};
+/**
+ * 지울 예약 — **이 패키지가 건 것만**(1.3.0, 10-20 꿀꿀 앱보조 · 앱총괄: 앱이 앞 · 뒤로 갈 때 전부 지워 앱이 건 복권 알림까지 사라졌다).
+ *  · 표시가 있는 것(identifier 가 `jcurve-notify:` 로 시작하거나 content.data.jcurveNotify)
+ *  · 표시가 없고 content.data 도 비어 있는 것 — 1.2 이하가 건 예약(표시 없이 data 없이 걸었다). 판을 올린 첫 실행에 옛 예약이 남아 두 번 오지 않게
+ * 앱이 따로 거는 알림은 **content.data 에 아무 열쇠나** 넣으면 지워지지 않는다(넣지 않으면 옛 패키지 예약과 구별할 수 없다)
+ */
+export declare function ownScheduled(list: readonly ScheduledLike[]): string[];
 export type NotifyDeps = {
     /**
      * 어드민이 정한 설정(`content/config/notify`).
@@ -99,7 +116,7 @@ export type Notify = {
     init: () => Promise<void>;
     /** 권한 요청. **한 번 실행에 한 번만 묻는다** */
     ask: () => Promise<boolean>;
-    /** 예약을 모두 지우고 배지를 0 으로 — 앱으로 돌아왔을 때 부른다 */
+    /** 이 패키지가 건 예약을 지우고 배지를 0 으로 — 앱으로 돌아왔을 때 부른다(1.3.0 — 앱이 따로 건 알림은 content.data 가 있으면 남긴다) */
     clear: () => Promise<void>;
     /** 지금 상태로 다시 예약한다 — 앱이 백그라운드로 갈 때 부른다 */
     schedule: (bases: Bases, vars?: Record<string, string | number>) => Promise<Planned[]>;

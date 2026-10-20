@@ -96,6 +96,9 @@ export {
   clampQuiet,
   createNotify,
   fillVars,
+  NOTIFY_DATA_KEY,
+  NOTIFY_ID_PREFIX,
+  ownScheduled,
   planItems,
   type Bases,
   type Notify,
@@ -105,5 +108,6 @@ export {
   type PlanOpts,
   type Planned,
   type Quiet,
+  type ScheduledLike,
 } from './notify';
 export { createPush, type Push, type PushDeps, type PushEnv } from './push';

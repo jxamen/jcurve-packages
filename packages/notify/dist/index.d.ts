@@ -92,5 +92,5 @@
  *  - **언제 다시 걸지** — `AppState` 리스너는 앱이 건다(게임형이 아닌 앱은 다르다)
  *  - **권한 안내 화면** — `ask()` 를 어디서 부를지는 앱의 가입 흐름이 정한다
  */
-export { clampQuiet, createNotify, fillVars, planItems, type Bases, type Notify, type NotifyConfig, type NotifyDeps, type NotifyItem, type PlanOpts, type Planned, type Quiet, } from './notify';
+export { clampQuiet, createNotify, fillVars, NOTIFY_DATA_KEY, NOTIFY_ID_PREFIX, ownScheduled, planItems, type Bases, type Notify, type NotifyConfig, type NotifyDeps, type NotifyItem, type PlanOpts, type Planned, type Quiet, type ScheduledLike, } from './notify';
 export { createPush, type Push, type PushDeps, type PushEnv } from './push';

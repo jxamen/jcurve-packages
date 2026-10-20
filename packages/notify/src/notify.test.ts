@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clampQuiet, fillVars, planItems, type NotifyConfig } from './notify';
+import { clampQuiet, fillVars, ownScheduled, planItems, type NotifyConfig } from './notify';
 
 /** 지역 시각으로 만든다 — 기계의 시간대가 달라도 같은 결과가 나오게 */
 const at = (h: number, m = 0, day = 15) => new Date(2026, 8, day, h, m, 0, 0).getTime();
@@ -145,5 +145,26 @@ describe('무엇을 걸지 정하기', () => {
   it('설정이 비면 아무것도 안 건다 — 서버를 못 읽었을 때 옛 문구가 새지 않는다', () => {
     expect(planItems(null, { feed: NOW + 3600_000 }, { now: NOW })).toHaveLength(0);
     expect(planItems({ items: [] }, { feed: NOW + 3600_000 }, { now: NOW })).toHaveLength(0);
+  });
+});
+
+describe('ownScheduled — 이 패키지가 건 예약만 지운다(1.3.0)', () => {
+  it('표시가 있는 것과 data 없는 옛 예약은 지우고, 앱이 data 를 넣어 건 알림은 남긴다', () => {
+    const list = [
+      { identifier: 'jcurve-notify:1760000000000:0', content: { data: { jcurveNotify: true } } },
+      { identifier: 'abc-tagged-by-data', content: { data: { jcurveNotify: true } } },
+      { identifier: 'legacy-1', content: { data: {} } },            // 1.2 이하가 건 것
+      { identifier: 'legacy-2', content: { data: null } },
+      { identifier: 'legacy-3', content: {} },
+      { identifier: 'lottery-9', content: { data: { kind: 'lottery' } } },   // 앱이 건 복권 알림
+      { identifier: 'app-other', content: { data: { jcurveNotify: false, x: 1 } } },
+      { identifier: '', content: {} },
+    ];
+    expect(ownScheduled(list)).toEqual(['jcurve-notify:1760000000000:0', 'abc-tagged-by-data', 'legacy-1', 'legacy-2', 'legacy-3']);
+  });
+  it('비거나 이상한 목록도 던지지 않는다', () => {
+    expect(ownScheduled([])).toEqual([]);
+    expect(ownScheduled(null as unknown as [])).toEqual([]);
+    expect(ownScheduled([{} as never, { identifier: 'jcurve-notify:x' }])).toEqual(['jcurve-notify:x']);
   });
 });

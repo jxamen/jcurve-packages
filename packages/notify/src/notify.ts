@@ -152,6 +152,33 @@ export function planItems(config: NotifyConfig | null | undefined, bases: Bases,
   return out;
 }
 
+/** 이 패키지가 거는 예약의 표시 — identifier 앞머리 · content.data 열쇠(1.3.0) */
+export const NOTIFY_ID_PREFIX = 'jcurve-notify:';
+export const NOTIFY_DATA_KEY = 'jcurveNotify';
+
+/** 예약 목록에서 보이는 모양(expo-notifications getAllScheduledNotificationsAsync 의 필요한 칸만) */
+export type ScheduledLike = { identifier?: string; content?: { data?: Record<string, unknown> | null } | null };
+
+/**
+ * 지울 예약 — **이 패키지가 건 것만**(1.3.0, 10-20 꿀꿀 앱보조 · 앱총괄: 앱이 앞 · 뒤로 갈 때 전부 지워 앱이 건 복권 알림까지 사라졌다).
+ *  · 표시가 있는 것(identifier 가 `jcurve-notify:` 로 시작하거나 content.data.jcurveNotify)
+ *  · 표시가 없고 content.data 도 비어 있는 것 — 1.2 이하가 건 예약(표시 없이 data 없이 걸었다). 판을 올린 첫 실행에 옛 예약이 남아 두 번 오지 않게
+ * 앱이 따로 거는 알림은 **content.data 에 아무 열쇠나** 넣으면 지워지지 않는다(넣지 않으면 옛 패키지 예약과 구별할 수 없다)
+ */
+export function ownScheduled(list: readonly ScheduledLike[]): string[] {
+  const out: string[] = [];
+  for (const r of list ?? []) {
+    const id = typeof r?.identifier === 'string' ? r.identifier : '';
+    if (!id) continue;
+    const data = r?.content?.data;
+    const tagged = id.startsWith(NOTIFY_ID_PREFIX) || (!!data && typeof data === 'object' && data[NOTIFY_DATA_KEY] === true);
+    const legacy = !data || (typeof data === 'object' && Object.keys(data).length === 0);
+    if (tagged || legacy) out.push(id);
+  }
+
+  return out;
+}
+
 /* ─────────────────────────── 여기서부터 기기가 필요하다 ─────────────────────────── */
 
 type ExpoNotifications = {
@@ -160,6 +187,9 @@ type ExpoNotifications = {
   requestPermissionsAsync: () => Promise<{ granted?: boolean } | null>;
   setNotificationChannelAsync: (id: string, c: unknown) => Promise<unknown>;
   cancelAllScheduledNotificationsAsync: () => Promise<void>;
+  /** (있으면) 예약 목록 · 한 건 취소 — 이 패키지가 건 것만 지울 때 쓴다. 없는 옛 판이면 예전처럼 전부 지운다 */
+  getAllScheduledNotificationsAsync?: () => Promise<ScheduledLike[]>;
+  cancelScheduledNotificationAsync?: (id: string) => Promise<void>;
   setBadgeCountAsync: (n: number) => Promise<unknown>;
   scheduleNotificationAsync: (r: unknown) => Promise<string>;
   AndroidImportance?: { DEFAULT?: number };
@@ -171,6 +201,20 @@ function mod(): ExpoNotifications | null {
     return require('expo-notifications') as ExpoNotifications;
   } catch {
     return null;   // 모듈이 빠진 빌드 — 이 경로만 조용히 접는다
+  }
+}
+
+/** 이 패키지가 건 예약만 지운다(ownScheduled). 목록 · 한 건 취소가 없는 판이면 예전처럼 전부 */
+async function cancelOwn(N: ExpoNotifications): Promise<void> {
+  if (typeof N.getAllScheduledNotificationsAsync !== 'function' || typeof N.cancelScheduledNotificationAsync !== 'function') {
+    await N.cancelAllScheduledNotificationsAsync().catch(() => {});
+
+    return;
+  }
+  const list = await N.getAllScheduledNotificationsAsync().catch(() => null);
+  if (!list) return;   // 목록을 못 읽으면 아무것도 안 지운다 — 남의 알림을 지우는 것보다 하나 겹치는 쪽이 낫다
+  for (const id of ownScheduled(list)) {
+    await N.cancelScheduledNotificationAsync(id).catch(() => {});
   }
 }
 
@@ -201,7 +245,7 @@ export type Notify = {
   init: () => Promise<void>;
   /** 권한 요청. **한 번 실행에 한 번만 묻는다** */
   ask: () => Promise<boolean>;
-  /** 예약을 모두 지우고 배지를 0 으로 — 앱으로 돌아왔을 때 부른다 */
+  /** 이 패키지가 건 예약을 지우고 배지를 0 으로 — 앱으로 돌아왔을 때 부른다(1.3.0 — 앱이 따로 건 알림은 content.data 가 있으면 남긴다) */
   clear: () => Promise<void>;
   /** 지금 상태로 다시 예약한다 — 앱이 백그라운드로 갈 때 부른다 */
   schedule: (bases: Bases, vars?: Record<string, string | number>) => Promise<Planned[]>;
@@ -231,7 +275,7 @@ export function createNotify(deps: NotifyDeps): Notify {
     const N = mod();
     if (!N) return [];
 
-    await N.cancelAllScheduledNotificationsAsync().catch(() => {});
+    await cancelOwn(N);
 
     const perm = await N.getPermissionsAsync().catch(() => null);
     if (!perm?.granted) return [];
@@ -245,6 +289,7 @@ export function createNotify(deps: NotifyDeps): Notify {
     for (let i = 0; i < items.length; i++) {
       try {
         await N.scheduleNotificationAsync({
+          identifier: NOTIFY_ID_PREFIX + items[i].at + ':' + i,
           /*
            | sound 를 안 주면 iOS 는 **소리도 진동도 없는** 알림으로 띄운다 — 배너만 뜨고
            | 주머니 안에서는 못 알아챈다. 안드로이드는 채널 설정이 우선이라 영향이 없다.
@@ -252,7 +297,7 @@ export function createNotify(deps: NotifyDeps): Notify {
            | 배지는 도착 순서대로 1,2,3… 이다. iOS 배지는 '하나 더하기'가 아니라
            | '이 숫자로 맞춰라' 라서, 늦게 오는 알림일수록 큰 수여야 한다.
            */
-          content: { title: items[i].title, body: items[i].body, badge: i + 1, sound: 'default' },
+          content: { title: items[i].title, body: items[i].body, badge: i + 1, sound: 'default', data: { [NOTIFY_DATA_KEY]: true } },
           trigger: {
             type: N.SchedulableTriggerInputTypes?.DATE ?? 'date',
             date: new Date(items[i].at),
@@ -325,7 +370,7 @@ export function createNotify(deps: NotifyDeps): Notify {
     async clear() {
       const N = mod();
       if (!N) return;
-      await N.cancelAllScheduledNotificationsAsync().catch(() => {});
+      await cancelOwn(N);
       await N.setBadgeCountAsync(0).catch(() => {});
     },
 
