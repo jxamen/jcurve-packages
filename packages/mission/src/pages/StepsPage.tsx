@@ -1,6 +1,9 @@
 /**
  * 만보기 — 1,000걸음마다 광고 보고 포인트 (0.4.0, carrot StepsScreen 의 보이는 모양만).
  *
+ * (0.4.6, 대표님 10-20 19:00) **신발 그림을 지우고 광고를 위로** — 위에서 아래로: 걸음 수 · 말풍선 → 「남은 횟수」 카드 → **광고(`footer`, 안내사항 위)** → 「만보기 안내사항」.
+ * `footer` 는 예전엔 맨 아래였다 — 앱 코드를 바꾸지 않아도 광고가 안내사항 위로 올라온다.
+ *
  * **이 패키지는 @jcurve/steps 를 가져오지 않는다.** 걸음 수 · 단계 · 받기는 전부 props 로 받는다.
  * 옛 빌드(걸음 기능 없음)는 `stepsAvailable={false}` 로 두면 화면은 읽기만 되고, 받기 · 단추는
  * 「업데이트하면 걸음 보상을 받을 수 있어요」 안내와 onUpdate() 로 간다(2026-10-20 · 옛 빌드 충돌 방지).
@@ -30,6 +33,7 @@ export type StepsPageProps = {
   guide?: readonly string[];
   title?: string;
   theme?: Partial<MissionPageTheme>;
+  /** 광고 자리 — 앱이 네이티브 광고를 넣는다(패키지는 광고를 모른다). 0.4.6 부터 「남은 횟수」 카드 아래 · 「만보기 안내사항」 위 */
   footer?: ReactNode;
 };
 
@@ -64,12 +68,10 @@ export function StepsPage({ todaySteps, stages, earnedToday = 0, stepsAvailable,
     }
   };
 
-  return <PageFrame title={title} onBack={onBack} theme={theme} footer={footer}>
+  return <PageFrame title={title} onBack={onBack} theme={theme}>
     <View style={s.top}>
       <Text style={[s.count, { color: theme.text }]}>{todaySteps.toLocaleString()}<Text style={[s.unit, { color: theme.sub }]}> 걸음</Text></Text>
       <View style={[s.bubble, { backgroundColor: theme.card }]}><Text style={[s.bubbleText, { color: theme.text }]}>{stepsBubble({ available: stepsAvailable, todaySteps, stages })}</Text></View>
-      <View style={[s.tail, { backgroundColor: theme.card }]} />
-      <Text style={s.shoe} accessible={false}>👟</Text>
     </View>
 
     {!stepsAvailable ? <View style={[s.notice, { backgroundColor: theme.card }]}>
@@ -85,6 +87,8 @@ export function StepsPage({ todaySteps, stages, earnedToday = 0, stepsAvailable,
       <PageButton big label={busy ? '확인 중…' : `광고 보고 ${points}P 받기`} theme={theme} on={canClaim || !stepsAvailable} disabled={stepsAvailable && !canClaim} onPress={() => { void claim(); }} />
     </View>
 
+    {footer != null ? <View style={s.ad}>{footer}</View> : null}
+
     <View style={[s.guide, { backgroundColor: theme.card }]}>
       <Text style={[s.guideTitle, { color: theme.text }]}>만보기 안내사항</Text>
       {guide.map(line => <Text key={line} style={[s.guideLine, { color: theme.sub }]}>· {line}</Text>)}
@@ -98,8 +102,7 @@ const s = StyleSheet.create({
   unit: { fontSize: 18, fontWeight: '600' },
   bubble: { marginTop: 14, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 18 },
   bubbleText: { fontSize: 15 },
-  tail: { width: 12, height: 12, transform: [{ rotate: '45deg' }], marginTop: -6 },
-  shoe: { fontSize: 96, marginTop: 4 },
+  ad: { marginTop: 4 },
   notice: { borderRadius: 16, padding: 16, gap: 10 },
   noticeTitle: { fontSize: 15, fontWeight: '700', textAlign: 'center' },
   message: { textAlign: 'center', fontSize: 13 },
