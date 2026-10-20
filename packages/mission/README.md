@@ -263,3 +263,11 @@ home_rows 가 없거나 읽기에 실패하면 **앱 기본 그대로**(60초 �
 (0.7.1) `freeItemRow` 의 부제 기본이 방문형 「하루 N번 들르면 ○○ 받기」로 바뀌었다 — 광고형 앱은 `subtitle` 로 덮는다.
 (0.4.5 포팅) 서버 title 이 비어 있으면 **앱 제목을 그대로** 둔다(만보기 「오늘 N걸음」 같은 동적 제목) — 빈 제목 줄도 버리지 않고 제자리에 둔다. 순서 · 보임 · 설명 · 버튼 · 배지는 서버 값대로 적용하고, 앱에 짝이 없어 새로 만드는 줄만 key별 기본 제목을 쓴다.
 (0.7.3 — 0.4.6 포팅) **홈 목록 저장값 먼저 그리기** — 앱이 `storage`(`{ get(key), set(key, value) }` **또는** `{ getItem(key), setItem(key, value) }` — 순정 AsyncStorage 가 이쪽이라 `storage={AsyncStorage}` 그대로 된다. 0.4.6 은 get/set 만 받았다)를 넘기면 마지막으로 받은 서버 home_rows 를 저장해 두고 **켤 때 그 값으로 먼저** 그린 뒤 서버 응답으로 갱신한다(켤 때 앱 기본 순서로 그렸다가 서버 순서로 바뀌던 것, 대표님 10-20 18:54). `<BenefitQuickList fetchJson={fetchJson} storage={AsyncStorage} … />` 또는 `useHomeRows(fetchJson, items, keys, refreshKey, { storage: AsyncStorage })`(반환에 `ready` 추가). **안 넘기면 0.7.2 와 같다.** 서버가 정상으로 답한 응답만 저장(실패 · 깨진 응답 · 60초 캐시 적중은 저장하지 않음), 읽을 때도 다시 거른다(20KB · 판 v). 저장값을 읽는 동안(최대 300ms)은 목록을 그리지 않고, 서버가 실패하면 이미 그린 저장값을 그대로 둔다. 키 기본값 `jcurve.mission.home.v1`(`storageKey`). 순서 규칙은 순수 함수 `homeReduce`(시험). 새 네이티브 0 · 새 의존 0.
+
+## 0.7.4 — `freeItemRow` 받은 횟수(`received`) · 줄별 완료 글자(`doneLabel`) (대표님 10-20 19:01 감자밭 A32)
+
+방문형 「무료 ○○ 받기」 줄은 아침 · 점심을 **놓친 칸**이 있어 「남은 칸 0 = 다 받음」이 아니다 — 저녁 1번만 받아도 막대 3칸이 모두 초록 · 「오늘 다 받았어요」 · 「완료」로 나오던 것을 바로잡았다.
+- `freeItemRow({ …, received, left, doneLabel })`: **`received`**(오늘 받은 횟수, 0~total) — 막대의 초록 칸은 `received` 만큼, 글자는 받은 횟수대로(0<r<total 「오늘 r번 받았어요」 · r=total 「오늘 다 받았어요」 · r=0 「오늘은 시간이 지났어요」).
+  `left` 는 「N번 남았어요」(받을 칸이 남았을 때)와 완료(done) 판정에만 쓴다(`left=0` 이면 done). `received` 를 안 주면 예전 그대로(막대 = total − left, 「N번 남았어요」/「오늘 다 받았어요」).
+- **`BenefitQuickItem.doneLabel`**: done 줄의 버튼 글자를 **줄마다** 정한다(안 주면 목록의 `doneLabel`, 기본 「완료」) — 방문형은 `doneLabel: '내일 다시'`. `freeItemRow` 의 `doneLabel` 인자가 그대로 줄에 실린다.
+- 방문형 한 줄: `freeItemRow({ itemName: '감자', left, received, doneLabel: '내일 다시', onPress })`.

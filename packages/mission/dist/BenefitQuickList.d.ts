@@ -20,6 +20,8 @@ export type BenefitQuickItem = {
     };
     /** 칸 막대 옆 한 줄(예: 「3개 남았어요」, 대표님 10-19 「아래 줄 남은 횟수 표기」) */
     progressLabel?: string;
+    /** (0.7.4) 완료(done) 줄의 버튼 글자 — 이 줄만. 안 주면 목록의 `doneLabel` */
+    doneLabel?: string;
 };
 export type BenefitQuickListProps = {
     title?: string;

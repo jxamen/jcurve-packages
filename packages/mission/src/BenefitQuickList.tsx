@@ -20,6 +20,8 @@ export type BenefitQuickItem = {
   progress?: { done: number; total: number };
   /** 칸 막대 옆 한 줄(예: 「3개 남았어요」, 대표님 10-19 「아래 줄 남은 횟수 표기」) */
   progressLabel?: string;
+  /** (0.7.4) 완료(done) 줄의 버튼 글자 — 이 줄만. 안 주면 목록의 `doneLabel` */
+  doneLabel?: string;
 };
 export type BenefitQuickListProps = {
   title?: string;
@@ -141,7 +143,7 @@ function QuickListView({ title = '바로 받는 혜택', seeAllLabel, onSeeAll, 
         누름이 두 겹으로 갈렸다 — 대표님 10-20 11:42 「행운 찬스 눌렸다 안눌렸다」. 이제 버튼은 그림(View)이고 줄 전체가 한 단추다.
         빠른 두 번 누름은 TAP_GUARD_MS 동안만 무시한다 — 시간이 지나면 반드시 풀린다(화면 이동 · 실패 · 취소를 기다리지 않는다)
       */}
-      {visible.map((item, index) => <Pressable key={item.key} accessibilityRole="button" accessibilityLabel={item.title + ', ' + (item.done ? doneLabel : item.ctaLabel)}
+      {visible.map((item, index) => <Pressable key={item.key} accessibilityRole="button" accessibilityLabel={item.title + ', ' + (item.done ? (item.doneLabel ?? doneLabel) : item.ctaLabel)}
         accessibilityState={{ disabled: !!item.done }} disabled={item.done} onPress={() => { if (!item.done) pressOnce(item.onPress); }}
         style={({ pressed }) => [s.row, index < visible.length - 1 && s.border, pressed && !item.done && { opacity: 0.85 }]}>
         <View style={[s.icon, { backgroundColor: item.tint }]}><Icon icon={item.icon} /></View>
@@ -149,7 +151,7 @@ function QuickListView({ title = '바로 받는 혜택', seeAllLabel, onSeeAll, 
           ? <View accessibilityLabel={item.progress.done + '/' + item.progress.total} style={s.steps}>{Array.from({ length: item.progress.total }, (_, i) => <View key={i} style={[s.step, { backgroundColor: i < item.progress!.done ? accentColor : '#ECE6DE' }]} />)}{item.progressLabel ? <Text style={s.stepsLabel} numberOfLines={1}>{item.progressLabel}</Text> : null}</View>
           : <Text style={s.subtitle} numberOfLines={1} adjustsFontSizeToFit>{item.subtitle}</Text>}</View>
         <View pointerEvents="none" style={[s.button, { width: buttonWidth, height: buttonHeight, backgroundColor: item.done ? '#D3D7DD' : accentColor }]}>
-          <Text style={s.cta} numberOfLines={1} adjustsFontSizeToFit>{item.done ? doneLabel : item.ctaLabel}</Text>
+          <Text style={s.cta} numberOfLines={1} adjustsFontSizeToFit>{item.done ? (item.doneLabel ?? doneLabel) : item.ctaLabel}</Text>
         </View>
       </Pressable>)}
     </View>

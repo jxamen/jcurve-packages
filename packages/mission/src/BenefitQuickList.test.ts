@@ -150,3 +150,26 @@ describe('0.4.4 서버 home_rows · free_item 기본 줄', () => {
   });
 });
 
+describe('BenefitQuickList — 줄별 완료 글자(doneLabel, 0.7.4)', () => {
+  it('done 줄은 그 줄의 doneLabel 을 버튼 글자 · 접근성 이름에 쓰고, 없으면 목록의 doneLabel(기본 「완료」)', () => {
+    const own = item({ key: 'free', title: '무료 감자', done: true, doneLabel: '내일 다시' });
+    const plain = item({ key: 'b', title: '출석', done: true });
+    const tree = nodes(BenefitQuickList({ items: [own, plain], doneLabel: '끝' }));
+    const buttons = tree.filter(n => isButton(n));
+    expect(buttons.map(b => b.props.accessibilityLabel)).toEqual(['무료 감자, 내일 다시', '출석, 끝']);
+    expect(tree).toContain('내일 다시');
+    expect(tree).toContain('끝');
+    expect(tree).not.toContain('완료');
+    // 목록 doneLabel 도 안 주면 기본 「완료」, 줄별 값은 여전히 이긴다
+    const dflt = nodes(BenefitQuickList({ items: [own, plain] }));
+    expect(dflt.filter(n => isButton(n)).map(b => b.props.accessibilityLabel)).toEqual(['무료 감자, 내일 다시', '출석, 완료']);
+  });
+
+  it('done 이 아닌 줄은 doneLabel 이 있어도 원래 버튼 글자 · 누를 수 있다', () => {
+    const row = item({ key: 'free', ctaLabel: '받기', doneLabel: '내일 다시' });
+    const tree = nodes(BenefitQuickList({ items: [row] }));
+    expect(tree).toContain('받기');
+    expect(tree).not.toContain('내일 다시');
+    expect(tree.find(n => isButton(n)).props.disabled).toBeFalsy();
+  });
+});
