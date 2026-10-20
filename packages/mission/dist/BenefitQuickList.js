@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TAP_GUARD_MS = void 0;
+exports.iconKind = iconKind;
 exports.pressOnce = pressOnce;
 exports.resetTapGuard = resetTapGuard;
 exports.BenefitQuickList = BenefitQuickList;
@@ -15,9 +16,22 @@ const colors = {
     star: '#B7791F', ticket: '#7A4FD0', friend: '#C2410C',
 };
 /** Pure RN shapes: no additional native dependency. Supply a ReactNode for branded icons. */
+/**
+ * (0.4.12) 아이콘이 어떻게 그려지는가 — 'palette'(패키지가 그리는 6개 이름), 'text'(그 밖의 글자: 👟 · 🌱 같은 이모지), 'node'(앱이 넘긴 ReactNode).
+ * 0.4.12 전에는 팔레트 이름이 아닌 문자열을 `<Text>` 없이 `<View>` 안에 그대로 내보내 RN 이 그리지 못했다 — 홈 목록의 걸음(👟) · 무료 아이템(🌱) 줄 아이콘이 빈 칸(대표님 10-20 감자밭).
+ * 팔레트 판정은 자기 키만 본다('toString' 같은 문자열이 팔레트로 읽히지 않게).
+ */
+function iconKind(icon) {
+    if (typeof icon !== 'string')
+        return 'node';
+    return Object.prototype.hasOwnProperty.call(colors, icon) ? 'palette' : 'text';
+}
 function Icon({ icon }) {
-    if (typeof icon !== 'string' || !(icon in colors))
+    const kind = iconKind(icon);
+    if (kind === 'node')
         return (0, jsx_runtime_1.jsx)(jsx_runtime_1.Fragment, { children: icon });
+    if (kind === 'text')
+        return (0, jsx_runtime_1.jsx)(react_native_1.Text, { accessible: false, style: s.emoji, children: icon });
     const name = icon;
     const color = colors[name];
     const line = { borderColor: color, borderWidth: 2 };
@@ -87,6 +101,7 @@ const s = react_native_1.StyleSheet.create({
     steps: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 }, step: { flex: 1, maxWidth: 26, height: 6, borderRadius: 3 }, stepsLabel: { marginLeft: 4, fontSize: 12, color: '#6B5E52' },
     button: { flexShrink: 0, height: 40, paddingHorizontal: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, cta: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' }, footer: { marginTop: 4 },
     iconDrawing: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
+    emoji: { fontSize: 22, lineHeight: 26, textAlign: 'center' },
     calendar: { width: 18, height: 17, borderRadius: 3 }, calendarLine: { height: 2, marginTop: 3 }, check: { width: 8, height: 5, borderLeftWidth: 2, borderBottomWidth: 2, transform: [{ rotate: '-45deg' }], marginLeft: 4, marginTop: 2 },
     bag: { width: 16, height: 14, borderRadius: 2, marginTop: 5 }, handle: { position: 'absolute', top: 1, width: 8, height: 9, borderRadius: 5 },
     pin: { width: 16, height: 19, borderRadius: 9, borderBottomRightRadius: 1, transform: [{ rotate: '45deg' }], alignItems: 'center', justifyContent: 'center' }, dot: { width: 6, height: 6, borderRadius: 3 },
