@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AppState, View, Text, Pressable, StyleSheet } from 'react-native';
 import type { Requester } from './entry';
-import { composeHomeRows, EMPTY_HOME, fetchHomeConfig, resolveHomeKeys, withFreeItemRow, type HomeConfig, type HomeRowKey } from './home';
+import { composeHomeRows, resolveHomeKeys, withFreeItemRow, type HomeRowKey, type HomeStorage } from './home';
+import { useHomeConfig } from './useHomeConfig';
 
 export type BenefitQuickIcon = 'calendar' | 'bag' | 'pin' | 'star' | 'ticket' | 'friend';
 export type BenefitQuickItem = {
@@ -46,6 +47,13 @@ export type BenefitQuickListProps = {
   onRow?: (key: HomeRowKey) => void;
   /** (0.4.4) 홈으로 돌아올 때마다 바꿔 주면(예: tab === 'home') 서버 목록을 다시 읽는다 */
   refreshKey?: unknown;
+  /**
+   * (0.4.6) 앱이 넘기는 저장소(`get`/`set` 또는 `getItem`/`setItem`(0.7.3~) — 순정 AsyncStorage 를 그대로 넘기면 된다, 새 네이티브 의존 없음). 있으면 마지막으로 받은 서버 목록을 저장해 두고 **앱을 켤 때 그 값으로 먼저** 그린 뒤
+   * 서버 응답으로 갱신한다(앱 기본 순서로 그렸다가 서버 순서로 바뀌지 않게, 대표님 10-20 18:54). 저장값을 읽는 동안(최대 300ms)은 목록을 그리지 않는다. 없으면 예전과 같다. `fetchJson` 이 있을 때만 쓴다.
+   */
+  storage?: HomeStorage;
+  /** (0.4.6) 저장 키 — 기본 'jcurve.mission.home.v1'. 서버 · 계정마다 다른 목록을 쓰는 앱만 바꾼다 */
+  storageKey?: string;
 };
 
 const colors: Record<BenefitQuickIcon, string> = {
@@ -93,21 +101,17 @@ function useActiveTick(): number {
   return n;
 }
 
-type ViewProps = Omit<BenefitQuickListProps, 'fetchJson' | 'homeKeys' | 'itemName' | 'onFreeItem' | 'onRow' | 'refreshKey'>;
+type ViewProps = Omit<BenefitQuickListProps, 'fetchJson' | 'homeKeys' | 'itemName' | 'onFreeItem' | 'onRow' | 'refreshKey' | 'storage' | 'storageKey'>;
 
 /** 서버 home_rows 를 얹는 층 — 훅이 있어 `fetchJson` 이 있을 때만 쓴다(없으면 BenefitQuickList 가 그림만 바로 그린다) */
-function ServerRowsList({ fetchJson, homeKeys, onRow, refreshKey, items, view }: { fetchJson: Requester; homeKeys?: Readonly<Record<string, HomeRowKey>>; onRow?: (key: HomeRowKey) => void; refreshKey?: unknown; items: readonly BenefitQuickItem[]; view: Omit<ViewProps, 'items'> }) {
-  const [config, setConfig] = useState<HomeConfig>(EMPTY_HOME);
+function ServerRowsList({ fetchJson, homeKeys, onRow, refreshKey, storage, storageKey, items, view }: { fetchJson: Requester; homeKeys?: Readonly<Record<string, HomeRowKey>>; onRow?: (key: HomeRowKey) => void; refreshKey?: unknown; storage?: HomeStorage; storageKey?: string; items: readonly BenefitQuickItem[]; view: Omit<ViewProps, 'items'> }) {
   const tick = useActiveTick();
   const key = useMemo(() => [refreshKey, tick], [refreshKey, tick]);
-  useEffect(() => {
-    let live = true;
-    void fetchHomeConfig(fetchJson).then(c => { if (live) setConfig(c); });
-
-    return () => { live = false; };
-  }, [fetchJson, key]);
+  const { config, ready } = useHomeConfig(fetchJson, key, storage, storageKey);
   const keys = useMemo(() => resolveHomeKeys(items, homeKeys), [items, homeKeys]);
   const merged = useMemo(() => composeHomeRows(items, config.rows, keys, { onRow }), [items, config.rows, keys, onRow]);
+  // (0.4.6) 저장소를 쓰면 저장값을 읽을 때까지(최대 300ms) 그리지 않는다 — 앱 기본 순서를 잠깐 그렸다가 서버 순서로 바꾸지 않으려고. 저장소가 없으면 ready 는 늘 true
+  if (!ready) return null;
 
   return <QuickListView {...view} items={merged} />;
 }
@@ -116,11 +120,11 @@ function ServerRowsList({ fetchJson, homeKeys, onRow, refreshKey, items, view }:
  * 「바로 받는 혜택」 목록. (0.4.4) `fetchJson` 을 주면 서버 home_rows 를 스스로 적용하고, `onFreeItem` 을 주면 free_item 기본 줄이 생긴다 — 둘 다 없으면 0.4.3 과 똑같이 그린다.
  */
 export function BenefitQuickList(props: BenefitQuickListProps) {
-  const { fetchJson, homeKeys, itemName, onFreeItem, onRow, refreshKey, items, ...view } = props;
+  const { fetchJson, homeKeys, itemName, onFreeItem, onRow, refreshKey, storage, storageKey, items, ...view } = props;
   const base = withFreeItemRow(items, homeKeys, itemName, onFreeItem);
   if (!fetchJson) return QuickListView({ ...view, items: base });
 
-  return <ServerRowsList fetchJson={fetchJson} homeKeys={homeKeys} onRow={onRow} refreshKey={refreshKey} items={base} view={view} />;
+  return <ServerRowsList fetchJson={fetchJson} homeKeys={homeKeys} onRow={onRow} refreshKey={refreshKey} storage={storage} storageKey={storageKey} items={base} view={view} />;
 }
 
 function QuickListView({ title = '바로 받는 혜택', seeAllLabel, onSeeAll, accentColor = '#EE7A33', items, footer, doneLabel = '완료', buttonWidth = 100, buttonHeight = 40 }: ViewProps) {
