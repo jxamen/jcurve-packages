@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.FREE_DONE_LABEL = exports.STEPS_PERMISSION_LABEL = exports.HOME_ORDER = void 0;
+exports.FREE_NOW_BADGE = exports.CHECKIN_DONE_LABEL = exports.FREE_DONE_LABEL = exports.STEPS_PERMISSION_LABEL = exports.HOME_ORDER = void 0;
 exports.homeItem = homeItem;
 exports.buildHomeItems = buildHomeItems;
 /** 줄 순서 — 서버 home_rows 기본 순서와 같다(HOME_KEYS) */
@@ -26,6 +26,10 @@ const LOOK = {
 };
 /** 무료 아이템 줄의 완료 버튼 글자 — 방문형이라 오늘 칸이 끝나면 「내일 다시」(대표님 10-20 19:01) */
 exports.FREE_DONE_LABEL = '내일 다시';
+/** 출석을 마친 출석 줄의 버튼 글자(checkinDone) */
+exports.CHECKIN_DONE_LABEL = '출석 완료';
+/** 지금 받을 수 있는 칸이 있을 때 무료 아이템 줄 배지(free.claimableNow) — 서버 home_rows 의 badge 가 있으면 서버 값이 이긴다 */
+exports.FREE_NOW_BADGE = '지금 받기';
 /** 무료 아이템 줄 상태 — 막대(받은 횟수) · 글자 · 완료. 0.7.4 freeItemRow 와 같은 규칙(이 파일 안에서 끝낸다) */
 function freeState(total, left, received) {
     const hasLeft = left !== undefined;
@@ -68,8 +72,12 @@ function homeItem(key, c, onPress) {
     const themed = key === 'steps' || key === 'free_item' || key === 'recommend' ? c.tints?.[key]?.trim() : undefined;
     const ctaLabel = key === 'steps' && c.stepsNeedsPermission === true ? exports.STEPS_PERMISSION_LABEL : look.ctaLabel;
     const item = { key, title, subtitle, ctaLabel, icon, tint: themed || look.tint, onPress };
+    if (key === 'checkin' && c.checkinDone === true) {
+        return { ...item, done: true, doneLabel: exports.CHECKIN_DONE_LABEL };
+    }
     if (key === 'free_item') {
-        return { ...item, doneLabel: exports.FREE_DONE_LABEL, ...freeState(Math.max(1, Math.floor(c.free?.total ?? 3)), c.free?.left, c.free?.received) };
+        const state = freeState(Math.max(1, Math.floor(c.free?.total ?? 3)), c.free?.left, c.free?.received);
+        return { ...item, doneLabel: exports.FREE_DONE_LABEL, ...state, ...(c.free?.claimableNow === true && !state.done ? { badge: exports.FREE_NOW_BADGE } : {}) };
     }
     if (key === 'today_missions' && c.todayMissions?.progress) {
         return { ...item, progress: c.todayMissions.progress, ...(c.todayMissions.progressLabel ? { progressLabel: c.todayMissions.progressLabel } : {}) };
