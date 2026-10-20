@@ -8,6 +8,7 @@
  * 코드로 바꿔 모듈이 늘 없는 것처럼 돈다(`@jcurve/notify` 1.1.0 사고).
  */
 import { t, tf, type Lang } from './i18n';
+import { requireTracking } from './native';
 import { ssvRequestOptions } from './mode';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -162,7 +163,8 @@ export type AdsEnv = {
 const defaultEnv = (): AdsEnv => ({
   // 네이티브 모듈이 없으면(Expo Go) 여기서 예외가 나고 목업으로 넘어간다
   sdk: () => { try { return require('react-native-google-mobile-ads'); } catch { return null; } },
-  tracking: () => { try { return require('expo-tracking-transparency'); } catch { return null; } },
+  // 네이티브가 있을 때만 읽는다 — 없는 바이너리에서 require 하면 try 로 못 잡고 앱이 죽는다(1.9.6, native.ts)
+  tracking: () => requireTracking(),
   os: () => { try { return String(require('react-native').Platform.OS ?? ''); } catch { return ''; } },
   appState: () => { try { return require('react-native').AppState as AppStateLike; } catch { return null; } },
   dev: () => typeof __DEV__ !== 'undefined' && !!__DEV__,

@@ -7,10 +7,11 @@
  * - 앱 켤 때(launch): 거부·제한이면 **하루 한 번**(로컬 달력 날짜로 센다). 미정이면 시스템 창.
  * - 오퍼월 들어갈 때(offerwall): 거부·제한이면 **매번** 보인다. 미정이면 시스템 창. 결과 상태를 돌려준다.
  *
- * ⚠ 네이티브 모듈은 `expo-tracking-transparency` 하나만 **가드된 require** 로 읽는다 — 없으면 시트가 안 뜨고
+ * ⚠ 네이티브 모듈은 `expo-tracking-transparency` 하나만, **네이티브가 있는지 먼저 본 뒤**(native.ts) 읽는다 — 없으면 시트가 안 뜨고
  * 함수들은 던지지 않고 돌아온다. 새 네이티브 모듈·권한·Info.plist 는 없다(OTA 로 나간다).
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { requireTracking } from './native';
 
 /** 추적 허용 상태 — `unavailable` 은 iOS 가 아니거나 모듈이 없는 빌드, `unknown` 은 읽기가 실패한 것 */
 export type AttStatus = 'granted' | 'denied' | 'restricted' | 'undetermined' | 'unavailable' | 'unknown';
@@ -104,14 +105,11 @@ export type TrackingModule = {
 };
 
 export function loadTracking(): TrackingModule | null {
-  try {
-    const m: any = require('expo-tracking-transparency');
-    if (m && typeof m.getTrackingPermissionsAsync === 'function' && typeof m.requestTrackingPermissionsAsync === 'function') return m;
+  // 네이티브가 있을 때만 읽는다(1.9.6, native.ts) — 없는 바이너리에 OTA 로 얹혀도 require 로 죽지 않는다. 없으면 시트는 안 뜨고 함수는 그냥 돌아온다
+  const m: any = requireTracking();
+  if (m && typeof m.getTrackingPermissionsAsync === 'function' && typeof m.requestTrackingPermissionsAsync === 'function') return m;
 
-    return null;
-  } catch {
-    return null;   // 모듈이 없는 빌드 — 시트는 안 뜨고 함수는 그냥 돌아온다
-  }
+  return null;
 }
 
 /** react-native 를 가드된 require 로 — 웹·Expo Go 에서도 import 가 던지지 않게 */

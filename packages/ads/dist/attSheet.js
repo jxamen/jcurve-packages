@@ -1,17 +1,4 @@
 "use strict";
-/**
- * ATT 거부 안내 시트 — 판단 · 저장 · 시스템 요청 로직(화면은 `AttDeniedSheet.ts`).
- *
- * 추적이 「거부됨·제한됨」이면 설정 앱에서 켜도록 안내한다(참여형 미션 포인트가 추적 허용에 달려 있다).
- * iOS 시스템 ATT 창은 **한 번만** 뜨므로, 아직 안 물은(undetermined) 상태면 시트 대신 시스템 창을 띄운다.
- *
- * - 앱 켤 때(launch): 거부·제한이면 **하루 한 번**(로컬 달력 날짜로 센다). 미정이면 시스템 창.
- * - 오퍼월 들어갈 때(offerwall): 거부·제한이면 **매번** 보인다. 미정이면 시스템 창. 결과 상태를 돌려준다.
- *
- * ⚠ 네이티브 모듈은 `expo-tracking-transparency` 하나만 **가드된 require** 로 읽는다 — 없으면 시트가 안 뜨고
- * 함수들은 던지지 않고 돌아온다. 새 네이티브 모듈·권한·Info.plist 는 없다(OTA 로 나간다).
- */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.memoryStorage = exports.ATT_SHEET_TEXTS = exports.ATT_STORAGE_KEY = void 0;
 exports.attSheetTexts = attSheetTexts;
@@ -25,6 +12,20 @@ exports.launchCheck = launchCheck;
 exports.setAttSheetOpener = setAttSheetOpener;
 exports.ensureTrackingBeforeOfferwallWith = ensureTrackingBeforeOfferwallWith;
 exports.ensureTrackingBeforeOfferwall = ensureTrackingBeforeOfferwall;
+/**
+ * ATT 거부 안내 시트 — 판단 · 저장 · 시스템 요청 로직(화면은 `AttDeniedSheet.ts`).
+ *
+ * 추적이 「거부됨·제한됨」이면 설정 앱에서 켜도록 안내한다(참여형 미션 포인트가 추적 허용에 달려 있다).
+ * iOS 시스템 ATT 창은 **한 번만** 뜨므로, 아직 안 물은(undetermined) 상태면 시트 대신 시스템 창을 띄운다.
+ *
+ * - 앱 켤 때(launch): 거부·제한이면 **하루 한 번**(로컬 달력 날짜로 센다). 미정이면 시스템 창.
+ * - 오퍼월 들어갈 때(offerwall): 거부·제한이면 **매번** 보인다. 미정이면 시스템 창. 결과 상태를 돌려준다.
+ *
+ * ⚠ 네이티브 모듈은 `expo-tracking-transparency` 하나만, **네이티브가 있는지 먼저 본 뒤**(native.ts) 읽는다 — 없으면 시트가 안 뜨고
+ * 함수들은 던지지 않고 돌아온다. 새 네이티브 모듈·권한·Info.plist 는 없다(OTA 로 나간다).
+ */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const native_1 = require("./native");
 /** 저장소 열쇠 — 마지막으로 시트를 띄운 날 */
 exports.ATT_STORAGE_KEY = 'jcurve.ads.attSheet.lastShown';
 /** 기본 문구 — 「」 는 문장 안의 인용 부호만 남기고, 제목·본문·버튼 글자의 바깥 짝은 뺐다 */
@@ -74,15 +75,11 @@ function decideAttAction(i) {
     return 'none';
 }
 function loadTracking() {
-    try {
-        const m = require('expo-tracking-transparency');
-        if (m && typeof m.getTrackingPermissionsAsync === 'function' && typeof m.requestTrackingPermissionsAsync === 'function')
-            return m;
-        return null;
-    }
-    catch {
-        return null; // 모듈이 없는 빌드 — 시트는 안 뜨고 함수는 그냥 돌아온다
-    }
+    // 네이티브가 있을 때만 읽는다(1.9.6, native.ts) — 없는 바이너리에 OTA 로 얹혀도 require 로 죽지 않는다. 없으면 시트는 안 뜨고 함수는 그냥 돌아온다
+    const m = (0, native_1.requireTracking)();
+    if (m && typeof m.getTrackingPermissionsAsync === 'function' && typeof m.requestTrackingPermissionsAsync === 'function')
+        return m;
+    return null;
 }
 /** react-native 를 가드된 require 로 — 웹·Expo Go 에서도 import 가 던지지 않게 */
 function loadRN() {

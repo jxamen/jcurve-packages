@@ -129,7 +129,9 @@ a late response after unmount is destroyed too. Existing SDK test device configu
 Pass a Google test unit from the app's existing test-mode logic when appropriate.
 No native module, plugin, reward, frequency or mediation changes are required relative to 1.9.2.
 
-## ATT 거부 안내 시트 — `AttDeniedSheet` · `ensureTrackingBeforeOfferwall`(1.9.5)
+## ATT 거부 안내 시트 — `AttDeniedSheet` · `ensureTrackingBeforeOfferwall`(1.9.5, 1.9.6 네이티브 확인 뒤 require)
+
+> 1.9.6: `expo-tracking-transparency` 는 네이티브(`ExpoTrackingTransparency`)가 바이너리에 있는지 **먼저 본 뒤에만** require 한다(`src/native.ts`, @jcurve/steps 0.1.1 과 같은 방식). 없는 모듈을 앱이 뜬 뒤 require 하면 Metro 가 오류를 try 로 돌려주지 않고 앱을 죽인다 — 옛 바이너리에 OTA 로 얹혀도 시트가 안 뜰 뿐 죽지 않는다. 광고 시작 때의 ATT 요청(`ads.ts`)도 같은 길로 바꿨다.
 
 iOS 추적 허용이 **거부·제한**이면 「설정에서 허용하기」로 안내하는 바텀 시트. 참여형 미션 포인트가 추적 허용에 달려 있다.
 iOS 시스템 ATT 창은 한 번만 뜨므로, **미정(undetermined)** 이면 시트 대신 시스템 창을 띄운다. iOS 가 아니면 아무것도 그리지 않고 함수는 바로 돌아온다.

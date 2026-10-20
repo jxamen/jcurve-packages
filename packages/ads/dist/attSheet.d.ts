@@ -1,15 +1,3 @@
-/**
- * ATT 거부 안내 시트 — 판단 · 저장 · 시스템 요청 로직(화면은 `AttDeniedSheet.ts`).
- *
- * 추적이 「거부됨·제한됨」이면 설정 앱에서 켜도록 안내한다(참여형 미션 포인트가 추적 허용에 달려 있다).
- * iOS 시스템 ATT 창은 **한 번만** 뜨므로, 아직 안 물은(undetermined) 상태면 시트 대신 시스템 창을 띄운다.
- *
- * - 앱 켤 때(launch): 거부·제한이면 **하루 한 번**(로컬 달력 날짜로 센다). 미정이면 시스템 창.
- * - 오퍼월 들어갈 때(offerwall): 거부·제한이면 **매번** 보인다. 미정이면 시스템 창. 결과 상태를 돌려준다.
- *
- * ⚠ 네이티브 모듈은 `expo-tracking-transparency` 하나만 **가드된 require** 로 읽는다 — 없으면 시트가 안 뜨고
- * 함수들은 던지지 않고 돌아온다. 새 네이티브 모듈·권한·Info.plist 는 없다(OTA 로 나간다).
- */
 /** 추적 허용 상태 — `unavailable` 은 iOS 가 아니거나 모듈이 없는 빌드, `unknown` 은 읽기가 실패한 것 */
 export type AttStatus = 'granted' | 'denied' | 'restricted' | 'undetermined' | 'unavailable' | 'unknown';
 export type AttTrigger = 'launch' | 'offerwall';
