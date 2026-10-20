@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Image, PixelRatio, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { productImage } from './image';
 import { countdown, isFiniteNumber, num, realRecent, won } from './format';
 import type { Deals, Category, NoticeSection, Product, RecentReward, ShoppingTheme, ThemeSection } from './types';
 
@@ -14,8 +15,9 @@ export function RewardBadge({ product, theme }: { product: Product; theme: Shopp
 }
 
 function Thumb({ uri, title, theme, style }: { uri?: string | null; title: string; theme: ShoppingTheme; style: object }) {
-  return <View style={[style, { backgroundColor: theme.thumbBg ?? '#F2F4F6' }]}>
-    {uri ? <Image source={{ uri }} style={{ width: '100%', height: '100%' }} resizeMode="contain" accessibilityIgnoresInvertColors />
+  const [width, setWidth] = useState(0);
+  return <View onLayout={e => setWidth(e.nativeEvent.layout.width)} style={[style, { backgroundColor: theme.thumbBg ?? '#F2F4F6' }]}>
+    {uri ? <Image source={{ uri: productImage(uri, width, PixelRatio.get()) }} style={{ width: '100%', height: '100%' }} resizeMode="contain" accessibilityIgnoresInvertColors />
       : <View style={[s.thumbEmpty, { flex: 1 }]}><Text style={[s.thumbLetter, { color: theme.sub }]}>{title.replace(/^\[[^\]]*\]\s*/, '').slice(0, 1)}</Text></View>}
   </View>;
 }
@@ -49,7 +51,7 @@ export function DealRow({ deals, theme, now, onPress, onExpired }: { deals: Deal
     }
   }, [deals, left, onExpired]);
   if (!left || !deals.items.length) return null;
-  return <View style={{ marginTop: 24 }}>
+  return <View>
     <View style={{ paddingHorizontal: 20 }}>
       <Text accessibilityRole="header" style={{ fontSize: 20, fontWeight: '800', color: theme.text }}>{deals.title || '오늘만 이 가격에 살 수 있는 하루특가'}</Text>
       <Text style={{ alignSelf: 'flex-start', marginTop: 6, backgroundColor: '#FFF0F0', color: theme.danger, fontSize: 14, fontWeight: '800', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 }}>⏰ {left} 남음</Text>
@@ -63,7 +65,7 @@ export function DealRow({ deals, theme, now, onPress, onExpired }: { deals: Deal
 /** 주제 제목과 수동으로 넘기는 상품 줄 */
 export function ThemeRow({ section, theme, onPress }: { section: ThemeSection; theme: ShoppingTheme; onPress: (p: Product) => void }) {
   if (!section.items.length) return null;
-  return <View style={{ marginTop: 32 }}>
+  return <View>
     <Text accessibilityRole="header" style={{ paddingHorizontal: 20, fontSize: 20, fontWeight: '800', color: theme.text }}>{section.title}</Text>
     {section.subtitle ? <Text style={{ paddingHorizontal: 20, marginTop: 4, fontSize: 14, color: theme.sub }}>{section.subtitle}</Text> : null}
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 12, paddingTop: 14 }}>
@@ -75,7 +77,7 @@ export function ThemeRow({ section, theme, onPress }: { section: ThemeSection; t
 /** 대가성 문구는 원문 그대로 링크 가까이에 펼쳐 표시 */
 export function DisclosureNote({ text, theme }: { text?: string | null; theme: ShoppingTheme }) {
   if (!text?.trim()) return null;
-  return <View style={{ marginHorizontal: 20, marginTop: 10, flexDirection: 'row', gap: 6 }}>
+  return <View style={{ marginHorizontal: 20, flexDirection: 'row', gap: 6 }}>
     <Text style={{ fontSize: 11, fontWeight: '700', color: theme.sub, borderWidth: 1, borderColor: theme.line, borderRadius: 4, paddingHorizontal: 5, height: 18, lineHeight: 16 }}>광고</Text>
     <Text style={{ fontSize: 12.5, lineHeight: 18, color: theme.sub, flex: 1 }}>{text}</Text>
   </View>;
@@ -188,7 +190,7 @@ export const s = StyleSheet.create({
   price: { fontSize: 16, fontWeight: '800', flexShrink: 1 },
   rating: { fontSize: 12, marginTop: 2 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, rowGap: 24, paddingHorizontal: 20 },
-  chips: { paddingHorizontal: 20, gap: 8, paddingBottom: 16 },
+  chips: { paddingHorizontal: 20, gap: 8, paddingVertical: 0, alignItems: 'center' },
   chip: { paddingHorizontal: 16, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   chipText: { fontSize: 15 },
   notice: { paddingHorizontal: 20, paddingVertical: 24, marginTop: 28, gap: 20 },

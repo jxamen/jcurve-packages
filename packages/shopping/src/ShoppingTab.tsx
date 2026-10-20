@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { dealEndsAt, num, partnerLine, partnerRewardName } from './format';
 import { Chips, DisclosureNote, Disclosures, DealRow, ThemeRow, Notice, ProductGrid, RecentTicker } from './parts';
+import { ProductPager } from './products';
 import { ProofScreen } from './Proof';
 import { CouponInfoScreen } from './CouponInfo';
 import { DEFAULT_THEME, type PickedImage, type ProofInfo, type Category, type Deals, type NoticeSection, type Partner, type PartnerId, type Product, type ShoppingApi, type ShoppingHome, type ShoppingTheme, type ThemeSection } from './types';
@@ -95,22 +96,23 @@ function Retry({ theme, onRetry }: { theme: ShoppingTheme; onRetry: () => void }
 function useProducts(api: ShoppingApi, partnerId: PartnerId | 'all') {
   const [cats, setCats] = useState<Category[]>([]);
   const [cat, setCat] = useState<string | null>(null);
-  const [items, setItems] = useState<Product[] | null>(null);
-  const seq = useRef(0);
+  const [page, setPage] = useState<{ items: Product[] | null; loadingMore: boolean }>({ items: null, loadingMore: false });
+  const pager = React.useMemo(() => new ProductPager(api.products.bind(api), setPage), [api]);
   useEffect(() => {
     let active = true;
     setCats([]);
     setCat(null);
-    api.categories(partnerId).then(c => { if (active) { setCats(c); setCat(c[0]?.id ?? null); } }).catch(() => { if (active) setCat(null); });
+    api.categories(partnerId).then(c => { if (active) { setCats(c); setCat(c[0]?.id ?? null); } }).catch(() => {});
     return () => { active = false; };
   }, [api, partnerId]);
   useEffect(() => {
-    const n = ++seq.current;
-    setItems(null);
-    api.products({ partnerId, categoryId: cat }).then(r => { if (n === seq.current) setItems(r.items); }).catch(() => { if (n === seq.current) setItems([]); });
-    return () => { ++seq.current; };
-  }, [api, partnerId, cat]);
-  return { cats, cat, setCat, items };
+    void pager.reset({ partnerId, categoryId: cat });
+    return () => pager.cancel();
+  }, [pager, partnerId, cat]);
+  const onScroll = useCallback(({ nativeEvent: e }: { nativeEvent: { layoutMeasurement: { height: number }; contentOffset: { y: number }; contentSize: { height: number } } }) => {
+    if (e.layoutMeasurement.height + e.contentOffset.y >= e.contentSize.height - 400) void pager.more();
+  }, [pager]);
+  return { cats, cat, setCat, ...page, onScroll };
 }
 
 function useNotice(api: ShoppingApi, partnerId: PartnerId | 'all') {
@@ -161,10 +163,10 @@ function useDeals(api: ShoppingApi, partnerIds: PartnerId[]) {
 function AllView({ api, home, theme, onPartner, onOpen }: { api: ShoppingApi; home: ShoppingHome; theme: ShoppingTheme; onPartner: (id: PartnerId) => void; onOpen: (partnerId: PartnerId, productId?: string | null) => void }) {
   const onProduct = (p: Product) => onOpen(p.partnerId, p.id);
   const lead = home.partners.find(p => p.rewardKind !== 'none');
-  const { cats, cat, setCat, items } = useProducts(api, 'all');
+  const { cats, cat, setCat, items, loadingMore, onScroll } = useProducts(api, 'all');
   const notice = useNotice(api, 'all');
   const { result, now, onExpired } = useDeals(api, home.partners.map(p => p.id));
-  return <ScrollView contentContainerStyle={st.body} showsVerticalScrollIndicator={false}>
+  return <ScrollView contentContainerStyle={st.body} showsVerticalScrollIndicator={false} onScroll={onScroll} scrollEventThrottle={100}>
     {result ? <>
       <DisclosureNote text={home.partners.find(p => p.id === result.partnerId)?.disclosure} theme={theme} />
       <DealRow deals={result.deals} theme={theme} now={now} onPress={onProduct} onExpired={onExpired} />
@@ -190,6 +192,7 @@ function AllView({ api, home, theme, onPartner, onOpen }: { api: ShoppingApi; ho
     {lead ? <Text style={[st.h2, { color: theme.text }]}>{lead.name}에서 구매하면 <Text style={{ color: theme.primary }}>{lead.rateText}</Text> 적립</Text> : null}
     <Chips items={cats} value={cat} onChange={setCat} theme={theme} />
     {items ? <ProductGrid items={items} theme={theme} onPress={onProduct} /> : <View style={st.center}><ActivityIndicator color={theme.primary} /></View>}
+    {loadingMore ? <ActivityIndicator size="small" color={theme.primary} /> : null}
     <Notice sections={notice} theme={theme} />
     <Disclosures texts={home.partners.map(p => p.disclosure ?? '')} theme={theme} />
   </ScrollView>;
@@ -220,7 +223,7 @@ function PartnerView({ api, partner, theme, onProduct, onCouponInfo, pickImage, 
     return () => { active = false; };
   }, [api, partner.id]);
   const themes = themeResult?.api === api && themeResult.partnerId === partner.id ? themeResult.sections : [];
-  const { cats, cat, setCat, items } = useProducts(api, partner.id);
+  const { cats, cat, setCat, items, loadingMore, onScroll } = useProducts(api, partner.id);
   const notice = useNotice(api, partner.id);
   const { result, now, onExpired } = useDeals(api, [partner.id]);
   // 할인권 안내 글이 아직 없으면(정책 전 서버는 null) 「할인권이란?」 링크를 숨긴다
@@ -231,7 +234,7 @@ function PartnerView({ api, partner, theme, onProduct, onCouponInfo, pickImage, 
     if (coupon) api.couponInfo(partner.id).then(i => { if (active) setHasInfo(!!i); }).catch(() => { if (active) setHasInfo(false); });
     return () => { active = false; };
   }, [api, partner.id, coupon]);
-  return <ScrollView contentContainerStyle={st.body} showsVerticalScrollIndicator={false}>
+  return <ScrollView contentContainerStyle={st.body} showsVerticalScrollIndicator={false} onScroll={themes.length ? undefined : onScroll} scrollEventThrottle={100}>
     <View style={[st.info, { backgroundColor: theme.chipBg ?? '#F2F4F6' }]}>
       <View style={[st.infoMark, { backgroundColor: theme.primary }]}>{partner.logo ? <Image source={{ uri: partner.logo }} resizeMode="contain" style={{ width: 22, height: 22 }} /> : <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '800' }}>{partner.name.slice(0, 1)}</Text>}</View>
       <Text style={[st.infoText, { color: theme.text }]}>{partnerLine(partner, theme)}</Text>
@@ -239,12 +242,13 @@ function PartnerView({ api, partner, theme, onProduct, onCouponInfo, pickImage, 
     </View>
     <DisclosureNote text={partner.disclosure} theme={theme} />
     {result ? <DealRow deals={result.deals} theme={theme} now={now} onPress={onProduct} onExpired={onExpired} /> : null}
-    {proofInfo ? <Pressable accessibilityRole="button" onPress={() => onProof(proofInfo)} style={[st.info, { backgroundColor: theme.primarySoft, marginTop: 12 }]}><Text style={{ color: theme.primary, fontWeight: '700' }}>구매했다면 인증하고 포인트 받기 ›</Text></Pressable> : null}
+    {proofInfo ? <Pressable accessibilityRole="button" onPress={() => onProof(proofInfo)} style={[st.info, { backgroundColor: theme.primarySoft }]}><Text style={{ color: theme.primary, fontWeight: '700' }}>구매했다면 인증하고 포인트 받기 ›</Text></Pressable> : null}
     {themes.length ? themes.map(section => <ThemeRow key={section.id} section={section} theme={theme} onPress={onProduct} />) : <>
     {!noReward ? <Text style={[st.h2, { color: theme.text }]}>{coupon ? '인기 상품 구경하기' : <>구매하면 <Text style={{ color: theme.primary }}>{partnerRewardName(partner, theme)} {partner.rateText}</Text> 드려요</>}</Text> : null}
     <Chips items={cats} value={cat} onChange={setCat} theme={theme} />
     {items ? <ProductGrid items={items} theme={theme} onPress={onProduct} /> : <View style={st.center}><ActivityIndicator color={theme.primary} /></View>}
     </>}
+    {!themes.length && loadingMore ? <ActivityIndicator size="small" color={theme.primary} /> : null}
     <Notice sections={notice} theme={theme} />
     <Disclosures texts={[partner.disclosure ?? '']} theme={theme} />
   </ScrollView>;
@@ -261,15 +265,15 @@ const st = StyleSheet.create({
   tab: { height: 48, justifyContent: 'center' },
   tabText: { fontSize: 18 },
   tabLine: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 3, borderRadius: 2 },
-  body: { paddingTop: 0, paddingBottom: 40 },
+  body: { paddingTop: 16, paddingBottom: 40, gap: 16 },
   center: { paddingVertical: 48, alignItems: 'center', justifyContent: 'center', gap: 12 },
   empty: { fontSize: 15 },
   retry: { borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12 },
-  hero: { marginHorizontal: 20, marginTop: 16, borderRadius: 20, padding: 20, flexDirection: 'row', alignItems: 'center', height: 150 },
+  hero: { marginHorizontal: 20, borderRadius: 20, padding: 20, flexDirection: 'row', alignItems: 'center', height: 150 },
   heroLabel: { fontSize: 14, fontWeight: '700' },
   heroTitle: { fontSize: 19, fontWeight: '800', lineHeight: 26 },
   heroImg: { width: 110, height: 110 },
-  partners: { flexDirection: 'row', gap: 10, paddingHorizontal: 20, marginTop: 12 },
+  partners: { flexDirection: 'row', gap: 10, paddingHorizontal: 20 },
   partner: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, paddingHorizontal: 14, height: 64 },
   logo: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   logoImg: { width: 32, height: 32 },
@@ -277,8 +281,8 @@ const st = StyleSheet.create({
   partnerName: { fontSize: 15, fontWeight: '700' },
   partnerRate: { fontSize: 14, fontWeight: '600', marginTop: 2 },
   chev: { fontSize: 24 },
-  h2: { fontSize: 19, fontWeight: '800', paddingHorizontal: 20, marginTop: 28, marginBottom: 12 },
-  info: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 20, marginTop: 16, minHeight: 52, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14 },
+  h2: { fontSize: 19, fontWeight: '800', paddingHorizontal: 20 },
+  info: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 20, minHeight: 52, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14 },
   infoMark: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   infoText: { flex: 1, fontSize: 15, fontWeight: '500' },
   infoLink: { fontSize: 14, textDecorationLine: 'underline' },
