@@ -308,3 +308,8 @@ home_rows 가 없거나 읽기에 실패하면 **앱 기본 그대로**(60초 �
 - **`homeContext.checkinDone`** (선택): `=== true` 일 때만 출석 줄이 완료 모양 — `done: true` + 완료 버튼 글자 **「출석 완료」**(`CHECKIN_DONE_LABEL`). 회색 모양은 다른 줄의 done 과 같고 제목 · 부제 · 아이콘 · 바탕색은 그대로, 다른 줄에는 영향 없다(문자열 · 1 등 다른 값은 완료로 읽지 않는다).
 - **`homeContext.free.claimableNow`** (선택): `=== true` 이고 무료 줄이 아직 끝나지 않았을 때(done 아님)만 무료 아이템 줄에 배지 **「지금 받기」**(`FREE_NOW_BADGE`). 끝났으면(`left=0`) 배지 없음. 서버 home_rows 에 배지가 있으면 서버 값이 우선(빈 배지면 이 배지 유지).
 - 행운 찬스 부제는 그대로 — 아이템 이름이 없으면 「하루 기회로 포인트 뽑기」(앱 말 없음), 넘기면 「하루 기회로 {itemName} 뽑기」(시험으로 고정).
+
+## 0.7.9 — 글자 아이콘(👟 🌱)이 빈 칸으로 그려지던 것 고침 (감자밭 A32 「오늘 N걸음」 줄, 슬랙대표님요청 · 패키지2 분석)
+
+- 원인: `BenefitQuickList` 의 `Icon` 이 기본 그림 이름(`calendar` · `bag` · `pin` · `star` · `ticket` · `friend`)이 아닌 문자열을 `<Text>` 없이 `<View>` 안에 그대로 내보냈다. React Native 는 `<View>` 안의 글자를 그리지 않는다(iOS 는 빈 칸, Android 는 오류). 걸음 줄(`👟`)과 무료 아이템 줄(`🌱`, 앱이 `homeContext.free.icon` 을 안 넘길 때)이 해당 — 0.7.5~0.7.8.
+- 고침: 기본 그림 이름이 아닌 문자열(숫자 포함)은 `<Text>` 로 감싸 그린다(22pt, 가운데). 앱이 넘긴 ReactNode 는 그대로. 기본 그림 이름 판정은 `in` 대신 `hasOwnProperty` 로 해서 `toString` · `constructor` 같은 글자가 기본 그림으로 읽히지 않는다.

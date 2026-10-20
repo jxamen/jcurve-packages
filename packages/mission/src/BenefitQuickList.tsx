@@ -72,9 +72,19 @@ const colors: Record<BenefitQuickIcon, string> = {
   calendar: '#2F6FD6', bag: '#D2551E', pin: '#2E8B57',
   star: '#B7791F', ticket: '#7A4FD0', friend: '#C2410C',
 };
+/**
+ * 아이콘 종류(0.7.9) — 'palette' 는 위 기본 그림 이름, 'text' 는 그 밖의 글자(이모지 👟 🌱 등), 'node' 는 앱이 넘긴 ReactNode.
+ * RN 은 `<View>` 안의 글자를 그리지 않는다(iOS 빈 칸 · Android 오류) — 0.7.5~0.7.8 감자밭 「오늘 N걸음」 줄 아이콘이 빈 칸이던 원인(대표님 20:5x 캡처). 'text' 는 `<Text>` 로 감싼다
+ */
+export function iconKind(icon: BenefitQuickItem['icon']): 'palette' | 'text' | 'node' {
+  if (typeof icon === 'string') return Object.prototype.hasOwnProperty.call(colors, icon) ? 'palette' : 'text';
+  return typeof icon === 'number' ? 'text' : 'node';
+}
 /** Pure RN shapes: no additional native dependency. Supply a ReactNode for branded icons. */
 function Icon({ icon }: { icon: BenefitQuickItem['icon'] }) {
-  if (typeof icon !== 'string' || !(icon in colors)) return <>{icon}</>;
+  const kind = iconKind(icon);
+  if (kind === 'text') return <Text style={s.iconText}>{icon as string | number}</Text>;
+  if (kind === 'node') return <>{icon}</>;
   const name = icon as BenefitQuickIcon;
   const color = colors[name];
   const line = { borderColor: color, borderWidth: 2 };
@@ -180,6 +190,7 @@ const s = StyleSheet.create({
   steps: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 }, step: { flex: 1, maxWidth: 26, height: 6, borderRadius: 3 }, stepsLabel: { marginLeft: 4, fontSize: 12, color: '#6B5E52' },
   button: { flexShrink: 0, height: 40, paddingHorizontal: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, cta: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' }, footer: { marginTop: 4 },
   iconDrawing: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
+  iconText: { fontSize: 22, lineHeight: 26, textAlign: 'center' },
   calendar: { width: 18, height: 17, borderRadius: 3 }, calendarLine: { height: 2, marginTop: 3 }, check: { width: 8, height: 5, borderLeftWidth: 2, borderBottomWidth: 2, transform: [{ rotate: '-45deg' }], marginLeft: 4, marginTop: 2 },
   bag: { width: 16, height: 14, borderRadius: 2, marginTop: 5 }, handle: { position: 'absolute', top: 1, width: 8, height: 9, borderRadius: 5 },
   pin: { width: 16, height: 19, borderRadius: 9, borderBottomRightRadius: 1, transform: [{ rotate: '45deg' }], alignItems: 'center', justifyContent: 'center' }, dot: { width: 6, height: 6, borderRadius: 3 },

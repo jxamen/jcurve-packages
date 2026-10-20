@@ -4,7 +4,7 @@ vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Pressable: 'Pressab
 // 단추를 센다 — 0.4.3 부터 줄 하나가 Pressable 하나(안쪽 버튼은 그림 View)
 const isButton = (n: any) => n?.type === 'Pressable' && n.props?.accessibilityRole === 'button';
 const cta = (tree: any[]) => tree.find(n => n?.type === 'View' && n.props?.pointerEvents === 'none' && n.props.style?.[1]?.width !== undefined);
-import { BenefitQuickList, pressOnce, resetTapGuard, TAP_GUARD_MS, type BenefitQuickItem } from './BenefitQuickList';
+import { BenefitQuickList, iconKind, pressOnce, resetTapGuard, TAP_GUARD_MS, type BenefitQuickItem } from './BenefitQuickList';
 import { beforeEach } from 'vitest';
 beforeEach(() => resetTapGuard());
 // Walk the rendered React element tree, including functional icon components.
@@ -204,5 +204,24 @@ describe('BenefitQuickList — homeActions: 줄 정의는 패키지, 동작만 �
     const tree = nodes(BenefitQuickList({ items: [item({ key: 'a', title: '앱 줄' })] }));
     expect(tree).toContain('앱 줄');
     expect(nodes(BenefitQuickList({})).filter(n => isButton(n))).toHaveLength(0);
+  });
+
+  it('글자 아이콘(👟 🌱)은 <Text> 로 감싸 그린다 — <View> 안에 글자만 두면 RN 이 빈 칸으로 그린다 (0.7.9, 감자밭 「오늘 N걸음」 빈 칸)', () => {
+    const tree = nodes(BenefitQuickList({ items: [item({ key: 's', icon: '👟' }), item({ key: 'f', icon: '🌱' })] }));
+    const textOf = (g: string) => tree.filter(n => n?.type === 'Text' && n.props.children === g);
+    expect([textOf('👟').length, textOf('🌱').length]).toEqual([1, 1]);                                       // 줄마다 글자 하나
+    expect(textOf('👟')[0].props.style).toMatchObject({ fontSize: 22, textAlign: 'center' });
+    const bare = tree.filter(n => n?.type === 'View' && [n.props.children].flat(3).some((c: unknown) => c === '👟' || c === '🌱'));
+    expect(bare).toHaveLength(0);                                                                            // View 의 바로 아래에 글자가 없다
+  });
+
+  it('iconKind: 기본 그림 이름 = palette, 그 밖의 글자 = text(Object 이름 toString 같은 것도), 앱 노드 = node (0.7.9)', () => {
+    expect(['calendar', 'bag', 'pin', 'star', 'ticket', 'friend'].map(n => iconKind(n as any))).toEqual(Array(6).fill('palette'));
+    expect(['👟', '🌱', 'toString', 'constructor', '__proto__', 'Calendar'].map(n => iconKind(n as any))).toEqual(Array(6).fill('text'));
+    expect([iconKind(React.createElement('CustomIcon')), iconKind(null), iconKind(undefined), iconKind(false)]).toEqual(['node', 'node', 'node', 'node']);
+    // 앱 노드는 감싸지 않고 그대로, 기본 그림 이름은 글자로 나오지 않는다
+    const tree = nodes(BenefitQuickList({ items: [item({ key: 'n', icon: React.createElement('CustomIcon') }), item({ key: 'c', icon: 'calendar' })] }));
+    expect(tree.filter(n => n?.type === 'CustomIcon')).toHaveLength(1);
+    expect(tree).not.toContain('calendar');
   });
 });

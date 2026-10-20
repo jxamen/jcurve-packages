@@ -67,6 +67,11 @@ export type BenefitQuickListProps = {
     /** (0.4.6) 저장 키 — 기본 'jcurve.mission.home.v1'. 서버 · 계정마다 다른 목록을 쓰는 앱만 바꾼다 */
     storageKey?: string;
 };
+/**
+ * 아이콘 종류(0.7.9) — 'palette' 는 위 기본 그림 이름, 'text' 는 그 밖의 글자(이모지 👟 🌱 등), 'node' 는 앱이 넘긴 ReactNode.
+ * RN 은 `<View>` 안의 글자를 그리지 않는다(iOS 빈 칸 · Android 오류) — 0.7.5~0.7.8 감자밭 「오늘 N걸음」 줄 아이콘이 빈 칸이던 원인(대표님 20:5x 캡처). 'text' 는 `<Text>` 로 감싼다
+ */
+export declare function iconKind(icon: BenefitQuickItem['icon']): 'palette' | 'text' | 'node';
 /** 빠른 두 번 누름을 막는 시간(0.4.3) — 잠금 상태가 없어 영영 남을 수 없다. 이 시간이 지나면 다음 누름은 늘 들어간다 */
 export declare const TAP_GUARD_MS = 700;
 /** 줄 누름 — 직전 누름에서 TAP_GUARD_MS 안이면 무시. 처리 함수가 던져도 다음 누름은 막히지 않는다 */
