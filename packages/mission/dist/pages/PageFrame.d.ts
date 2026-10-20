@@ -47,13 +47,18 @@ export declare function PageFrame({ title, onBack, swipeBack, theme, footer, chi
     children: ReactNode;
 }): React.JSX.Element;
 /** 줄 · 카드 안의 작은 버튼 — 기본 72x34, 끝난 상태는 `done` 바탕 */
-export declare function PageButton({ label, onPress, disabled, theme, width, height, on, big }: {
+export declare function PageButton({ label, onPress, disabled, theme, width, height, on, big, fontSize, radius }: {
     label: string;
     onPress: () => void;
     disabled?: boolean;
     theme: MissionPageTheme;
     width?: number;
+    /** 높이 — 안 주면 줄 버튼 34 · 큰 단추 52(0.4.14: 큰 단추도 준 높이를 따른다) */
     height?: number;
+    /** (0.4.14) 글자 크기 — 안 주면 줄 버튼 14 · 큰 단추 16 */
+    fontSize?: number;
+    /** (0.4.14) 모서리 — 안 주면 줄 버튼 12 · 큰 단추 14 */
+    radius?: number;
     /** 끄면 바탕이 연한 주황 · 글자는 흐리게(받을 수 없는 칸) */
     on?: boolean;
     /** 큰 단추(가로 전체) — `width` 무시 */

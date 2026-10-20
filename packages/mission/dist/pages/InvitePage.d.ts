@@ -20,13 +20,13 @@ export type InvitePageProps = {
     onSignup?: () => void;
     /** 간편 인증 창이 열려 있는 동안 단추를 막는다 */
     verifying?: boolean;
-    /** 초대한 사람이 받는 P · 친구가 받는 P */
+    /** 초대한 사람이 받는 P(맨 위 「N P 받으세요」). 친구가 받는 P 는 (0.4.14) 화면에 안 그린다 — 넘겨도 컴파일은 된다 */
     inviterPoint: number;
     inviteePoint: number;
-    /** 확률권 장수(있으면 줄 아래 「확률권 n장」) */
+    /** (0.4.14) 화면에 안 그린다(현황 칸을 지웠다) — 넘겨도 컴파일은 된다 */
     inviterBoost?: number;
     inviteeBoost?: number;
-    /** 초대 성공한 친구 수 · 아직 받지 않은 친구 수 */
+    /** (0.4.14) 화면에 안 그린다(현황 칸을 지웠다) — 넘겨도 컴파일은 된다 */
     invited: number;
     waiting: number;
     /** 이미 받은 초대 코드를 넣었나 */
@@ -52,4 +52,4 @@ export type InvitePageProps = {
     theme?: Partial<MissionPageTheme>;
     footer?: ReactNode;
 };
-export declare function InvitePage({ code, locked, lockReason, onVerify, onSignup, verifying, inviterPoint, inviteePoint, inviterBoost, inviteeBoost, invited, waiting, joined, rewarded, onJoin, onShare, onBack, swipeBack, notice, title, theme: themeIn, footer }: InvitePageProps): React.JSX.Element;
+export declare function InvitePage({ code, locked, lockReason, onVerify, onSignup, verifying, inviterPoint, joined, rewarded, onJoin, onShare, onBack, swipeBack, notice, title, theme: themeIn, footer }: InvitePageProps): React.JSX.Element;
