@@ -34,8 +34,13 @@ export declare function parseHomeResponse(response: unknown): HomeConfig;
  */
 export type HomeStorage = {
     get(key: string): Promise<string | null>;
-    set(key: string, value: string): Promise<void>;
+    set(key: string, value: string): Promise<unknown>;
+} | {
+    getItem(key: string): Promise<string | null>;
+    setItem(key: string, value: string): Promise<unknown>;
 };
+/** 이 저장소를 쓸 수 있는가(get/set 또는 getItem/setItem). 쓸 수 없으면 저장소를 안 넘긴 것과 같다 — 목록을 기다리게 하지 않는다 */
+export declare function homeStorageUsable(storage: HomeStorage | undefined | null): boolean;
 /** 저장 키 기본값 — 앱이 서버 · 계정마다 다른 목록을 쓰면 `storageKey` 로 바꾼다 */
 export declare const HOME_STORAGE_KEY = "jcurve.mission.home.v1";
 /** 저장값을 읽는 데 이만큼(ms)까지만 기다린다 — 저장소가 응답이 없어도 목록이 영영 안 뜨지 않게 */

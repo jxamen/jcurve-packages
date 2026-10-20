@@ -20,6 +20,8 @@ export type BenefitQuickItem = {
     };
     /** 칸 막대 옆 한 줄(예: 「3개 남았어요」, 대표님 10-19 「아래 줄 남은 횟수 표기」) */
     progressLabel?: string;
+    /** (0.7.4) 완료(done) 줄의 버튼 글자 — 이 줄만. 안 주면 목록의 `doneLabel` */
+    doneLabel?: string;
 };
 export type BenefitQuickListProps = {
     title?: string;
@@ -48,7 +50,7 @@ export type BenefitQuickListProps = {
     /** (0.4.4) 홈으로 돌아올 때마다 바꿔 주면(예: tab === 'home') 서버 목록을 다시 읽는다 */
     refreshKey?: unknown;
     /**
-     * (0.4.6) 앱이 넘기는 저장소(`get`/`set` — AsyncStorage 가 그대로 맞는다, 새 네이티브 의존 없음). 있으면 마지막으로 받은 서버 목록을 저장해 두고 **앱을 켤 때 그 값으로 먼저** 그린 뒤
+     * (0.4.6) 앱이 넘기는 저장소(`get`/`set` 또는 `getItem`/`setItem`(0.7.3~) — 순정 AsyncStorage 를 그대로 넘기면 된다, 새 네이티브 의존 없음). 있으면 마지막으로 받은 서버 목록을 저장해 두고 **앱을 켤 때 그 값으로 먼저** 그린 뒤
      * 서버 응답으로 갱신한다(앱 기본 순서로 그렸다가 서버 순서로 바뀌지 않게, 대표님 10-20 18:54). 저장값을 읽는 동안(최대 300ms)은 목록을 그리지 않는다. 없으면 예전과 같다. `fetchJson` 이 있을 때만 쓴다.
      */
     storage?: HomeStorage;
