@@ -35,23 +35,30 @@ export type HomeContext = {
   todayMissions?: { title?: string; progress?: { done: number; total: number }; progressLabel?: string };
   /** 추천 앱 줄 부제(서버 promo.desc) · 캐릭터 그림(앱 자산) */
   recommend?: { desc?: string; icon?: BenefitQuickItem['icon'] };
+  /**
+   * (0.7.6) **앱 테마색을 따르는 세 줄만** 바탕색을 앱이 넘길 수 있다 — 걸음 · 추천은 당근 carrotSoft(#FFEEE2), 무료 아이템은 heartSoft(#E6F5EA)가 기본이고 앱 테마의 soft 색이 있으면 그것이 우선.
+   * 나머지 줄(퀴즈 · 출석 · 오늘의 미션 · 행운 찬스 · 초대)의 바탕색과 모든 아이콘은 못 바꾼다
+   */
+  tints?: Partial<Record<'steps' | 'free_item' | 'recommend', string>>;
 };
 
 const DEFAULT_NAME = '포인트';
-/** 당근의 soft 주황 — 걸음 · 무료 · 추천 줄 바탕 */
-const SOFT = '#FDE6D6';
+/** 당근의 soft 주황(carrotSoft) — 걸음 · 추천 줄 바탕. 당근 theme.ts(814f2f4) 값 */
+const CARROT_SOFT = '#FFEEE2';
+/** 당근의 soft 초록 — 무료 아이템 줄 바탕(heartSoft) */
+const HEART_SOFT = '#E6F5EA';
 
 /** 아이콘 이름 + 바탕색 + 버튼 — 당근 기준 고정값(앱이 못 바꾼다) */
 const LOOK: Record<HomeRowKey, { icon: BenefitQuickItem['icon']; tint: string; ctaLabel: string }> = {
   quiz1: { icon: 'bag', tint: '#FDEBE2', ctaLabel: '참여하기' },
   quiz2: { icon: 'pin', tint: '#E4F3EA', ctaLabel: '참여하기' },
   checkin: { icon: 'calendar', tint: '#E8F0FD', ctaLabel: '출석하기' },
-  steps: { icon: '👟', tint: '#FFEEE2', ctaLabel: '보상 받기' },        // 당근 theme.ts carrotSoft (앱관리 확인 10-20)
-  free_item: { icon: '🌱', tint: '#E6F5EA', ctaLabel: '받기' },          // 당근 theme.ts heartSoft (앱관리 확인 10-20)
+  steps: { icon: '👟', tint: CARROT_SOFT, ctaLabel: '보상 받기' },
+  free_item: { icon: '🌱', tint: HEART_SOFT, ctaLabel: '받기' },
   today_missions: { icon: 'star', tint: '#FBF1DC', ctaLabel: '보러가기' },
   lucky_chance: { icon: 'ticket', tint: '#EFE8FB', ctaLabel: '뽑기' },
   invite: { icon: 'friend', tint: '#FDEBDD', ctaLabel: '초대하기' },
-  recommend: { icon: 'star', tint: SOFT, ctaLabel: '보러가기' },
+  recommend: { icon: 'star', tint: CARROT_SOFT, ctaLabel: '보러가기' },
 };
 
 /** 무료 아이템 줄의 완료 버튼 글자 — 방문형이라 오늘 칸이 끝나면 「내일 다시」(대표님 10-20 19:01) */
@@ -97,7 +104,9 @@ export function homeItem(key: HomeRowKey, c: HomeContext, onPress: () => void): 
   const look = LOOK[key];
   const { title, subtitle } = copy(key, c);
   const icon = key === 'free_item' ? (c.itemIcon ?? look.icon) : key === 'recommend' ? (c.recommend?.icon ?? look.icon) : look.icon;
-  const item: BenefitQuickItem = { key, title, subtitle, ctaLabel: look.ctaLabel, icon, tint: look.tint, onPress };
+  // 바탕색은 고정 — 앱 테마색을 따르는 걸음 · 무료 · 추천 세 줄만 앱 값(tints)이 우선
+  const themed = key === 'steps' || key === 'free_item' || key === 'recommend' ? c.tints?.[key]?.trim() : undefined;
+  const item: BenefitQuickItem = { key, title, subtitle, ctaLabel: look.ctaLabel, icon, tint: themed || look.tint, onPress };
   if (key === 'free_item') {
     return { ...item, doneLabel: FREE_DONE_LABEL, ...freeState(Math.max(1, Math.floor(c.free?.total ?? 3)), c.free?.left, c.free?.received) };
   }

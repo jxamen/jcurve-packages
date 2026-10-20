@@ -1,6 +1,6 @@
 {
   "name": "@jcurve/mission",
-  "version": "0.4.8",
+  "version": "0.4.9",
   "description": "공용 미션 카드 페이지 · 쇼핑 미션 화면 · APIHUB 웹뷰와 브릿지",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

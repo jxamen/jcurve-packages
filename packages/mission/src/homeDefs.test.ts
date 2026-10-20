@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { FREE_DONE_LABEL, HOME_ORDER, buildHomeItems, homeItem, type HomeActions } from './homeDefs';
 import { HOME_KEYS, composeHomeRows, resolveHomeKeys, type HomeRow } from './home';
 
-/** 당근 기준표(ota/carrot-ios-106-benefit-1020 814f2f4, FarmScreen HOME_BENEFITS) — 대표님 10-20 20:23 「갖다 넣으면 똑같은 게 그냥 튀어 나와야」 */
+/** 당근 기준표(ota/carrot-ios-106-benefit-1020 814f2f4, FarmScreen HOME_BENEFITS + theme.ts carrotSoft #FFEEE2 · heartSoft #E6F5EA) — 대표님 10-20 20:23 「갖다 넣으면 똑같은 게 그냥 튀어 나와야」 */
 const CARROT = {
   quiz1: { title: '쇼핑 태그 퀴즈1', subtitle: '참여하고 최대 100P 받기', ctaLabel: '참여하기', icon: 'bag', tint: '#FDEBE2' },
   quiz2: { title: '플레이스 & 쇼핑 태그 퀴즈2', subtitle: '참여하고 최대 100P 받기', ctaLabel: '참여하기', icon: 'pin', tint: '#E4F3EA' },
@@ -14,7 +14,7 @@ const CARROT = {
   today_missions: { title: '오늘의 미션', subtitle: '간단한 미션으로 포인트 더 받기', ctaLabel: '보러가기', icon: 'star', tint: '#FBF1DC' },
   lucky_chance: { title: '행운 찬스', subtitle: '하루 기회로 포인트 뽑기', ctaLabel: '뽑기', icon: 'ticket', tint: '#EFE8FB' },
   invite: { title: '친구 초대하기', subtitle: '친구가 가입하면 같이 받기', ctaLabel: '초대하기', icon: 'friend', tint: '#FDEBDD' },
-  recommend: { title: '추천 앱 둘러보기', subtitle: '추천 앱 둘러보기', ctaLabel: '보러가기', icon: 'star', tint: '#FDE6D6' },
+  recommend: { title: '추천 앱 둘러보기', subtitle: '추천 앱 둘러보기', ctaLabel: '보러가기', icon: 'star', tint: '#FFEEE2' },
 } as const;
 
 const all = (): HomeActions => Object.fromEntries(HOME_ORDER.map(k => [k, vi.fn()])) as HomeActions;
@@ -62,6 +62,15 @@ describe('줄 정의 = 당근 기준 (0.7.5)', () => {
     expect(byKey.today_missions.subtitle).toBe('간단한 미션으로 캐시 더 받기');
     expect(byKey.quiz1.subtitle).toBe('참여하고 최대 100원 받기');
     expect(buildHomeItems({ itemName: '  ', pointName: '' }, all()).find(i => i.key === 'free_item')!.title).toBe('무료 포인트 받기');     // 빈 이름은 기본 「포인트」
+  });
+
+  it('앱 테마색을 따르는 걸음 · 무료 · 추천 세 줄만 바탕색(tints)을 앱이 넘길 수 있다 — 나머지 줄은 넘겨도 고정', () => {
+    const items = buildHomeItems({ tints: { steps: '#112233', free_item: '#445566', recommend: '#778899', quiz1: '#000000' } as any }, all());
+    const tint = (k: string) => items.find(i => i.key === k)!.tint;
+    expect([tint('steps'), tint('free_item'), tint('recommend')]).toEqual(['#112233', '#445566', '#778899']);
+    expect([tint('quiz1'), tint('quiz2'), tint('checkin'), tint('today_missions'), tint('lucky_chance'), tint('invite')]).toEqual(['#FDEBE2', '#E4F3EA', '#E8F0FD', '#FBF1DC', '#EFE8FB', '#FDEBDD']);
+    const blank = buildHomeItems({ tints: { steps: '  ', free_item: '' } }, all());          // 빈 값은 당근 기본
+    expect([blank.find(i => i.key === 'steps')!.tint, blank.find(i => i.key === 'free_item')!.tint]).toEqual(['#FFEEE2', '#E6F5EA']);
   });
 
   it('앱이 아이콘 · 바탕색 · 부제 · 숨김을 덮어쓰지 못한다 — 넘겨도 무시된다', () => {

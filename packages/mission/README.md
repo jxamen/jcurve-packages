@@ -289,3 +289,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';   // ⚠ 0
 - `homeActions` 를 안 주면 예전 `items` 방식 그대로(호환) — 단 새 앱은 `homeActions` 를 쓴다. 순수 정의는 `homeDefs.ts`(`buildHomeItems` · `homeItem` · `HOME_ORDER`)로 따로 내보낸다.
 - **줄이 빠지는 앱**(현재 서버 home_rows 기준): 꼬꼬 · 꾹테크는 무료 아이템 줄 없음(앱이 `free_item` 동작을 안 넘김. 꾹테크는 「무료 뽑기권」 줄을 붙이는 중 — 서버 `capsule/visit` 값을 `free` 로 넘기면 됨), 나머지 앱은 9줄. 당근은 서버 행이 없어 패키지 정의 9줄.
 - (0.4.8) 바탕색 정정: `steps` 줄 `#FFEEE2`(당근 carrotSoft), `free_item` 줄 `#E6F5EA`(당근 heartSoft) — 0.7.5 는 둘 다 `#FDE6D6` 이었다(앱관리가 당근 theme.ts 로 확인). `recommend` 캐릭터는 앱이 `homeContext.recommend.icon` 으로 넘긴다.
+
+## 0.4.9 — 홈 목록 바탕색을 당근 실제 값으로 + 테마색 세 줄만 앱 값(tints) (0.7.6 포팅, 앱관리 20:3x)
+
+0.4.8 의 바탕색 정정을 마무리한다 — **0.4.8 은 걸음 · 무료만 고쳤고 추천 줄은 옛 값(#FDE6D6)이 남아 있었다.**
+- 걸음 · 추천 앱 줄 바탕 = 당근 `carrotSoft` **#FFEEE2**, 무료 아이템 줄 바탕 = `heartSoft` **#E6F5EA**(당근 814f2f4 `src/ui/theme.ts`).
+- `homeContext.tints`(`steps` · `free_item` · `recommend` 세 줄만, 선택): 앱 테마의 soft 색이 따로 있으면 그것이 우선. 나머지 줄(퀴즈 · 출석 · 오늘의 미션 · 행운 찬스 · 초대)의 바탕색과 모든 아이콘은 못 바꾼다.
+- 추천 앱 줄의 캐릭터 그림은 앱 자산이라 `homeContext.recommend.icon` 으로 받는다(없으면 별 아이콘).
