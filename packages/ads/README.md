@@ -128,3 +128,39 @@ Disabled, missing-unit, pending and failed requests occupy zero height. Unmount 
 a late response after unmount is destroyed too. Existing SDK test device configuration is retained.
 Pass a Google test unit from the app's existing test-mode logic when appropriate.
 No native module, plugin, reward, frequency or mediation changes are required relative to 1.9.2.
+
+## ATT 거부 안내 시트 — `AttDeniedSheet` · `ensureTrackingBeforeOfferwall`(1.9.5)
+
+iOS 추적 허용이 **거부·제한**이면 「설정에서 허용하기」로 안내하는 바텀 시트. 참여형 미션 포인트가 추적 허용에 달려 있다.
+iOS 시스템 ATT 창은 한 번만 뜨므로, **미정(undetermined)** 이면 시트 대신 시스템 창을 띄운다. iOS 가 아니면 아무것도 그리지 않고 함수는 바로 돌아온다.
+네이티브 모듈·권한·Info.plist 변경은 없다(`expo-tracking-transparency` 가드된 require 하나). 모듈이 없으면 시트는 안 뜨고 던지지 않는다.
+
+```tsx
+import { AttDeniedSheet, ensureTrackingBeforeOfferwall } from '@jcurve/ads';
+
+// 앱 루트에 한 번
+<AttDeniedSheet appName="꼬꼬농장" />
+
+// 오퍼월에 들어가기 전
+const status = await ensureTrackingBeforeOfferwall();   // 'granted' | 'denied' | 'restricted' | 'undetermined' | 'unavailable' | 'unknown'
+```
+
+| 시점 | 거부·제한 | 미정 |
+| --- | --- | --- |
+| 앱 켤 때 (`AttDeniedSheet` 마운트) | 시트 — **하루 한 번**(로컬 달력 날짜) | 시스템 창 |
+| 오퍼월 전 (`ensureTrackingBeforeOfferwall`) | 시트 — **매번**. 닫히면 다시 읽은 상태를 돌려준다 | 시스템 창, 그 결과를 돌려준다 |
+
+시트에서 「설정에서 허용하기」를 누르면 `Linking.openSettings()` 로 설정 앱에 간다. 앱으로 돌아와 허용됐으면 시트가 닫힌다.
+
+### `AttDeniedSheet` props
+
+| 이름 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `appName` | `string` | 예 | 셋째 줄 「{appName}을 찾아 눌러요」에 들어가는 앱 이름 |
+| `theme` | `{ background?, text?, subText?, primary?, primaryText?, overlay? }` | 아니오 | 색 토큰. 빠진 것은 기본 색 |
+| `storage` | `{ getItem(key), setItem(key, value) }` | 아니오 | 마지막으로 띄운 날을 적어 둘 곳(동기·비동기 모두 가능). 없으면 메모리 — 앱을 끄면 잊는다 |
+| `texts` | `Partial<AttSheetTexts>` | 아니오 | 문구 덮어쓰기. 기본 문구는 `ATT_SHEET_TEXTS` |
+
+`ensureTrackingBeforeOfferwall(storage?)` 도 같은 `storage` 를 받는다(시트는 마운트된 `AttDeniedSheet` 를 쓴다 — 마운트 안 됐으면 시트 없이 현재 상태를 돌려준다).
+
+기본 문구(`ATT_SHEET_TEXTS`)는 제목·본문·버튼 글자 바깥의 「」를 뺐고, 문장 안의 인용 「설정」·「추적 허용」 등은 그대로 둔다.
