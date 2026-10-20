@@ -1,6 +1,6 @@
 import React, { type ReactNode } from 'react';
 import type { Requester } from './entry';
-import { type HomeRowKey } from './home';
+import { type HomeRowKey, type HomeStorage } from './home';
 export type BenefitQuickIcon = 'calendar' | 'bag' | 'pin' | 'star' | 'ticket' | 'friend';
 export type BenefitQuickItem = {
     key: string;
@@ -47,6 +47,13 @@ export type BenefitQuickListProps = {
     onRow?: (key: HomeRowKey) => void;
     /** (0.4.4) 홈으로 돌아올 때마다 바꿔 주면(예: tab === 'home') 서버 목록을 다시 읽는다 */
     refreshKey?: unknown;
+    /**
+     * (0.4.6) 앱이 넘기는 저장소(`get`/`set` — AsyncStorage 가 그대로 맞는다, 새 네이티브 의존 없음). 있으면 마지막으로 받은 서버 목록을 저장해 두고 **앱을 켤 때 그 값으로 먼저** 그린 뒤
+     * 서버 응답으로 갱신한다(앱 기본 순서로 그렸다가 서버 순서로 바뀌지 않게, 대표님 10-20 18:54). 저장값을 읽는 동안(최대 300ms)은 목록을 그리지 않는다. 없으면 예전과 같다. `fetchJson` 이 있을 때만 쓴다.
+     */
+    storage?: HomeStorage;
+    /** (0.4.6) 저장 키 — 기본 'jcurve.mission.home.v1'. 서버 · 계정마다 다른 목록을 쓰는 앱만 바꾼다 */
+    storageKey?: string;
 };
 /** 빠른 두 번 누름을 막는 시간(0.4.3) — 잠금 상태가 없어 영영 남을 수 없다. 이 시간이 지나면 다음 누름은 늘 들어간다 */
 export declare const TAP_GUARD_MS = 700;

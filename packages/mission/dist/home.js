@@ -1,9 +1,14 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.EMPTY_HOME = exports.HOME_KEYS = void 0;
+exports.HOME_STORAGE_WAIT_MS = exports.HOME_STORAGE_KEY = exports.EMPTY_HOME = exports.HOME_KEYS = void 0;
 exports.parseHomeResponse = parseHomeResponse;
+exports.readStoredHome = readStoredHome;
+exports.saveStoredHome = saveStoredHome;
+exports.fetchHomeResult = fetchHomeResult;
 exports.fetchHomeConfig = fetchHomeConfig;
 exports.resetHomeConfig = resetHomeConfig;
+exports.homeInitial = homeInitial;
+exports.homeReduce = homeReduce;
 exports.applyHomeRows = applyHomeRows;
 exports.adSlotIndex = adSlotIndex;
 exports.resolveHomeKeys = resolveHomeKeys;
@@ -50,25 +55,65 @@ function parseHomeResponse(response) {
         },
     };
 }
+/** 저장 키 기본값 — 앱이 서버 · 계정마다 다른 목록을 쓰면 `storageKey` 로 바꾼다 */
+exports.HOME_STORAGE_KEY = 'jcurve.mission.home.v1';
+/** 저장값을 읽는 데 이만큼(ms)까지만 기다린다 — 저장소가 응답이 없어도 목록이 영영 안 뜨지 않게 */
+exports.HOME_STORAGE_WAIT_MS = 300;
+const STORED_MAX_CHARS = 20000;
+/** 저장해 둔 마지막 서버 목록 — 없음 · 깨짐 · 모르는 판 · 저장소 오류는 null(앱 기본). 읽을 때도 서버 응답처럼 다시 거른다 */
+async function readStoredHome(storage, key = exports.HOME_STORAGE_KEY) {
+    if (!storage)
+        return null;
+    try {
+        const raw = await storage.get(key);
+        if (typeof raw !== 'string' || raw === '' || raw.length > STORED_MAX_CHARS)
+            return null;
+        const saved = JSON.parse(raw);
+        if (!saved || typeof saved !== 'object' || saved.v !== 1)
+            return null;
+        const config = parseHomeResponse(saved.response);
+        return config === exports.EMPTY_HOME ? null : config;
+    }
+    catch {
+        return null;
+    }
+}
+/** 서버에서 **정상으로** 받은 목록을 저장한다 — 저장소 오류는 삼킨다(목록은 이미 그려졌다) */
+async function saveStoredHome(storage, config, key = exports.HOME_STORAGE_KEY) {
+    if (!storage)
+        return;
+    try {
+        await storage.set(key, JSON.stringify({ v: 1, at: Date.now(), response: { ok: true, rows: config.rows, list: config.list } }));
+    }
+    catch { /* 저장 실패는 다음에 다시 */ }
+}
 /** 마지막으로 받은 설정 — 화면이 다시 그려질 때마다 서버를 부르지 않게(서버도 max-age=60) */
 let cache = null;
 let inflight = null;
-/** GET mission/home — `maxAgeMs`(기본 60초) 안이면 받아 둔 것. 실패하면 받아 둔 것 또는 EMPTY_HOME(앱 기본 목록) */
-async function fetchHomeConfig(fetchJson, opts = {}) {
+/**
+ * (0.4.6) GET mission/home — 값과 함께 **서버에서 정상으로 받았는가**(`ok`)를 준다. `maxAgeMs`(기본 60초) 안이면 받아 둔 것(ok).
+ * 실패(던짐 · 깨진 응답)면 받아 둔 것 또는 EMPTY_HOME 과 ok:false — 저장값을 이미 그렸다면 호출한 쪽이 그것을 지킨다.
+ * `storage` 를 주면 **정상 응답일 때만** 저장한다(캐시 적중 · 실패 · 깨진 응답은 저장하지 않는다).
+ */
+async function fetchHomeResult(fetchJson, opts = {}) {
     const now = opts.now ?? Date.now();
     const maxAge = opts.maxAgeMs ?? 60000;
     if (cache && now - cache.at >= 0 && now - cache.at < maxAge)
-        return cache.value;
+        return { value: cache.value, ok: true };
     if (inflight)
         return inflight;
     inflight = (async () => {
         try {
             const value = parseHomeResponse(await fetchJson('mission/home', { method: 'GET' }));
             cache = { at: now, value };
-            return value;
+            // 깨진 응답은 parseHomeResponse 가 EMPTY_HOME 그 자체를 준다 — 서버가 「설정 없음」(rows null)이라고 정상으로 답한 것과 구분된다
+            const ok = value !== exports.EMPTY_HOME;
+            if (ok)
+                void saveStoredHome(opts.storage, value, opts.storageKey);
+            return { value, ok };
         }
         catch {
-            return cache?.value ?? exports.EMPTY_HOME;
+            return { value: cache?.value ?? exports.EMPTY_HOME, ok: false };
         }
         finally {
             inflight = null;
@@ -76,8 +121,31 @@ async function fetchHomeConfig(fetchJson, opts = {}) {
     })();
     return inflight;
 }
+/** GET mission/home — `maxAgeMs`(기본 60초) 안이면 받아 둔 것. 실패하면 받아 둔 것 또는 EMPTY_HOME(앱 기본 목록) */
+async function fetchHomeConfig(fetchJson, opts = {}) {
+    return (await fetchHomeResult(fetchJson, opts)).value;
+}
 /** 시험용 · 로그아웃 · 앱 전환 */
 function resetHomeConfig() { cache = null; inflight = null; }
+function homeInitial(hasStorage) {
+    return { config: exports.EMPTY_HOME, ready: !hasStorage, fresh: false, fromStorage: false, storage: hasStorage };
+}
+function homeReduce(s, e) {
+    switch (e.type) {
+        case 'stored':
+            if (s.fresh)
+                return s.ready ? s : { ...s, ready: true }; // 서버가 먼저 왔다 — 저장값은 낡은 것
+            return { ...s, config: e.config ?? s.config, fromStorage: e.config !== null, ready: true };
+        case 'server':
+            if (e.ok)
+                return { ...s, config: e.value, fresh: true, ready: true };
+            if (s.fromStorage)
+                return s; // 서버 실패 — 저장값을 그대로
+            return s.storage ? { ...s, config: e.value } : { ...s, config: e.value, ready: true };
+        case 'timeout':
+            return s.ready ? s : { ...s, ready: true };
+    }
+}
 /**
  * 앱의 기본 목록에 서버 설정을 얹는다 — `keys` 는 앱 줄 key → 서버 행동 key(예 { bag: 'quiz1', pin: 'quiz2', ticket: 'lucky_chance' }).
  *  - 설정이 있는 줄: 제목은 서버 것, 설명 · 버튼 · 배지는 서버 값이 있을 때만(빈 값이면 앱 것 그대로), visible:false 면 숨김

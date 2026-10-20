@@ -1,6 +1,9 @@
 /**
  * 만보기 — 1,000걸음마다 광고 보고 포인트 (0.4.0, carrot StepsScreen 의 보이는 모양만).
  *
+ * (0.4.6, 대표님 10-20 19:00) **신발 그림을 지우고 광고를 위로** — 위에서 아래로: 걸음 수 · 말풍선 → 「남은 횟수」 카드 → **광고(`footer`, 안내사항 위)** → 「만보기 안내사항」.
+ * `footer` 는 예전엔 맨 아래였다 — 앱 코드를 바꾸지 않아도 광고가 안내사항 위로 올라온다.
+ *
  * **이 패키지는 @jcurve/steps 를 가져오지 않는다.** 걸음 수 · 단계 · 받기는 전부 props 로 받는다.
  * 옛 빌드(걸음 기능 없음)는 `stepsAvailable={false}` 로 두면 화면은 읽기만 되고, 받기 · 단추는
  * 「업데이트하면 걸음 보상을 받을 수 있어요」 안내와 onUpdate() 로 간다(2026-10-20 · 옛 빌드 충돌 방지).
@@ -28,6 +31,7 @@ export type StepsPageProps = {
     guide?: readonly string[];
     title?: string;
     theme?: Partial<MissionPageTheme>;
+    /** 광고 자리 — 앱이 네이티브 광고를 넣는다(패키지는 광고를 모른다). 0.4.6 부터 「남은 횟수」 카드 아래 · 「만보기 안내사항」 위 */
     footer?: ReactNode;
 };
 export declare function StepsPage({ todaySteps, stages, earnedToday, stepsAvailable, onUpdate, onClaim, onBack, everySteps, guide, title, theme: themeIn, footer }: StepsPageProps): React.JSX.Element;

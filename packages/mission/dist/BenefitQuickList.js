@@ -8,6 +8,7 @@ const jsx_runtime_1 = require("react/jsx-runtime");
 const react_1 = require("react");
 const react_native_1 = require("react-native");
 const home_1 = require("./home");
+const useHomeConfig_1 = require("./useHomeConfig");
 const colors = {
     calendar: '#2F6FD6', bag: '#D2551E', pin: '#2E8B57',
     star: '#B7791F', ticket: '#7A4FD0', friend: '#C2410C',
@@ -45,29 +46,26 @@ function useActiveTick() {
     return n;
 }
 /** 서버 home_rows 를 얹는 층 — 훅이 있어 `fetchJson` 이 있을 때만 쓴다(없으면 BenefitQuickList 가 그림만 바로 그린다) */
-function ServerRowsList({ fetchJson, homeKeys, onRow, refreshKey, items, view }) {
-    const [config, setConfig] = (0, react_1.useState)(home_1.EMPTY_HOME);
+function ServerRowsList({ fetchJson, homeKeys, onRow, refreshKey, storage, storageKey, items, view }) {
     const tick = useActiveTick();
     const key = (0, react_1.useMemo)(() => [refreshKey, tick], [refreshKey, tick]);
-    (0, react_1.useEffect)(() => {
-        let live = true;
-        void (0, home_1.fetchHomeConfig)(fetchJson).then(c => { if (live)
-            setConfig(c); });
-        return () => { live = false; };
-    }, [fetchJson, key]);
+    const { config, ready } = (0, useHomeConfig_1.useHomeConfig)(fetchJson, key, storage, storageKey);
     const keys = (0, react_1.useMemo)(() => (0, home_1.resolveHomeKeys)(items, homeKeys), [items, homeKeys]);
     const merged = (0, react_1.useMemo)(() => (0, home_1.composeHomeRows)(items, config.rows, keys, { onRow }), [items, config.rows, keys, onRow]);
+    // (0.4.6) 저장소를 쓰면 저장값을 읽을 때까지(최대 300ms) 그리지 않는다 — 앱 기본 순서를 잠깐 그렸다가 서버 순서로 바꾸지 않으려고. 저장소가 없으면 ready 는 늘 true
+    if (!ready)
+        return null;
     return (0, jsx_runtime_1.jsx)(QuickListView, { ...view, items: merged });
 }
 /**
  * 「바로 받는 혜택」 목록. (0.4.4) `fetchJson` 을 주면 서버 home_rows 를 스스로 적용하고, `onFreeItem` 을 주면 free_item 기본 줄이 생긴다 — 둘 다 없으면 0.4.3 과 똑같이 그린다.
  */
 function BenefitQuickList(props) {
-    const { fetchJson, homeKeys, itemName, onFreeItem, onRow, refreshKey, items, ...view } = props;
+    const { fetchJson, homeKeys, itemName, onFreeItem, onRow, refreshKey, storage, storageKey, items, ...view } = props;
     const base = (0, home_1.withFreeItemRow)(items, homeKeys, itemName, onFreeItem);
     if (!fetchJson)
         return QuickListView({ ...view, items: base });
-    return (0, jsx_runtime_1.jsx)(ServerRowsList, { fetchJson: fetchJson, homeKeys: homeKeys, onRow: onRow, refreshKey: refreshKey, items: base, view: view });
+    return (0, jsx_runtime_1.jsx)(ServerRowsList, { fetchJson: fetchJson, homeKeys: homeKeys, onRow: onRow, refreshKey: refreshKey, storage: storage, storageKey: storageKey, items: base, view: view });
 }
 function QuickListView({ title = '바로 받는 혜택', seeAllLabel, onSeeAll, accentColor = '#EE7A33', items, footer, doneLabel = '완료', buttonWidth = 100, buttonHeight = 40 }) {
     const visible = items.filter(item => !item.hidden);
