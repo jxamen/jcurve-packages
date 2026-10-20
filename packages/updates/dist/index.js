@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.__resetStoreVersion = exports.cmpVersion = exports.storeLinks = exports.decideStoreUpdate = exports.checkStoreVersion = exports.startupSettled = exports.RESUME_CHECK_MS = exports.otaHeaders = exports.onUpdateReady = exports.launchUpdate = exports.isRestarting = exports.hasWaiting = exports.canApplyNow = exports.bundleLabel = exports.autoApply = exports.applyUpdate = exports.__reset = void 0;
+exports.__resetStoreVersion = exports.cmpVersion = exports.storeLinks = exports.decideStoreUpdate = exports.checkStoreVersion = exports.MAIN_READY_CHECK_EVERY_MS = exports.MAIN_READY_TIMEOUT_MS = exports.__resetMainReady = exports.isMainReadyRestarting = exports.clearBusy = exports.setBusy = exports.onMainReady = exports.prefetchUpdate = exports.createMainReady = exports.configureMainReady = exports.startupSettled = exports.RESUME_CHECK_MS = exports.otaHeaders = exports.onUpdateReady = exports.launchUpdate = exports.isRestarting = exports.hasWaiting = exports.canApplyNow = exports.bundleLabel = exports.autoApply = exports.applyUpdate = exports.__reset = void 0;
 /**
  * `@jcurve/updates` — 리워드 앱 공용 **OTA 적용하기**(2.0 — 꼬꼬농장 방식).
  *
@@ -121,6 +121,28 @@ exports.__resetStoreVersion = exports.cmpVersion = exports.storeLinks = exports.
  *
  * 자체 화면을 그리는 앱은 `decideStoreUpdate(설치 버전, 서버 값, 스토어 버전)` 와 `storeLinks` 만 가져다 쓴다.
  *
+ * ## 2.10 — 메인에 도착했을 때만 적용(`onMainReady`)
+ *
+ * 대표님 10-20 11:51 「앱 열면 메인에서 자동 ota 되는것도 다 넣어」 · 11:52 「껐다 켤 필요 없게」 · 11:54 「로그인에서는 아니야」.
+ * 앱마다 복사돼 있던 startupUpdates · bootUpdate · resumeUpdate 를 공용으로 옮겼다. **`autoApply` · `launchUpdate` 와 같이 쓰지 않는다.**
+ *
+ * - 켤 때 · 로그인 · 가입 · 약관 · 본인인증 화면: `prefetchUpdate()` — 받기만 한다(다시 시작 없음).
+ * - 메인 진입 · 메인으로 돌아올 때: `onMainReady()` — 받아 둔 새 판이 있으면 바로 다시 시작한다. 없으면 묻고 받아 5초(`timeoutMs`) 안이면
+ *   그 자리에서 적용한다. 넘으면 받던 것은 계속 받고 다음 메인 도착 때 적용한다. 묻기는 60초(`checkEveryMs`)에 한 번이다.
+ * - 광고 · 뽑기 · 결제 · 영상 · 가입 중: `setBusy('ad')` … `clearBusy('ad')` — 그동안 미룬다. 마지막 사유가 풀릴 때 메인이면(`atMain`) 적용한다.
+ * - 같은 판 id 로 두 번 다시 시작하지 않는다(marker, bootUpdate 그대로). 적지 못하면 다시 시작하지 않는다. 실패는 모두 조용히 넘어간다.
+ *
+ * ```ts
+ * import AsyncStorage from '@react-native-async-storage/async-storage';
+ * import { configureMainReady, prefetchUpdate, onMainReady, setBusy, clearBusy, isMainReadyRestarting } from '@jcurve/updates';
+ * configureMainReady({ storage: AsyncStorage, markerKey: 'moneycapsule.boot-update.v1', atMain: () => tab === 'home' });
+ * void prefetchUpdate();                                   // 켤 때(시작 화면은 기다리지 않고 내린다)
+ * useEffect(() => { if (tab === 'home') void onMainReady(); }, [tab]);   // 메인 진입
+ * AppState 'active' && tab === 'home' → void onMainReady();               // 메인으로 돌아올 때
+ * setBusy('ad'); try { await showRewarded(); } finally { clearBusy('ad'); }
+ * ```
+ * markerKey 는 앱이 쓰던 bootUpdate 키를 그대로 주면 옮기는 판에서도 반복 재시작이 없다.
+ *
  * ## 1.0 에서 달라진 것
  *
  * 1.0 은 「스스로 다시 시작하지 않고, 띠를 눌러야 적용」이었다. 적용이 사람 손에 달려 새 버전이 퍼지지
@@ -139,6 +161,17 @@ Object.defineProperty(exports, "onUpdateReady", { enumerable: true, get: functio
 Object.defineProperty(exports, "otaHeaders", { enumerable: true, get: function () { return updates_1.otaHeaders; } });
 Object.defineProperty(exports, "RESUME_CHECK_MS", { enumerable: true, get: function () { return updates_1.RESUME_CHECK_MS; } });
 Object.defineProperty(exports, "startupSettled", { enumerable: true, get: function () { return updates_1.startupSettled; } });
+var mainReady_1 = require("./mainReady");
+Object.defineProperty(exports, "configureMainReady", { enumerable: true, get: function () { return mainReady_1.configureMainReady; } });
+Object.defineProperty(exports, "createMainReady", { enumerable: true, get: function () { return mainReady_1.createMainReady; } });
+Object.defineProperty(exports, "prefetchUpdate", { enumerable: true, get: function () { return mainReady_1.prefetchUpdate; } });
+Object.defineProperty(exports, "onMainReady", { enumerable: true, get: function () { return mainReady_1.onMainReady; } });
+Object.defineProperty(exports, "setBusy", { enumerable: true, get: function () { return mainReady_1.setBusy; } });
+Object.defineProperty(exports, "clearBusy", { enumerable: true, get: function () { return mainReady_1.clearBusy; } });
+Object.defineProperty(exports, "isMainReadyRestarting", { enumerable: true, get: function () { return mainReady_1.isMainReadyRestarting; } });
+Object.defineProperty(exports, "__resetMainReady", { enumerable: true, get: function () { return mainReady_1.__resetMainReady; } });
+Object.defineProperty(exports, "MAIN_READY_TIMEOUT_MS", { enumerable: true, get: function () { return mainReady_1.MAIN_READY_TIMEOUT_MS; } });
+Object.defineProperty(exports, "MAIN_READY_CHECK_EVERY_MS", { enumerable: true, get: function () { return mainReady_1.MAIN_READY_CHECK_EVERY_MS; } });
 var storeVersion_1 = require("./storeVersion");
 Object.defineProperty(exports, "checkStoreVersion", { enumerable: true, get: function () { return storeVersion_1.checkStoreVersion; } });
 Object.defineProperty(exports, "decideStoreUpdate", { enumerable: true, get: function () { return storeVersion_1.decideStoreUpdate; } });
