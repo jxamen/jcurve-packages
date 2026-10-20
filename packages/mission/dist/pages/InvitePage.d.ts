@@ -44,10 +44,12 @@ export type InvitePageProps = {
     /** 「링크 복사」 「카톡으로 공유하기」 — 앱이 공유 시트를 연다 */
     onShare: () => void;
     onBack: () => void;
+    /** (0.4.13) iOS 왼쪽 가장자리를 오른쪽으로 밀면 onBack(기본 true). 안드로이드는 그대로. 이미 앱에서 밀기를 감싼 화면은 false */
+    swipeBack?: boolean;
     /** 안내 문장 — 기본은 carrot 안내 4줄(기기 · 국가 중립) */
     notice?: readonly string[];
     title?: string;
     theme?: Partial<MissionPageTheme>;
     footer?: ReactNode;
 };
-export declare function InvitePage({ code, locked, lockReason, onVerify, onSignup, verifying, inviterPoint, inviteePoint, inviterBoost, inviteeBoost, invited, waiting, joined, rewarded, onJoin, onShare, onBack, notice, title, theme: themeIn, footer }: InvitePageProps): React.JSX.Element;
+export declare function InvitePage({ code, locked, lockReason, onVerify, onSignup, verifying, inviterPoint, inviteePoint, inviterBoost, inviteeBoost, invited, waiting, joined, rewarded, onJoin, onShare, onBack, swipeBack, notice, title, theme: themeIn, footer }: InvitePageProps): React.JSX.Element;

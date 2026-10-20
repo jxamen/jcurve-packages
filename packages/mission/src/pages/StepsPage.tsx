@@ -27,6 +27,8 @@ export type StepsPageProps = {
   /** 단계 받기 — 광고 · 서버 지급은 앱이 한다. reject 하면 「다시 시도」 안내 */
   onClaim: (stage: StepsStage) => void | Promise<void>;
   onBack: () => void;
+  /** (0.4.13) iOS 왼쪽 가장자리를 오른쪽으로 밀면 onBack(기본 true). 안드로이드는 그대로. 이미 앱에서 밀기를 감싼 화면은 false */
+  swipeBack?: boolean;
   /** 「1,000걸음마다」 의 걸음 수 — 기본 1000 */
   everySteps?: number;
   /** 안내 줄(목록) — 기본은 carrot 안내 문구 중 기기 중립인 것 */
@@ -44,7 +46,7 @@ const DEFAULT_GUIDE = [
   '만보기 보상과 조건은 사정에 따라 바뀔 수 있어요.',
 ];
 
-export function StepsPage({ todaySteps, stages, earnedToday = 0, stepsAvailable, onUpdate, onClaim, onBack, everySteps = 1000, guide = DEFAULT_GUIDE, title = '만보기', theme: themeIn, footer }: StepsPageProps) {
+export function StepsPage({ todaySteps, stages, earnedToday = 0, stepsAvailable, onUpdate, onClaim, onBack, swipeBack, everySteps = 1000, guide = DEFAULT_GUIDE, title = '만보기', theme: themeIn, footer }: StepsPageProps) {
   const theme = resolvePageTheme(themeIn);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -68,7 +70,7 @@ export function StepsPage({ todaySteps, stages, earnedToday = 0, stepsAvailable,
     }
   };
 
-  return <PageFrame title={title} onBack={onBack} theme={theme}>
+  return <PageFrame title={title} onBack={onBack} swipeBack={swipeBack} theme={theme}>
     <View style={s.top}>
       <Text style={[s.count, { color: theme.text }]}>{todaySteps.toLocaleString()}<Text style={[s.unit, { color: theme.sub }]}> 걸음</Text></Text>
       <View style={[s.bubble, { backgroundColor: theme.card }]}><Text style={[s.bubbleText, { color: theme.text }]}>{stepsBubble({ available: stepsAvailable, todaySteps, stages })}</Text></View>

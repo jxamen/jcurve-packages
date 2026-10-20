@@ -17,10 +17,12 @@ export type AppHubItem = {
 export type AppHubPageProps = {
     apps: readonly AppHubItem[];
     onBack: () => void;
+    /** (0.4.13) iOS 왼쪽 가장자리를 오른쪽으로 밀면 onBack(기본 true). 안드로이드는 그대로. 이미 앱에서 밀기를 감싼 화면은 false */
+    swipeBack?: boolean;
     title?: string;
     /** 목록이 비었을 때 글 */
     emptyText?: string;
     theme?: Partial<MissionPageTheme>;
     footer?: ReactNode;
 };
-export declare function AppHubPage({ apps, onBack, title, emptyText, theme: themeIn, footer }: AppHubPageProps): React.JSX.Element;
+export declare function AppHubPage({ apps, onBack, swipeBack, title, emptyText, theme: themeIn, footer }: AppHubPageProps): React.JSX.Element;

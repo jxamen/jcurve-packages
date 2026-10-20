@@ -26,10 +26,12 @@ export type TodayMissionPageProps = {
     /** 보너스 받기 — 실패하면 reject 하거나 false 를 준다(「보너스를 받지 못했어요」) */
     onClaim: () => Promise<void | boolean> | void | boolean;
     onBack: () => void;
+    /** (0.4.13) iOS 왼쪽 가장자리를 오른쪽으로 밀면 onBack(기본 true). 안드로이드는 그대로. 이미 앱에서 밀기를 감싼 화면은 false */
+    swipeBack?: boolean;
     title?: string;
     theme?: Partial<MissionPageTheme>;
     footer?: ReactNode;
     buttonWidth?: number;
     buttonHeight?: number;
 };
-export declare function TodayMissionPage({ rows, bonus, claimed, onClaim, onBack, title, theme: themeIn, footer, buttonWidth, buttonHeight }: TodayMissionPageProps): React.JSX.Element;
+export declare function TodayMissionPage({ rows, bonus, claimed, onClaim, onBack, swipeBack, title, theme: themeIn, footer, buttonWidth, buttonHeight }: TodayMissionPageProps): React.JSX.Element;

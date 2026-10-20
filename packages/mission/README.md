@@ -313,3 +313,10 @@ home_rows 가 없거나 읽기에 실패하면 **앱 기본 그대로**(60초 �
 
 - 원인: `BenefitQuickList` 의 `Icon` 이 기본 그림 이름(`calendar` · `bag` · `pin` · `star` · `ticket` · `friend`)이 아닌 문자열을 `<Text>` 없이 `<View>` 안에 그대로 내보냈다. React Native 는 `<View>` 안의 글자를 그리지 않는다(iOS 는 빈 칸, Android 는 오류). 걸음 줄(`👟`)과 무료 아이템 줄(`🌱`, 앱이 `homeContext.free.icon` 을 안 넘길 때)이 해당 — 0.7.5~0.7.8.
 - 고침: 기본 그림 이름이 아닌 문자열(숫자 포함)은 `<Text>` 로 감싸 그린다(22pt, 가운데). 앱이 넘긴 ReactNode 는 그대로. 기본 그림 이름 판정은 `in` 대신 `hasOwnProperty` 로 해서 `toString` · `constructor` 같은 글자가 기본 그림으로 읽히지 않는다.
+
+## 0.7.10 — 하위 화면 iOS 왼쪽 가장자리 밀기 → 뒤로 (슬랙대표님요청 10앱 통일, 패키지2 0.4.13 과 같은 소스)
+
+- `PageFrame` 과 6개 화면(`FreeItemPage` · `TodayMissionPage` · `StepsPage` · `LuckyChancePage` · `InvitePage` · `AppHubPage`)이 `swipeBack?: boolean`(기본 **true**, `false` 일 때만 끔)을 받는다. **iOS 에서만** — 안드로이드는 뒤로 키 그대로. 이미 앱에서 밀기를 감싼 화면(당근 · 머니트리 · 꾹테크)은 `swipeBack={false}`.
+- 화면 왼쪽 `EDGE_WIDTH`(24) 안에서 시작한 가로 밀기를 오른쪽으로 `EDGE_SWIPE_DX`(60) 이상(또는 빠른 튕김) 밀고 떼면 `onBack` 한 번. 쇼핑 미션 화면과 같은 판정(`edgeSwipeStarts` · `edgeSwipeDone`).
+- **새 네이티브 의존 0** — React Native 기본 `PanResponder` 만 쓴다(gesture-handler · reanimated 불필요). 가장자리에 띠 View 를 덮지 않고 화면 최상위 View 의 캡처 핸들러로 잡아서 머리줄 ‹ 단추 · 가장자리 탭 · 본문 스크롤은 그대로다. 손가락을 따라 화면이 같이 밀려 나가는 효과는 없고 떼는 순간 뒤로 간다.
+- 핸들러 묶음은 순수 함수 `edgeBackHandlers(getBack)`(`missionNav.ts`)로 RN 없이 시험한다.

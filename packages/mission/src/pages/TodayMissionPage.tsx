@@ -29,6 +29,8 @@ export type TodayMissionPageProps = {
   /** 보너스 받기 — 실패하면 reject 하거나 false 를 준다(「보너스를 받지 못했어요」) */
   onClaim: () => Promise<void | boolean> | void | boolean;
   onBack: () => void;
+  /** (0.4.13) iOS 왼쪽 가장자리를 오른쪽으로 밀면 onBack(기본 true). 안드로이드는 그대로. 이미 앱에서 밀기를 감싼 화면은 false */
+  swipeBack?: boolean;
   title?: string;
   theme?: Partial<MissionPageTheme>;
   footer?: ReactNode;
@@ -36,7 +38,7 @@ export type TodayMissionPageProps = {
   buttonHeight?: number;
 };
 
-export function TodayMissionPage({ rows, bonus, claimed = false, onClaim, onBack, title = '오늘의 미션', theme: themeIn, footer, buttonWidth = PAGE_BUTTON.width, buttonHeight = PAGE_BUTTON.height }: TodayMissionPageProps) {
+export function TodayMissionPage({ rows, bonus, claimed = false, onClaim, onBack, swipeBack, title = '오늘의 미션', theme: themeIn, footer, buttonWidth = PAGE_BUTTON.width, buttonHeight = PAGE_BUTTON.height }: TodayMissionPageProps) {
   const theme = resolvePageTheme(themeIn);
   const shown = rows.filter(r => !r.hidden);
   const progress = missionProgress(shown);
@@ -60,7 +62,7 @@ export function TodayMissionPage({ rows, bonus, claimed = false, onClaim, onBack
     }
   };
 
-  return <PageFrame title={title} onBack={onBack} theme={theme} footer={footer}>
+  return <PageFrame title={title} onBack={onBack} swipeBack={swipeBack} theme={theme} footer={footer}>
     <View style={[s.sheet, { backgroundColor: theme.card }]}>
       <Text style={[s.sub, { color: theme.sub }]}>{bonus > 0 ? `미션 ${progress.total}개 모두 완료하면 ${bonus.toLocaleString()}P를 드려요` : '여러 미션에 참여하면 추가 포인트를 드려요'}</Text>
       <View style={s.progressRow}>

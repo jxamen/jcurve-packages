@@ -1,9 +1,10 @@
 import React, { type ReactElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-vi.mock('react', async () => ({ ...await vi.importActual<any>('react'), useState: (v: any) => [v, vi.fn()], useEffect: vi.fn() }));
+vi.mock('react', async () => ({ ...await vi.importActual<any>('react'), useState: (v: any) => [v, vi.fn()], useEffect: vi.fn(), useRef: (v: any) => ({ current: v }) }));
 vi.mock('react-native', () => ({
   View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView', StyleSheet: { create: (v: unknown) => v },
   BackHandler: { addEventListener: () => ({ remove: vi.fn() }) },
+  Platform: { OS: 'ios' }, PanResponder: { create: (cfg: unknown) => ({ panHandlers: cfg }) },
 }));
 import { StepsPage } from './StepsPage';
 import type { StepsStage } from './logic';

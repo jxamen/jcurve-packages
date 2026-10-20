@@ -30,8 +30,10 @@ export type LuckyChancePageProps = {
         onOpen: () => void;
     };
     onBack: () => void;
+    /** (0.4.13) iOS 왼쪽 가장자리를 오른쪽으로 밀면 onBack(기본 true). 안드로이드는 그대로. 이미 앱에서 밀기를 감싼 화면은 false */
+    swipeBack?: boolean;
     title?: string;
     theme?: Partial<MissionPageTheme>;
     footer?: ReactNode;
 };
-export declare function LuckyChancePage({ freeLeft, adLeft, waitUntil, prizes, boost, boostText, drawTitle, onDraw, busy, offerwall, onBack, title, theme: themeIn, footer }: LuckyChancePageProps): React.JSX.Element;
+export declare function LuckyChancePage({ freeLeft, adLeft, waitUntil, prizes, boost, boostText, drawTitle, onDraw, busy, offerwall, onBack, swipeBack, title, theme: themeIn, footer }: LuckyChancePageProps): React.JSX.Element;

@@ -7,6 +7,7 @@ exports.PageButton = PageButton;
 const jsx_runtime_1 = require("react/jsx-runtime");
 const react_1 = require("react");
 const react_native_1 = require("react-native");
+const missionNav_1 = require("../missionNav");
 exports.DEFAULT_PAGE_THEME = {
     bg: '#FBF7F2', card: '#FFFFFF', text: '#2B2118', sub: '#6B5E52', accent: '#EE7A33', accentText: '#FFFFFF',
     accentSoft: '#FDE6D6', line: '#F3EBE1', done: '#D3D7DD', itemName: '아이템',
@@ -21,12 +22,16 @@ exports.PAGE_BUTTON = { width: 72, height: 34 };
  * 독립 페이지 공통 틀 — 상단 「‹ 제목」 한 줄 · 안드로이드 뒤로 가기 → onBack · 본문 스크롤 · 맨 아래 광고 자리(footer).
  * 상태 표시줄 안전영역은 앱 바깥 틀이 잡는다(carrot PageHeader 와 같은 규칙).
  */
-function PageFrame({ title, onBack, theme, footer, children }) {
+function PageFrame({ title, onBack, swipeBack = true, theme, footer, children }) {
     (0, react_1.useEffect)(() => {
         const sub = react_native_1.BackHandler.addEventListener('hardwareBackPress', () => { onBack(); return true; });
         return () => sub.remove();
     }, [onBack]);
-    return (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: [s.root, { backgroundColor: theme.bg }], children: [(0, jsx_runtime_1.jsxs)(react_native_1.View, { style: s.header, children: [(0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: "\uB4A4\uB85C", hitSlop: 12, onPress: onBack, style: s.side, children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.back, { color: theme.text }], children: "\u2039" }) }), (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.title, { color: theme.text }], numberOfLines: 1, children: title }), (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.side })] }), (0, jsx_runtime_1.jsxs)(react_native_1.ScrollView, { contentContainerStyle: s.content, children: [children, footer != null ? (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.footer, children: footer }) : null] })] });
+    const backRef = (0, react_1.useRef)(onBack);
+    backRef.current = onBack;
+    const edge = (0, react_1.useRef)(react_native_1.PanResponder.create((0, missionNav_1.edgeBackHandlers)(() => backRef.current()))).current;
+    const swipe = swipeBack !== false && react_native_1.Platform.OS === 'ios';
+    return (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: [s.root, { backgroundColor: theme.bg }], ...(swipe ? edge.panHandlers : {}), children: [(0, jsx_runtime_1.jsxs)(react_native_1.View, { style: s.header, children: [(0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: "\uB4A4\uB85C", hitSlop: 12, onPress: onBack, style: s.side, children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.back, { color: theme.text }], children: "\u2039" }) }), (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.title, { color: theme.text }], numberOfLines: 1, children: title }), (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.side })] }), (0, jsx_runtime_1.jsxs)(react_native_1.ScrollView, { contentContainerStyle: s.content, children: [children, footer != null ? (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.footer, children: footer }) : null] })] });
 }
 /** 줄 · 카드 안의 작은 버튼 — 기본 72x34, 끝난 상태는 `done` 바탕 */
 function PageButton({ label, onPress, disabled, theme, width = exports.PAGE_BUTTON.width, height = exports.PAGE_BUTTON.height, on = true, big = false }) {

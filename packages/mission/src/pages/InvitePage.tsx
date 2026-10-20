@@ -41,6 +41,8 @@ export type InvitePageProps = {
   /** 「링크 복사」 「카톡으로 공유하기」 — 앱이 공유 시트를 연다 */
   onShare: () => void;
   onBack: () => void;
+  /** (0.4.13) iOS 왼쪽 가장자리를 오른쪽으로 밀면 onBack(기본 true). 안드로이드는 그대로. 이미 앱에서 밀기를 감싼 화면은 false */
+  swipeBack?: boolean;
   /** 안내 문장 — 기본은 carrot 안내 4줄(기기 · 국가 중립) */
   notice?: readonly string[];
   title?: string;
@@ -55,7 +57,7 @@ const DEFAULT_NOTICE = [
   '가입하고 번호 인증을 마친 분만 초대할 수 있어요',
 ];
 
-export function InvitePage({ code, locked = false, lockReason = 'verify', onVerify, onSignup, verifying = false, inviterPoint, inviteePoint, inviterBoost = 0, inviteeBoost = 0, invited, waiting, joined = false, rewarded = false, onJoin, onShare, onBack, notice = DEFAULT_NOTICE, title = '친구 초대', theme: themeIn, footer }: InvitePageProps) {
+export function InvitePage({ code, locked = false, lockReason = 'verify', onVerify, onSignup, verifying = false, inviterPoint, inviteePoint, inviterBoost = 0, inviteeBoost = 0, invited, waiting, joined = false, rewarded = false, onJoin, onShare, onBack, swipeBack, notice = DEFAULT_NOTICE, title = '친구 초대', theme: themeIn, footer }: InvitePageProps) {
   const theme = resolvePageTheme(themeIn);
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
@@ -78,7 +80,7 @@ export function InvitePage({ code, locked = false, lockReason = 'verify', onVeri
     }
   };
 
-  return <PageFrame title={title} onBack={onBack} theme={theme} footer={footer}>
+  return <PageFrame title={title} onBack={onBack} swipeBack={swipeBack} theme={theme} footer={footer}>
     <View style={[s.body, { backgroundColor: theme.card }]}>
       {theme.character != null ? <View accessible={false} style={s.character}>{theme.character}</View> : null}
       <Text style={[s.h1, { color: theme.text }]}>친구 초대하고</Text>

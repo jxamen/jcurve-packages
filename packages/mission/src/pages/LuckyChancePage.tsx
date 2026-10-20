@@ -30,12 +30,14 @@ export type LuckyChancePageProps = {
   /** 참여형 광고 — 주소가 있을 때만 준다. 누르면 onOpen(앱이 연다) */
   offerwall?: { name: string; onOpen: () => void };
   onBack: () => void;
+  /** (0.4.13) iOS 왼쪽 가장자리를 오른쪽으로 밀면 onBack(기본 true). 안드로이드는 그대로. 이미 앱에서 밀기를 감싼 화면은 false */
+  swipeBack?: boolean;
   title?: string;
   theme?: Partial<MissionPageTheme>;
   footer?: ReactNode;
 };
 
-export function LuckyChancePage({ freeLeft, adLeft, waitUntil, prizes = [], boost = 0, boostText, drawTitle = '행운 뽑기', onDraw, busy = false, offerwall, onBack, title = '행운 찬스', theme: themeIn, footer }: LuckyChancePageProps) {
+export function LuckyChancePage({ freeLeft, adLeft, waitUntil, prizes = [], boost = 0, boostText, drawTitle = '행운 뽑기', onDraw, busy = false, offerwall, onBack, swipeBack, title = '행운 찬스', theme: themeIn, footer }: LuckyChancePageProps) {
   const theme = resolvePageTheme(themeIn);
   // 초읽기 — 대기 중일 때만 1초마다 다시 그린다(시각은 렌더마다 새로 잰다)
   const [, tick] = useState(0);
@@ -50,7 +52,7 @@ export function LuckyChancePage({ freeLeft, adLeft, waitUntil, prizes = [], boos
   const canAd = !free && adLeft > 0 && waitMs <= 0 && !busy;
   const prize = prizeLine(prizes);
 
-  return <PageFrame title={title} onBack={onBack} theme={theme} footer={footer}>
+  return <PageFrame title={title} onBack={onBack} swipeBack={swipeBack} theme={theme} footer={footer}>
     <View style={[s.card, { backgroundColor: theme.card }]}>
       <Text style={[s.cardTitle, { color: theme.text }]}>{drawTitle}</Text>
       <Text style={[s.cardSub, { color: theme.sub }]}>{drawSubLine({ free: freeLeft, ad: adLeft, waitMs })}</Text>
