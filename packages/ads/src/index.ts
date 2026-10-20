@@ -92,7 +92,7 @@ export { tiktokEventFor, tiktokIds, tiktokKeys, tiktokSecret } from './tiktok.ma
 export type { StandardKey, TikTokCall } from './tiktok.map';
 
 export { TabBarBanner } from './TabBarBanner';
-export type { TabBarBannerProps } from './TabBarBanner';
+export type { TabBarBannerProps, TabBarBannerState } from './TabBarBanner';
 
 export { AttDeniedSheet } from './AttDeniedSheet';
 export type { AttDeniedSheetProps, AttSheetTheme } from './AttDeniedSheet';

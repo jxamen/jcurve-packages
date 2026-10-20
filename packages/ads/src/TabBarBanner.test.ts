@@ -17,6 +17,11 @@ function harness(result: Promise<any>) {
       return [states[slot], (next: any) => { states[slot] = next; }];
     },
     useEffect: (fn: any) => { effect ??= fn; },
+    useRef: (value: any) => {
+      const slot = cursor++;
+      if (!(slot in states)) states[slot] = { current: value };
+      return states[slot];
+    },
   };
   const sdk = { default: () => ({ initialize: async () => {} }),
     NativeAd: { createForAdRequest: vi.fn(() => result) },
@@ -197,5 +202,149 @@ describe('bannerSlotHeight (1.9.8)', () => {
     expect(bannerSlotHeight(0)).toBe(50);
     expect(bannerSlotHeight(390)).toBe(61);              // height unknown -> only the 90 cap
     expect(bannerSlotHeight(2000)).toBe(90);
+  });
+});
+
+describe('TabBarBanner onState diagnostics (1.9.9)', () => {
+  const collect = () => { const seen: any[] = []; return { seen, onState: (s: any) => { seen.push(s); } }; };
+
+  it('native success: requesting -> loaded (tries 1), then nothing more', async () => {
+    const ad = { headline: 'x', destroy: vi.fn() };
+    const h = harness(Promise.resolve(ad));
+    const { seen, onState } = collect();
+    h.mount({ enabled: true, unitId: 'u', format: 'native', onState });
+    h.render(); const cleanup = h.start(); await flush();
+    expect(seen).toEqual([{ state: 'requesting', tries: 1 }, { state: 'loaded', tries: 1 }]);
+    cleanup?.();
+  });
+  it('video creative: video-dropped, then asks again as requesting with tries 2', async () => {
+    vi.useFakeTimers();
+    try {
+      const video = { mediaContent: { hasVideoContent: true }, destroy: vi.fn() };
+      const h = harness(Promise.resolve(video));
+      const { seen, onState } = collect();
+      h.mount({ enabled: true, unitId: 'u', format: 'native', onState });
+      h.render(); const cleanup = h.start(); await flush();
+      expect(seen).toEqual([{ state: 'requesting', tries: 1 }, { state: 'video-dropped', tries: 1 }]);
+      await vi.advanceTimersByTimeAsync(3000); await flush();
+      expect(seen.slice(2)).toEqual([{ state: 'requesting', tries: 2 }, { state: 'video-dropped', tries: 2 }]);
+      cleanup?.();
+    } finally { vi.useRealTimers(); }
+  });
+  it('no-fill carries the SDK error text (code: message, or just the message)', async () => {
+    const withCode = harness(Promise.reject({ code: 'googleMobileAds/error-code-no-fill', message: 'No ad to show.' }));
+    const a = collect();
+    withCode.mount({ enabled: true, unitId: 'u', format: 'native', onState: a.onState });
+    withCode.render(); withCode.start(); await flush();
+    expect(a.seen[1]).toEqual({ state: 'no-fill', tries: 1, error: 'googleMobileAds/error-code-no-fill: No ad to show.' });
+    const plain = harness(Promise.reject(new Error('boom')));
+    const b = collect();
+    plain.mount({ enabled: true, unitId: 'u', format: 'native', onState: b.onState });
+    plain.render(); plain.start(); await flush();
+    expect(b.seen[1]).toEqual({ state: 'no-fill', tries: 1, error: 'boom' });
+    const empty = harness(Promise.resolve(null));       // resolved with no ad and no error
+    const c = collect();
+    empty.mount({ enabled: true, unitId: 'u', format: 'native', onState: c.onState });
+    empty.render(); empty.start(); await flush();
+    expect(c.seen[1]).toEqual({ state: 'no-fill', tries: 1 });
+  });
+  it('retries exhausted: five requests, then retries-exhausted once, after the last no-fill', async () => {
+    vi.useFakeTimers();
+    try {
+      const h = harness(Promise.reject(new Error('no fill')));
+      const { seen, onState } = collect();
+      h.mount({ enabled: true, unitId: 'u', format: 'native', onState });
+      h.render(); const cleanup = h.start(); await flush();
+      for (const ms of [3000, 10000, 30000, 60000]) { await vi.advanceTimersByTimeAsync(ms); await flush(); }
+      await vi.advanceTimersByTimeAsync(600000); await flush();
+      expect(seen.filter(s => s.state === 'requesting').map(s => s.tries)).toEqual([1, 2, 3, 4, 5]);
+      expect(seen.filter(s => s.state === 'retries-exhausted')).toEqual([{ state: 'retries-exhausted', tries: 5 }]);
+      expect(seen[seen.length - 1]).toEqual({ state: 'retries-exhausted', tries: 5 });
+      expect(seen[seen.length - 2]).toMatchObject({ state: 'no-fill', tries: 5 });
+      cleanup?.();
+    } finally { vi.useRealTimers(); }
+  });
+  it('init-failed when the SDK does not initialize', async () => {
+    const h = harness(Promise.resolve(null));
+    h.sdk.default = () => ({ initialize: async () => { throw new Error('init boom'); } });
+    const { seen, onState } = collect();
+    h.mount({ enabled: true, unitId: 'u', format: 'native', onState });
+    h.render(); h.start(); await flush();
+    expect(seen).toEqual([{ state: 'init-failed', tries: 0, error: 'init boom' }]);
+    expect(h.sdk.NativeAd.createForAdRequest).not.toHaveBeenCalled();
+    expect(outer(h)).toBe(40);                         // the slot is still reserved
+  });
+  it('a refresh that fails while a creative is shown reports the failure, not retries-exhausted, and keeps the creative', async () => {
+    vi.useFakeTimers();
+    try {
+      const first = { headline: 'first', destroy: vi.fn() };
+      const h = harness(Promise.resolve(first));
+      const { seen, onState } = collect();
+      h.mount({ enabled: true, unitId: 'u', format: 'native', onState });
+      h.render(); const cleanup = h.start(); await flush();
+      h.sdk.NativeAd.createForAdRequest.mockImplementation(() => Promise.reject(new Error('later no fill')));
+      await vi.advanceTimersByTimeAsync(60000); await flush();
+      expect(seen.slice(2)).toEqual([{ state: 'requesting', tries: 1 }, { state: 'no-fill', tries: 1, error: 'later no fill' }]);
+      expect(inner(h).props.nativeAd).toBe(first);
+      cleanup?.();
+    } finally { vi.useRealTimers(); }
+  });
+  it('banner: requesting when mounted, loaded / no-fill from the SDK callbacks (with the error)', async () => {
+    const h = harness(Promise.resolve(null));
+    const { seen, onState } = collect();
+    h.mount({ enabled: true, unitId: 'b', onState });
+    h.render(); h.start(); await flush();
+    expect(seen).toEqual([{ state: 'requesting', tries: 1 }]);
+    const banner = inner(h);
+    banner.props.onAdLoaded();
+    banner.props.onAdFailedToLoad({ code: 'googleMobileAds/error-code-network-error', message: 'offline' });
+    expect(seen.slice(1)).toEqual([{ state: 'loaded', tries: 1 }, { state: 'no-fill', tries: 1, error: 'googleMobileAds/error-code-network-error: offline' }]);
+  });
+  it('without a callback nothing changes: same heights, same ad, no errors', async () => {
+    vi.useFakeTimers();
+    try {
+      const ad = { headline: 'x', destroy: vi.fn() };
+      const h = harness(Promise.resolve(ad));
+      h.mount({ enabled: true, unitId: 'u', format: 'native' });
+      h.render(); const cleanup = h.start(); await flush();
+      expect(outer(h)).toBe(40); expect(inner(h).props.nativeAd).toBe(ad);
+      cleanup?.();
+    } finally { vi.useRealTimers(); }
+  });
+  it('a throwing callback is ignored — the ad still shows', async () => {
+    const ad = { headline: 'x', destroy: vi.fn() };
+    const h = harness(Promise.resolve(ad));
+    h.mount({ enabled: true, unitId: 'u', format: 'native', onState: () => { throw new Error('callback bug'); } });
+    h.render(); const cleanup = h.start(); await flush();
+    expect(inner(h).props.nativeAd).toBe(ad);
+    cleanup?.();
+  });
+  it('the latest callback is used without restarting the loader', async () => {
+    vi.useFakeTimers();
+    try {
+      const ad = { headline: 'x', destroy: vi.fn() };
+      const h = harness(Promise.resolve(ad));
+      const first = collect();
+      const second = collect();
+      h.mount({ enabled: true, unitId: 'u', format: 'native', onState: first.onState });
+      h.render(); const cleanup = h.start(); await flush();
+      h.mount({ enabled: true, unitId: 'u', format: 'native', onState: second.onState });
+      h.render();                                      // a re-render with a new callback identity
+      await vi.advanceTimersByTimeAsync(60000); await flush();
+      expect(h.sdk.NativeAd.createForAdRequest).toHaveBeenCalledTimes(2);   // not restarted, just the normal refresh
+      expect(first.seen.map(s => s.state)).toEqual(['requesting', 'loaded']);
+      expect(second.seen.map(s => s.state)).toEqual(['requesting', 'loaded']);
+      cleanup?.();
+    } finally { vi.useRealTimers(); }
+  });
+  it('reports nothing after unmount (a late response is only destroyed)', async () => {
+    let resolve: (ad: any) => void = () => {};
+    const h = harness(new Promise(r => { resolve = r; }));
+    const { seen, onState } = collect();
+    h.mount({ enabled: true, unitId: 'u', format: 'native', onState });
+    h.render(); const cleanup = h.start(); await flush(); cleanup?.();
+    const ad = { destroy: vi.fn() }; resolve(ad); await flush();
+    expect(seen).toEqual([{ state: 'requesting', tries: 1 }]);
+    expect(ad.destroy).toHaveBeenCalledOnce();
   });
 });

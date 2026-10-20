@@ -116,6 +116,32 @@ ads.setLang('en');   // 켠 뒤 바꿀 때 — 다음 광고부터
 둘 다 있으면 같은 이벤트가 두 번 나간다). `expo-build-properties` 의 JitPack 줄은 남겨도 된다(플러그인이 겹치면 건너뛴다).
 
 
+## TabBarBanner — 왜 비었는지 보기 `onState` (1.9.9, 대표님 10-20 21:39 「꼬꼬농장 배너 광고가 안 나와」 진단용)
+
+선택 prop **`onState?(s: TabBarBannerState)`** — 슬롯이 채워지는 **과정**을 앱에 알려 준다. **동작 · 높이 · 시각은 그대로**(콜백만 더함, 안 주면 아무 일도 없다), 새 네이티브 0. 콜백이 던져도 무시한다. 렌더마다 새 함수를 넘겨도 로더가 다시 시작되지 않는다(늘 최신 콜백을 부른다). 언마운트 뒤에는 부르지 않는다.
+
+| `state` | 뜻 |
+|---|---|
+| `requesting` | 요청을 보냈다(native 는 시도마다, banner 는 BannerAd 를 붙일 때) |
+| `loaded` | 광고가 화면에 있다 |
+| `video-dropped` | **영상 소재가 와서 버렸다**(아래 「영상은 왜 버리나」) |
+| `no-fill` | 요청이 실패했거나 광고가 없다 — `error` 에 SDK 메시지(`코드: 메시지`, 200자까지) |
+| `retries-exhausted` | native 가 마지막 재시도(3 · 10 · 30 · 60초)까지 실패해 포기했다 — 그 시도의 `video-dropped`/`no-fill` **바로 뒤**에 한 번 |
+| `init-failed` | 광고 SDK 초기화 실패 |
+
+`tries` = 마지막 `loaded` 이후 보낸 요청 수(첫 요청 = 1, banner 는 1). 광고가 떠 있는 동안 갱신 요청이 실패하면 `no-fill`/`video-dropped` 만 알리고(포기 아님) 광고는 그대로 둔다.
+
+```tsx
+<TabBarBanner unitId={u} format="native" enabled={on}
+  onState={s => log('tabbanner', s.state, s.tries, s.error)} />   // 서버 로그 · 개발 화면 등 앱이 정한 곳으로
+```
+꼬꼬식 판별: `requesting → video-dropped → … → retries-exhausted` 면 **영상 소재가 계속 와서** 비는 것, `no-fill` 이면 AdMob 이 채우지 못한 것(`error` 확인), `init-failed` 면 SDK 쪽이다.
+
+**영상은 왜 버리나** (정책 근거, 2026-10-20 AdMob 네이티브 광고 정책 페이지 `support.google.com/admob/answer/6329638` 확인):
+- 필수 요소 표에서 영상 광고는 **「Video (for video ads) — Required」**(영상 광고에 한해 표시 필수)이고, 「MediaView is required to render the main video asset in an ad.」 영상용 MediaView 는 **120×120dp 이상**이어야 한다(그보다 작으면 영상 광고가 안 나간다고 적혀 있다).
+- 40dp 한 줄 슬롯은 영상을 규정대로 그릴 수 없다. 그래서 **영상 소재를 아이콘 · 제목만으로 보여 주는 것은 정책상 맞지 않아** 지금처럼 버리고 다시 요청한다. **영상이 계속 오면 슬롯이 비는 것이 설계**다 — 영상까지 보이려면 120dp 이상의 MediaView 를 가진 더 큰 카드가 필요하다(이 슬롯의 일이 아니다).
+- 반대로 **영상이 아닌 소재**는 같은 표에서 이미지가 「Recommended」(권장)이고 「A main video or image asset is not required.」라 아이콘 · 제목만으로 보여도 된다.
+
 ## TabBarBanner — 자리 고정 (1.9.8, 대표님 10-20 21:22)
 
 > 「탭 메뉴 아래 광고가 나오는데, 광고가 나오면 메뉴가 위로 툭 올라가. 광고 자리를 고정해 두고 광고만 나왔으면 좋겠어.」

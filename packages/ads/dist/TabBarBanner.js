@@ -58,7 +58,7 @@ function bannerSlotHeight(windowWidth, windowHeight) {
  * before load, no fill, exhausted retries, video filtered out and creative swaps all keep the same height (empty slot = `backgroundColor`).
  * Only `enabled=false`, a missing unit, web, or no ads SDK reserve nothing (0 height).
  */
-function TabBarBanner({ unitId, enabled, format = 'banner', backgroundColor = '#fff', bannerHeight }) {
+function TabBarBanner({ unitId, enabled, format = 'banner', backgroundColor = '#fff', bannerHeight, onState }) {
     if (!enabled || !unitId)
         return null;
     // Optional native peers: importing this package must remain safe on web/Expo Go.
@@ -73,31 +73,61 @@ function TabBarBanner({ unitId, enabled, format = 'banner', backgroundColor = '#
     }
     if (rn.Platform.OS === 'web')
         return null;
-    return react_1.default.createElement(LoadedBanner, { key: `${format}:${unitId}`, sdk, rn, unitId, format, backgroundColor, bannerHeight });
+    return react_1.default.createElement(LoadedBanner, { key: `${format}:${unitId}`, sdk, rn, unitId, format, backgroundColor, bannerHeight, onState });
 }
 /** Retry delays after no fill / video creative (ms). After the last one the slot stays reserved but empty. */
 exports.NATIVE_RETRY_MS = [3000, 10000, 30000, 60000];
 /** Swap the creative while it stays on screen. */
 exports.NATIVE_REFRESH_MS = 60000;
-function LoadedBanner({ sdk, rn, unitId, format, backgroundColor, bannerHeight }) {
+/** Short, single-line description of an SDK error for `TabBarBannerState.error` (never throws). */
+function describeError(e) {
+    if (e == null)
+        return undefined;
+    try {
+        const text = typeof e === 'string' ? e : [e.code, e.message].filter(Boolean).join(': ') || String(e);
+        return text.slice(0, 200);
+    }
+    catch {
+        return undefined;
+    }
+}
+function LoadedBanner({ sdk, rn, unitId, format, backgroundColor, bannerHeight, onState }) {
     const [ready, setReady] = (0, react_1.useState)(false);
     const [failed, setFailed] = (0, react_1.useState)(false);
     const [ad, setAd] = (0, react_1.useState)(null);
+    // Always call the latest callback without restarting the loader (it is not an effect dependency).
+    const callback = (0, react_1.useRef)(onState);
+    callback.current = onState;
+    const report = (state, tries, error) => {
+        const fn = callback.current;
+        if (!fn)
+            return;
+        const text = describeError(error);
+        try {
+            fn(text ? { state, tries, error: text } : { state, tries });
+        }
+        catch { /* diagnostics must never break the slot */ }
+    };
     (0, react_1.useEffect)(() => {
         let alive = true;
         let shown = null;
         let timer = null;
-        let tries = 0;
+        let tries = 0; // retries used (picks the next delay)
+        let requests = 0; // requests since the last loaded (reported as `tries`)
         const later = (ms) => { timer = setTimeout(() => { void load(); }, ms); };
         // A one-line native slot cannot display mandatory video media: drop video and ask again
         // (2026-10-19 owner: 「배너 광고가 하나도 안 나와」 — one video creative used to leave the slot empty for the whole session).
         const load = async () => {
             let next = null;
+            let error;
+            requests++;
+            report('requesting', requests);
             try {
                 next = await sdk.NativeAd.createForAdRequest(unitId, { startVideoMuted: true });
             }
-            catch {
+            catch (e) {
                 next = null;
+                error = e;
             }
             if (!alive) {
                 next?.destroy();
@@ -108,28 +138,37 @@ function LoadedBanner({ sdk, rn, unitId, format, backgroundColor, bannerHeight }
                 shown = next;
                 setAd(next);
                 old?.destroy();
+                report('loaded', requests);
                 tries = 0;
+                requests = 0;
                 later(exports.NATIVE_REFRESH_MS);
                 return;
             }
             next?.destroy();
+            report(next ? 'video-dropped' : 'no-fill', requests, error);
             if (shown) {
+                requests = 0;
                 later(exports.NATIVE_REFRESH_MS);
                 return;
             } // keep the current creative
             if (tries < exports.NATIVE_RETRY_MS.length)
                 later(exports.NATIVE_RETRY_MS[tries++]);
+            else
+                report('retries-exhausted', requests);
         };
         void Promise.resolve().then(() => sdk.default().initialize()).then(() => {
             if (!alive)
                 return;
             if (format === 'banner') {
                 setReady(true);
+                report('requesting', 1);
                 return;
             }
             return load();
-        }).catch(() => { if (alive)
-            setFailed(true); });
+        }).catch((e) => { if (alive) {
+            setFailed(true);
+            report('init-failed', requests, e);
+        } });
         return () => { alive = false; if (timer)
             clearTimeout(timer); shown?.destroy(); };
     }, [sdk, unitId, format]);
@@ -140,7 +179,8 @@ function LoadedBanner({ sdk, rn, unitId, format, backgroundColor, bannerHeight }
     const slot = (child) => h(rn.View, { style: { height: slotHeight, width: '100%', overflow: 'hidden', backgroundColor, alignItems: 'center', justifyContent: 'center' } }, child);
     if (format === 'banner') {
         // The BannerAd renders nothing (0x0) until it loads; a failed request just leaves the empty slot.
-        return slot(ready && !failed ? h(sdk.BannerAd, { unitId, size: sdk.BannerAdSize.ANCHORED_ADAPTIVE_BANNER, onAdFailedToLoad: () => setFailed(true) }) : null);
+        return slot(ready && !failed ? h(sdk.BannerAd, { unitId, size: sdk.BannerAdSize.ANCHORED_ADAPTIVE_BANNER,
+            onAdLoaded: () => report('loaded', 1), onAdFailedToLoad: (e) => { setFailed(true); report('no-fill', 1, e); } }) : null);
     }
     if (!ad || failed)
         return slot(null);

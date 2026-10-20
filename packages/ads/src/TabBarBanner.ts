@@ -1,4 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+
+/**
+ * (1.9.9) Why the slot is (not) filled — diagnostics only, never changes behavior.
+ * - `requesting`: a request started (native: every attempt; banner: the BannerAd was mounted).
+ * - `loaded`: a creative is on screen.
+ * - `video-dropped`: a video creative came back and was destroyed (a 40dp row cannot render the required video).
+ * - `no-fill`: the request failed or came back empty (`error` = SDK message when there is one).
+ * - `retries-exhausted`: native gave up after the last retry (follows the `video-dropped` / `no-fill` of that attempt).
+ * - `init-failed`: the ads SDK did not initialize.
+ * `tries` = requests made in this run since the last `loaded` (first request = 1; banner always 1).
+ */
+export type TabBarBannerState = {
+  state: 'requesting' | 'loaded' | 'video-dropped' | 'no-fill' | 'retries-exhausted' | 'init-failed';
+  tries: number;
+  error?: string;
+};
 
 export type TabBarBannerProps = {
   unitId?: string;
@@ -15,6 +31,8 @@ export type TabBarBannerProps = {
    * The outer height never changes after mount; if the SDK's real banner is a few dp different it is centered and clipped inside the slot.
    */
   bannerHeight?: number;
+  /** (1.9.9) Optional diagnostics callback — see `TabBarBannerState`. Absent means nothing is reported; a throwing callback is ignored. */
+  onState?: (s: TabBarBannerState) => void;
 };
 
 /** Outer height of a native slot (dp). Reserved from the first render. */
@@ -41,7 +59,7 @@ export function bannerSlotHeight(windowWidth: number, windowHeight?: number): nu
  * before load, no fill, exhausted retries, video filtered out and creative swaps all keep the same height (empty slot = `backgroundColor`).
  * Only `enabled=false`, a missing unit, web, or no ads SDK reserve nothing (0 height).
  */
-export function TabBarBanner({ unitId, enabled, format = 'banner', backgroundColor = '#fff', bannerHeight }: TabBarBannerProps) {
+export function TabBarBanner({ unitId, enabled, format = 'banner', backgroundColor = '#fff', bannerHeight, onState }: TabBarBannerProps) {
   if (!enabled || !unitId) return null;
   // Optional native peers: importing this package must remain safe on web/Expo Go.
   let sdk: any;
@@ -49,7 +67,7 @@ export function TabBarBanner({ unitId, enabled, format = 'banner', backgroundCol
   try { sdk = require('react-native-google-mobile-ads'); rn = require('react-native'); }
   catch { return null; }
   if (rn.Platform.OS === 'web') return null;
-  return React.createElement(LoadedBanner, { key: `${format}:${unitId}`, sdk, rn, unitId, format, backgroundColor, bannerHeight });
+  return React.createElement(LoadedBanner, { key: `${format}:${unitId}`, sdk, rn, unitId, format, backgroundColor, bannerHeight, onState });
 }
 
 /** Retry delays after no fill / video creative (ms). After the last one the slot stays reserved but empty. */
@@ -57,35 +75,60 @@ export const NATIVE_RETRY_MS = [3000, 10000, 30000, 60000];
 /** Swap the creative while it stays on screen. */
 export const NATIVE_REFRESH_MS = 60000;
 
-function LoadedBanner({ sdk, rn, unitId, format, backgroundColor, bannerHeight }: any) {
+/** Short, single-line description of an SDK error for `TabBarBannerState.error` (never throws). */
+function describeError(e: any): string | undefined {
+  if (e == null) return undefined;
+  try {
+    const text = typeof e === 'string' ? e : [e.code, e.message].filter(Boolean).join(': ') || String(e);
+    return text.slice(0, 200);
+  } catch { return undefined; }
+}
+
+function LoadedBanner({ sdk, rn, unitId, format, backgroundColor, bannerHeight, onState }: any) {
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const [ad, setAd] = useState<any>(null);
+  // Always call the latest callback without restarting the loader (it is not an effect dependency).
+  const callback = useRef(onState);
+  callback.current = onState;
+  const report = (state: TabBarBannerState['state'], tries: number, error?: unknown) => {
+    const fn = callback.current;
+    if (!fn) return;
+    const text = describeError(error);
+    try { fn(text ? { state, tries, error: text } : { state, tries }); } catch { /* diagnostics must never break the slot */ }
+  };
   useEffect(() => {
     let alive = true;
     let shown: any = null;
     let timer: any = null;
-    let tries = 0;
+    let tries = 0;      // retries used (picks the next delay)
+    let requests = 0;   // requests since the last loaded (reported as `tries`)
     const later = (ms: number) => { timer = setTimeout(() => { void load(); }, ms); };
     // A one-line native slot cannot display mandatory video media: drop video and ask again
     // (2026-10-19 owner: 「배너 광고가 하나도 안 나와」 — one video creative used to leave the slot empty for the whole session).
     const load = async () => {
       let next: any = null;
-      try { next = await sdk.NativeAd.createForAdRequest(unitId, { startVideoMuted: true }); } catch { next = null; }
+      let error: unknown;
+      requests++;
+      report('requesting', requests);
+      try { next = await sdk.NativeAd.createForAdRequest(unitId, { startVideoMuted: true }); } catch (e) { next = null; error = e; }
       if (!alive) { next?.destroy(); return; }
       if (next && !next.mediaContent?.hasVideoContent) {
         const old = shown; shown = next; setAd(next); old?.destroy();
-        tries = 0; later(NATIVE_REFRESH_MS); return;
+        report('loaded', requests);
+        tries = 0; requests = 0; later(NATIVE_REFRESH_MS); return;
       }
       next?.destroy();
-      if (shown) { later(NATIVE_REFRESH_MS); return; }   // keep the current creative
+      report(next ? 'video-dropped' : 'no-fill', requests, error);
+      if (shown) { requests = 0; later(NATIVE_REFRESH_MS); return; }   // keep the current creative
       if (tries < NATIVE_RETRY_MS.length) later(NATIVE_RETRY_MS[tries++]);
+      else report('retries-exhausted', requests);
     };
     void Promise.resolve().then(() => sdk.default().initialize()).then(() => {
       if (!alive) return;
-      if (format === 'banner') { setReady(true); return; }
+      if (format === 'banner') { setReady(true); report('requesting', 1); return; }
       return load();
-    }).catch(() => { if (alive) setFailed(true); });
+    }).catch((e) => { if (alive) { setFailed(true); report('init-failed', requests, e); } });
     return () => { alive = false; if (timer) clearTimeout(timer); shown?.destroy(); };
   }, [sdk, unitId, format]);
   const h = React.createElement;
@@ -95,7 +138,8 @@ function LoadedBanner({ sdk, rn, unitId, format, backgroundColor, bannerHeight }
   const slot = (child: any) => h(rn.View, { style: { height: slotHeight, width: '100%', overflow: 'hidden', backgroundColor, alignItems: 'center', justifyContent: 'center' } }, child);
   if (format === 'banner') {
     // The BannerAd renders nothing (0x0) until it loads; a failed request just leaves the empty slot.
-    return slot(ready && !failed ? h(sdk.BannerAd, { unitId, size: sdk.BannerAdSize.ANCHORED_ADAPTIVE_BANNER, onAdFailedToLoad: () => setFailed(true) }) : null);
+    return slot(ready && !failed ? h(sdk.BannerAd, { unitId, size: sdk.BannerAdSize.ANCHORED_ADAPTIVE_BANNER,
+      onAdLoaded: () => report('loaded', 1), onAdFailedToLoad: (e: unknown) => { setFailed(true); report('no-fill', 1, e); } }) : null);
   }
   if (!ad || failed) return slot(null);
   // NativeAdView supplies AdChoices. Native attribution is required separately by AdMob.

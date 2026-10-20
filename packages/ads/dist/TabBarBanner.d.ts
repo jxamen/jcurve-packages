@@ -1,4 +1,19 @@
 import React from 'react';
+/**
+ * (1.9.9) Why the slot is (not) filled — diagnostics only, never changes behavior.
+ * - `requesting`: a request started (native: every attempt; banner: the BannerAd was mounted).
+ * - `loaded`: a creative is on screen.
+ * - `video-dropped`: a video creative came back and was destroyed (a 40dp row cannot render the required video).
+ * - `no-fill`: the request failed or came back empty (`error` = SDK message when there is one).
+ * - `retries-exhausted`: native gave up after the last retry (follows the `video-dropped` / `no-fill` of that attempt).
+ * - `init-failed`: the ads SDK did not initialize.
+ * `tries` = requests made in this run since the last `loaded` (first request = 1; banner always 1).
+ */
+export type TabBarBannerState = {
+    state: 'requesting' | 'loaded' | 'video-dropped' | 'no-fill' | 'retries-exhausted' | 'init-failed';
+    tries: number;
+    error?: string;
+};
 export type TabBarBannerProps = {
     unitId?: string;
     enabled: boolean;
@@ -14,6 +29,8 @@ export type TabBarBannerProps = {
      * The outer height never changes after mount; if the SDK's real banner is a few dp different it is centered and clipped inside the slot.
      */
     bannerHeight?: number;
+    /** (1.9.9) Optional diagnostics callback — see `TabBarBannerState`. Absent means nothing is reported; a throwing callback is ignored. */
+    onState?: (s: TabBarBannerState) => void;
 };
 /** Outer height of a native slot (dp). Reserved from the first render. */
 export declare const NATIVE_SLOT_HEIGHT = 40;
@@ -31,7 +48,7 @@ export declare function bannerSlotHeight(windowWidth: number, windowHeight?: num
  * before load, no fill, exhausted retries, video filtered out and creative swaps all keep the same height (empty slot = `backgroundColor`).
  * Only `enabled=false`, a missing unit, web, or no ads SDK reserve nothing (0 height).
  */
-export declare function TabBarBanner({ unitId, enabled, format, backgroundColor, bannerHeight }: TabBarBannerProps): React.FunctionComponentElement<any> | null;
+export declare function TabBarBanner({ unitId, enabled, format, backgroundColor, bannerHeight, onState }: TabBarBannerProps): React.FunctionComponentElement<any> | null;
 /** Retry delays after no fill / video creative (ms). After the last one the slot stays reserved but empty. */
 export declare const NATIVE_RETRY_MS: number[];
 /** Swap the creative while it stays on screen. */
