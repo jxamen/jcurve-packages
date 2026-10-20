@@ -16,8 +16,8 @@ export function RewardBadge({ product, theme }: { product: Product; theme: Shopp
 
 function Thumb({ uri, title, theme, style }: { uri?: string | null; title: string; theme: ShoppingTheme; style: object }) {
   const [width, setWidth] = useState(0);
-  return <View onLayout={e => setWidth(e.nativeEvent.layout.width)} style={[style, { backgroundColor: theme.thumbBg ?? '#F2F4F6' }]}>
-    {uri ? <Image source={{ uri: productImage(uri, width, PixelRatio.get()) }} style={{ width: '100%', height: '100%' }} resizeMode="contain" accessibilityIgnoresInvertColors />
+  return <View onLayout={e => setWidth(e.nativeEvent.layout.width)} style={style}>
+    {uri ? <Image source={{ uri: productImage(uri, width, PixelRatio.get()) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" accessibilityIgnoresInvertColors />
       : <View style={[s.thumbEmpty, { flex: 1 }]}><Text style={[s.thumbLetter, { color: theme.sub }]}>{title.replace(/^\[[^\]]*\]\s*/, '').slice(0, 1)}</Text></View>}
   </View>;
 }
@@ -25,7 +25,7 @@ function Thumb({ uri, title, theme, style }: { uri?: string | null; title: strin
 export function ProductCard({ product, theme, onPress, width }: { product: Product; theme: ShoppingTheme; onPress: (p: Product) => void; width: number | `${number}%` }) {
   const hasPrice = isFiniteNumber(product.price);
   return <Pressable accessibilityRole="button" accessibilityLabel={hasPrice ? `${product.title}, ${won(product.price)}` : product.title} onPress={() => onPress(product)}
-    style={({ pressed }) => [{ width, opacity: pressed ? 0.85 : 1 }]}>
+    style={({ pressed }) => [s.productCard, { width, opacity: pressed ? 0.85 : 1 }]}>
     <View>
       <Thumb uri={product.image} title={product.title} theme={theme} style={s.thumb} />
       {product.reward > 0 && product.rewardKind !== 'none' ? <View style={s.badgeAt}><RewardBadge product={product} theme={theme} /></View> : null}
@@ -180,7 +180,8 @@ export const s = StyleSheet.create({
   badgeMark: { width: 16, height: 16, borderRadius: 8, textAlign: 'center', fontSize: 10, lineHeight: 16, fontWeight: '800', overflow: 'hidden' },
   badgeText: { fontSize: 13, fontWeight: '800' },
   badgeAt: { position: 'absolute', left: 8, bottom: 8 },
-  thumb: { width: '100%', aspectRatio: 1, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(0,0,0,0.04)', overflow: 'hidden', padding: 6 },
+  productCard: { borderRadius: 12, overflow: 'hidden' },
+  thumb: { width: '100%', aspectRatio: 1, borderTopLeftRadius: 12, borderTopRightRadius: 12, overflow: 'hidden', padding: 0 },
   thumbEmpty: { alignItems: 'center', justifyContent: 'center' },
   thumbLetter: { fontSize: 28, fontWeight: '700' },
   tag: { fontSize: 12, fontWeight: '700', marginTop: 8 },
