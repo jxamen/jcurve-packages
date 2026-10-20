@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View, type TextStyle } from 'react-native';
 import { dealEndsAt, num, partnerLine, partnerRewardName } from './format';
 import { Chips, DisclosureNote, Disclosures, DealRow, ThemeRow, Notice, ProductGrid, RecentTicker } from './parts';
 import { ProductPager } from './products';
 import { ProofScreen } from './Proof';
 import { CouponInfoScreen } from './CouponInfo';
+import { headCenterStyle, ShoppingHeaderTitle, shoppingTitleText, type ShoppingTitleAlign } from './Title';
 import { DEFAULT_THEME, type PickedImage, type ProofInfo, type Category, type Deals, type NoticeSection, type Partner, type PartnerId, type Product, type ShoppingApi, type ShoppingHome, type ShoppingTheme, type ThemeSection } from './types';
 
 export type ShoppingTabProps = {
@@ -19,12 +20,18 @@ export type ShoppingTabProps = {
   onLinkError?: (code: string, ctx: { partnerId: PartnerId; productId?: string | null }) => void;
   /** 머리 위 여백(상태 표시줄) — 앱이 safe area 값을 넘긴다 */
   topInset?: number;
+  /** (0.1.11) 머리 제목 글자 — 앱이 정한다. 없으면 `theme.title` → 「쇼핑」 */
+  title?: string;
+  /** (0.1.11) 머리 제목 맞춤 — 기본 'left'(예전 그대로), 'center' 면 가운데 */
+  titleAlign?: ShoppingTitleAlign;
+  /** (0.1.11) 머리 제목 글자 모양(fontSize · fontWeight · color …) — 기본 위에 덮는다. 없으면 예전 그대로 26 · 800 */
+  titleStyle?: TextStyle;
 };
 
 type TabKey = 'all' | PartnerId;
 
 /** 쇼핑 탭 — ① 머리 · 누적 혜택 · 상단 탭 ② 전체 ③ 포인트형 제휴처 ④ 할인권형 제휴처 ⑤ 할인권 안내 */
-export function ShoppingTab({ api, theme: themeIn, onOpenUrl, onEvent, onLinkError, pickImage, topInset = 0 }: ShoppingTabProps) {
+export function ShoppingTab({ api, theme: themeIn, onOpenUrl, onEvent, onLinkError, pickImage, topInset = 0, title, titleAlign, titleStyle }: ShoppingTabProps) {
   const theme: ShoppingTheme = { ...DEFAULT_THEME, ...themeIn };
   const [home, setHome] = useState<ShoppingHome | null>(null);
   const [failed, setFailed] = useState(false);
@@ -59,8 +66,8 @@ export function ShoppingTab({ api, theme: themeIn, onOpenUrl, onEvent, onLinkErr
   const partner = partners.find(p => p.id === tab) ?? null;
 
   return <View style={[st.wrap, { backgroundColor: theme.bg, paddingTop: topInset }]}>
-    <View style={st.head}>
-      <Text accessibilityRole="header" style={[st.h1, { color: theme.text }]}>{theme.title ?? '쇼핑'}</Text>
+    <View style={titleAlign === 'center' ? [st.head, headCenterStyle] : st.head}>
+      <ShoppingHeaderTitle text={shoppingTitleText(title, theme.title)} color={theme.text} align={titleAlign} style={titleStyle} />
       {partner?.rewardKind !== 'none' && partners.some(p => p.rewardKind !== 'none') ? <View style={[st.benefit, { backgroundColor: theme.primarySoft }]} accessibilityLabel={`누적 혜택 ${num(home?.totalBenefit ?? 0)} ${theme.pointName}`}>
         <Text style={[st.benefitLabel, { color: theme.primary }]}>누적 혜택</Text>
         <Text style={[st.benefitValue, { color: theme.primary }]}>{theme.pointMark ?? 'P'} {num(home?.totalBenefit ?? 0)}</Text>
@@ -257,7 +264,6 @@ function PartnerView({ api, partner, theme, onProduct, onCouponInfo, pickImage, 
 const st = StyleSheet.create({
   wrap: { flex: 1 },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 6 },
-  h1: { fontSize: 26, fontWeight: '800' },
   benefit: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
   benefitLabel: { fontSize: 13, fontWeight: '600' },
   benefitValue: { fontSize: 14, fontWeight: '800' },

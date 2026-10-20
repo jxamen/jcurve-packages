@@ -96,3 +96,14 @@ const api = useMemo(() => createHttpShoppingApi((path, init) => request(path, in
 ## 0.1.10 (2026-10-20) — 상품 사진
 
 상품 사진을 1:1·cover·안쪽 여백 0으로 채우고 별도 회색 바탕·테두리를 제거해 카드 위쪽 모서리(12)와 하나로 이어지게 했다. 하루특가·주제 줄의 폭, 문구·동작·계약·이미지 요청 폭 규칙·의존성은 유지한다.
+
+## 머리 제목 정하기 (0.1.11)
+
+`ShoppingTab` 머리의 「쇼핑」 제목을 앱이 정할 수 있다 — **기본값은 지금 그대로**(왼쪽 · 26 · 800 · `theme.title ?? '쇼핑'`)라 안 넘기는 앱은 화면이 바뀌지 않는다.
+```tsx
+<ShoppingTab … title="쇼핑" titleAlign="center" titleStyle={{ fontSize: 20, fontWeight: '700' }} />
+```
+- `title?: string` — 제목 글자. 우선순위 `title` → `theme.title` → 「쇼핑」(빈 글자는 무시)
+- `titleAlign?: 'left' | 'center'` — 기본 `'left'`. `'center'` 면 머리 줄 전체 폭의 가운데(오른쪽 「누적 혜택」 알약과 겹치지 않고 누르는 것을 막지 않는다)
+- `titleStyle?: TextStyle` — 기본(26 · 800 · 제목 색) 위에 덮는다. 다른 탭 제목(예 꼬꼬 탭)과 크기를 맞출 때 `fontSize` · `fontWeight` 를 준다
+

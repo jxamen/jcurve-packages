@@ -1,6 +1,6 @@
 {
   "name": "@jcurve/shopping",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "제휴 쇼핑 탭(전체 · 포인트형 · 할인권형 · 할인권 안내) — 앱은 테마와 데이터 함수만 넘긴다",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
