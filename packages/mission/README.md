@@ -211,3 +211,25 @@ items={[freeItemRow({ itemName: '먹이', left: 2, onPress: () => openFreeItem()
 ```tsx
 <ShoppingMissionModal visible={shopping} fetchJson={fetchJson} source={from} safeAreaInsets={insets} onClose={() => setShopping(false)} />
 ```
+
+## 0.5.0 — 홈 목록을 서버 설정으로(mission/home)
+
+대표님 10-20 10:56 「메인 패키지 반영도 바로 안되고」 — 어드민 앱 설정 `mission.home_rows` 로 줄 제목 · 설명 · 버튼 · 배지 · 보임 · 순서를 바꾸면 빌드 · OTA 없이 1분 안에 바뀐다.
+서버는 jcurve-api `GET mission/home`(feat/mission-home-rows)이다. 설정이 없거나 실패하면 앱 기본 목록 그대로다.
+
+```tsx
+import { BenefitQuickList, useHomeRows } from '@jcurve/mission';
+// 앱 줄 key → 서버 행동 key(quiz1 · quiz2 · checkin · steps · free_item · today_missions · lucky_chance · invite · recommend)
+const KEYS = { bag: 'quiz1', pin: 'quiz2', calendar: 'checkin', steps: 'steps', free: 'free_item', star: 'today_missions', ticket: 'lucky_chance', friend: 'invite', apphub: 'recommend' } as const;
+const { items } = useHomeRows(fetchJson, baseItems, KEYS, tab === 'home');   // 홈으로 돌아올 때 다시(60초 캐시)
+<BenefitQuickList items={items} … />
+```
+
+- 설정이 있는 줄은 이렇게 바뀐다:
+  - 제목은 서버 것이다.
+  - 설명 · 버튼 · 배지는 서버 값이 있을 때만 바꾼다(빈 값이면 앱 것).
+  - `visible:false` 면 숨긴다.
+  - 서버 순서대로 앞에 온다.
+- 설정에 없는 줄은 그 뒤에 원래 순서로 둔다. `onPress` · 완료 · 칸 막대는 늘 앱 것이다.
+- 낱개로도 쓸 수 있다: `fetchHomeConfig(fetchJson)` · `parseHomeResponse(json)` · `applyHomeRows(items, rows, KEYS)` · `adSlotIndex(items, list.adAfter, 앱기본)`
+- `list.shoppingFirst`(혜택 탭 쇼핑 먼저) · `list.adAfter`(목록 광고 자리)는 앱이 읽어 쓴다.
