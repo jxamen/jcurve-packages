@@ -26,11 +26,14 @@ export type HomeContext = {
     steps?: number | null;
     /** (0.7.7) 걸음 권한이 아직 없다(묻기 전 · 거부) — true 면 걸음 줄 버튼이 「걸음 켜기」(누르면 권한부터 받는다), 아니면 「보상 받기」(대표님 20:11 아이폰 만보기 줄) */
     stepsNeedsPermission?: boolean;
+    /** (0.7.8) 오늘 출석을 이미 했다 — `=== true` 일 때만 출석 줄이 완료 모양(회색 · 「출석 완료」, 다른 줄의 done 과 같음) */
+    checkinDone?: boolean;
     /** 무료 아이템 줄 — 하루 방문 칸 수(기본 3) · 남은 칸(left) · 받은 횟수(received) */
     free?: {
         total?: number;
         left?: number;
         received?: number;
+        claimableNow?: boolean;
     };
     /** 무료 아이템 그림(앱 아이템 그림) — 없으면 🌱 */
     itemIcon?: BenefitQuickItem['icon'];
@@ -56,6 +59,10 @@ export type HomeContext = {
 };
 /** 무료 아이템 줄의 완료 버튼 글자 — 방문형이라 오늘 칸이 끝나면 「내일 다시」(대표님 10-20 19:01) */
 export declare const FREE_DONE_LABEL = "\uB0B4\uC77C \uB2E4\uC2DC";
+/** 출석을 이미 했을 때 출석 줄의 완료 버튼 글자(0.7.8) */
+export declare const CHECKIN_DONE_LABEL = "\uCD9C\uC11D \uC644\uB8CC";
+/** 지금 받을 수 있는 칸이 있을 때 무료 아이템 줄의 배지(0.7.8) — 서버 home_rows 에 배지가 있으면 서버 값이 우선 */
+export declare const FREE_NOW_BADGE = "\uC9C0\uAE08 \uBC1B\uAE30";
 /** 걸음 권한이 없을 때 걸음 줄의 버튼 글자(0.7.7) */
 export declare const STEPS_PERMISSION_LABEL = "\uAC78\uC74C \uCF1C\uAE30";
 /** 한 줄을 만든다 — 줄 key 는 서버 key 그대로라 `homeKeys` 맞춤표가 필요 없다 */

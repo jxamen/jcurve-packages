@@ -29,8 +29,10 @@ export type HomeContext = {
   steps?: number | null;
   /** (0.7.7) 걸음 권한이 아직 없다(묻기 전 · 거부) — true 면 걸음 줄 버튼이 「걸음 켜기」(누르면 권한부터 받는다), 아니면 「보상 받기」(대표님 20:11 아이폰 만보기 줄) */
   stepsNeedsPermission?: boolean;
+  /** (0.7.8) 오늘 출석을 이미 했다 — `=== true` 일 때만 출석 줄이 완료 모양(회색 · 「출석 완료」, 다른 줄의 done 과 같음) */
+  checkinDone?: boolean;
   /** 무료 아이템 줄 — 하루 방문 칸 수(기본 3) · 남은 칸(left) · 받은 횟수(received) */
-  free?: { total?: number; left?: number; received?: number };
+  free?: { total?: number; left?: number; received?: number; claimableNow?: boolean };
   /** 무료 아이템 그림(앱 아이템 그림) — 없으면 🌱 */
   itemIcon?: BenefitQuickItem['icon'];
   /** 오늘의 미션 줄의 앱 제목(보너스 문구 같은 동적 제목) · 막대 — 서버 제목이 비어 있으면 이것이 보인다 */
@@ -65,6 +67,12 @@ const LOOK: Record<HomeRowKey, { icon: BenefitQuickItem['icon']; tint: string; c
 
 /** 무료 아이템 줄의 완료 버튼 글자 — 방문형이라 오늘 칸이 끝나면 「내일 다시」(대표님 10-20 19:01) */
 export const FREE_DONE_LABEL = '내일 다시';
+
+/** 출석을 이미 했을 때 출석 줄의 완료 버튼 글자(0.7.8) */
+export const CHECKIN_DONE_LABEL = '출석 완료';
+
+/** 지금 받을 수 있는 칸이 있을 때 무료 아이템 줄의 배지(0.7.8) — 서버 home_rows 에 배지가 있으면 서버 값이 우선 */
+export const FREE_NOW_BADGE = '지금 받기';
 
 /** 걸음 권한이 없을 때 걸음 줄의 버튼 글자(0.7.7) */
 export const STEPS_PERMISSION_LABEL = '걸음 켜기';
@@ -114,8 +122,13 @@ export function homeItem(key: HomeRowKey, c: HomeContext, onPress: () => void): 
   const ctaLabel = key === 'steps' && c.stepsNeedsPermission === true ? STEPS_PERMISSION_LABEL : look.ctaLabel;
   const item: BenefitQuickItem = { key, title, subtitle, ctaLabel, icon, tint: themed || look.tint, onPress };
   if (key === 'free_item') {
-    return { ...item, doneLabel: FREE_DONE_LABEL, ...freeState(Math.max(1, Math.floor(c.free?.total ?? 3)), c.free?.left, c.free?.received) };
+    const state = freeState(Math.max(1, Math.floor(c.free?.total ?? 3)), c.free?.left, c.free?.received);
+    // 지금 받을 수 있는 칸이 있고 아직 끝나지 않았을 때만 「지금 받기」 배지(0.7.8)
+    const now = c.free?.claimableNow === true && state.done !== true;
+
+    return { ...item, doneLabel: FREE_DONE_LABEL, ...state, ...(now ? { badge: FREE_NOW_BADGE } : {}) };
   }
+  if (key === 'checkin' && c.checkinDone === true) return { ...item, done: true, doneLabel: CHECKIN_DONE_LABEL };
   if (key === 'today_missions' && c.todayMissions?.progress) {
     return { ...item, progress: c.todayMissions.progress, ...(c.todayMissions.progressLabel ? { progressLabel: c.todayMissions.progressLabel } : {}) };
   }

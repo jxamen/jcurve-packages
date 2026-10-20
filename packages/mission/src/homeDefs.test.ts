@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
-import { FREE_DONE_LABEL, HOME_ORDER, STEPS_PERMISSION_LABEL, buildHomeItems, homeItem, type HomeActions } from './homeDefs';
+import { CHECKIN_DONE_LABEL, FREE_DONE_LABEL, FREE_NOW_BADGE, HOME_ORDER, STEPS_PERMISSION_LABEL, buildHomeItems, homeItem, type HomeActions } from './homeDefs';
 import { HOME_KEYS, composeHomeRows, resolveHomeKeys, type HomeRow } from './home';
 
 /** 당근 기준표(ota/carrot-ios-106-benefit-1020 814f2f4, FarmScreen HOME_BENEFITS + theme.ts carrotSoft #FFEEE2 · heartSoft #E6F5EA) — 대표님 10-20 20:23 「갖다 넣으면 똑같은 게 그냥 튀어 나와야」 */
@@ -88,6 +88,41 @@ describe('줄별 값 — 걸음 · 무료 아이템 · 오늘의 미션 · 추�
   it('만보기: 걸음 수를 모르면 「만보기」, 알면 「오늘 N걸음」(천 단위 쉼표), 0 도 「오늘 0걸음」', () => {
     const t = (steps?: number | null) => homeItem('steps', { steps }, () => {}).title;
     expect([t(), t(null), t(0), t(12345), t(-5)]).toEqual(['만보기', '만보기', '오늘 0걸음', '오늘 12,345걸음', '오늘 0걸음']);
+  });
+
+  it('출석: checkinDone === true 일 때만 완료 모양(회색 · 「출석 완료」) — 제목 · 부제 · 아이콘 · 바탕색은 그대로, 다른 줄 무영향 (0.7.8)', () => {
+    expect(CHECKIN_DONE_LABEL).toBe('출석 완료');
+    const c = (ctx: Parameters<typeof homeItem>[1]) => homeItem('checkin', ctx, () => {});
+    const undone = c({});
+    expect([undone.done, undone.doneLabel, undone.ctaLabel]).toEqual([undefined, undefined, '출석하기']);
+    expect([c({ checkinDone: false }).done, c({ checkinDone: 'yes' as any }).done, c({ checkinDone: 1 as any }).done]).toEqual([undefined, undefined, undefined]);   // true 일 때만
+    const done = c({ checkinDone: true });
+    expect([done.done, done.doneLabel, done.title, done.subtitle, done.icon, done.tint]).toEqual([true, '출석 완료', '매일 출석 체크', '10초 구경하고 포인트 받기', 'calendar', '#E8F0FD']);
+    const all3 = buildHomeItems({ checkinDone: true }, all());
+    expect(all3.filter(i => i.done).map(i => i.key)).toEqual(['checkin']);                  // 다른 줄은 done 아님
+  });
+
+  it('무료 줄 「지금 받기」 배지: free.claimableNow === true 이고 아직 끝나지 않았을 때만 — 끝났거나 아니면 없다 (0.7.8)', () => {
+    expect(FREE_NOW_BADGE).toBe('지금 받기');
+    const f = (free: { left?: number; received?: number; claimableNow?: unknown }) => homeItem('free_item', { free: free as any }, () => {});
+    expect(f({ left: 2, received: 1, claimableNow: true }).badge).toBe('지금 받기');
+    expect(f({ claimableNow: true }).badge).toBe('지금 받기');                                // 값이 없어도 받을 수 있으면
+    expect(f({ left: 0, received: 1, claimableNow: true }).badge).toBeUndefined();           // 끝났으면(done) 배지 없음
+    expect([f({ left: 2 }).badge, f({ left: 2, claimableNow: false }).badge, f({ left: 2, claimableNow: 'yes' }).badge]).toEqual([undefined, undefined, undefined]);
+    expect(homeItem('quiz1', { free: { claimableNow: true } }, () => {}).badge).toBeUndefined();   // 무료 줄에만
+  });
+
+  it('서버 home_rows 에 배지가 있으면 서버 값이 우선, 빈 배지면 우리 「지금 받기」 유지 (0.7.8)', () => {
+    const base = buildHomeItems({ free: { left: 2, claimableNow: true } }, { free_item: vi.fn() });
+    const keys = resolveHomeKeys(base, undefined);
+    const rowOf = (badge: string): HomeRow => ({ key: 'free_item', title: '', desc: '', button: '', badge, visible: true, order: 0 });
+    expect(composeHomeRows(base, [rowOf('NEW')], keys)[0].badge).toBe('NEW');
+    expect(composeHomeRows(base, [rowOf('')], keys)[0].badge).toBe('지금 받기');
+  });
+
+  it('행운 찬스 부제: 아이템 이름이 없으면 앱 말 없이 「하루 기회로 포인트 뽑기」, 있으면 그 이름으로 (0.7.8 확인)', () => {
+    const l = (ctx: Parameters<typeof homeItem>[1]) => homeItem('lucky_chance', ctx, () => {}).subtitle;
+    expect([l({}), l({ itemName: '' }), l({ itemName: '캡슐' })]).toEqual(['하루 기회로 포인트 뽑기', '하루 기회로 포인트 뽑기', '하루 기회로 캡슐 뽑기']);
   });
 
   it('만보기: 걸음 권한이 없으면 버튼이 「걸음 켜기」, 있으면(기본) 「보상 받기」 — 다른 줄 버튼은 그대로 (0.7.7)', () => {
