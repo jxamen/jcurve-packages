@@ -691,3 +691,45 @@ describe('복권 목록 · 황금 복권 전체 화면 — 기본 (0.1.6, 감자
     expect(goldOld.some(n => n?.type === 'Pressable' && flat(n.props.style).backgroundColor === 'rgba(0,0,0,0.5)')).toBe(true);
   });
 });
+
+describe('황금 줄 「광고」 칩은 제목 옆 · 버튼은 「열기」만 · 카드 머리 글자 가운데 (0.1.8, 대표님 18:58)', () => {
+  const stGold = (unopened = 1) => state([{ missions: 10, missionState: 'locked', missionsLeft: 10, basic: 1, basicUnopened: unopened }], 1);
+  const list = (over: Record<string, unknown> = {}) => nodes(LotterySheet({ open: true, state: stGold(), winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn(), ...over } as any));
+  const goldRow = (tree: any[]) => buttons(tree).find(b => String(b.props.accessibilityLabel).includes('열기, 광고'))!;
+  const isChip = (n: any) => n?.type === 'View' && flat(n.props.style).height === 20 && flat(n.props.style).borderRadius === 10;
+  const chipTexts = (tree: any[]) => tree.filter(n => n?.type === 'Text' && n.props?.children === '광고');
+
+  for (const fullScreen of [true, false]) {
+    it('fullScreen=' + fullScreen + ': 버튼 안에는 「열기」 글자뿐이고 「광고」 칩은 제목 줄(제목 바로 옆)에 있다', () => {
+      const row = goldRow(list({ fullScreen }));
+      expect(row).toBeTruthy();
+      const [copy, button] = row.props.children;
+      const inButton = nodes(button.props.children);
+      expect(inButton.filter(n => n?.type === 'Text').map(n => n.props.children)).toEqual(['열기']);
+      expect(inButton.some(isChip)).toBe(false);
+      const titleLine = copy.props.children[0];
+      const parts = nodes(titleLine.props.children);
+      const titleAt = parts.findIndex(n => n?.type === 'Text' && String(n.props.children).startsWith('최대 '));
+      const chipAt = parts.findIndex(isChip);
+      expect(titleAt).toBeGreaterThanOrEqual(0);
+      expect(chipAt).toBeGreaterThan(titleAt);                                       // 제목 다음, 같은 줄
+      expect(flat(titleLine.props.style)).toMatchObject({ flexDirection: 'row', alignItems: 'center' });
+      expect(parts.filter(n => n?.type === 'Text' && n.props.children === '광고')).toHaveLength(1);
+      expect(chipTexts(list({ fullScreen }))).toHaveLength(1);                       // 줄 전체에서도 한 번뿐
+    });
+  }
+
+  it('광고 없이 열리는 황금(basicAd=false) · 이미 연 황금(받기 완료) · 미션 줄에는 칩이 없다', () => {
+    expect(chipTexts(list({ basicAd: false }))).toHaveLength(0);
+    expect(chipTexts(nodes(LotterySheet({ open: true, state: stGold(0), winners: [], onOpen: vi.fn(), onEarn: vi.fn(), onClose: vi.fn() } as any)))).toHaveLength(0);
+    expect(buttons(list({ basicAd: false })).some(b => String(b.props.accessibilityLabel).includes('광고'))).toBe(false);
+  });
+
+  it('카드 맨 위 「지금 열고 행운 받아가요!」 · 「받은 복권은 매일 자정에 사라져요」는 가운데 정렬', () => {
+    const tree = list();
+    const title = tree.find(n => n?.type === 'Text' && n.props?.children === '지금 열고 행운 받아가요!')!;
+    const sub = tree.find(n => n?.type === 'Text' && n.props?.children === '받은 복권은 매일 자정에 사라져요')!;
+    expect(flat(title.props.style).textAlign).toBe('center');
+    expect(flat(sub.props.style).textAlign).toBe('center');
+  });
+});

@@ -196,12 +196,14 @@ function CardRow({ title, hint, button, ad, adLabel, theme, busy, compact, onPre
 
   return <Pressable accessibilityRole="button" accessibilityLabel={title + ', ' + button.label + (ad ? ', ' + (adLabel ?? '광고') : '')} accessibilityState={{ disabled: !active || !!busy }} disabled={!active || !!busy} onPress={onPress} style={compact ? s.rowC : s.row}>
     <View style={s.rowCopy}>
-      <Txt style={[compact ? s.rowTitleC : s.rowTitle, { color: theme.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{title}</Txt>
+      <View style={s.rowTitleLine}>
+        <Txt style={[compact ? s.rowTitleC : s.rowTitle, s.rowTitleText, { color: theme.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{title}</Txt>
+        {ad && button.kind === 'open' ? <AdChip label={adLabel} onColor={theme.accent} /> : null}
+      </View>
       <Txt style={[compact ? s.rowHintC : s.rowHint, { color: theme.sub }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={compact ? 0.7 : 0.85}>{hint}</Txt>
     </View>
     <View pointerEvents="none" style={[compact ? s.rowButtonC : s.rowButton, { backgroundColor: active ? theme.accentSoft : theme.done }]}>
       <Txt style={[compact ? s.rowButtonTextC : s.rowButtonText, { color: active ? theme.accent : theme.sub }]} numberOfLines={1}>{button.label}</Txt>
-      {ad && button.kind === 'open' ? <AdChip label={adLabel} onColor={theme.accent} /> : null}
     </View>
   </Pressable>;
 }
@@ -484,6 +486,9 @@ const s = StyleSheet.create({
   rows: { marginTop: 20, gap: 4 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12 },
   rowCopy: { flex: 1, minWidth: 0, gap: 3 },
+  // 제목 한 줄 — 제목 옆에 작은 「광고」 칩(0.1.8, 대표님 18:58). 제목이 길면 제목이 줄고 칩은 그대로
+  rowTitleLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  rowTitleText: { flexShrink: 1 },
   rowTitle: { fontSize: 18, lineHeight: 24, fontWeight: '800' },
   rowHint: { fontSize: 14, lineHeight: 20 },
   rowButton: { minWidth: 84, height: 44, paddingHorizontal: 14, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
@@ -506,8 +511,8 @@ const s = StyleSheet.create({
   pageContent: { padding: 16, paddingBottom: 40, gap: 12 },
   // 흰 카드 — 행운 찬스 카드와 같은 모양(둥근 모서리 · 그림자)
   card: { borderRadius: 20, padding: 20, gap: 8, shadowColor: '#17212E', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 2 },
-  cardTitle: { fontSize: 22, lineHeight: 30, fontWeight: '900' },
-  cardSub: { fontSize: 13, fontWeight: '600' },
+  cardTitle: { fontSize: 22, lineHeight: 30, fontWeight: '900', textAlign: 'center' },
+  cardSub: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
   tickerC: { borderRadius: 999, paddingVertical: 10, paddingHorizontal: 14, marginTop: 4 },
   tickerTextC: { fontSize: 13.5, fontWeight: '700', textAlign: 'center' },
   rowsC: { marginTop: 4, gap: 4 },

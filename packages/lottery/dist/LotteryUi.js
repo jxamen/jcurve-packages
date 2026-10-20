@@ -122,7 +122,7 @@ function FullPage({ open, onClose, presentation, title, theme, topInset = 0, bot
  */
 function CardRow({ title, hint, button, ad, adLabel, theme, busy, compact, onPress }) {
     const active = button.kind === 'open' || button.kind === 'earn';
-    return (0, jsx_runtime_1.jsxs)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: title + ', ' + button.label + (ad ? ', ' + (adLabel ?? '광고') : ''), accessibilityState: { disabled: !active || !!busy }, disabled: !active || !!busy, onPress: onPress, style: compact ? s.rowC : s.row, children: [(0, jsx_runtime_1.jsxs)(react_native_1.View, { style: s.rowCopy, children: [(0, jsx_runtime_1.jsx)(Txt, { style: [compact ? s.rowTitleC : s.rowTitle, { color: theme.text }], numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: 0.85, children: title }), (0, jsx_runtime_1.jsx)(Txt, { style: [compact ? s.rowHintC : s.rowHint, { color: theme.sub }], numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: compact ? 0.7 : 0.85, children: hint })] }), (0, jsx_runtime_1.jsxs)(react_native_1.View, { pointerEvents: "none", style: [compact ? s.rowButtonC : s.rowButton, { backgroundColor: active ? theme.accentSoft : theme.done }], children: [(0, jsx_runtime_1.jsx)(Txt, { style: [compact ? s.rowButtonTextC : s.rowButtonText, { color: active ? theme.accent : theme.sub }], numberOfLines: 1, children: button.label }), ad && button.kind === 'open' ? (0, jsx_runtime_1.jsx)(AdChip, { label: adLabel, onColor: theme.accent }) : null] })] });
+    return (0, jsx_runtime_1.jsxs)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: title + ', ' + button.label + (ad ? ', ' + (adLabel ?? '광고') : ''), accessibilityState: { disabled: !active || !!busy }, disabled: !active || !!busy, onPress: onPress, style: compact ? s.rowC : s.row, children: [(0, jsx_runtime_1.jsxs)(react_native_1.View, { style: s.rowCopy, children: [(0, jsx_runtime_1.jsxs)(react_native_1.View, { style: s.rowTitleLine, children: [(0, jsx_runtime_1.jsx)(Txt, { style: [compact ? s.rowTitleC : s.rowTitle, s.rowTitleText, { color: theme.text }], numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: 0.85, children: title }), ad && button.kind === 'open' ? (0, jsx_runtime_1.jsx)(AdChip, { label: adLabel, onColor: theme.accent }) : null] }), (0, jsx_runtime_1.jsx)(Txt, { style: [compact ? s.rowHintC : s.rowHint, { color: theme.sub }], numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: compact ? 0.7 : 0.85, children: hint })] }), (0, jsx_runtime_1.jsx)(react_native_1.View, { pointerEvents: "none", style: [compact ? s.rowButtonC : s.rowButton, { backgroundColor: active ? theme.accentSoft : theme.done }], children: (0, jsx_runtime_1.jsx)(Txt, { style: [compact ? s.rowButtonTextC : s.rowButtonText, { color: active ? theme.accent : theme.sub }], numberOfLines: 1, children: button.label }) })] });
 }
 /**
  * 복권 목록 — (0.1.6) 기본은 **전체 화면**(감자밭 화면 그대로): 행운 찬스와 같은 머리글(‹ · 가운데 제목 「꽝 없는 복권」 · theme.bg 바탕, 안드 뒤로가기 → onClose) 아래 흰 카드(theme.card · 둥근 모서리 · 그림자)에
@@ -241,6 +241,9 @@ const s = react_native_1.StyleSheet.create({
     rows: { marginTop: 20, gap: 4 },
     row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12 },
     rowCopy: { flex: 1, minWidth: 0, gap: 3 },
+    // 제목 한 줄 — 제목 옆에 작은 「광고」 칩(0.1.8, 대표님 18:58). 제목이 길면 제목이 줄고 칩은 그대로
+    rowTitleLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    rowTitleText: { flexShrink: 1 },
     rowTitle: { fontSize: 18, lineHeight: 24, fontWeight: '800' },
     rowHint: { fontSize: 14, lineHeight: 20 },
     rowButton: { minWidth: 84, height: 44, paddingHorizontal: 14, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
@@ -263,8 +266,8 @@ const s = react_native_1.StyleSheet.create({
     pageContent: { padding: 16, paddingBottom: 40, gap: 12 },
     // 흰 카드 — 행운 찬스 카드와 같은 모양(둥근 모서리 · 그림자)
     card: { borderRadius: 20, padding: 20, gap: 8, shadowColor: '#17212E', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 2 },
-    cardTitle: { fontSize: 22, lineHeight: 30, fontWeight: '900' },
-    cardSub: { fontSize: 13, fontWeight: '600' },
+    cardTitle: { fontSize: 22, lineHeight: 30, fontWeight: '900', textAlign: 'center' },
+    cardSub: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
     tickerC: { borderRadius: 999, paddingVertical: 10, paddingHorizontal: 14, marginTop: 4 },
     tickerTextC: { fontSize: 13.5, fontWeight: '700', textAlign: 'center' },
     rowsC: { marginTop: 4, gap: 4 },
