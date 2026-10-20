@@ -8,6 +8,9 @@ import { StyleSheet, Text, View } from 'react-native';
 import { PageFrame, PageButton, resolvePageTheme, type MissionPageTheme } from './PageFrame';
 import { drawLabel, drawSubLine, prizeLine, waitLeftMs, boostLine } from './logic';
 
+/** (0.4.14) 머리 제목 — 고정. 앱이 `title` 을 넘겨도 쓰지 않는다 */
+export const LUCKY_CHANCE_TITLE = '행운 룰렛';
+
 export type LuckyChancePageProps = {
   /** 오늘 무료로 남은 뽑기 수 */
   freeLeft: number;
@@ -21,7 +24,7 @@ export type LuckyChancePageProps = {
   boost?: number;
   /** 확률권 줄 뒤 설명 — 앱마다 말이 달라 앱이 준다(예 「다음에 캘 때 좋은 당근이 잘 나와요」) (0.4.1 앱보조2 10-20) */
   boostText?: string;
-  /** 카드 제목 — 기본 「행운 뽑기」(0.4.0 은 「당근 뽑기」가 박혀 있었다) */
+  /** (0.4.14) 쓰지 않는다 — 카드 안 큰 제목 줄을 그리지 않는다(앱이 넘겨도 컴파일은 된다) */
   drawTitle?: string;
   /** 뽑기 — ad=false 면 무료, true 면 광고를 보고 뽑는다(광고 · 지급은 앱) */
   onDraw: (ad: boolean) => void | Promise<void>;
@@ -32,12 +35,13 @@ export type LuckyChancePageProps = {
   onBack: () => void;
   /** (0.4.13) iOS 왼쪽 가장자리를 오른쪽으로 밀면 onBack(기본 true). 안드로이드는 그대로. 이미 앱에서 밀기를 감싼 화면은 false */
   swipeBack?: boolean;
+  /** (0.4.14) 쓰지 않는다 — 머리 제목은 「행운 룰렛」 고정(앱이 넘겨도 컴파일은 된다) */
   title?: string;
   theme?: Partial<MissionPageTheme>;
   footer?: ReactNode;
 };
 
-export function LuckyChancePage({ freeLeft, adLeft, waitUntil, prizes = [], boost = 0, boostText, drawTitle = '행운 뽑기', onDraw, busy = false, offerwall, onBack, swipeBack, title = '행운 찬스', theme: themeIn, footer }: LuckyChancePageProps) {
+export function LuckyChancePage({ freeLeft, adLeft, waitUntil, prizes = [], boost = 0, boostText, onDraw, busy = false, offerwall, onBack, swipeBack, theme: themeIn, footer }: LuckyChancePageProps) {
   const theme = resolvePageTheme(themeIn);
   // 초읽기 — 대기 중일 때만 1초마다 다시 그린다(시각은 렌더마다 새로 잰다)
   const [, tick] = useState(0);
@@ -52,9 +56,8 @@ export function LuckyChancePage({ freeLeft, adLeft, waitUntil, prizes = [], boos
   const canAd = !free && adLeft > 0 && waitMs <= 0 && !busy;
   const prize = prizeLine(prizes);
 
-  return <PageFrame title={title} onBack={onBack} swipeBack={swipeBack} theme={theme} footer={footer}>
+  return <PageFrame title={LUCKY_CHANCE_TITLE} onBack={onBack} swipeBack={swipeBack} theme={theme} footer={footer}>
     <View style={[s.card, { backgroundColor: theme.card }]}>
-      <Text style={[s.cardTitle, { color: theme.text }]}>{drawTitle}</Text>
       <Text style={[s.cardSub, { color: theme.sub }]}>{drawSubLine({ free: freeLeft, ad: adLeft, waitMs })}</Text>
       {prize ? <Text style={[s.prize, { color: theme.text, backgroundColor: theme.accentSoft }]}>{prize}</Text> : null}
       {boost > 0 ? <View style={[s.boost, { backgroundColor: theme.accentSoft }]}>

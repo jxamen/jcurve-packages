@@ -23,13 +23,13 @@ export type InvitePageProps = {
   onSignup?: () => void;
   /** 간편 인증 창이 열려 있는 동안 단추를 막는다 */
   verifying?: boolean;
-  /** 초대한 사람이 받는 P · 친구가 받는 P */
+  /** 초대한 사람이 받는 P(맨 위 「N P 받으세요」). 친구가 받는 P 는 (0.4.14) 화면에 안 그린다 — 넘겨도 컴파일은 된다 */
   inviterPoint: number;
   inviteePoint: number;
-  /** 확률권 장수(있으면 줄 아래 「확률권 n장」) */
+  /** (0.4.14) 화면에 안 그린다(현황 칸을 지웠다) — 넘겨도 컴파일은 된다 */
   inviterBoost?: number;
   inviteeBoost?: number;
-  /** 초대 성공한 친구 수 · 아직 받지 않은 친구 수 */
+  /** (0.4.14) 화면에 안 그린다(현황 칸을 지웠다) — 넘겨도 컴파일은 된다 */
   invited: number;
   waiting: number;
   /** 이미 받은 초대 코드를 넣었나 */
@@ -50,6 +50,9 @@ export type InvitePageProps = {
   footer?: ReactNode;
 };
 
+/** (0.4.14) 「넣기」 「링크 복사」 「카톡으로 공유하기」 — 세 단추 모양을 하나로 */
+const BUTTON = { height: 48, fontSize: 15, radius: 12 } as const;
+
 const DEFAULT_NOTICE = [
   '보상은 초대받은 친구가 한 번 받아야 지급돼요',
   '가입만으로는 보상이 지급되지 않아요',
@@ -57,7 +60,7 @@ const DEFAULT_NOTICE = [
   '가입하고 번호 인증을 마친 분만 초대할 수 있어요',
 ];
 
-export function InvitePage({ code, locked = false, lockReason = 'verify', onVerify, onSignup, verifying = false, inviterPoint, inviteePoint, inviterBoost = 0, inviteeBoost = 0, invited, waiting, joined = false, rewarded = false, onJoin, onShare, onBack, swipeBack, notice = DEFAULT_NOTICE, title = '친구 초대', theme: themeIn, footer }: InvitePageProps) {
+export function InvitePage({ code, locked = false, lockReason = 'verify', onVerify, onSignup, verifying = false, inviterPoint, joined = false, rewarded = false, onJoin, onShare, onBack, swipeBack, notice = DEFAULT_NOTICE, title = '친구 초대하고', theme: themeIn, footer }: InvitePageProps) {
   const theme = resolvePageTheme(themeIn);
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
@@ -83,7 +86,6 @@ export function InvitePage({ code, locked = false, lockReason = 'verify', onVeri
   return <PageFrame title={title} onBack={onBack} swipeBack={swipeBack} theme={theme} footer={footer}>
     <View style={[s.body, { backgroundColor: theme.card }]}>
       {theme.character != null ? <View accessible={false} style={s.character}>{theme.character}</View> : null}
-      <Text style={[s.h1, { color: theme.text }]}>친구 초대하고</Text>
       <Text style={[s.h1Hi, { color: theme.accent }]}>{inviteHeadline(inviterPoint)}</Text>
       <Text style={[s.sub, { color: theme.sub }]}>친구가 코드를 넣고 한 번 받으면 둘 다 받아요</Text>
 
@@ -100,27 +102,6 @@ export function InvitePage({ code, locked = false, lockReason = 'verify', onVeri
         </Pressable>
       </>}
 
-      <View style={[s.panel, { borderColor: theme.line }]}>
-        <Text style={[s.section, { color: theme.text }]}>미션 현황</Text>
-        <View style={s.rewards}>
-          <View style={s.reward}>
-            <Text style={[s.who, { color: theme.sub }]}>친구</Text>
-            <Text style={[s.point, { color: theme.accent }]}>{`${inviteePoint.toLocaleString()}P`}</Text>
-            {inviteeBoost > 0 ? <Text style={[s.extra, { color: theme.sub }]}>{`확률권 ${inviteeBoost}장`}</Text> : null}
-          </View>
-          <View style={[s.line, { backgroundColor: theme.line }]} />
-          <View style={s.reward}>
-            <Text style={[s.who, { color: theme.sub }]}>나</Text>
-            <Text style={[s.point, { color: theme.accent }]}>{`${inviterPoint.toLocaleString()}P`}</Text>
-            {inviterBoost > 0 ? <Text style={[s.extra, { color: theme.sub }]}>{`확률권 ${inviterBoost}장`}</Text> : null}
-          </View>
-        </View>
-      </View>
-
-      <Text style={[s.section, { color: theme.text }]}>내 친구 초대 현황</Text>
-      <View style={[s.stat, { borderColor: theme.line }]}><Text style={[s.statLabel, { color: theme.sub }]}>초대 성공한 친구</Text><Text style={[s.statValue, { color: theme.text }]}>{`${invited}명`}</Text></View>
-      <View style={[s.stat, { borderColor: theme.line }]}><Text style={[s.statLabel, { color: theme.sub }]}>아직 받지 않은 친구</Text><Text style={[s.statValue, { color: theme.text }]}>{`${waiting}명`}</Text></View>
-
       <View style={[s.notice, { backgroundColor: theme.bg }]}>
         <Text style={[s.noticeTitle, { color: theme.text }]}>친구 초대 안내사항</Text>
         {notice.map(line => <View key={line} style={s.bulletRow}><Text style={[s.bullet, { color: theme.sub }]}>•</Text><Text style={[s.bulletText, { color: theme.sub }]}>{line}</Text></View>)}
@@ -133,14 +114,14 @@ export function InvitePage({ code, locked = false, lockReason = 'verify', onVeri
         <View style={s.joinRow}>
           <TextInput value={value} onChangeText={v => setValue(normalizeInviteCode(v))} placeholder="받은 코드 넣기" placeholderTextColor={theme.sub}
             autoCapitalize="characters" style={[s.input, { color: theme.text, borderColor: theme.line, backgroundColor: theme.bg }]} />
-          <PageButton label="넣기" theme={theme} disabled={!canJoin} on onPress={() => { void join(); }} />
+          <PageButton label="넣기" theme={theme} height={BUTTON.height} fontSize={BUTTON.fontSize} radius={BUTTON.radius} disabled={!canJoin} on onPress={() => { void join(); }} />
         </View>
         {message ? <Text accessibilityLiveRegion="polite" style={[s.message, { color: theme.sub }]}>{message}</Text> : null}
       </View>}
 
       {locked ? null : <View style={s.shareRow}>
-        <PageButton label="링크 복사" theme={theme} width={100} on={false} onPress={onShare} />
-        <View style={s.grow}><PageButton label="카톡으로 공유하기" theme={theme} big on onPress={onShare} /></View>
+        <View style={s.grow}><PageButton label="링크 복사" theme={theme} big height={BUTTON.height} fontSize={BUTTON.fontSize} radius={BUTTON.radius} on={false} onPress={onShare} /></View>
+        <View style={s.grow}><PageButton label="카톡으로 공유하기" theme={theme} big height={BUTTON.height} fontSize={BUTTON.fontSize} radius={BUTTON.radius} on onPress={onShare} /></View>
       </View>}
     </View>
   </PageFrame>;
@@ -149,7 +130,6 @@ export function InvitePage({ code, locked = false, lockReason = 'verify', onVeri
 const s = StyleSheet.create({
   body: { borderRadius: 20, padding: 20, gap: 10 },
   character: { alignSelf: 'center' },
-  h1: { fontSize: 20, fontWeight: '800', textAlign: 'center' },
   h1Hi: { fontSize: 26, fontWeight: '800', textAlign: 'center' },
   sub: { fontSize: 13, lineHeight: 19, textAlign: 'center' },
   lock: { borderRadius: 16, padding: 16, gap: 10, alignItems: 'center' },
@@ -159,17 +139,7 @@ const s = StyleSheet.create({
   codeBox: { borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
   code: { fontSize: 22, fontWeight: '800', letterSpacing: 2 },
   pressed: { opacity: 0.8 },
-  panel: { borderWidth: 1, borderRadius: 16, padding: 14 },
   section: { fontSize: 15, fontWeight: '800', marginTop: 6 },
-  rewards: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', marginTop: 8 },
-  reward: { alignItems: 'center', gap: 2 },
-  who: { fontSize: 12, fontWeight: '700' },
-  point: { fontSize: 20, fontWeight: '800' },
-  extra: { fontSize: 11 },
-  line: { width: 1, height: 40 },
-  stat: { flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, paddingVertical: 10 },
-  statLabel: { fontSize: 14 },
-  statValue: { fontSize: 15, fontWeight: '800' },
   notice: { borderRadius: 14, padding: 14, gap: 6 },
   noticeTitle: { fontSize: 14, fontWeight: '800', marginBottom: 2 },
   bulletRow: { flexDirection: 'row', gap: 6 },
