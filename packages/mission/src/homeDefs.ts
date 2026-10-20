@@ -32,8 +32,12 @@ export type HomeContext = {
    * 제목 · 부제 · 아이콘 · 바탕색은 그대로, 다른 줄은 영향 없음. 서버 home_rows 가 걸음 줄 `button` 을 적어 두면 그 값이 덮는다(서버 규칙 그대로)
    */
   stepsNeedsPermission?: boolean;
+  /**
+   * (0.4.11) 오늘 출석을 마쳤다 — `=== true` 일 때만 출석 줄이 완료 모양(`done` + 버튼 「출석 완료」, 다른 줄 done 과 같은 회색). 제목 · 부제 · 아이콘 · 바탕색은 그대로, 다른 값은 완료로 안 읽는다
+   */
+  checkinDone?: boolean;
   /** 무료 아이템 줄 — 하루 방문 칸 수(기본 3) · 남은 칸(left) · 받은 횟수(received) */
-  free?: { total?: number; left?: number; received?: number };
+  free?: { total?: number; left?: number; received?: number; claimableNow?: boolean };
   /** 무료 아이템 그림(앱 아이템 그림) — 없으면 🌱 */
   itemIcon?: BenefitQuickItem['icon'];
   /** 오늘의 미션 줄의 앱 제목(보너스 문구 같은 동적 제목) · 막대 — 서버 제목이 비어 있으면 이것이 보인다 */
@@ -71,6 +75,10 @@ const LOOK: Record<HomeRowKey, { icon: BenefitQuickItem['icon']; tint: string; c
 
 /** 무료 아이템 줄의 완료 버튼 글자 — 방문형이라 오늘 칸이 끝나면 「내일 다시」(대표님 10-20 19:01) */
 export const FREE_DONE_LABEL = '내일 다시';
+/** 출석을 마친 출석 줄의 버튼 글자(checkinDone) */
+export const CHECKIN_DONE_LABEL = '출석 완료';
+/** 지금 받을 수 있는 칸이 있을 때 무료 아이템 줄 배지(free.claimableNow) — 서버 home_rows 의 badge 가 있으면 서버 값이 이긴다 */
+export const FREE_NOW_BADGE = '지금 받기';
 
 /** 무료 아이템 줄 상태 — 막대(받은 횟수) · 글자 · 완료. 0.7.4 freeItemRow 와 같은 규칙(이 파일 안에서 끝낸다) */
 function freeState(total: number, left: number | undefined, received: number | undefined): Pick<BenefitQuickItem, 'done' | 'progress' | 'progressLabel'> {
@@ -116,8 +124,13 @@ export function homeItem(key: HomeRowKey, c: HomeContext, onPress: () => void): 
   const themed = key === 'steps' || key === 'free_item' || key === 'recommend' ? c.tints?.[key]?.trim() : undefined;
   const ctaLabel = key === 'steps' && c.stepsNeedsPermission === true ? STEPS_PERMISSION_LABEL : look.ctaLabel;
   const item: BenefitQuickItem = { key, title, subtitle, ctaLabel, icon, tint: themed || look.tint, onPress };
+  if (key === 'checkin' && c.checkinDone === true) {
+    return { ...item, done: true, doneLabel: CHECKIN_DONE_LABEL };
+  }
   if (key === 'free_item') {
-    return { ...item, doneLabel: FREE_DONE_LABEL, ...freeState(Math.max(1, Math.floor(c.free?.total ?? 3)), c.free?.left, c.free?.received) };
+    const state = freeState(Math.max(1, Math.floor(c.free?.total ?? 3)), c.free?.left, c.free?.received);
+
+    return { ...item, doneLabel: FREE_DONE_LABEL, ...state, ...(c.free?.claimableNow === true && !state.done ? { badge: FREE_NOW_BADGE } : {}) };
   }
   if (key === 'today_missions' && c.todayMissions?.progress) {
     return { ...item, progress: c.todayMissions.progress, ...(c.todayMissions.progressLabel ? { progressLabel: c.todayMissions.progressLabel } : {}) };

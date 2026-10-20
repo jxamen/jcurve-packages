@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
-import { FREE_DONE_LABEL, HOME_ORDER, STEPS_PERMISSION_LABEL, buildHomeItems, homeItem, type HomeActions } from './homeDefs';
+import { CHECKIN_DONE_LABEL, FREE_DONE_LABEL, FREE_NOW_BADGE, HOME_ORDER, STEPS_PERMISSION_LABEL, buildHomeItems, homeItem, type HomeActions } from './homeDefs';
 import { HOME_KEYS, composeHomeRows, resolveHomeKeys, type HomeRow } from './home';
 
 /** 당근 기준표(ota/carrot-ios-106-benefit-1020 814f2f4, FarmScreen HOME_BENEFITS + theme.ts carrotSoft #FFEEE2 · heartSoft #E6F5EA) — 대표님 10-20 20:23 「갖다 넣으면 똑같은 게 그냥 튀어 나와야」 */
@@ -184,5 +184,56 @@ describe('걸음 권한 없음 — 걸음 줄 버튼 「걸음 켜기」 (0.4.10
     const keys = resolveHomeKeys(base);
     expect(composeHomeRows(base, rows(''), keys, {}).find(i => i.key === 'steps')!.ctaLabel).toBe('걸음 켜기');
     expect(composeHomeRows(base, rows('받기'), keys, {}).find(i => i.key === 'steps')!.ctaLabel).toBe('받기');
+  });
+});
+
+describe('출석 완료 · 무료 줄 「지금 받기」 배지 · 행운 찬스 부제 (0.4.11)', () => {
+  const find = (c: Record<string, unknown>, key: string) => buildHomeItems(c as any, all()).find(i => i.key === key)!;
+
+  it('출석: checkinDone === true 일 때만 완료 모양(done + 「출석 완료」) — 제목 · 부제 · 아이콘 · 바탕색은 그대로', () => {
+    expect(CHECKIN_DONE_LABEL).toBe('출석 완료');
+    const off = find({}, 'checkin');
+    expect(off.done).toBeUndefined();
+    expect(off.doneLabel).toBeUndefined();
+    expect(off.ctaLabel).toBe('출석하기');
+    const on = find({ checkinDone: true }, 'checkin');
+    expect([on.done, on.doneLabel]).toEqual([true, '출석 완료']);
+    expect([on.title, on.subtitle, on.icon, on.tint]).toEqual([off.title, off.subtitle, off.icon, off.tint]);
+    for (const v of [false, 'true', 1, 'yes', null]) expect(find({ checkinDone: v }, 'checkin').done).toBeUndefined();
+  });
+  it('출석 완료는 다른 줄에 영향이 없다 · 완료 줄은 누를 수 없는 모양(done)이라 앱 동작은 그대로 들고 있다', () => {
+    const strip = (items: ReturnType<typeof buildHomeItems>) => items.filter(i => i.key !== 'checkin').map(i => ({ key: i.key, title: i.title, subtitle: i.subtitle, ctaLabel: i.ctaLabel, done: i.done, badge: i.badge }));
+    expect(strip(buildHomeItems({ checkinDone: true }, all()))).toEqual(strip(buildHomeItems({}, all())));
+  });
+  it('무료 줄 배지: claimableNow === true 이고 done 이 아닐 때만 「지금 받기」', () => {
+    expect(FREE_NOW_BADGE).toBe('지금 받기');
+    expect(find({}, 'free_item').badge).toBeUndefined();
+    expect(find({ free: { left: 2, received: 1 } }, 'free_item').badge).toBeUndefined();
+    expect(find({ free: { claimableNow: true } }, 'free_item').badge).toBe('지금 받기');
+    expect(find({ free: { left: 2, received: 1, claimableNow: true } }, 'free_item').badge).toBe('지금 받기');
+    for (const v of [false, 'true', 1, null]) expect(find({ free: { claimableNow: v } }, 'free_item').badge).toBeUndefined();
+  });
+  it('무료 줄이 done(left=0)이면 claimableNow 여도 배지가 없다 · 막대 · 글자는 그대로', () => {
+    const done = find({ free: { left: 0, received: 3, claimableNow: true } }, 'free_item');
+    expect(done.done).toBe(true);
+    expect(done.badge).toBeUndefined();
+    expect(done.progressLabel).toBe('오늘 다 받았어요');
+    const open = find({ free: { left: 1, received: 2, claimableNow: true } }, 'free_item');
+    expect([open.done, open.badge, open.progressLabel]).toEqual([false, '지금 받기', '1번 남았어요']);
+  });
+  it('무료 배지는 다른 줄에 영향이 없다 · 서버 home_rows 에 badge 가 있으면 서버 값이 이기고, 서버 badge 가 비어 있으면 우리 배지가 남는다', () => {
+    const base = buildHomeItems({ free: { claimableNow: true } }, all());
+    expect(base.filter(i => i.key !== 'free_item').every(i => i.badge === undefined)).toBe(true);
+    const keys = resolveHomeKeys(base);
+    const rows = (badge: string): HomeRow[] => [{ key: 'free_item', title: '', desc: '', button: '', badge, visible: true, order: 0 }];
+    expect(composeHomeRows(base, rows('NEW'), keys, {}).find(i => i.key === 'free_item')!.badge).toBe('NEW');
+    expect(composeHomeRows(base, rows(''), keys, {}).find(i => i.key === 'free_item')!.badge).toBe('지금 받기');
+  });
+  it('행운 찬스 부제: 아이템 이름이 없으면 「하루 기회로 포인트 뽑기」, 있으면 「하루 기회로 {이름} 뽑기」(앱 이름은 쓰지 않는다)', () => {
+    expect(find({}, 'lucky_chance').subtitle).toBe('하루 기회로 포인트 뽑기');
+    expect(find({ itemName: '감자' }, 'lucky_chance').subtitle).toBe('하루 기회로 감자 뽑기');
+    expect(find({ itemName: '  ' }, 'lucky_chance').subtitle).toBe('하루 기회로 포인트 뽑기');
+    expect(find({ appName: '감자밭', pointName: '캐시' }, 'lucky_chance').subtitle).toBe('하루 기회로 포인트 뽑기');
+    expect(find({}, 'lucky_chance').ctaLabel).toBe('뽑기');
   });
 });

@@ -303,3 +303,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';   // ⚠ 0
 - `stepsNeedsPermission === true` 일 때만 걸음 줄 버튼이 「걸음 켜기」, 아니면(false · 생략 · 다른 값) 「보상 받기」. 제목(「오늘 N걸음」/「만보기」) · 부제 · 아이콘 · 바탕색은 그대로, 다른 줄은 영향 없음.
 - 서버 home_rows 가 걸음 줄 `button` 을 적어 두면 그 값이 덮는다(서버 규칙 그대로) — 걸음 켜기를 보이려면 서버 걸음 줄 버튼은 비워 둔다.
 - `homeContext={{ steps: todaySteps, stepsNeedsPermission: !stepsPermissionGranted, … }}`
+
+## 0.4.11 — 출석 완료 모양 · 무료 줄 「지금 받기」 배지 · 행운 찬스 부제 확인 (0.7.8 과 같은 칸 이름 · 같은 글자, 앱관리 요청)
+
+- **`homeContext.checkinDone?: boolean`**: `=== true` 일 때만 출석 줄이 완료 모양 — `done: true` + 버튼 글자 「출석 완료」(`CHECKIN_DONE_LABEL`), 다른 줄 done 과 같은 회색. 제목 · 부제 · 아이콘 · 바탕색은 그대로, 다른 값(문자열 · 1)은 완료로 안 읽는다.
+- **`homeContext.free.claimableNow?: boolean`**: `=== true` 이고 무료 줄이 done 이 아닐 때만 무료 줄에 배지 「지금 받기」(`FREE_NOW_BADGE`). 서버 home_rows 에 badge 가 있으면 서버 값이 이긴다(서버 badge 가 비어 있으면 우리 배지가 남는다).
+- 행운 찬스 부제는 코드 변경 없음(시험으로 고정): 아이템 이름(`itemName`)이 없으면 「하루 기회로 포인트 뽑기」, 있으면 「하루 기회로 {itemName} 뽑기」 — 앱 이름은 쓰지 않는다. 「보러가기」는 그대로.
