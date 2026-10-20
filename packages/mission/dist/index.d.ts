@@ -11,7 +11,7 @@ export { MissionCards, type MissionCardsProps, type MissionCardsTheme } from './
 export { ShoppingMission, ShoppingMissionModal, type ShoppingMissionProps } from './ShoppingMission';
 export { safeTop, backTarget, edgeSwipeStarts, edgeSwipeDone, EDGE_WIDTH, EDGE_SWIPE_DX } from './missionNav';
 export type { MissionNavigation } from './MissionWebView';
-export { HOME_KEYS, EMPTY_HOME, parseHomeResponse, fetchHomeConfig, resetHomeConfig, applyHomeRows, adSlotIndex, type HomeRow, type HomeRowKey, type HomeConfig } from './home';
+export { HOME_KEYS, EMPTY_HOME, parseHomeResponse, fetchHomeConfig, resetHomeConfig, applyHomeRows, adSlotIndex, resolveHomeKeys, withFreeItemRow, freeItemHomeRow, composeHomeRows, type HomeRow, type HomeRowKey, type HomeConfig } from './home';
 export { useHomeRows } from './useHomeRows';
 export { BenefitQuickList, type BenefitQuickListProps, type BenefitQuickItem, type BenefitQuickIcon } from './BenefitQuickList';
 export { FloatingRewardChip, type FloatingRewardChipProps } from './FloatingRewardChip';

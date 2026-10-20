@@ -5,7 +5,9 @@ exports.pressOnce = pressOnce;
 exports.resetTapGuard = resetTapGuard;
 exports.BenefitQuickList = BenefitQuickList;
 const jsx_runtime_1 = require("react/jsx-runtime");
+const react_1 = require("react");
 const react_native_1 = require("react-native");
+const home_1 = require("./home");
 const colors = {
     calendar: '#2F6FD6', bag: '#D2551E', pin: '#2E8B57',
     star: '#B7791F', ticket: '#7A4FD0', friend: '#C2410C',
@@ -32,7 +34,42 @@ function pressOnce(run, now = Date.now()) {
 }
 /** 시험용 — 누름 기록을 지운다 */
 function resetTapGuard() { lastTap = 0; }
-function BenefitQuickList({ title = '바로 받는 혜택', seeAllLabel, onSeeAll, accentColor = '#EE7A33', items, footer, doneLabel = '완료', buttonWidth = 100, buttonHeight = 40 }) {
+/** (0.4.4) 앱이 앞으로 돌아올 때마다 올라가는 숫자 — 서버 목록을 다시 읽는 신호 */
+function useActiveTick() {
+    const [n, setN] = (0, react_1.useState)(0);
+    (0, react_1.useEffect)(() => {
+        const sub = react_native_1.AppState.addEventListener('change', (s) => { if (s === 'active')
+            setN(v => v + 1); });
+        return () => sub.remove();
+    }, []);
+    return n;
+}
+/** 서버 home_rows 를 얹는 층 — 훅이 있어 `fetchJson` 이 있을 때만 쓴다(없으면 BenefitQuickList 가 그림만 바로 그린다) */
+function ServerRowsList({ fetchJson, homeKeys, onRow, refreshKey, items, view }) {
+    const [config, setConfig] = (0, react_1.useState)(home_1.EMPTY_HOME);
+    const tick = useActiveTick();
+    const key = (0, react_1.useMemo)(() => [refreshKey, tick], [refreshKey, tick]);
+    (0, react_1.useEffect)(() => {
+        let live = true;
+        void (0, home_1.fetchHomeConfig)(fetchJson).then(c => { if (live)
+            setConfig(c); });
+        return () => { live = false; };
+    }, [fetchJson, key]);
+    const keys = (0, react_1.useMemo)(() => (0, home_1.resolveHomeKeys)(items, homeKeys), [items, homeKeys]);
+    const merged = (0, react_1.useMemo)(() => (0, home_1.composeHomeRows)(items, config.rows, keys, { onRow }), [items, config.rows, keys, onRow]);
+    return (0, jsx_runtime_1.jsx)(QuickListView, { ...view, items: merged });
+}
+/**
+ * 「바로 받는 혜택」 목록. (0.4.4) `fetchJson` 을 주면 서버 home_rows 를 스스로 적용하고, `onFreeItem` 을 주면 free_item 기본 줄이 생긴다 — 둘 다 없으면 0.4.3 과 똑같이 그린다.
+ */
+function BenefitQuickList(props) {
+    const { fetchJson, homeKeys, itemName, onFreeItem, onRow, refreshKey, items, ...view } = props;
+    const base = (0, home_1.withFreeItemRow)(items, homeKeys, itemName, onFreeItem);
+    if (!fetchJson)
+        return QuickListView({ ...view, items: base });
+    return (0, jsx_runtime_1.jsx)(ServerRowsList, { fetchJson: fetchJson, homeKeys: homeKeys, onRow: onRow, refreshKey: refreshKey, items: base, view: view });
+}
+function QuickListView({ title = '바로 받는 혜택', seeAllLabel, onSeeAll, accentColor = '#EE7A33', items, footer, doneLabel = '완료', buttonWidth = 100, buttonHeight = 40 }) {
     const visible = items.filter(item => !item.hidden);
     return (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: s.root, children: [title || (seeAllLabel && onSeeAll) ? (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: s.header, children: [title ? (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: s.title, children: title }) : (0, jsx_runtime_1.jsx)(react_native_1.View, {}), seeAllLabel && onSeeAll ? (0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", onPress: onSeeAll, hitSlop: 8, children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.seeAll, { color: accentColor }], children: seeAllLabel }) }) : null] }) : null, (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.card, children: visible.map((item, index) => (0, jsx_runtime_1.jsxs)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: item.title + ', ' + (item.done ? doneLabel : item.ctaLabel), accessibilityState: { disabled: !!item.done }, disabled: item.done, onPress: () => { if (!item.done)
                         pressOnce(item.onPress); }, style: ({ pressed }) => [s.row, index < visible.length - 1 && s.border, pressed && !item.done && { opacity: 0.85 }], children: [(0, jsx_runtime_1.jsx)(react_native_1.View, { style: [s.icon, { backgroundColor: item.tint }], children: (0, jsx_runtime_1.jsx)(Icon, { icon: item.icon }) }), (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: s.copy, children: [(0, jsx_runtime_1.jsxs)(react_native_1.View, { style: s.nameRow, children: [(0, jsx_runtime_1.jsx)(react_native_1.Text, { style: s.name, children: item.title }), item.badge ? (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.badge, children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: s.badgeText, children: item.badge }) }) : null] }), item.progress && item.progress.total > 0
