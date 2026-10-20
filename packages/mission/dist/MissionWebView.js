@@ -25,7 +25,7 @@ const LOAD_TIMEOUT_MS = 20000;
 const MAX_RECOVER = 2;
 const nonceOf = () => Math.random().toString(36).slice(2) + Date.now().toString(36) + Math.random().toString(36).slice(2);
 /** 주소가 바뀌었거나 다시 시도할 때마다 상태를 처음부터 */
-function MissionWebView({ url, theme = states_1.DEFAULT_THEME, onClose, onEvent, onFloatingPopup, onOverlayRequest, overlayReady: overlayReadyProp, onNavigationChange, traceStage, lang }) {
+function MissionWebView({ url, theme = states_1.DEFAULT_THEME, onClose, onEvent, onFloatingPopup, onOverlayRequest, overlayReady: overlayReadyProp, onNavigationChange, traceStage, lang, nativeSwipeBack = true }) {
     const valid = (0, entry_1.isEntryUrl)(url);
     const [state, setState] = (0, react_1.useState)('loading');
     const [retryKey, setRetryKey] = (0, react_1.useState)(0); // 사용자가 다시 시도(처음부터)
@@ -170,7 +170,7 @@ function MissionWebView({ url, theme = states_1.DEFAULT_THEME, onClose, onEvent,
         return (0, jsx_runtime_1.jsx)(states_1.MissionState, { kind: "error", theme: theme, onClose: onClose, lang: lang });
     return (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: { flex: 1, backgroundColor: theme.bg }, children: [(0, jsx_runtime_1.jsx)(WebView, { ref: handle, source: { uri: url }, 
                 // 모든 요청이 onShouldStartLoadWithRequest 를 거치게 한다(비 https 가 라이브러리 기본 처리로 빠져 우리 규칙을 건너뛰지 않게) — 거르는 건 아래 규칙
-                originWhitelist: ['*'], injectedJavaScriptBeforeContentLoaded: shim, injectedJavaScriptBeforeContentLoadedForMainFrameOnly: true, injectedJavaScriptForMainFrameOnly: true, onMessage: onMessage, javaScriptEnabled: true, domStorageEnabled: true, sharedCookiesEnabled: true, thirdPartyCookiesEnabled: true, allowFileAccess: false, allowsInlineMediaPlayback: true, javaScriptCanOpenWindowsAutomatically: false, setSupportMultipleWindows: false, setBuiltInZoomControls: false, allowsBackForwardNavigationGestures: true, onNavigationStateChange: s => { updateNavigation(s.canGoBack && !failedRef.current); }, onLoadStart: () => { failedRef.current = false; if (stateRef.current === 'loading' || stateRef.current === 'ok')
+                originWhitelist: ['*'], injectedJavaScriptBeforeContentLoaded: shim, injectedJavaScriptBeforeContentLoadedForMainFrameOnly: true, injectedJavaScriptForMainFrameOnly: true, onMessage: onMessage, javaScriptEnabled: true, domStorageEnabled: true, sharedCookiesEnabled: true, thirdPartyCookiesEnabled: true, allowFileAccess: false, allowsInlineMediaPlayback: true, javaScriptCanOpenWindowsAutomatically: false, setSupportMultipleWindows: false, setBuiltInZoomControls: false, allowsBackForwardNavigationGestures: nativeSwipeBack, onNavigationStateChange: s => { updateNavigation(s.canGoBack && !failedRef.current); }, onLoadStart: () => { failedRef.current = false; if (stateRef.current === 'loading' || stateRef.current === 'ok')
                     arm(); }, 
                 // Android 는 네트워크 오류에서도 onLoad 를 먼저 보내고 onError 가 뒤따른다 — 짧게 기다려 오류가 안 왔을 때만 성공으로 센다
                 onLoad: () => {

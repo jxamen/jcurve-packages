@@ -28,10 +28,12 @@ export type MissionWebViewProps = {
     overlayReady?: boolean;
     /** (0.3.0) 오류 · 점검 · 로딩 화면 문구 언어 — 앱이 넘긴다(패키지는 기기 언어를 읽지 않는다). 없거나 'ko' 면 한국어. 웹 페이지 안 글은 APIHUB 것 */
     lang?: Lang;
+    /** (0.7.12) 웹뷰 자체의 iOS 가장자리 뒤로 · 앞으로 밀기 — 기본 true(예전과 같다). 화면이 왼쪽 밀기를 직접 받으면(ShoppingMission) false 로 꺼서 한 번 밀 때 웹 기록이 두 칸 가지 않게 한다 */
+    nativeSwipeBack?: boolean;
 };
 export type MissionNavigation = {
     canGoBack: boolean;
     goBack: () => void;
 };
 /** 주소가 바뀌었거나 다시 시도할 때마다 상태를 처음부터 */
-export declare function MissionWebView({ url, theme, onClose, onEvent, onFloatingPopup, onOverlayRequest, overlayReady: overlayReadyProp, onNavigationChange, traceStage, lang }: MissionWebViewProps): React.JSX.Element;
+export declare function MissionWebView({ url, theme, onClose, onEvent, onFloatingPopup, onOverlayRequest, overlayReady: overlayReadyProp, onNavigationChange, traceStage, lang, nativeSwipeBack }: MissionWebViewProps): React.JSX.Element;

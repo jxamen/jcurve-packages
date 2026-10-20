@@ -1,7 +1,7 @@
 import React from 'react';
 import { type Requester } from './entry';
 import { type MissionWebViewProps } from './MissionWebView';
-export type ShoppingMissionProps = Omit<MissionWebViewProps, 'url' | 'onClose' | 'onNavigationChange' | 'traceStage'> & {
+export type ShoppingMissionProps = Omit<MissionWebViewProps, 'url' | 'onClose' | 'onNavigationChange' | 'traceStage' | 'nativeSwipeBack'> & {
     fetchJson: Requester;
     onClose: () => void;
     title?: string;

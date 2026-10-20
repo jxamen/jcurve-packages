@@ -38,6 +38,8 @@ export function edgeSwipeDone(dx: number, dy: number, vx: number): boolean {
  * (0.4.13) 독립 페이지(PageFrame)의 iOS 왼쪽 가장자리 밀기 → 뒤로 — PanResponder 에 넘길 핸들러 묶음. React Native 를 가져오지 않아 시험이 바로 돈다.
  * 가장자리에 띠 View 를 덮지 않고 최상위 View 의 **캡처** 핸들러로 「화면 왼쪽 EDGE_WIDTH 안에서 시작한 가로 밀기」만 가로챈다 —
  * 띠를 덮으면 그 안의 탭 · 세로 스크롤이 막히고 머리줄 ‹ 단추 왼쪽을 가린다. 시작이 가장자리가 아니면 아무것도 하지 않아 안쪽 스크롤 · 단추는 그대로다.
+ * (0.7.12) 응답자를 쥐고 있지 않는다 — 다른 곳이 가져가겠다고 하면(`onPanResponderTerminationRequest` true) 놓는다. 쥔 채 놓친 터치 때문에 머리줄 단추가 눌림을 못 받는 일
+ * (쇼핑 퀴즈 「닫기」 먹통, 대표님 10-21 00:16)을 막는다. ShoppingMission 도 이 묶음을 쓴다(0.7.12 — 본문에 덮던 띠 View 를 없앴다).
  * `getBack` 은 늘 최신 onBack 을 부른다(렌더마다 새 핸들러를 만들지 않게 ref 로 읽는다). 판정 상수 · 함수는 쇼핑 미션 화면과 같다(EDGE_WIDTH · edgeSwipeStarts · edgeSwipeDone).
  */
 export function edgeBackHandlers(getBack: () => void) {
@@ -47,6 +49,6 @@ export function edgeBackHandlers(getBack: () => void) {
     onStartShouldSetPanResponderCapture: (e: { nativeEvent: { pageX: number } }) => { startedAtEdge = e.nativeEvent.pageX <= EDGE_WIDTH; return false; },
     onMoveShouldSetPanResponderCapture: (_e: unknown, g: { dx: number; dy: number }) => startedAtEdge && edgeSwipeStarts(g.dx, g.dy),
     onPanResponderRelease: (_e: unknown, g: { dx: number; dy: number; vx: number }) => { if (startedAtEdge && edgeSwipeDone(g.dx, g.dy, g.vx)) getBack(); },
-    onPanResponderTerminationRequest: () => false,
+    onPanResponderTerminationRequest: () => true,
   };
 }

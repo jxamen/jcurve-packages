@@ -37,6 +37,8 @@ export type MissionWebViewProps = {
   overlayReady?: boolean;
   /** (0.3.0) 오류 · 점검 · 로딩 화면 문구 언어 — 앱이 넘긴다(패키지는 기기 언어를 읽지 않는다). 없거나 'ko' 면 한국어. 웹 페이지 안 글은 APIHUB 것 */
   lang?: Lang;
+  /** (0.7.12) 웹뷰 자체의 iOS 가장자리 뒤로 · 앞으로 밀기 — 기본 true(예전과 같다). 화면이 왼쪽 밀기를 직접 받으면(ShoppingMission) false 로 꺼서 한 번 밀 때 웹 기록이 두 칸 가지 않게 한다 */
+  nativeSwipeBack?: boolean;
 };
 
 export type MissionNavigation = { canGoBack: boolean; goBack: () => void };
@@ -53,7 +55,7 @@ const MAX_RECOVER = 2;
 const nonceOf = () => Math.random().toString(36).slice(2) + Date.now().toString(36) + Math.random().toString(36).slice(2);
 
 /** 주소가 바뀌었거나 다시 시도할 때마다 상태를 처음부터 */
-export function MissionWebView({ url, theme = DEFAULT_THEME, onClose, onEvent, onFloatingPopup, onOverlayRequest, overlayReady: overlayReadyProp, onNavigationChange, traceStage, lang }: MissionWebViewProps) {
+export function MissionWebView({ url, theme = DEFAULT_THEME, onClose, onEvent, onFloatingPopup, onOverlayRequest, overlayReady: overlayReadyProp, onNavigationChange, traceStage, lang, nativeSwipeBack = true }: MissionWebViewProps) {
   const valid = isEntryUrl(url);
   const [state, setState] = useState<'loading' | 'ok' | StateKind>('loading');
   const [retryKey, setRetryKey] = useState(0);     // 사용자가 다시 시도(처음부터)
@@ -192,7 +194,7 @@ export function MissionWebView({ url, theme = DEFAULT_THEME, onClose, onEvent, o
       javaScriptCanOpenWindowsAutomatically={false}
       setSupportMultipleWindows={false}
       setBuiltInZoomControls={false}
-      allowsBackForwardNavigationGestures
+      allowsBackForwardNavigationGestures={nativeSwipeBack}
       onNavigationStateChange={s => { updateNavigation(s.canGoBack && !failedRef.current); }}
       onLoadStart={() => { failedRef.current = false; if (stateRef.current === 'loading' || stateRef.current === 'ok') arm(); }}
       // Android 는 네트워크 오류에서도 onLoad 를 먼저 보내고 onError 가 뒤따른다 — 짧게 기다려 오류가 안 왔을 때만 성공으로 센다
