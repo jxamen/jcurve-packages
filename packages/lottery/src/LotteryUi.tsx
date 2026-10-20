@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, Animated, Dimensions, Easing, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import {
-  lotteryMoreLabel, lotteryMoreMissionLabel, lotteryResultTitle, lotteryTierButton, lotteryTierHint, lotteryTierTitle, lotteryWinnerLine,
+  goldenLines, lotteryMoreLabel, lotteryMoreMissionLabel, lotteryResultTitle, lotteryTierButton, lotteryTierHint, lotteryTierTitle, lotteryWinnerLine, opensWithAd,
   type LotteryOpenResult, type LotteryState, type LotteryTier, type LotteryWinner,
 } from './lottery';
 
@@ -16,6 +16,27 @@ export const DEFAULT_LOTTERY_THEME: LotteryTheme = {
  * Modal 이 아니라 화면 위 덮개다 — 보상형 광고가 Modal 뒤에 깔리지 않게(앱의 TicketSheet 와 같은 이유). 앱이 화면 맨 위(탭 바 위)에 둔다.
  */
 type ThemeProp = { theme?: Partial<LotteryTheme> };
+
+/**
+ * (0.1.2) 「🔔 복권 받기 알림 켜기」 줄 — `useLotteryNotify` 가 돌려주는 값을 그대로 넘긴다. visible 이 거짓이면(알림이 이미 켜져 있거나 모르면) 줄이 없다.
+ * 서버 발송은 이 패키지에 없다 — 버튼과 권한 유도만
+ */
+export type LotteryNotify = { visible: boolean; busy?: boolean; onPress: () => void; label?: string; hint?: string };
+
+function NotifyRow({ notify, theme }: { notify?: LotteryNotify; theme: LotteryTheme }) {
+  if (!notify || !notify.visible) return null;
+  const label = notify.label ?? '복권 받기 알림 켜기';
+
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!notify.busy }} disabled={!!notify.busy} onPress={notify.onPress}
+    style={[s.notify, { backgroundColor: theme.bg }, notify.busy && { opacity: 0.6 }]}>
+    <Text accessible={false} style={s.notifyBell}>🔔</Text>
+    <View style={s.notifyCopy}>
+      <Text style={[s.notifyTitle, { color: theme.text }]}>{label}</Text>
+      <Text style={[s.notifyHint, { color: theme.sub }]}>{notify.hint ?? '매일 새 복권이 나오면 알려 드릴게요'}</Text>
+    </View>
+    <View pointerEvents="none" style={[s.notifyBtn, { backgroundColor: theme.accentSoft }]}><Text style={[s.notifyBtnText, { color: theme.accent }]}>켜기</Text></View>
+  </Pressable>;
+}
 const th = (t?: Partial<LotteryTheme>): LotteryTheme => ({ ...DEFAULT_LOTTERY_THEME, ...(t ?? {}) });
 
 /**
@@ -77,14 +98,27 @@ export function LotteryChip({ count, onPress, label, bottomOffset = 16, floating
   </View>;
 }
 
-function TierRow({ t, theme, busy, onOpen, onEarn }: { t: LotteryTier; theme: LotteryTheme; busy?: boolean; onOpen: (tier: number) => void; onEarn: (tier: number) => void }) {
+/**
+ * (0.1.2) 「광고」 작은 칩 — 눌렀을 때 **광고가 바로 열리는** 버튼 안 오른쪽에만(앱 홈 「감자 키우기 [광고]」 · 「풍선 더 받기 [광고]」와 같은 모양). 광고 없이 열리는 버튼에는 넣지 않는다.
+ * `onColor` 는 칩이 올라가는 바탕에서 읽히는 글자색(채운 버튼 위면 accentText, 연한 버튼 위면 accent)
+ */
+function AdChip({ label = '광고', onColor, onFilled }: { label?: string; onColor: string; onFilled?: boolean }) {
+  return <View accessible={false} importantForAccessibility="no-hide-descendants" style={[s.adChip, onFilled ? s.adChipOnFilled : { borderColor: onColor }]}><Text style={[s.adChipText, { color: onColor }]}>{label}</Text></View>;
+}
+
+function TierRow({ t, theme, busy, onOpen, onEarn, ad, adLabel }: { t: LotteryTier; theme: LotteryTheme; busy?: boolean; onOpen: (tier: number) => void; onEarn: (tier: number) => void; ad: boolean; adLabel?: string }) {
   const b = lotteryTierButton(t);
   const active = b.kind === 'open' || b.kind === 'earn';
   const press = () => { if (b.kind === 'open') onOpen(t.tier); else if (b.kind === 'earn') onEarn(t.tier); };
 
-  return <Pressable accessibilityRole="button" accessibilityLabel={lotteryTierTitle(t) + ', ' + b.label} accessibilityState={{ disabled: !active || !!busy }} disabled={!active || !!busy} onPress={press} style={s.row}>
+  const withAd = b.kind === 'open' && ad;
+
+  return <Pressable accessibilityRole="button" accessibilityLabel={lotteryTierTitle(t) + ', ' + b.label + (withAd ? ', ' + (adLabel ?? '광고') : '')} accessibilityState={{ disabled: !active || !!busy }} disabled={!active || !!busy} onPress={press} style={s.row}>
     <View style={s.rowCopy}><Text style={[s.rowTitle, { color: theme.text }]}>{lotteryTierTitle(t)}{t.unopened > 1 ? ' × ' + t.unopened : ''}</Text><Text style={[s.rowHint, { color: theme.sub }]}>{lotteryTierHint(t)}</Text></View>
-    <View pointerEvents="none" style={[s.rowButton, { backgroundColor: active ? theme.accentSoft : theme.done }]}><Text style={[s.rowButtonText, { color: active ? theme.accent : theme.sub }]}>{b.label}</Text></View>
+    <View pointerEvents="none" style={[s.rowButton, { backgroundColor: active ? theme.accentSoft : theme.done }]}>
+      <Text style={[s.rowButtonText, { color: active ? theme.accent : theme.sub }]}>{b.label}</Text>
+      {withAd ? <AdChip label={adLabel} onColor={theme.accent} /> : null}
+    </View>
   </Pressable>;
 }
 
@@ -99,7 +133,7 @@ export function sheetMaxHeight(windowHeight: number, topInset?: number, os: stri
 }
 
 /** 복권 시트 — 3단계 줄 · 받기 / 열기 / 획득 완료 · 당첨 띠 · 「한 번 더! ○원 복권 받기」 · 알림 켜기 */
-export function LotterySheet({ open, state, winners, busy, onOpen, onEarn, onMore, onClose, onEnableNotify, notifyLabel, theme, renderNative, topInset }: {
+export function LotterySheet({ open, state, winners, busy, onOpen, onEarn, onMore, onClose, onEnableNotify, notifyLabel, notify, theme, renderNative, topInset, basicAd = true, adLabel }: {
   open: boolean;
   state: LotteryState | null;
   winners?: readonly LotteryWinner[];
@@ -111,11 +145,18 @@ export function LotterySheet({ open, state, winners, busy, onOpen, onEarn, onMor
   /** 아래 큰 버튼 「한 번 더! ○원 복권 받기」 — 안 주면 onEarn(다음 단계) */
   onMore?: (tier: number) => void;
   onClose: () => void;
+  /** (옛 방식) 있으면 늘 보이는 「알림 켜기」 줄 — 새 앱은 `notify`(useLotteryNotify)를 쓴다: 꺼져 있을 때만 보인다 */
   onEnableNotify?: () => void;
   notifyLabel?: string;
+  /** (0.1.2) 알림이 꺼져 있을 때만 보이는 「🔔 복권 받기 알림 켜기」 줄 */
+  notify?: LotteryNotify;
   renderNative?: () => ReactNode;
   /** 안전 영역 위 여백(`useSafeAreaInsets().top`) — 시트가 이 아래에서 끝난다. 안 주면 짐작한다 */
   topInset?: number;
+  /** (0.1.2) 황금(기본) 복권을 열 때 광고가 열리나 — 서버 설정 daily_basic.ad(기본 true). 미션 복권만 남은 줄에는 늘 광고 칩이 없다 */
+  basicAd?: boolean;
+  /** (0.1.2) 광고 칩 글자(기본 「광고」) */
+  adLabel?: string;
 } & ThemeProp) {
   if (!open || !state) return null;
   const c = th(theme);
@@ -131,9 +172,9 @@ export function LotterySheet({ open, state, winners, busy, onOpen, onEarn, onMor
         <Text style={[s.sheetTitle, { color: c.text }]}>꽝 없는 복권{'\n'}지금 열고 행운 받아가요!</Text>
         <Text style={[s.sheetSub, { color: c.sub }]}>받은 복권은 매일 자정에 사라져요</Text>
         {last ? <View style={[s.ticker, { backgroundColor: c.bg }]}><Text style={[s.tickerText, { color: c.text }]} numberOfLines={1}>{lotteryWinnerLine(last)}</Text></View> : null}
-        {state.tiers.map(t => <TierRow key={t.tier} t={t} theme={c} busy={busy} onOpen={onOpen} onEarn={onEarn} />)}
+        {state.tiers.map(t => <TierRow key={t.tier} t={t} theme={c} busy={busy} onOpen={onOpen} onEarn={onEarn} ad={opensWithAd(t, basicAd)} adLabel={adLabel} />)}
         {more && next ? <Pressable accessibilityRole="button" accessibilityLabel={more} disabled={!!busy} onPress={() => (onMore ?? onEarn)(next.tier)} style={[s.big, { backgroundColor: c.accent }]}><Text style={[s.bigText, { color: c.accentText }]}>{more}</Text></Pressable> : null}
-        {onEnableNotify ? <Pressable accessibilityRole="button" accessibilityLabel={notifyLabel ?? '복권 받게 알림 켜기'} onPress={onEnableNotify} style={s.link}><Text style={[s.linkText, { color: c.accent }]}>🔔 {notifyLabel ?? '복권 받게 알림 켜기'} ›</Text></Pressable> : null}
+        {notify ? <NotifyRow notify={notify} theme={c} /> : onEnableNotify ? <Pressable accessibilityRole="button" accessibilityLabel={notifyLabel ?? '복권 받게 알림 켜기'} onPress={onEnableNotify} style={s.link}><Text style={[s.linkText, { color: c.accent }]}>🔔 {notifyLabel ?? '복권 받게 알림 켜기'} ›</Text></Pressable> : null}
         {renderNative ? <View style={s.native}>{renderNative()}</View> : null}
       </ScrollView>
     </View>
@@ -144,7 +185,7 @@ export function LotterySheet({ open, state, winners, busy, onOpen, onEarn, onMor
  * 결과 창 — 「축하해요 보상 ○P 당첨!」, **큰 아이콘 없음**(대표님 13:56). 버튼 아래에 앱이 넘기는 네이티브 광고(`renderNative`).
  * 남은 복권이 있으면 「다음 복권 열기」, 없으면 「미션 하고 복권 더 받기」(다음 단계까지 남은 미션 수), 둘 다 「다음에 할게요」로 닫는다.
  */
-export function LotteryResult({ result, state, onOpenNext, onMore, onClose, renderNative, theme }: {
+export function LotteryResult({ result, state, onOpenNext, onMore, onClose, renderNative, theme, nextAd, adLabel, notify }: {
   result: Pick<LotteryOpenResult, 'won' | 'points' | 'unopened'>;
   state?: LotteryState | null;
   /** 남은 복권이 있을 때 「다음 복권 열기」 */
@@ -153,6 +194,11 @@ export function LotteryResult({ result, state, onOpenNext, onMore, onClose, rend
   onMore?: () => void;
   onClose: () => void;
   renderNative?: () => ReactNode;
+  /** (0.1.2) 「다음 복권 열기」가 광고를 여는가 — `nextOpensWithAd(state, basicAd)` 를 넘긴다(안 주면 광고 칩 없음) */
+  nextAd?: boolean;
+  adLabel?: string;
+  /** (0.1.2) 알림이 꺼져 있을 때만 보이는 「🔔 복권 받기 알림 켜기」 줄 — 「다음에 할게요」 아래, 네이티브 광고 위 */
+  notify?: LotteryNotify;
 } & ThemeProp) {
   const c = th(theme);
   const hasNext = result.unopened > 0;
@@ -162,42 +208,87 @@ export function LotteryResult({ result, state, onOpenNext, onMore, onClose, rend
   return <View style={[s.result, { backgroundColor: c.card }]}>
     <Text style={[s.resultTitle, { color: c.text }]}>{lotteryResultTitle(result.points)}</Text>
     <Text style={[s.resultSub, { color: c.sub }]}>{result.won.toLocaleString('ko-KR')}원 복권</Text>
-    {hasNext && onOpenNext ? <Pressable accessibilityRole="button" accessibilityLabel="다음 복권 열기" onPress={onOpenNext} style={[s.big, { backgroundColor: c.accent }]}><Text style={[s.bigText, { color: c.accentText }]}>다음 복권 열기 ({result.unopened}장 남았어요)</Text></Pressable> : null}
+    {hasNext && onOpenNext ? <Pressable accessibilityRole="button" accessibilityLabel="다음 복권 열기" onPress={onOpenNext} style={[s.big, s.bigRow, { backgroundColor: c.accent }]}><Text style={[s.bigText, { color: c.accentText }]}>다음 복권 열기 ({result.unopened}장 남았어요)</Text>{nextAd ? <AdChip label={adLabel} onColor={c.accentText} onFilled /> : null}</Pressable> : null}
     {!hasNext && moreLabel && onMore ? <Pressable accessibilityRole="button" accessibilityLabel={moreLabel} onPress={onMore} style={[s.big, { backgroundColor: c.accent }]}><Text style={[s.bigText, { color: c.accentText }]}>{moreLabel}</Text></Pressable> : null}
     <Pressable accessibilityRole="button" accessibilityLabel="다음에 할게요" onPress={onClose} style={s.link}><Text style={[s.linkText, { color: c.sub }]}>다음에 할게요</Text></Pressable>
+    <NotifyRow notify={notify} theme={c} />
     {renderNative ? <View style={s.native}>{renderNative()}</View> : null}
   </View>;
 }
 
 /**
- * 황금 복권 팝업 — 「황금 복권이 나타났어요!」 하루 한 번. 버튼은 「광고 보고 황금 복권 열기」: 앱이 `onOpen` 에서 **보상형 광고(용도 lottery_basic)를 보여 준 뒤**
- * `useLottery.open(tier, 'basic')` 을 부른다 — 광고 시청은 서버가 구글 SSV 로 확인한다(앱 말만 믿지 않는다).
- * `icon` 은 앱이 넘기는 그림(없으면 글자만). busy 동안은 다시 눌리지 않는다.
+ * 기본으로 그리는 황금 복권 그림 — 앱 그림(`icon`)이 없을 때. 금빛 티켓 한 장에 별 하나, 오른쪽은 점선 절취선
  */
-export function GoldenLotteryPopup({ open, maxWon, busy, onOpen, onClose, buttonLabel, icon, theme }: {
+function GoldenTicketArt() {
+  return <View accessible={false} importantForAccessibility="no-hide-descendants" style={s.goldTicket}>
+    <Text style={s.goldStar}>★</Text>
+    <View style={s.goldPerforation} />
+    <View style={s.goldStub}><Text style={s.goldStubText}>GOLD</Text></View>
+  </View>;
+}
+
+/**
+ * 황금 복권 팝업 — 「황금 복권이 나타났어요!」 하루 한 번(0.1.2: 읽기 쉽게 다시 짰다 — 대표님 15:48 「가독성이 떨어진다. 간격 좀 넣고 설명 좀 잘 넣어」).
+ * 위에서 아래로: 닫기(X, 자기 줄 — 제목과 겹치지 않는다) → 황금 복권 그림(`icon` 이 있으면 그것) → 제목 → 쉬운 말 3줄 → 작은 글씨 → 버튼 → 「다음에 열기」.
+ * 값(최대 금액 · 포인트)은 서버 state 에서 읽어 넘긴다 — `maxWon`(필수) · `maxPoints`(없으면 금액만 보인다). 문구는 `lines`/`note` 로 통째로 바꿀 수 있다(다국어).
+ * 버튼은 「광고 보고 황금 복권 열기」: 앱이 `onOpen` 에서 **보상형 광고(용도 lottery_basic)를 보여 준 뒤** `useLottery.open(tier, 'basic')` 을 부른다
+ * — 광고 시청은 서버가 구글 SSV 로 확인한다(앱 말만 믿지 않는다). 광고가 바로 열리므로 버튼 안 오른쪽에 「광고」 칩(`ad` 가 false 면 칩 · 광고 문구 없음).
+ * busy 동안은 다시 눌리지 않는다. `bottomInset` 은 아래 안전 영역(`useSafeAreaInsets().bottom`).
+ */
+export function GoldenLotteryPopup({ open, maxWon, maxPoints, busy, onOpen, onClose, buttonLabel, icon, theme, ad = true, adLabel, closeLabel, lines, note, bottomInset = 0, notify }: {
   open: boolean;
   maxWon: number;
+  maxPoints?: number | null;
   busy?: boolean;
   onOpen: () => void;
   onClose: () => void;
   buttonLabel?: string;
   icon?: ReactNode;
+  /** 열 때 광고가 열리나(서버 daily_basic.ad, 기본 true) — false 면 「광고」 칩을 빼고 문구도 「바로 열 수 있어요」 */
+  ad?: boolean;
+  adLabel?: string;
+  /** 버튼 아래 글자 버튼(기본 「다음에 열기」) */
+  closeLabel?: string;
+  /** 설명 줄 · 작은 글씨를 통째로 바꾼다(기본은 goldenLines) */
+  lines?: string[];
+  note?: string;
+  bottomInset?: number;
+  /** (0.1.2) 알림이 꺼져 있을 때만 보이는 「🔔 복권 받기 알림 켜기」 줄 — 「다음에 열기」 아래 */
+  notify?: LotteryNotify;
 } & ThemeProp) {
   if (!open) return null;
   const c = th(theme);
-  const label = buttonLabel ?? '광고 보고 황금 복권 열기';
+  const label = buttonLabel ?? (ad ? '광고 보고 황금 복권 열기' : '황금 복권 열기');
+  const copy = goldenLines({ maxWon, maxPoints, ad });
+  const body = lines ?? copy.lines;
+  const small = note ?? copy.note;
+  const later = closeLabel ?? '다음에 열기';
 
   return <View style={s.overlay}>
     <Pressable accessibilityRole="button" accessibilityLabel="닫기" onPress={onClose} style={s.dim} />
-    <View style={[s.sheet, { backgroundColor: c.card }]}>
-      <Pressable accessibilityRole="button" accessibilityLabel="닫기" hitSlop={12} onPress={onClose} style={s.close}><Text style={[s.closeText, { color: c.sub }]}>✕</Text></Pressable>
-      <Text style={[s.sheetTitle, { color: c.text }]}>황금 복권이 나타났어요!</Text>
-      <Text style={[s.sheetSub, { color: c.sub }]}>{'하루에 한번만 행운처럼 오는 기회\n최대 ' + maxWon.toLocaleString('ko-KR') + '원을 받을 수 있어요'}</Text>
-      {icon ? <View style={s.golden}>{icon}</View> : null}
-      <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!busy }} disabled={!!busy} onPress={onOpen} style={[s.big, { backgroundColor: c.accent }, busy && { opacity: 0.6 }]}><Text style={[s.bigText, { color: c.accentText }]}>{label}</Text></Pressable>
+    <View style={[s.goldSheet, { backgroundColor: c.card, paddingBottom: GOLD_PAD + Math.max(0, bottomInset) }]}>
+      <View style={s.goldHeader}>
+        <Pressable accessibilityRole="button" accessibilityLabel="닫기" hitSlop={12} onPress={onClose} style={s.goldClose}><Text style={[s.closeText, { color: c.sub }]}>✕</Text></Pressable>
+      </View>
+      <View style={s.goldArt}>{icon ?? <GoldenTicketArt />}</View>
+      <Text accessibilityRole="header" style={[s.goldTitle, { color: c.text }]}>황금 복권이 나타났어요!</Text>
+      <View style={s.goldLines}>
+        {body.map((line, i) => <Text key={i} style={[s.goldLine, { color: c.text }]}>{line}</Text>)}
+      </View>
+      <Text style={[s.goldNote, { color: c.sub }]}>{small}</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel={label + (ad && !label.includes(adLabel ?? '광고') ? ', ' + (adLabel ?? '광고') : '')} accessibilityState={{ disabled: !!busy }} disabled={!!busy} onPress={onOpen}
+        style={[s.big, s.bigRow, { backgroundColor: c.accent }, busy && { opacity: 0.6 }]}>
+        <Text style={[s.bigText, { color: c.accentText }]}>{label}</Text>
+        {ad ? <AdChip label={adLabel} onColor={c.accentText} onFilled /> : null}
+      </Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel={later} onPress={onClose} style={s.goldLater}><Text style={[s.linkText, { color: c.sub }]}>{later}</Text></Pressable>
+      <NotifyRow notify={notify} theme={c} />
     </View>
   </View>;
 }
+
+/** 황금 복권 시트의 바깥 여백(위 · 좌우 · 아래 모두 24 이상) */
+const GOLD_PAD = 28;
 
 const s = StyleSheet.create({
   anchor: { position: 'absolute', left: 16, right: 16, alignItems: 'center', zIndex: 10 },
@@ -226,6 +317,31 @@ const s = StyleSheet.create({
   rowButton: { minWidth: 76, height: 38, paddingHorizontal: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   rowButtonText: { fontSize: 14, fontWeight: '800' },
   big: { height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
+  bigRow: { flexDirection: 'row', gap: 8 },
+  adChip: { height: 20, paddingHorizontal: 7, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  adChipOnFilled: { borderColor: 'rgba(255,255,255,0.7)', backgroundColor: 'rgba(255,255,255,0.22)' },
+  adChipText: { fontSize: 11, lineHeight: 14, fontWeight: '800' },
+  goldSheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: GOLD_PAD, paddingTop: 12 },
+  goldHeader: { height: 40, alignItems: 'flex-end', justifyContent: 'center' },
+  goldClose: { width: 40, height: 40, alignItems: 'flex-end', justifyContent: 'center' },
+  goldArt: { alignItems: 'center', marginTop: 4 },
+  goldTicket: { width: 120, height: 72, borderRadius: 14, backgroundColor: '#FFD54A', borderWidth: 2, borderColor: '#E5A400', flexDirection: 'row', alignItems: 'center', overflow: 'hidden', transform: [{ rotate: '-6deg' }] },
+  goldStar: { flex: 1, textAlign: 'center', fontSize: 34, lineHeight: 40, color: '#B77900', fontWeight: '800' },
+  goldPerforation: { alignSelf: 'stretch', width: 0, borderLeftWidth: 2, borderStyle: 'dashed', borderColor: '#E5A400', marginVertical: 6 },
+  goldStub: { width: 38, alignItems: 'center', justifyContent: 'center' },
+  goldStubText: { fontSize: 10, fontWeight: '900', color: '#B77900', transform: [{ rotate: '90deg' }], width: 40, textAlign: 'center' },
+  goldTitle: { marginTop: 20, fontSize: 24, lineHeight: 32, fontWeight: '800', textAlign: 'center' },
+  goldLines: { marginTop: 16, gap: 8 },
+  goldLine: { fontSize: 16, lineHeight: 26, textAlign: 'center' },
+  goldNote: { marginTop: 12, marginBottom: 24, fontSize: 13, lineHeight: 20, textAlign: 'center' },
+  goldLater: { alignItems: 'center', justifyContent: 'center', minHeight: 48, marginTop: 8 },
+  notify: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 14, marginTop: 8 },
+  notifyBell: { fontSize: 22 },
+  notifyCopy: { flex: 1, minWidth: 0, gap: 2 },
+  notifyTitle: { fontSize: 14, lineHeight: 20, fontWeight: '800' },
+  notifyHint: { fontSize: 12, lineHeight: 18 },
+  notifyBtn: { height: 32, paddingHorizontal: 14, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  notifyBtnText: { fontSize: 13, fontWeight: '800' },
   bigText: { fontSize: 16, fontWeight: '800' },
   link: { alignItems: 'center', paddingVertical: 8 },
   linkText: { fontSize: 14, fontWeight: '700' },

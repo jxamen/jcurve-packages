@@ -221,6 +221,31 @@ export function goldenTier(s: LotteryState | null): LotteryTier | null {
   return s?.tiers.find(t => t.basicUnopened > 0) ?? null;
 }
 
+/**
+ * (0.1.2) 이 단계의 **다음 복권을 열 때 광고가 바로 열리나** — 미션 복권(광고 없이 열림)이 아니라 매일 기본(황금) 복권만 남았을 때.
+ * 서버는 미션 복권을 먼저 연다. `basicAd` 는 서버 설정 daily_basic.ad(기본 true = 광고 필요) — 광고 없이 여는 설정이면 false 를 넘긴다.
+ * 버튼에 「광고」 칩을 넣을지 이것으로 정한다(광고 없이 열리는 버튼에는 넣지 않는다)
+ */
+export function opensWithAd(t: Pick<LotteryTier, 'unopened' | 'missionState' | 'basicUnopened'> | null | undefined, basicAd = true): boolean {
+  return !!t && basicAd && t.unopened > 0 && t.missionState !== 'ready' && t.basicUnopened > 0;
+}
+
+/** (0.1.2) 결과 창의 「다음 복권 열기」가 광고를 여는가 — 다음에 열 단계(안 연 첫 단계)가 황금 복권뿐일 때 */
+export function nextOpensWithAd(s: LotteryState | null, basicAd = true): boolean {
+  return opensWithAd(readyTiers(s)[0], basicAd);
+}
+
+/** 황금 복권 시트의 쉬운 말 설명 — 줄마다 한 가지, 값(최대 금액 · 포인트)은 서버 state 에서 온 것을 넘긴다. 광고 없이 열리는 설정이면 두 번째 줄이 바뀐다 */
+export function goldenLines(o: { maxWon: number; maxPoints?: number | null; ad?: boolean }): { lines: string[]; note: string } {
+  const won = o.maxWon.toLocaleString('ko-KR') + '원';
+  const pts = typeof o.maxPoints === 'number' && o.maxPoints > 0 ? '(' + o.maxPoints.toLocaleString('ko-KR') + 'P)' : '';
+
+  return {
+    lines: ['하루에 한 장, 무료로 드려요', o.ad === false ? '바로 열 수 있어요' : '광고 1번 보면 바로 열 수 있어요', '최대 ' + won + pts + '이 포인트로 바로 들어와요'],
+    note: '오늘 자정까지 열 수 있어요',
+  };
+}
+
 /** 열 수 있는 단계 — 이 단계의 복권이 하나라도 안 열렸다 */
 export function readyTiers(s: LotteryState | null): LotteryTier[] {
   return s ? s.tiers.filter(t => t.unopened > 0) : [];

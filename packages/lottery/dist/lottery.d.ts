@@ -105,5 +105,22 @@ export declare const lotteryWinnerLine: (w: LotteryWinner) => string;
 export declare const lotteryChipCount: (s: LotteryState | null) => number;
 /** 황금(기본) 복권 팝업 대상 — 안 연 기본 복권이 있는 단계(없으면 null) */
 export declare function goldenTier(s: LotteryState | null): LotteryTier | null;
+/**
+ * (0.1.2) 이 단계의 **다음 복권을 열 때 광고가 바로 열리나** — 미션 복권(광고 없이 열림)이 아니라 매일 기본(황금) 복권만 남았을 때.
+ * 서버는 미션 복권을 먼저 연다. `basicAd` 는 서버 설정 daily_basic.ad(기본 true = 광고 필요) — 광고 없이 여는 설정이면 false 를 넘긴다.
+ * 버튼에 「광고」 칩을 넣을지 이것으로 정한다(광고 없이 열리는 버튼에는 넣지 않는다)
+ */
+export declare function opensWithAd(t: Pick<LotteryTier, 'unopened' | 'missionState' | 'basicUnopened'> | null | undefined, basicAd?: boolean): boolean;
+/** (0.1.2) 결과 창의 「다음 복권 열기」가 광고를 여는가 — 다음에 열 단계(안 연 첫 단계)가 황금 복권뿐일 때 */
+export declare function nextOpensWithAd(s: LotteryState | null, basicAd?: boolean): boolean;
+/** 황금 복권 시트의 쉬운 말 설명 — 줄마다 한 가지, 값(최대 금액 · 포인트)은 서버 state 에서 온 것을 넘긴다. 광고 없이 열리는 설정이면 두 번째 줄이 바뀐다 */
+export declare function goldenLines(o: {
+    maxWon: number;
+    maxPoints?: number | null;
+    ad?: boolean;
+}): {
+    lines: string[];
+    note: string;
+};
 /** 열 수 있는 단계 — 이 단계의 복권이 하나라도 안 열렸다 */
 export declare function readyTiers(s: LotteryState | null): LotteryTier[];
