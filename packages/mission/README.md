@@ -1,3 +1,13 @@
+## 0.4.17 — 쿠팡 방문 줄 준비 (미발행)
+
+- `BenefitQuickList`의 기존 `fetchJson`으로 `coupang/config` 조회. 응답 전·실패·404·꺼짐은 숨김. 시험 명단은 서버가 인증된 회원 기준으로 판정한다.
+- `enabled=true` 응답에만 「쿠팡 방문하고 1P 받기」(서버 `visit_point` 반영)를 추가. 필수 문구를 줄 아래 줄임 없이 표시한다.
+- 누름: `POST coupang/visit/start`의 `visit_id`·`deep_link` → Linking.openURL → AppState inactive/background 후 active → `POST coupang/visit/complete {visit_id}`를 방문당 한 번. 실제 `gained>0`일 때만 지급 토스트. `visited_today`이면 「오늘 받음」.
+- 서버 오류·짧은 체류·중복 지급은 성공 토스트를 만들지 않는다. 앱이 전달하는 요청 함수 내부에서도 지급 POST를 임의로 자동 재시도하지 않아야 한다(서버는 idempotent).
+- 계정/앱 전환 시 `fetchJson`의 함수 identity 또는 BenefitQuickList의 React `key`를 바꿔 이전 방문을 폐기한다. 홈 갱신은 기존 `refreshKey` 사용.
+- 기본 꺼짐·test_only=true는 서버 소유. 이 변경은 설정을 쓰지 않는다. 새 네이티브 의존 없음. 기존 homeActions 10개 계약은 유지하고 쿠팡 줄은 서버 게이트로 별도 추가한다.
+- 앱 설치·실기기 쿠팡 이동·실지급·발행·OTA는 수행하지 않음. 시험은 모의 서버와 React Native 어댑터로 실행.
+
 # @jcurve/mission
 
 APIHUB **일주일 방문미션** 공용 — 웹뷰로 열고, 웹페이지가 부르는 `MocationNativeBridge` 를 받아 주고, 에러·점검 화면을 그린다.

@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TAP_GUARD_MS = void 0;
 exports.iconKind = iconKind;
@@ -6,10 +39,12 @@ exports.pressOnce = pressOnce;
 exports.resetTapGuard = resetTapGuard;
 exports.BenefitQuickList = BenefitQuickList;
 const jsx_runtime_1 = require("react/jsx-runtime");
-const react_1 = require("react");
+const react_1 = __importStar(require("react"));
 const react_native_1 = require("react-native");
 const home_1 = require("./home");
 const useHomeConfig_1 = require("./useHomeConfig");
+const useCoupangVisit_1 = require("./useCoupangVisit");
+const coupang_1 = require("./coupang");
 const homeDefs_1 = require("./homeDefs");
 const colors = {
     calendar: '#2F6FD6', bag: '#D2551E', pin: '#2E8B57',
@@ -62,6 +97,7 @@ function useActiveTick() {
 }
 /** 서버 home_rows 를 얹는 층 — 훅이 있어 `fetchJson` 이 있을 때만 쓴다(없으면 BenefitQuickList 가 그림만 바로 그린다) */
 function ServerRowsList({ fetchJson, homeKeys, onRow, refreshKey, storage, storageKey, items, view, keepUnlisted }) {
+    const coupang = (0, useCoupangVisit_1.useCoupangVisit)(fetchJson, refreshKey);
     const tick = useActiveTick();
     const key = (0, react_1.useMemo)(() => [refreshKey, tick], [refreshKey, tick]);
     const { config, ready } = (0, useHomeConfig_1.useHomeConfig)(fetchJson, key, storage, storageKey);
@@ -70,7 +106,12 @@ function ServerRowsList({ fetchJson, homeKeys, onRow, refreshKey, storage, stora
     // (0.4.6) 저장소를 쓰면 저장값을 읽을 때까지(최대 300ms) 그리지 않는다 — 앱 기본 순서를 잠깐 그렸다가 서버 순서로 바꾸지 않으려고. 저장소가 없으면 ready 는 늘 true
     if (!ready)
         return null;
-    return (0, jsx_runtime_1.jsx)(QuickListView, { ...view, items: merged });
+    const rows = merged.filter(item => item.key !== 'coupang');
+    if (coupang.visible)
+        rows.push({ key: 'coupang', title: `쿠팡 방문하고 ${coupang.status.visit_point}P 받기`, subtitle: '',
+            ctaLabel: '방문하기', doneLabel: '오늘 받음', done: coupang.status.today_done, icon: 'bag', tint: '#FDE6D6',
+            onPress: coupang.start, disclosure: coupang_1.COUPANG_DISCLOSURE });
+    return (0, jsx_runtime_1.jsxs)(react_native_1.View, { children: [(0, jsx_runtime_1.jsx)(QuickListView, { ...view, items: rows }), coupang.toast ? (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.toast, accessibilityLiveRegion: "polite", children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: s.toastText, children: coupang.toast }) }) : null] });
 }
 /**
  * 「바로 받는 혜택」 목록. (0.4.4) `fetchJson` 을 주면 서버 home_rows 를 스스로 적용하고, `onFreeItem` 을 주면 free_item 기본 줄이 생긴다 — 둘 다 없으면 0.4.3 과 똑같이 그린다.
@@ -85,12 +126,15 @@ function BenefitQuickList(props) {
 }
 function QuickListView({ title = '바로 받는 혜택', seeAllLabel, onSeeAll, accentColor = '#EE7A33', items, footer, doneLabel = '완료', buttonWidth = 100, buttonHeight = 40 }) {
     const visible = items.filter(item => !item.hidden);
-    return (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: s.root, children: [title || (seeAllLabel && onSeeAll) ? (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: s.header, children: [title ? (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: s.title, children: title }) : (0, jsx_runtime_1.jsx)(react_native_1.View, {}), seeAllLabel && onSeeAll ? (0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", onPress: onSeeAll, hitSlop: 8, children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.seeAll, { color: accentColor }], children: seeAllLabel }) }) : null] }) : null, (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.card, children: visible.map((item, index) => (0, jsx_runtime_1.jsxs)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: item.title + ', ' + (item.done ? (item.doneLabel ?? doneLabel) : item.ctaLabel), accessibilityState: { disabled: !!item.done }, disabled: item.done, onPress: () => { if (!item.done)
-                        pressOnce(item.onPress); }, style: ({ pressed }) => [s.row, index < visible.length - 1 && s.border, pressed && !item.done && { opacity: 0.85 }], children: [(0, jsx_runtime_1.jsx)(react_native_1.View, { style: [s.icon, { backgroundColor: item.tint }], children: (0, jsx_runtime_1.jsx)(Icon, { icon: item.icon }) }), (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: s.copy, children: [(0, jsx_runtime_1.jsxs)(react_native_1.View, { style: s.nameRow, children: [(0, jsx_runtime_1.jsx)(react_native_1.Text, { style: s.name, children: item.title }), item.badge ? (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.badge, children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: s.badgeText, children: item.badge }) }) : null] }), item.progress && item.progress.total > 0
-                                    ? (0, jsx_runtime_1.jsxs)(react_native_1.View, { accessibilityLabel: item.progress.done + '/' + item.progress.total, style: s.steps, children: [Array.from({ length: item.progress.total }, (_, i) => (0, jsx_runtime_1.jsx)(react_native_1.View, { style: [s.step, { backgroundColor: i < item.progress.done ? accentColor : '#ECE6DE' }] }, i)), item.progressLabel ? (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: s.stepsLabel, numberOfLines: 1, children: item.progressLabel }) : null] })
-                                    : (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: s.subtitle, numberOfLines: 1, adjustsFontSizeToFit: true, children: item.subtitle })] }), (0, jsx_runtime_1.jsx)(react_native_1.View, { pointerEvents: "none", style: [s.button, { width: buttonWidth, height: buttonHeight, backgroundColor: item.done ? '#D3D7DD' : accentColor }], children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: s.cta, numberOfLines: 1, adjustsFontSizeToFit: true, children: item.done ? (item.doneLabel ?? doneLabel) : item.ctaLabel }) })] }, item.key)) }), footer != null ? (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.footer, children: footer }) : null] });
+    return (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: s.root, children: [title || (seeAllLabel && onSeeAll) ? (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: s.header, children: [title ? (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: s.title, children: title }) : (0, jsx_runtime_1.jsx)(react_native_1.View, {}), seeAllLabel && onSeeAll ? (0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", onPress: onSeeAll, hitSlop: 8, children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.seeAll, { color: accentColor }], children: seeAllLabel }) }) : null] }) : null, (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.card, children: visible.map((item, index) => (0, jsx_runtime_1.jsxs)(react_1.default.Fragment, { children: [(0, jsx_runtime_1.jsxs)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: item.title + ', ' + (item.done ? (item.doneLabel ?? doneLabel) : item.ctaLabel), accessibilityState: { disabled: !!item.done }, disabled: item.done, onPress: () => { if (!item.done)
+                                pressOnce(item.onPress); }, style: ({ pressed }) => [s.row, index < visible.length - 1 && s.border, pressed && !item.done && { opacity: 0.85 }], children: [(0, jsx_runtime_1.jsx)(react_native_1.View, { style: [s.icon, { backgroundColor: item.tint }], children: (0, jsx_runtime_1.jsx)(Icon, { icon: item.icon }) }), (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: s.copy, children: [(0, jsx_runtime_1.jsxs)(react_native_1.View, { style: s.nameRow, children: [(0, jsx_runtime_1.jsx)(react_native_1.Text, { style: s.name, children: item.title }), item.badge ? (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.badge, children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: s.badgeText, children: item.badge }) }) : null] }), item.progress && item.progress.total > 0
+                                            ? (0, jsx_runtime_1.jsxs)(react_native_1.View, { accessibilityLabel: item.progress.done + '/' + item.progress.total, style: s.steps, children: [Array.from({ length: item.progress.total }, (_, i) => (0, jsx_runtime_1.jsx)(react_native_1.View, { style: [s.step, { backgroundColor: i < item.progress.done ? accentColor : '#ECE6DE' }] }, i)), item.progressLabel ? (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: s.stepsLabel, numberOfLines: 1, children: item.progressLabel }) : null] })
+                                            : (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: s.subtitle, numberOfLines: 1, adjustsFontSizeToFit: true, children: item.subtitle })] }), (0, jsx_runtime_1.jsx)(react_native_1.View, { pointerEvents: "none", style: [s.button, { width: buttonWidth, height: buttonHeight, backgroundColor: item.done ? '#D3D7DD' : accentColor }], children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: s.cta, numberOfLines: 1, adjustsFontSizeToFit: true, children: item.done ? (item.doneLabel ?? doneLabel) : item.ctaLabel }) })] }), item.disclosure ? (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: s.disclosure, children: item.disclosure }) : null] }, item.key)) }), footer != null ? (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.footer, children: footer }) : null] });
 }
 const s = react_native_1.StyleSheet.create({
+    disclosure: { fontSize: 12, color: '#6B5E52', lineHeight: 18, paddingBottom: 12 },
+    toast: { backgroundColor: '#2B2118', borderRadius: 12, padding: 12, marginTop: 8 },
+    toastText: { color: '#FFFFFF', textAlign: 'center' },
     root: { gap: 10 }, header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 },
     title: { fontSize: 19, fontWeight: '700', color: '#2B2118', flexShrink: 1 }, seeAll: { fontSize: 13 },
     card: { backgroundColor: '#FFFFFF', borderRadius: 20, paddingVertical: 6, paddingHorizontal: 14 },
