@@ -1,4 +1,4 @@
-## 0.4.17 — 쿠팡 방문 줄 준비 (미발행)
+## 0.7.14 — 쿠팡 방문 줄 준비 (미발행)
 
 - `BenefitQuickList`의 기존 `fetchJson`으로 `coupang/config` 조회. 응답 전·실패·404·꺼짐은 숨김. 시험 명단은 서버가 인증된 회원 기준으로 판정한다.
 - `enabled=true` 응답에만 「쿠팡 방문하고 1P 받기」(서버 `visit_point` 반영)를 추가. 필수 문구를 줄 아래 줄임 없이 표시한다.
@@ -198,7 +198,7 @@ items={[freeItemRow({ itemName: '먹이', left: 2, onPress: () => openFreeItem()
 
 | 이름 | 인자 · 기본값 | 결과 |
 | --- | --- | --- |
-| `freeItemRow` | `itemName` · `left?` · `total?` 3 · `onPress` · `icon?` 🌱 · `tint?` · `hidden?` · `key?` 'freeItem' | 「무료 {item} 받기 · 하루 3번 광고 없이 받기 [받기]」. `left` 를 주면 칸 막대 「N번 남았어요」, 0 이면 「완료」 |
+| `freeItemRow` | `itemName` · `left?` · `total?` 3 · `subtitle?` · `onPress` · `icon?` 🌱 · `tint?` · `hidden?` · `key?` 'freeItem' | 「무료 {item} 받기 · 하루 3번 들르면 {item} 받기 [받기]」(0.7.1: 부제 기본이 방문형 — 예전 「하루 3번 광고 없이 받기」). 광고형 앱은 `subtitle` 로 덮는다. `left` 를 주면 칸 막대 「N번 남았어요」, 0 이면 「완료」 |
 | `appHubRow` | `onPress` · `subtitle?` 「추천 앱 둘러보기」 · `icon?` ⭐ · `tint?` · `hidden?` · `key?` 'apphub' | 「추천 앱 둘러보기 [보러가기]」 |
 
 ### 친구 초대
@@ -222,9 +222,36 @@ items={[freeItemRow({ itemName: '먹이', left: 2, onPress: () => openFreeItem()
 <ShoppingMissionModal visible={shopping} fetchJson={fetchJson} source={from} safeAreaInsets={insets} onClose={() => setShopping(false)} />
 ```
 
-## 0.4.4 — 홈 「바로 받는 혜택」 목록을 서버(어드민)에서 앱별로 (대표님 10-20 17:12~17:14 「이 패키지 써」 · 「목록 순서는 어드민에서 앱별로」 · 「넣고 빼고 순서랑」)
+## 0.5.0 — 홈 목록을 서버 설정으로(mission/home)
 
-0.4.3 위에 0.5.0 의 서버 목록(`home.ts`)만 옮겼다 — **새 네이티브 0**(@jcurve/overlay · lottery 는 안 따라온다). `BenefitQuickList` 가 서버 `GET mission/home` 의 home_rows(어드민 `mission.home_rows`, 앱 DB별)를 **스스로 읽어** 앱 기본 items 에 적용한다.
+대표님 10-20 10:56 「메인 패키지 반영도 바로 안되고」 — 어드민 앱 설정 `mission.home_rows` 로 줄 제목 · 설명 · 버튼 · 배지 · 보임 · 순서를 바꾸면 빌드 · OTA 없이 1분 안에 바뀐다.
+서버는 jcurve-api `GET mission/home`(feat/mission-home-rows)이다. 설정이 없거나 실패하면 앱 기본 목록 그대로다.
+
+```tsx
+import { BenefitQuickList, useHomeRows } from '@jcurve/mission';
+// 앱 줄 key → 서버 행동 key(quiz1 · quiz2 · checkin · steps · free_item · today_missions · lucky_chance · invite · recommend)
+const KEYS = { bag: 'quiz1', pin: 'quiz2', calendar: 'checkin', steps: 'steps', free: 'free_item', star: 'today_missions', ticket: 'lucky_chance', friend: 'invite', apphub: 'recommend' } as const;
+const { items } = useHomeRows(fetchJson, baseItems, KEYS, tab === 'home');   // 홈으로 돌아올 때 다시(60초 캐시)
+<BenefitQuickList items={items} … />
+```
+
+- 설정이 있는 줄은 이렇게 바뀐다:
+  - 제목은 서버 것이다.
+  - 설명 · 버튼 · 배지는 서버 값이 있을 때만 바꾼다(빈 값이면 앱 것).
+  - `visible:false` 면 숨긴다.
+  - 서버 순서대로 앞에 온다.
+- 설정에 없는 줄은 그 뒤에 원래 순서로 둔다. `onPress` · 완료 · 칸 막대는 늘 앱 것이다.
+- 낱개로도 쓸 수 있다: `fetchHomeConfig(fetchJson)` · `parseHomeResponse(json)` · `applyHomeRows(items, rows, KEYS)` · `adSlotIndex(items, list.adAfter, 앱기본)`
+- `list.shoppingFirst`(혜택 탭 쇼핑 먼저) · `list.adAfter`(목록 광고 자리)는 앱이 읽어 쓴다.
+
+## 0.7.0 — 복권을 @jcurve/lottery 로 옮김(대표님 14:24 「이것도 패키지로 빼」)
+
+0.6.0 의 복권 조각(`useLottery` · `LotteryChip` · `LotterySheet` · `LotteryResult` · `GoldenLotteryPopup` · `goldenTier` · `openLottery` …)은 **별도 패키지 `@jcurve/lottery`** 로 옮겼다 — 이름 · props 는 그대로라 import 만 바꾸면 된다(`from '@jcurve/mission'` → `from '@jcurve/lottery'`).
+`@jcurve/mission` 은 복권 없이도 그대로 동작한다. 0.6.0 을 쓰는 앱은 lottery 로 옮긴 뒤 0.7.0 으로 올린다(0.6.0 → 0.7.0 에서 복권 export 가 사라진다).
+
+## 0.7.2 — 홈 「바로 받는 혜택」 목록의 서버(어드민) 적용을 `BenefitQuickList` props 로 (0.4.4 포팅, 대표님 10-20 「전체 통일」)
+
+9앱이 쓰는 0.4.4 줄의 `BenefitQuickList` 서버 목록 기능을 0.7 줄에 옮겼다 — 감자밭(0.7 줄)도 9앱과 **같은 3줄 배선**. **새 네이티브 0**, `useHomeRows` 훅은 그대로(둘 다 쓸 수 있다). `BenefitQuickList` 가 서버 `GET mission/home` 의 home_rows(어드민 `mission.home_rows`, 앱 DB별)를 **스스로 읽어** 앱 기본 items 에 적용한다.
 
 **앱에서 할 일 3줄**
 ```tsx
@@ -239,47 +266,23 @@ items={[freeItemRow({ itemName: '먹이', left: 2, onPress: () => openFreeItem()
 ```
 서버 줄 key 는 9개 고정: `quiz1 · quiz2 · checkin · steps · free_item · today_missions · lucky_chance · invite · recommend`. 어드민 한 곳에서 앱별로 저장하면 모든 앱이 같은 key 로 말해 같은 목록이 된다.
 
-**규칙(앱별 서버 home_rows 를 그대로 따른다)** — 순서: home_rows 순서대로(서버 key 와 짝이 없는 앱 전용 줄은 그 뒤에) · 빼기: 서버 key 로 맞춘 앱 줄이 home_rows 에 없으면 안 그리고, 있어도 보임 false 면 숨김 · 넣기: home_rows 에 있는데 앱 items 에 없는 key 는 서버 값(제목 · 설명 · 버튼 · 배지)으로 기본 줄을 만들어 `onRow(key)` 에 넘긴다(`onRow` 없으면 안 만든다) ·
+**규칙(앱별 서버 home_rows 를 그대로 따른다)** — 순서: home_rows 순서대로(서버 key 와 짝이 없는 앱 전용 줄은 그 뒤에) · 빼기: 서버 key 로 맞춘 앱 줄이 home_rows 에 없으면 안 그리고, 있어도 보임 false 면 숨김 · 넣기: home_rows 에 있는데 앱 items 에 없는 key 는 서버 값(제목 · 설명 · 버튼 · 배지)으로 기본 줄.
 home_rows 가 없거나 읽기에 실패하면 **앱 기본 그대로**(60초 캐시 · 앱이 앞으로 돌아올 때 · `refreshKey` 가 바뀔 때 다시). 누르는 동작 · 완료 · 칸 막대 · 앱이 숨긴 줄은 늘 앱 것 — 서버가 바꾸는 것은 제목 · 설명 · 버튼 · 배지 · 보임 · 순서뿐이다.
 **free_item 줄은 패키지 기본**: 앱 items 에 free_item(맞춤표 기준)이 이미 있으면(예: `freeItemRow` 를 쓰는 에그머니 · 머니트리 · 영테크) 겹치지 않는다.
 순수 함수도 내보낸다: `composeHomeRows` · `withFreeItemRow` · `freeItemHomeRow` · `resolveHomeKeys` · `fetchHomeConfig` · `applyHomeRows`(0.5.0 방식 — 서버에 없는 줄도 뒤에 남김) · `useHomeRows`.
+(0.7.1) `freeItemRow` 의 부제 기본이 방문형 「하루 N번 들르면 ○○ 받기」로 바뀌었다 — 광고형 앱은 `subtitle` 로 덮는다.
+(0.4.5 포팅) 서버 title 이 비어 있으면 **앱 제목을 그대로** 둔다(만보기 「오늘 N걸음」 같은 동적 제목) — 빈 제목 줄도 버리지 않고 제자리에 둔다. 순서 · 보임 · 설명 · 버튼 · 배지는 서버 값대로 적용하고, 앱에 짝이 없어 새로 만드는 줄만 key별 기본 제목을 쓴다.
+(0.7.3 — 0.4.6 포팅) **홈 목록 저장값 먼저 그리기** — 앱이 `storage`(`{ get(key), set(key, value) }` **또는** `{ getItem(key), setItem(key, value) }` — 순정 AsyncStorage 가 이쪽이라 `storage={AsyncStorage}` 그대로 된다. 0.4.6 은 get/set 만 받았다)를 넘기면 마지막으로 받은 서버 home_rows 를 저장해 두고 **켤 때 그 값으로 먼저** 그린 뒤 서버 응답으로 갱신한다(켤 때 앱 기본 순서로 그렸다가 서버 순서로 바뀌던 것, 대표님 10-20 18:54). `<BenefitQuickList fetchJson={fetchJson} storage={AsyncStorage} … />` 또는 `useHomeRows(fetchJson, items, keys, refreshKey, { storage: AsyncStorage })`(반환에 `ready` 추가). **안 넘기면 0.7.2 와 같다.** 서버가 정상으로 답한 응답만 저장(실패 · 깨진 응답 · 60초 캐시 적중은 저장하지 않음), 읽을 때도 다시 거른다(20KB · 판 v). 저장값을 읽는 동안(최대 300ms)은 목록을 그리지 않고, 서버가 실패하면 이미 그린 저장값을 그대로 둔다. 키 기본값 `jcurve.mission.home.v1`(`storageKey`). 순서 규칙은 순수 함수 `homeReduce`(시험). 새 네이티브 0 · 새 의존 0.
 
-## 0.4.5 — 서버 title 을 비우면 앱 제목 그대로 (대표님 10-20 「동적 제목은 서버 고정 제목이 덮지 않게 — 덮으면 그 key는 서버 title 비우기」)
+## 0.7.4 — `freeItemRow` 받은 횟수(`received`) · 줄별 완료 글자(`doneLabel`) (대표님 10-20 19:01 감자밭 A32)
 
-서버 home_rows 줄의 **`title` 이 비어 있으면 앱 items 의 제목을 그대로** 둔다 — 만보기 「오늘 N걸음」 · 오늘 미션 보너스 문구 같은 **동적 제목**을 어드민의 고정 제목이 덮지 않게. 제목을 적은 줄만 그 제목으로 바뀐다(설명 · 버튼 · 배지가 비면 앱 값이 살아 있는 것과 같은 규칙).
-앱에 짝이 없어 새로 만드는 줄(`onRow`)은 title 이 비었으면 key별 기본 제목(만보기 · 오늘의 미션 · 행운 찬스 …). 서버가 빈 title 줄을 내려 주는 것은 jcurve-api `fix/mission-home-optional-title`(07d3286) 이 반영된 뒤 — **옛 앱(0.4.4 이하)은 빈 제목 줄을 버리므로**, 어드민에서 title 을 비우는 것은 0.4.5 가 나간 앱부터 한다.
-
-
-## 0.4.6 — 켤 때 목록 순서가 바뀌지 않게: 마지막으로 받은 서버 목록을 저장해 먼저 그린다 (대표님 10-20 18:54 「쇼핑 탭이 왜 뒤늦게 나오지?」)
-
-0.4.4~0.4.5 는 서버 home_rows 를 **60초 메모리 캐시**로만 들고 있어서, 앱을 켤 때마다 앱 기본 순서로 먼저 그렸다가 서버 순서로 바뀌었다. 이제 앱이 저장소를 넘기면 마지막으로 받은 응답을 저장해 두고 **켤 때 그 값으로 먼저** 그린 뒤 서버 응답으로 갱신한다.
-
-```tsx
-import AsyncStorage from '@react-native-async-storage/async-storage';   // ⚠ 0.4.6 은 get/set 모양만 받는다 — 순정 AsyncStorage(getItem/setItem)는 0.4.7 부터 그대로 된다
-
-<BenefitQuickList fetchJson={fetchJson} storage={AsyncStorage} items={items} … />
-// 또는 훅: const { items, ready } = useHomeRows(fetchJson, baseItems, keys, tab === 'home', { storage: AsyncStorage });
-```
-
-- `storage?: { get(key): Promise<string|null>; set(key, value): Promise<void> }` — 0.4.6 은 이 모양만(AsyncStorage 는 `{ get: k => AsyncStorage.getItem(k), set: (k, v) => AsyncStorage.setItem(k, v) }` 어댑터로). **0.4.7 부터는 getItem/setItem 모양도 그대로 받는다.** **안 넘기면 0.4.5 와 똑같다.**
-- 저장하는 것: 서버가 **정상으로** 답한 응답만(`ok:true`). 실패 · 깨진 응답 · 60초 캐시 적중은 저장하지 않는다. 읽을 때도 서버 응답처럼 다시 거른다(모르는 key · 길이 제한). 키 기본값 `jcurve.mission.home.v1`(`storageKey` 로 바꿈), 20KB 넘거나 판(v)이 다르면 무시.
-- 켤 때: 저장값을 읽는 동안(최대 300ms) **목록을 그리지 않고** 기다렸다가 저장값으로 그린다 → 서버 응답이 오면 바뀐 것만 갱신. 저장된 값이 없는 **첫 설치**는 저장소 확인 직후 앱 기본으로 그린다. 서버가 먼저 오면 저장값은 무시.
-- 서버 호출이 실패하면 이미 그린 저장값을 **그대로 둔다**(앱 기본으로 되돌리면 순서가 또 바뀐다).
-- `useHomeRows` 는 `{ items, config, ready }` 를 준다 — 저장소를 쓰는데 훅을 직접 쓰는 앱은 `ready` 가 false 인 동안 목록을 그리지 않는다. 순서 규칙은 순수 함수 `homeReduce`(시험).
-- 새 네이티브 0 · 새 의존 0. 서버 변경 없음.
-
-## 0.4.7 — 방문형 「무료 ○○ 받기」 받은 횟수 · 줄별 완료 글자(0.7.4 포팅) + 저장소 getItem/setItem (대표님 10-20 19:01)
-
-**① `freeItemRow` 받은 횟수(`received`) · 줄별 완료 글자(`doneLabel`)** — 0.7.4 와 같다. 방문형 「무료 ○○ 받기」 줄은 아침 · 점심을 **놓친 칸**이 있어 「남은 칸 0 = 다 받음」이 아니다 — 저녁 1번만 받아도 남은 칸은 0 이다.
+방문형 「무료 ○○ 받기」 줄은 아침 · 점심을 **놓친 칸**이 있어 「남은 칸 0 = 다 받음」이 아니다 — 저녁 1번만 받아도 막대 3칸이 모두 초록 · 「오늘 다 받았어요」 · 「완료」로 나오던 것을 바로잡았다.
 - `freeItemRow({ …, received, left, doneLabel })`: **`received`**(오늘 받은 횟수, 0~total) — 막대의 초록 칸은 `received` 만큼, 글자는 받은 횟수대로(0<r<total 「오늘 r번 받았어요」 · r=total 「오늘 다 받았어요」 · r=0 「오늘은 시간이 지났어요」).
-  `left` 는 「N번 남았어요」(받을 칸이 남았을 때)와 완료(done) 판정에만 쓴다(`left=0` 이면 done). `received` 를 안 주면 예전과 같다.
-- **`BenefitQuickItem.doneLabel`**: done 줄의 버튼 글자를 **줄마다** 정한다(안 주면 목록의 `doneLabel`, 기본 「완료」) — 버튼 글자와 접근성 이름 둘 다.
+  `left` 는 「N번 남았어요」(받을 칸이 남았을 때)와 완료(done) 판정에만 쓴다(`left=0` 이면 done). `received` 를 안 주면 예전 그대로(막대 = total − left, 「N번 남았어요」/「오늘 다 받았어요」).
+- **`BenefitQuickItem.doneLabel`**: done 줄의 버튼 글자를 **줄마다** 정한다(안 주면 목록의 `doneLabel`, 기본 「완료」) — 방문형은 `doneLabel: '내일 다시'`. `freeItemRow` 의 `doneLabel` 인자가 그대로 줄에 실린다.
 - 방문형 한 줄: `freeItemRow({ itemName: '감자', left, received, doneLabel: '내일 다시', onPress })`.
 
-**② `storage` 가 getItem/setItem 모양도 받는다** — 0.4.6 은 `{ get, set }` 만 받아서 순정 AsyncStorage(`getItem`/`setItem`)를 그대로 넘기면 저장값이 조용히 없는 것으로 떨어졌다(앱보조3 지적). 0.4.7 은 `get/set` **또는** `getItem/setItem` 둘 다 받는다 —
-`storage={AsyncStorage}` 그대로 된다. 둘 다 있으면 get/set 이 먼저, 모양이 안 맞는 값은 저장소를 안 넘긴 것과 같다(목록을 늦추지 않는다 — `homeStorageUsable`). 메서드는 저장소 객체에 붙여 부른다(this 를 쓰는 저장소도 동작).
-
-## 0.4.8 — (0.7.5 포팅) 홈 목록 9줄의 정의 전체를 패키지가 (대표님 10-20 20:23 「패키지잖아 갖다 넣으면 똑같은 게 그냥 튀어 나와야 하는데」)
+## 0.7.5 — 홈 목록 9줄의 정의 전체를 패키지가 (대표님 10-20 20:23 「패키지잖아 갖다 넣으면 똑같은 게 그냥 튀어 나와야 하는데」)
 
 앱마다 홈 목록이 달랐던 것(아이콘 · 부제 · 숨김을 앱이 정함)을 없앤다 — **제목 · 부제 · 버튼 · 아이콘 · 바탕색 · 순서를 패키지가 가진다**(기준 = 당근캐시 홈, ota/carrot-ios-106-benefit-1020 814f2f4 FarmScreen HOME_BENEFITS).
 앱은 **아이템 이름 · 포인트 이름 · 줄마다 누르기 동작**과 값만 넘긴다. 앱이 아이콘 · 부제 · 숨김을 덮어쓸 수 없고, **동작을 안 넘긴 줄은 그 앱에서 빠진다**.
@@ -298,44 +301,37 @@ import AsyncStorage from '@react-native-async-storage/async-storage';   // ⚠ 0
 - **서버 home_rows 와의 관계**: 서버가 덮는 것은 제목 · 설명 · 버튼 · 배지 · 보임 · 순서뿐(빈 제목 = 패키지 제목 유지). **아이콘 · 바탕색은 늘 패키지 정의**. 서버에만 있고 동작이 없는 줄은 그리지 않는다(`onRow` 도 이 경우 안 쓴다). 서버 설정이 없거나 실패하면 패키지 정의 그대로.
 - `homeActions` 를 안 주면 예전 `items` 방식 그대로(호환) — 단 새 앱은 `homeActions` 를 쓴다. 순수 정의는 `homeDefs.ts`(`buildHomeItems` · `homeItem` · `HOME_ORDER`)로 따로 내보낸다.
 - **줄이 빠지는 앱**(현재 서버 home_rows 기준): 꼬꼬 · 꾹테크는 무료 아이템 줄 없음(앱이 `free_item` 동작을 안 넘김. 꾹테크는 「무료 뽑기권」 줄을 붙이는 중 — 서버 `capsule/visit` 값을 `free` 로 넘기면 됨), 나머지 앱은 9줄. 당근은 서버 행이 없어 패키지 정의 9줄.
-- (0.4.8) 바탕색 정정: `steps` 줄 `#FFEEE2`(당근 carrotSoft), `free_item` 줄 `#E6F5EA`(당근 heartSoft) — 0.7.5 는 둘 다 `#FDE6D6` 이었다(앱관리가 당근 theme.ts 로 확인). `recommend` 캐릭터는 앱이 `homeContext.recommend.icon` 으로 넘긴다.
 
-## 0.4.9 — 홈 목록 바탕색을 당근 실제 값으로 + 테마색 세 줄만 앱 값(tints) (0.7.6 포팅, 앱관리 20:3x)
+## 0.7.6 — 홈 목록 바탕색을 당근 실제 값으로 + 테마색 세 줄만 앱 값(tints) (앱관리 20:3x)
 
-0.4.8 의 바탕색 정정을 마무리한다 — **0.4.8 은 걸음 · 무료만 고쳤고 추천 줄은 옛 값(#FDE6D6)이 남아 있었다.**
-- 걸음 · 추천 앱 줄 바탕 = 당근 `carrotSoft` **#FFEEE2**, 무료 아이템 줄 바탕 = `heartSoft` **#E6F5EA**(당근 814f2f4 `src/ui/theme.ts`).
-- `homeContext.tints`(`steps` · `free_item` · `recommend` 세 줄만, 선택): 앱 테마의 soft 색이 따로 있으면 그것이 우선. 나머지 줄(퀴즈 · 출석 · 오늘의 미션 · 행운 찬스 · 초대)의 바탕색과 모든 아이콘은 못 바꾼다.
-- 추천 앱 줄의 캐릭터 그림은 앱 자산이라 `homeContext.recommend.icon` 으로 받는다(없으면 별 아이콘).
+- 걸음 · 추천 앱 줄 바탕 = 당근 `carrotSoft` **#FFEEE2**, 무료 아이템 줄 바탕 = `heartSoft` **#E6F5EA**(당근 814f2f4 `src/ui/theme.ts`). 0.7.5 의 #FDE6D6 은 틀린 값이었다.
+- `homeContext.tints`(`steps` · `free_item` · `recommend` 세 줄만, 선택): 앱 테마의 soft 색이 따로 있으면 그것이 우선. 나머지 줄(퀴즈 · 출석 · 오늘의 미션 · 행운 찬스 · 초대)의 바탕색과 모든 아이콘은 못 바꾼다. 빈 값은 당근 기본.
+- 추천 앱 줄의 캐릭터 그림은 앱 자산(`<Character …/>`)이라 `homeContext.recommend.icon` 으로 받는다(없으면 별 아이콘).
 
-## 0.4.10 — 걸음 권한이 없으면 걸음 줄 버튼 「걸음 켜기」 (`homeContext.stepsNeedsPermission`, 대표님 20:11 아이폰 만보기 줄)
+## 0.7.7 — 걸음 권한이 없을 때 걸음 줄 버튼 「걸음 켜기」 (대표님 20:11 아이폰 만보기 줄, 앱관리 요청)
 
-0.4.8~0.4.9 는 걸음 줄 버튼 글자를 「보상 받기」로 고정해서 앱이 권한 상태에 맞게 바꿀 수 없었다. 앱이 권한 상태를 `homeContext.stepsNeedsPermission` 으로 넘기면 된다.
-- `stepsNeedsPermission === true` 일 때만 걸음 줄 버튼이 「걸음 켜기」, 아니면(false · 생략 · 다른 값) 「보상 받기」. 제목(「오늘 N걸음」/「만보기」) · 부제 · 아이콘 · 바탕색은 그대로, 다른 줄은 영향 없음.
-- 서버 home_rows 가 걸음 줄 `button` 을 적어 두면 그 값이 덮는다(서버 규칙 그대로) — 걸음 켜기를 보이려면 서버 걸음 줄 버튼은 비워 둔다.
-- `homeContext={{ steps: todaySteps, stepsNeedsPermission: !stepsPermissionGranted, … }}`
+- `homeContext.stepsNeedsPermission`(선택, 최상위 — 숫자인 `steps` 와 나란히): **`=== true` 일 때만** 걸음 줄 버튼이 「걸음 켜기」(누르면 앱이 권한부터 받는다), 아니면(false · 생략 · 다른 값) 「보상 받기」. 제목(「오늘 N걸음」/「만보기」) · 부제 · 아이콘 · 바탕색과 다른 줄은 그대로.
+- 서버 home_rows 가 걸음 줄 `button` 을 따로 적어 두면 그 값이 덮는다(서버 규칙 그대로 — 서버가 버튼을 고정하면 앱 상태 글자는 못 이긴다). 글자 상수는 `STEPS_PERMISSION_LABEL`.
 
-## 0.4.11 — 출석 완료 모양 · 무료 줄 「지금 받기」 배지 · 행운 찬스 부제 확인 (0.7.8 과 같은 칸 이름 · 같은 글자, 앱관리 요청)
+## 0.7.8 — 홈 목록 상태 표시: 출석 완료 · 무료 줄 「지금 받기」 배지 (앱관리 · 슬랙대표님요청 결정, 0.4.11 과 같은 칸)
 
-- **`homeContext.checkinDone?: boolean`**: `=== true` 일 때만 출석 줄이 완료 모양 — `done: true` + 버튼 글자 「출석 완료」(`CHECKIN_DONE_LABEL`), 다른 줄 done 과 같은 회색. 제목 · 부제 · 아이콘 · 바탕색은 그대로, 다른 값(문자열 · 1)은 완료로 안 읽는다.
-- **`homeContext.free.claimableNow?: boolean`**: `=== true` 이고 무료 줄이 done 이 아닐 때만 무료 줄에 배지 「지금 받기」(`FREE_NOW_BADGE`). 서버 home_rows 에 badge 가 있으면 서버 값이 이긴다(서버 badge 가 비어 있으면 우리 배지가 남는다).
-- 행운 찬스 부제는 코드 변경 없음(시험으로 고정): 아이템 이름(`itemName`)이 없으면 「하루 기회로 포인트 뽑기」, 있으면 「하루 기회로 {itemName} 뽑기」 — 앱 이름은 쓰지 않는다. 「보러가기」는 그대로.
+- **`homeContext.checkinDone`** (선택): `=== true` 일 때만 출석 줄이 완료 모양 — `done: true` + 완료 버튼 글자 **「출석 완료」**(`CHECKIN_DONE_LABEL`). 회색 모양은 다른 줄의 done 과 같고 제목 · 부제 · 아이콘 · 바탕색은 그대로, 다른 줄에는 영향 없다(문자열 · 1 등 다른 값은 완료로 읽지 않는다).
+- **`homeContext.free.claimableNow`** (선택): `=== true` 이고 무료 줄이 아직 끝나지 않았을 때(done 아님)만 무료 아이템 줄에 배지 **「지금 받기」**(`FREE_NOW_BADGE`). 끝났으면(`left=0`) 배지 없음. 서버 home_rows 에 배지가 있으면 서버 값이 우선(빈 배지면 이 배지 유지).
+- 행운 찬스 부제는 그대로 — 아이템 이름이 없으면 「하루 기회로 포인트 뽑기」(앱 말 없음), 넘기면 「하루 기회로 {itemName} 뽑기」(시험으로 고정).
 
-## 0.4.12 — 걸음(👟) · 무료 아이템(🌱) 줄 아이콘이 빈 칸으로 나오던 것 (대표님 10-20 감자밭 「오늘 N걸음」 줄)
+## 0.7.9 — 글자 아이콘(👟 🌱)이 빈 칸으로 그려지던 것 고침 (감자밭 A32 「오늘 N걸음」 줄, 슬랙대표님요청 · 패키지2 분석)
 
-**원인**: `BenefitQuickList` 의 아이콘 그리기가 팔레트 이름(calendar · bag · pin · star · ticket · friend)이 아닌 문자열을 `<Text>` 없이 `<View>` 안에 그대로 내보냈다 — React Native 는 View 안의 문자열을 그리지 못해(iOS 는 빈 칸, Android 는 오류) 이모지 아이콘(걸음 👟 · 무료 아이템 🌱 · `freeItemRow` 기본 🌱)이 비었다.
-- **고침**: 팔레트 이름이 아닌 문자열은 `<Text>` 로 감싸 그린다(글자 크기 22). ReactNode 아이콘과 팔레트 아이콘은 그대로. 팔레트 판정은 자기 키만 본다(`toString` 같은 문자열이 팔레트로 읽히지 않게).
-- **시험**: 실제 렌더 트리를 걸어 「`<Text>` 가 아닌 부모 밑의 문자열」이 없음을 확인(`BenefitQuickListIcon.test.ts` — homeDefs 9줄 전부 포함). 수정 전 코드에서는 이 시험이 실패한다.
-- 겸해서 `index.ts` 가 상수 `CHECKIN_DONE_LABEL` · `FREE_NOW_BADGE` · `STEPS_PERMISSION_LABEL` 을 export 한다(0.7.8 과 같게).
+- 원인: `BenefitQuickList` 의 `Icon` 이 기본 그림 이름(`calendar` · `bag` · `pin` · `star` · `ticket` · `friend`)이 아닌 문자열을 `<Text>` 없이 `<View>` 안에 그대로 내보냈다. React Native 는 `<View>` 안의 글자를 그리지 않는다(iOS 는 빈 칸, Android 는 오류). 걸음 줄(`👟`)과 무료 아이템 줄(`🌱`, 앱이 `homeContext.free.icon` 을 안 넘길 때)이 해당 — 0.7.5~0.7.8.
+- 고침: 기본 그림 이름이 아닌 문자열(숫자 포함)은 `<Text>` 로 감싸 그린다(22pt, 가운데). 앱이 넘긴 ReactNode 는 그대로. 기본 그림 이름 판정은 `in` 대신 `hasOwnProperty` 로 해서 `toString` · `constructor` 같은 글자가 기본 그림으로 읽히지 않는다.
 
-## 0.4.13 — 하위 화면 iOS 왼쪽 가장자리 밀기 → 뒤로 (`swipeBack`, 앱관리 요청 · 10앱 통일)
+## 0.7.10 — 하위 화면 iOS 왼쪽 가장자리 밀기 → 뒤로 (슬랙대표님요청 10앱 통일, 패키지2 0.4.13 과 같은 소스)
 
-독립 페이지(`PageFrame` — 무료 아이템 · 오늘의 미션 · 만보기 · 행운 찬스 · 친구 초대 · 추천 앱)에서 iOS 는 화면 **왼쪽 가장자리를 오른쪽으로 밀면 `onBack`** 이 불린다. 안드로이드는 그대로(뒤로 키).
-- prop **`swipeBack?: boolean`**(기본 **true**, `false` 일 때만 끔)을 `PageFrame` 과 6개 화면이 받는다. 이미 앱 바깥에서 밀기를 감싼 화면(당근 · 머니트리 · 꾹테크)은 `swipeBack={false}`.
-- **새 네이티브 의존 0** — React Native `PanResponder` 만. 가장자리에 띠 View 를 덮지 않고 루트 View 의 **캡처** 핸들러로 「왼쪽 `EDGE_WIDTH`(24) 안에서 시작한 가로 밀기」만 가로챈다 → 안쪽 탭 · 세로 스크롤 · 머리줄 ‹ 단추는 그대로 동작한다.
-- 판정은 쇼핑 미션 화면과 같다: 가로로 10 넘게 · 세로보다 더(`edgeSwipeStarts`), 손을 뗄 때 60 이상 밀었거나 빠르게 튕겼으면(`edgeSwipeDone`) 뒤로. 순수 함수 `edgeBackHandlers(getBack)`(missionNav.ts)로 시험한다.
-- 가장자리에서 시작하지 않은 밀기는 아무 일도 하지 않고, `onBack` 은 늘 최신 것이 불린다(ref).
+- `PageFrame` 과 6개 화면(`FreeItemPage` · `TodayMissionPage` · `StepsPage` · `LuckyChancePage` · `InvitePage` · `AppHubPage`)이 `swipeBack?: boolean`(기본 **true**, `false` 일 때만 끔)을 받는다. **iOS 에서만** — 안드로이드는 뒤로 키 그대로. 이미 앱에서 밀기를 감싼 화면(당근 · 머니트리 · 꾹테크)은 `swipeBack={false}`.
+- 화면 왼쪽 `EDGE_WIDTH`(24) 안에서 시작한 가로 밀기를 오른쪽으로 `EDGE_SWIPE_DX`(60) 이상(또는 빠른 튕김) 밀고 떼면 `onBack` 한 번. 쇼핑 미션 화면과 같은 판정(`edgeSwipeStarts` · `edgeSwipeDone`).
+- **새 네이티브 의존 0** — React Native 기본 `PanResponder` 만 쓴다(gesture-handler · reanimated 불필요). 가장자리에 띠 View 를 덮지 않고 화면 최상위 View 의 캡처 핸들러로 잡아서 머리줄 ‹ 단추 · 가장자리 탭 · 본문 스크롤은 그대로다. 손가락을 따라 화면이 같이 밀려 나가는 효과는 없고 떼는 순간 뒤로 간다.
+- 핸들러 묶음은 순수 함수 `edgeBackHandlers(getBack)`(`missionNav.ts`)로 RN 없이 시험한다.
 
-## 0.4.14 — 행운 찬스 · 친구 초대 화면 손질 (앱관리 요청, 대표님 10-20 23:09~23:12)
+## 0.7.11 — 행운 찬스 · 친구 초대 화면 손질 (앱관리 요청, 대표님 10-20 23:09~23:12 · 패키지2 0.4.14 와 같은 소스)
 
 딱 아래만 바꿨다. 그 밖의 모양 · 문구 · 광고 자리(footer)는 그대로다.
 
@@ -355,7 +351,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';   // ⚠ 0
 
 새 네이티브 0. 의존 · peer 변경 없음.
 
-## 0.4.15 — 쇼핑 미션 화면 왼쪽 밀기 띠 제거 (대표님 10-21 00:16 쇼핑 퀴즈 「닫기」 · 「뒤로가기」 먹통, 앱관리 확정 · 0.7.12 와 같은 소스)
+## 0.7.12 — 쇼핑 미션 화면 왼쪽 밀기 띠 제거 (대표님 10-21 00:16 쇼핑 퀴즈 「닫기」 · 「뒤로가기」 먹통, 앱관리 확정 · 0.4.15 와 같은 소스)
 
 딱 이것만 바꿨다. 화면 모양 · 글자 · 머리줄 · 웹뷰 · 로딩 · 기록은 그대로다.
 
@@ -364,7 +360,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';   // ⚠ 0
 - **`MissionWebView`**: 선택 prop `nativeSwipeBack`(기본 **true** = 예전과 같다). `ShoppingMission` 은 `false` 로 넘겨 웹뷰 자체의 iOS 가장자리 뒤로 · 앞으로 밀기(`allowsBackForwardNavigationGestures`)를 끈다 — 띠가 사라지면 그 기본 밀기가 왼쪽 가장자리에서 되살아나 우리 핸들러와 겹쳐 한 번 밀 때 웹 기록이 두 칸 가기 때문이다. 이 화면에서 오른쪽 끝 「앞으로 가기」 밀기는 없다(예전에도 띠 때문에 사실상 안 됐다). 웹뷰를 단독으로 쓰는 앱은 그대로다.
 - 새 네이티브 0. 의존 · peer 변경 없음. 안드로이드는 영향 없음.
 
-## 0.4.16 — 홈 혜택 목록 10줄 고정 · 줄마다 어드민 원격설정으로 숨기기 (대표님 10-21 07:06~07:08 「이거 패키지잖아 왜 다르냐고 매번」「어드민에서 넣고 빼고 할 수 있게」 · 0.7.13 과 같은 소스)
+## 0.7.13 — 홈 혜택 목록 10줄 고정 · 줄마다 어드민 원격설정으로 숨기기 (대표님 10-21 07:06~07:08 「이거 패키지잖아 왜 다르냐고 매번」「어드민에서 넣고 빼고 할 수 있게」)
 
 홈 「바로 받는 혜택」 목록의 **줄 구성 · 순서를 패키지가 고정**한다. 앱은 아이템 이름 · 색 · 아이콘 · **줄마다 누를 때 동작**만 넘긴다. `homeActions` 방식에서만 해당(예전 `items` 방식은 그대로).
 
@@ -395,6 +391,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';   // ⚠ 0
 
 기존 `mission.home_rows`의 `key: coupang_visit`로 순서·보임·제목·설명·버튼·배지를 관리합니다. 서버 쿠팡 권한과 홈 보임 설정을 모두 만족해야 표시합니다. 홈 목록에 명시적으로 쿠팡 줄을 넣고 보임을 켜야 표시합니다. 목록 없음·조회 실패·쿠팡 줄 없음·`visible:false`이면 숨기며, 제목을 비우면 현재 방문 포인트로 제목을 만듭니다. 필수 수수료 문구는 제목/설명 수정과 관계없이 항상 유지합니다. 기존 앱의 필수 homeActions는 10개 그대로입니다. 이 보완 가지는 발행 또는 앱 OTA를 수행하지 않았습니다.
 
-## 0.4.18 — 뉴스픽 읽을거리
+## 0.7.15 — 뉴스픽 읽을거리
 
 GET newspic/feed의 서버 권한에 따라 표시합니다. 기본 꺼짐, 시험 회원만. 공유 링크와 승인된 메타데이터만 사용하며 보상 요청은 없습니다. 광고 · 제휴 표시, 위아래 80px 분리, 누를 때만 외부 Linking.openURL. 등록 콘텐츠 없음은 설정 필요. 부모 계정 변경 시 기존 MemberBenefitQuickList key가 권한 상태를 초기화합니다. API·RSS 자동 수집은 공식 명세 미확인으로 구현하지 않습니다.

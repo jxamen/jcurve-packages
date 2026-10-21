@@ -1,13 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.homeRowRemoteKey = exports.FREE_NOW_BADGE = exports.CHECKIN_DONE_LABEL = exports.FREE_DONE_LABEL = exports.STEPS_PERMISSION_LABEL = exports.HOME_ORDER = void 0;
+exports.homeRowRemoteKey = exports.STEPS_PERMISSION_LABEL = exports.FREE_NOW_BADGE = exports.CHECKIN_DONE_LABEL = exports.FREE_DONE_LABEL = exports.HOME_ORDER = void 0;
 exports.homeItem = homeItem;
 exports.homeRowOff = homeRowOff;
 exports.buildHomeItems = buildHomeItems;
 /** 줄 순서 — 서버 home_rows 기본 순서와 같다(HOME_KEYS) */
 exports.HOME_ORDER = ['quiz1', 'quiz2', 'checkin', 'steps', 'free_item', 'ad_item', 'today_missions', 'lucky_chance', 'invite', 'recommend'];
-/** 걸음 권한이 없을 때 걸음 줄 버튼 글자(stepsNeedsPermission) */
-exports.STEPS_PERMISSION_LABEL = '걸음 켜기';
 const DEFAULT_NAME = '포인트';
 /** 당근의 soft 주황(carrotSoft) — 걸음 · 추천 줄 바탕. 당근 theme.ts(814f2f4) 값 */
 const CARROT_SOFT = '#FFEEE2';
@@ -28,10 +26,12 @@ const LOOK = {
 };
 /** 무료 아이템 줄의 완료 버튼 글자 — 방문형이라 오늘 칸이 끝나면 「내일 다시」(대표님 10-20 19:01) */
 exports.FREE_DONE_LABEL = '내일 다시';
-/** 출석을 마친 출석 줄의 버튼 글자(checkinDone) */
+/** 출석을 이미 했을 때 출석 줄의 완료 버튼 글자(0.7.8) */
 exports.CHECKIN_DONE_LABEL = '출석 완료';
-/** 지금 받을 수 있는 칸이 있을 때 무료 아이템 줄 배지(free.claimableNow) — 서버 home_rows 의 badge 가 있으면 서버 값이 이긴다 */
+/** 지금 받을 수 있는 칸이 있을 때 무료 아이템 줄의 배지(0.7.8) — 서버 home_rows 에 배지가 있으면 서버 값이 우선 */
 exports.FREE_NOW_BADGE = '지금 받기';
+/** 걸음 권한이 없을 때 걸음 줄의 버튼 글자(0.7.7) */
+exports.STEPS_PERMISSION_LABEL = '걸음 켜기';
 /** 무료 아이템 줄 상태 — 막대(받은 횟수) · 글자 · 완료. 0.7.4 freeItemRow 와 같은 규칙(이 파일 안에서 끝낸다) */
 function freeState(total, left, received) {
     const hasLeft = left !== undefined;
@@ -82,13 +82,14 @@ function homeItem(key, c, onPress) {
     const themed = key === 'steps' || key === 'free_item' || key === 'ad_item' || key === 'recommend' ? c.tints?.[key]?.trim() : undefined;
     const ctaLabel = key === 'steps' && c.stepsNeedsPermission === true ? exports.STEPS_PERMISSION_LABEL : look.ctaLabel;
     const item = { key, title, subtitle, ctaLabel, icon, tint: themed || look.tint, onPress };
-    if (key === 'checkin' && c.checkinDone === true) {
-        return { ...item, done: true, doneLabel: exports.CHECKIN_DONE_LABEL };
-    }
     if (key === 'free_item') {
         const state = freeState(Math.max(1, Math.floor(c.free?.total ?? 3)), c.free?.left, c.free?.received);
-        return { ...item, doneLabel: exports.FREE_DONE_LABEL, ...state, ...(c.free?.claimableNow === true && !state.done ? { badge: exports.FREE_NOW_BADGE } : {}) };
+        // 지금 받을 수 있는 칸이 있고 아직 끝나지 않았을 때만 「지금 받기」 배지(0.7.8)
+        const now = c.free?.claimableNow === true && state.done !== true;
+        return { ...item, doneLabel: exports.FREE_DONE_LABEL, ...state, ...(now ? { badge: exports.FREE_NOW_BADGE } : {}) };
     }
+    if (key === 'checkin' && c.checkinDone === true)
+        return { ...item, done: true, doneLabel: exports.CHECKIN_DONE_LABEL };
     if (key === 'today_missions' && c.todayMissions?.progress) {
         return { ...item, progress: c.todayMissions.progress, ...(c.todayMissions.progressLabel ? { progressLabel: c.todayMissions.progressLabel } : {}) };
     }
