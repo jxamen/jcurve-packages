@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View, type TextStyle } from 'react-native';
 import { dealEndsAt, num, partnerLine, partnerRewardName } from './format';
-import { Chips, DisclosureNote, Disclosures, DealRow, ThemeRow, Notice, ProductGrid, RecentTicker } from './parts';
+import { PartnerCard, EmptyProducts, Chips, DisclosureNote, Disclosures, DealRow, ThemeRow, Notice, ProductGrid, RecentTicker } from './parts';
 import { ProductPager } from './products';
 import { ProofScreen } from './Proof';
 import { CouponInfoScreen } from './CouponInfo';
-import { CoupangSection } from './CoupangSection';
+import { CoupangProductsView, useCoupangConfig } from './CoupangSection';
+import { GUTTER, SECTION_GAP } from './layout';
 import { headCenterStyle, ShoppingHeaderTitle, shoppingTitleText, type ShoppingTitleAlign } from './Title';
 import { DEFAULT_THEME, type PickedImage, type ProofInfo, type Category, type Deals, type NoticeSection, type Partner, type PartnerId, type Product, type ShoppingApi, type ShoppingHome, type ShoppingTheme, type ThemeSection } from './types';
 
@@ -34,6 +35,8 @@ type TabKey = 'all' | PartnerId;
 /** 쇼핑 탭 — ① 머리 · 누적 혜택 · 상단 탭 ② 전체 ③ 포인트형 제휴처 ④ 할인권형 제휴처 ⑤ 할인권 안내 */
 export function ShoppingTab({ api, theme: themeIn, onOpenUrl, onEvent, onLinkError, pickImage, topInset = 0, title, titleAlign, titleStyle }: ShoppingTabProps) {
   const theme: ShoppingTheme = { ...DEFAULT_THEME, ...themeIn };
+  const coupang = useCoupangConfig(api.coupang);
+  useEffect(() => { if (!coupang) setTab(t => t === 'coupang' ? 'all' : t); }, [coupang]);
   const [home, setHome] = useState<ShoppingHome | null>(null);
   const [failed, setFailed] = useState(false);
   const [tab, setTab] = useState<TabKey>('all');
@@ -62,34 +65,40 @@ export function ShoppingTab({ api, theme: themeIn, onOpenUrl, onEvent, onLinkErr
 
   if (couponFor) return <CouponInfoScreen api={api} partner={couponFor} theme={theme} topInset={topInset} onBack={() => setCouponFor(null)} onGo={() => open(couponFor.id)} />;
 
-  const partners = home?.partners ?? [];
-  const tabs: Array<{ key: TabKey; name: string }> = [{ key: 'all', name: '전체' }, ...partners.map(p => ({ key: p.id, name: p.name }))];
+  const partners = (home?.partners ?? []).filter(p => p.id !== 'coupang');
+  const tabs: Array<{ key: TabKey; name: string }> = [{ key: 'all', name: '전체' }, ...partners.map(p => ({ key: p.id, name: p.name })), ...(coupang ? [{ key: 'coupang', name: '쿠팡' }] : [])];
   const partner = partners.find(p => p.id === tab) ?? null;
 
-  return <View style={[st.wrap, { backgroundColor: theme.bg, paddingTop: topInset }]}>
+  return <View style={[st.wrap, { backgroundColor: theme.bg }]}>
+    <View style={{ paddingTop: topInset, backgroundColor: theme.headerBg ?? theme.bg, borderBottomLeftRadius: theme.headerShape === 'round' ? 24 : 0, borderBottomRightRadius: theme.headerShape === 'round' ? 24 : 0, overflow: 'hidden' }}>
     <View style={titleAlign === 'center' ? [st.head, headCenterStyle] : st.head}>
-      <ShoppingHeaderTitle text={shoppingTitleText(title, theme.title)} color={theme.text} align={titleAlign} style={titleStyle} />
-      {partner?.rewardKind !== 'none' && partners.some(p => p.rewardKind !== 'none') ? <View style={[st.benefit, { backgroundColor: theme.primarySoft }]} accessibilityLabel={`누적 혜택 ${num(home?.totalBenefit ?? 0)} ${theme.pointName}`}>
+      <ShoppingHeaderTitle text={shoppingTitleText(title, theme.title)} color={theme.headerText ?? theme.text} align={titleAlign} style={{ fontSize: 24, fontWeight: '800', ...titleStyle }} />
+      {theme.headerArt ? <Image source={theme.headerArt} resizeMode="contain" style={{ width: 72, height: 56, alignSelf: 'flex-end' }} /> : null}
+    </View>
+    <View style={{ paddingHorizontal: GUTTER }}>
+      {tab !== 'coupang' && partner?.rewardKind !== 'none' && partners.some(p => p.rewardKind !== 'none') ? <View style={[st.benefit, { backgroundColor: theme.primarySoft }]} accessibilityLabel={`누적 혜택 ${num(home?.totalBenefit ?? 0)} ${theme.pointName}`}>
         <Text style={[st.benefitLabel, { color: theme.primary }]}>누적 혜택</Text>
         <Text style={[st.benefitValue, { color: theme.primary }]}>{theme.pointMark ?? 'P'} {num(home?.totalBenefit ?? 0)}</Text>
       </View> : null}
     </View>
-    <View style={[st.tabs, { borderBottomColor: theme.line }]}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={[st.tabs, { borderBottomColor: theme.line, borderBottomWidth: theme.headerShape === 'round' ? 0 : 1 }]}>
       {tabs.map(t => {
         const on = t.key === tab;
         return <Pressable key={t.key} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => { setTab(t.key); onEvent?.('shopping_tab', { tab: t.key }); }}
           style={st.tab}>
-          <Text style={[st.tabText, { color: on ? theme.text : '#B0B8C1', fontWeight: on ? '800' : '600' }]}>{t.name}</Text>
-          {on ? <View style={[st.tabLine, { backgroundColor: theme.text }]} /> : null}
+          <Text style={[st.tabText, { color: on ? (theme.headerText ?? theme.text) : (theme.headerSub ?? theme.sub), fontWeight: '700' }]}>{t.name}</Text>
+          {on ? <View style={[st.tabLine, { backgroundColor: theme.tabIndicator ?? theme.primary }]} /> : null}
         </Pressable>;
       })}
+    </ScrollView>
     </View>
     {failed ? <Retry theme={theme} onRetry={load} />
       : !home ? <View style={st.center}><ActivityIndicator color={theme.primary} /></View>
-      : tab === 'all' ? <AllView api={api} home={home} theme={theme} onPartner={setTab} onOpen={open} />
+      : tab === 'all' ? <AllView coupang={!!coupang} api={api} home={{ ...home, partners }} theme={theme} onPartner={setTab} onOpen={open} />
+      : tab === 'coupang' && coupang && api.coupang ? <CoupangProductsView api={api.coupang} config={coupang} theme={theme} />
       : partner ? <PartnerView key={partner.id} api={api} partner={partner} theme={theme} onProduct={p => open(p.partnerId, p.id)} onCouponInfo={() => setCouponFor(partner)} pickImage={pickImage} onProof={info => { setProofFor({ partner, info }); onEvent?.('shop_proof_open', { partner: partner.id }); }} />
       : null}
-    {home && partner?.rewardKind !== 'none' ? <View pointerEvents="none" style={st.tickerAt}><RecentTicker list={home.recent} theme={theme} /></View> : null}
+    {home && tab !== 'coupang' && partner?.rewardKind !== 'none' ? <View pointerEvents="none" style={st.tickerAt}><RecentTicker list={home.recent} theme={theme} /></View> : null}
   </View>;
 }
 
@@ -168,40 +177,33 @@ function useDeals(api: ShoppingApi, partnerIds: PartnerId[]) {
   return { result, now, onExpired };
 }
 
-function AllView({ api, home, theme, onPartner, onOpen }: { api: ShoppingApi; home: ShoppingHome; theme: ShoppingTheme; onPartner: (id: PartnerId) => void; onOpen: (partnerId: PartnerId, productId?: string | null) => void }) {
+function AllView({ coupang, api, home, theme, onPartner, onOpen }: { coupang: boolean; api: ShoppingApi; home: ShoppingHome; theme: ShoppingTheme; onPartner: (id: PartnerId) => void; onOpen: (partnerId: PartnerId, productId?: string | null) => void }) {
+  const [themes, setThemes] = useState<ThemeSection[]>([]);
+  const partnerIds = JSON.stringify(home.partners.map(p => p.id));
+  useEffect(() => {
+    let live = true;
+    setThemes([]);
+    if (api.themes) Promise.all((JSON.parse(partnerIds) as string[]).map(id => api.themes!(id).catch(() => []))).then(rows => { if (live) setThemes(rows.flat()); });
+    return () => { live = false; };
+  }, [api, partnerIds]);
   const onProduct = (p: Product) => onOpen(p.partnerId, p.id);
   const lead = home.partners.find(p => p.rewardKind !== 'none');
   const { cats, cat, setCat, items, loadingMore, onScroll } = useProducts(api, 'all');
   const notice = useNotice(api, 'all');
   const { result, now, onExpired } = useDeals(api, home.partners.map(p => p.id));
   return <ScrollView contentContainerStyle={st.body} showsVerticalScrollIndicator={false} onScroll={onScroll} scrollEventThrottle={100}>
-    <CoupangSection api={api.coupang} theme={theme} />
     {result ? <>
       <DisclosureNote text={home.partners.find(p => p.id === result.partnerId)?.disclosure} theme={theme} />
       <DealRow deals={result.deals} theme={theme} now={now} onPress={onProduct} onExpired={onExpired} />
     </> : null}
-    {home.hero ? <Pressable accessibilityRole="button" onPress={() => { if (home.hero?.partnerId) onOpen(home.hero.partnerId, home.hero.productId); }}
-      style={[st.hero, { backgroundColor: theme.primarySoft }]}>
-      <View style={{ flex: 1, gap: 6 }}>
-        <Text style={[st.heroLabel, { color: theme.danger }]}>{home.hero.label}</Text>
-        <Text style={[st.heroTitle, { color: theme.text }]} numberOfLines={2}>{home.hero.title}</Text>
-      </View>
-      {home.hero.image ? <Image source={{ uri: home.hero.image }} style={st.heroImg} resizeMode="contain" /> : null}
-    </Pressable> : null}
-    {home.partners.length ? <View style={st.partners}>
-      {home.partners.map(p => <Pressable key={p.id} accessibilityRole="button" onPress={() => onPartner(p.id)} style={[st.partner, { backgroundColor: theme.chipBg ?? '#F2F4F6' }]}>
-        <View style={[st.logo, { backgroundColor: theme.bg }]}>{p.logo ? <Image source={{ uri: p.logo }} style={st.logoImg} /> : <Text style={[st.logoText, { color: theme.primary }]}>{p.name.slice(0, 1)}</Text>}</View>
-        <View style={{ flex: 1 }}>
-          <Text style={[st.partnerName, { color: theme.text }]}>{p.name}</Text>
-          <Text style={[st.partnerRate, { color: theme.primary }]}>{p.rateText}{p.rewardKind === 'none' ? '' : ' 적립'}</Text>
-        </View>
-        <Text style={[st.chev, { color: theme.sub }]}>›</Text>
-      </Pressable>)}
-    </View> : null}
+    {home.partners.map(p => <PartnerCard key={p.id} partner={p} theme={theme} onPress={() => onPartner(p.id)} />)}
+    {coupang ? <PartnerCard partner={{ id: 'coupang', name: '쿠팡', rateText: '쿠팡 상품 둘러보기', rewardKind: 'none' }} theme={theme} onPress={() => onPartner('coupang')} /> : null}
+    {themes.length ? themes.map(section => <ThemeRow key={section.id} section={section} theme={theme} onPress={onProduct} />) : <>
     {lead ? <Text style={[st.h2, { color: theme.text }]}>{lead.name}에서 구매하면 <Text style={{ color: theme.primary }}>{lead.rateText}</Text> 적립</Text> : null}
     <Chips items={cats} value={cat} onChange={setCat} theme={theme} />
-    {items ? <ProductGrid items={items} theme={theme} onPress={onProduct} /> : <View style={st.center}><ActivityIndicator color={theme.primary} /></View>}
+    {items ? (items.length ? <ProductGrid items={items} theme={theme} onPress={onProduct} /> : <EmptyProducts theme={theme} />) : <View style={st.center}><ActivityIndicator color={theme.primary} /></View>}
     {loadingMore ? <ActivityIndicator size="small" color={theme.primary} /> : null}
+    </>}
     <Notice sections={notice} theme={theme} />
     <Disclosures texts={home.partners.map(p => p.disclosure ?? '')} theme={theme} />
   </ScrollView>;
@@ -255,7 +257,7 @@ function PartnerView({ api, partner, theme, onProduct, onCouponInfo, pickImage, 
     {themes.length ? themes.map(section => <ThemeRow key={section.id} section={section} theme={theme} onPress={onProduct} />) : <>
     {!noReward ? <Text style={[st.h2, { color: theme.text }]}>{coupon ? '인기 상품 구경하기' : <>구매하면 <Text style={{ color: theme.primary }}>{partnerRewardName(partner, theme)} {partner.rateText}</Text> 드려요</>}</Text> : null}
     <Chips items={cats} value={cat} onChange={setCat} theme={theme} />
-    {items ? <ProductGrid items={items} theme={theme} onPress={onProduct} /> : <View style={st.center}><ActivityIndicator color={theme.primary} /></View>}
+    {items ? (items.length ? <ProductGrid items={items} theme={theme} onPress={onProduct} /> : <EmptyProducts theme={theme} />) : <View style={st.center}><ActivityIndicator color={theme.primary} /></View>}
     </>}
     {!themes.length && loadingMore ? <ActivityIndicator size="small" color={theme.primary} /> : null}
     <Notice sections={notice} theme={theme} />
@@ -269,11 +271,11 @@ const st = StyleSheet.create({
   benefit: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
   benefitLabel: { fontSize: 13, fontWeight: '600' },
   benefitValue: { fontSize: 14, fontWeight: '800' },
-  tabs: { flexDirection: 'row', paddingHorizontal: 20, gap: 24, borderBottomWidth: 1 },
+  tabs: { flexDirection: 'row', paddingHorizontal: 20, gap: 20, borderBottomWidth: 1 },
   tab: { height: 48, justifyContent: 'center' },
-  tabText: { fontSize: 18 },
+  tabText: { fontSize: 16 },
   tabLine: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 3, borderRadius: 2 },
-  body: { paddingTop: 16, paddingBottom: 40, gap: 16 },
+  body: { paddingTop: SECTION_GAP, paddingBottom: 40, gap: SECTION_GAP },
   center: { paddingVertical: 48, alignItems: 'center', justifyContent: 'center', gap: 12 },
   empty: { fontSize: 15 },
   retry: { borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12 },
@@ -289,8 +291,8 @@ const st = StyleSheet.create({
   partnerName: { fontSize: 15, fontWeight: '700' },
   partnerRate: { fontSize: 14, fontWeight: '600', marginTop: 2 },
   chev: { fontSize: 24 },
-  h2: { fontSize: 19, fontWeight: '800', paddingHorizontal: 20 },
-  info: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 20, minHeight: 52, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14 },
+  h2: { fontSize: 18, fontWeight: '700', paddingHorizontal: 20 },
+  info: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 20, minHeight: 52, borderRadius: 16, padding: 16 },
   infoMark: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   infoText: { flex: 1, fontSize: 15, fontWeight: '500' },
   infoLink: { fontSize: 14, textDecorationLine: 'underline' },

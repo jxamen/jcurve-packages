@@ -3,7 +3,7 @@ import { act, create } from 'react-test-renderer';
 import { describe, it, expect, vi } from 'vitest';
 const native = vi.hoisted(() => ({ open: vi.fn(async () => {}) }));
 vi.mock('react-native', () => ({ View: 'View', Text: 'Text', TextInput: 'TextInput', Pressable: 'Pressable', ScrollView: 'ScrollView', Image: 'Image', ActivityIndicator: 'ActivityIndicator',
-  Linking: { openURL: native.open }, AppState: { addEventListener: () => ({ remove() {} }) } }));
+  StyleSheet: { create: (s: unknown) => s }, useWindowDimensions: () => ({ width: 390 }), PixelRatio: { get: () => 1 }, Linking: { openURL: native.open }, AppState: { addEventListener: () => ({ remove() {} }) } }));
 import { CoupangSection } from './CoupangSection';
 import { COUPANG_DISCLOSURE, createCoupangApi, parseCoupangProducts } from './coupang';
 import { DEFAULT_THEME } from './types';
@@ -24,14 +24,16 @@ describe('Coupang shopping section', () => {
     let tree: any;
     await act(async () => { tree = create(React.createElement(CoupangSection, { api, theme: DEFAULT_THEME })); });
     const texts = tree.root.findAllByType('Text');
-    expect(texts[0].props.children).toBe(COUPANG_DISCLOSURE); expect(texts[0].props.numberOfLines).toBeUndefined();
+    const disclosure = texts.find((n: any) => n.props.children === COUPANG_DISCLOSURE);
+    expect(disclosure).toBeTruthy(); expect(disclosure.props.numberOfLines).toBeUndefined();
+    expect(texts.indexOf(disclosure)).toBeGreaterThan(texts.findIndex((n: any) => n.props.children === '상품'));
     await act(async () => tree.root.findByType('TextInput').props.onChangeText('사과 & 배'));
     await act(async () => tree.root.findByType('TextInput').props.onSubmitEditing());
     expect(request).toHaveBeenCalledWith('coupang/products?keyword=%EC%82%AC%EA%B3%BC%20%26%20%EB%B0%B0&category=');
     const category = tree.root.findAllByType('Pressable').find((p: any) => p.findAllByType('Text').some((t: any) => t.props.children === '식품'));
     await act(async () => category.props.onPress());
     expect(request).toHaveBeenLastCalledWith('coupang/products?keyword=&category=1012');
-    await act(async () => tree.root.findAllByType('Pressable').find((p: any) => p.props.accessibilityRole === 'link').props.onPress());
+    await act(async () => tree.root.findAllByType('Pressable').find((p: any) => p.props.accessibilityLabel === '상품, 1,000원').props.onPress());
     expect(native.open).toHaveBeenCalledWith(product.deep_link);
     expect(request).toHaveBeenCalledWith('coupang/products/click', { method: 'POST', body: { product_id: '123' } });
     await act(async () => tree.unmount());

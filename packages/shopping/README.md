@@ -1,3 +1,7 @@
+## 0.1.13 — 2026-10-21 쿠팡 쇼핑·방문 수정
+
+쇼핑 시안 공통 여백 20·간격 24, 앱별 header 테마, 서버 허용 쿠팡 탭, 공통 PartnerCard/Chips/ProductGrid/EmptyProducts. 파트너스 고지는 쿠팡 탭 맨 아래에만 표시합니다.
+
 ## 0.1.12 — 쿠팡 상품 칸 준비 (미발행)
 
 - `ShoppingTab` 전체 칸 상단에 쿠팡 상품 칸. `createHttpShoppingApi(request)`가 `api.coupang`을 제공한다. 사용자 정의 어댑터는 `createCoupangApi(request)` 또는 `CoupangApi`를 연결한다. 미연결이면 숨김.

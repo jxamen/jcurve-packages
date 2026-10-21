@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, AppState, Image, Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { COUPANG_DISCLOSURE, isCoupangUrl, type CoupangApi, type CoupangConfig, type CoupangProduct, type CoupangProducts } from './coupang';
-import type { ShoppingTheme } from './types';
+import { Chips, DisclosureNote, EmptyProducts, ProductGrid } from './parts';
+import { GUTTER, SECTION_GAP } from './layout';
+import type { Product, ShoppingTheme } from './types';
 
-export function CoupangSection({ api, theme }: { api?: CoupangApi; theme: ShoppingTheme }) {
+export function useCoupangConfig(api?: CoupangApi) {
   const [result, setResult] = useState<{ owner: CoupangApi; config: CoupangConfig } | null>(null);
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -13,15 +15,18 @@ export function CoupangSection({ api, theme }: { api?: CoupangApi; theme: Shoppi
   }, [api]);
   useEffect(() => {
     let live = true;
-    setResult(null);
-    if (api) api.config().then(config => { if (live) setResult({ owner: api, config }); }).catch(() => {});
+    if (api) api.config().then(config => { if (live) setResult({ owner: api, config }); }).catch(() => { if (live) setResult(null); });
     return () => { live = false; };
   }, [api, tick]);
-  if (!api || result?.owner !== api || !result.config.enabled) return null;
-  return <CoupangProductsView api={api} config={result.config} theme={theme} />;
+  return api && result?.owner === api && result.config.enabled ? result.config : null;
 }
 
-function CoupangProductsView({ api, config, theme }: { api: CoupangApi; config: CoupangConfig; theme: ShoppingTheme }) {
+export function CoupangSection({ api, theme }: { api?: CoupangApi; theme: ShoppingTheme }) {
+  const config = useCoupangConfig(api);
+  return api && config ? <CoupangProductsView api={api} config={config} theme={theme} /> : null;
+}
+
+export function CoupangProductsView({ api, config, theme }: { api: CoupangApi; config: CoupangConfig; theme: ShoppingTheme }) {
   const [keyword, setKeyword] = useState('');
   const [query, setQuery] = useState({ keyword: '', category: config.categories?.[0]?.id ?? '' });
   const [page, setPage] = useState<CoupangProducts | null>(null);
@@ -44,34 +49,21 @@ function CoupangProductsView({ api, config, theme }: { api: CoupangApi; config: 
       await Linking.openURL(product.deep_link);
     } catch { setLinkError(true); } finally { setOpening(false); }
   }
-  return <View style={{ gap: 12, paddingVertical: 16 }}>
-    <Text style={{ color: theme.sub, fontSize: 12, lineHeight: 18 }}>{COUPANG_DISCLOSURE}</Text>
-    <Text accessibilityRole="header" style={{ color: theme.text, fontSize: 20, fontWeight: '700' }}>쿠팡 상품</Text>
-    <View style={{ flexDirection: 'row', gap: 8 }}>
-      <TextInput accessibilityLabel="쿠팡 상품 검색" placeholder="상품 검색" value={keyword} onChangeText={setKeyword}
+  const items: Product[] = (page?.products ?? []).map(p => ({ id: p.product_id, partnerId: 'coupang', title: p.name, image: p.image_url, price: p.price, reward: 0, rewardKind: 'none' }));
+  return <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingVertical: SECTION_GAP, gap: SECTION_GAP }}>
+    <View style={{ marginHorizontal: GUTTER, height: 44, borderRadius: 12, backgroundColor: theme.chipBg, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, gap: 8 }}>
+      <Text accessible={false} style={{ color: theme.sub }}>⌕</Text>
+      <TextInput accessibilityLabel="쿠팡 상품 검색" placeholder="쿠팡에서 찾기" placeholderTextColor={theme.sub} value={keyword} onChangeText={setKeyword}
         maxLength={100} returnKeyType="search" onSubmitEditing={() => setQuery({ keyword: keyword.trim(), category: '' })}
-        style={{ flex: 1, borderWidth: 1, borderColor: theme.line, borderRadius: 8, padding: 10, color: theme.text }} />
-      <Pressable accessibilityRole="button" onPress={() => setQuery({ keyword: keyword.trim(), category: '' })} style={{ padding: 12 }}><Text style={{ color: theme.primary }}>검색</Text></Pressable>
+        style={{ flex: 1, height: 44, paddingVertical: 0, color: theme.text }} />
     </View>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-      {[{ id: '', name: '전체' }, ...(config.categories ?? [])].map(c => <Pressable key={c.id} accessibilityRole="button"
-        accessibilityState={{ selected: query.category === c.id }} onPress={() => { setKeyword(''); setQuery({ keyword: '', category: c.id }); }}
-        style={{ padding: 10, marginRight: 8, borderRadius: 8, backgroundColor: query.category === c.id ? theme.primarySoft : theme.card }}>
-        <Text style={{ color: theme.text }}>{c.name}</Text></Pressable>)}
-    </ScrollView>
-    {failed ? <Pressable accessibilityRole="button" onPress={() => setRevision(v => v + 1)}><Text style={{ color: theme.sub }}>상품을 불러오지 못했어요. 다시 시도</Text></Pressable>
+    <Chips items={[{ id: '', name: '전체' }, ...(config.categories ?? [])]} value={query.category}
+      onChange={category => { setKeyword(''); setQuery({ keyword: '', category }); }} theme={theme} />
+    {failed ? <Pressable accessibilityRole="button" onPress={() => setRevision(v => v + 1)} style={{ marginHorizontal: GUTTER }}><Text style={{ color: theme.sub }}>상품을 불러오지 못했어요. 다시 시도</Text></Pressable>
       : !page ? <ActivityIndicator color={theme.primary} />
-      : <>
-        {page.message ? <Text style={{ color: theme.sub }}>{page.message}</Text> : null}
-        {!page.products.length && !page.message ? <Text style={{ color: theme.sub }}>상품이 없어요</Text> : null}
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-          {page.products.map(p => <Pressable key={p.product_id} accessibilityRole="link" disabled={opening} onPress={() => { void open(p); }} style={{ width: '47%', gap: 6 }}>
-            {p.image_url ? <Image source={{ uri: p.image_url }} style={{ width: '100%', aspectRatio: 1, borderRadius: 8 }} /> : null}
-            <Text style={{ color: theme.text }} numberOfLines={2}>{p.name}</Text>
-            {typeof p.price === 'number' ? <Text style={{ color: theme.text, fontWeight: '700' }}>{p.price.toLocaleString('ko-KR')}원</Text> : null}
-          </Pressable>)}
-        </View>
-      </>}
-    {linkError ? <Text accessibilityLiveRegion="polite" style={{ color: theme.danger }}>쿠팡을 열지 못했어요. 다시 시도해 주세요.</Text> : null}
-  </View>;
+      : items.length ? <ProductGrid items={items} theme={theme} onPress={p => { const original = page.products.find(x => x.product_id === p.id); if (original) void open(original); }} />
+      : <EmptyProducts theme={theme} partner={{ name: '쿠팡' }} />}
+    {linkError ? <Text accessibilityLiveRegion="polite" style={{ marginHorizontal: GUTTER, color: theme.danger }}>쿠팡을 열지 못했어요. 다시 시도해 주세요.</Text> : null}
+    <DisclosureNote text={COUPANG_DISCLOSURE} theme={theme} />
+  </ScrollView>;
 }

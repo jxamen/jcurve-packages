@@ -1,8 +1,32 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Image, PixelRatio, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { GUTTER, CARD_RADIUS, CARD_PADDING } from './layout';
 import { productImage } from './image';
 import { countdown, isFiniteNumber, num, realRecent, won } from './format';
-import type { Deals, Category, NoticeSection, Product, RecentReward, ShoppingTheme, ThemeSection } from './types';
+import type { Partner, Deals, Category, NoticeSection, Product, RecentReward, ShoppingTheme, ThemeSection } from './types';
+
+/** Shared partner row and empty state for every shopping provider. */
+export function PartnerCard({ partner, theme, onPress }: { partner: Partner; theme: ShoppingTheme; onPress: () => void }) {
+  return <Pressable testID={`partner-card-${partner.id}`} accessibilityRole="button" onPress={onPress}
+    style={{ marginHorizontal: GUTTER, borderRadius: CARD_RADIUS, padding: CARD_PADDING, backgroundColor: theme.card, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+    <PartnerLogo partner={partner} size={40} theme={theme} />
+    <View style={{ flex: 1 }}><Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>{partner.name}</Text>
+      <Text style={{ fontSize: 13, color: theme.sub, marginTop: 4 }}>{partner.rateText}{partner.rewardKind === 'none' ? '' : ' 적립'}</Text></View>
+    <Text style={{ fontSize: 24, color: theme.sub }}>›</Text>
+  </Pressable>;
+}
+export function PartnerLogo({ partner, size, theme }: { partner: Pick<Partner, 'name' | 'logo'>; size: number; theme: ShoppingTheme }) {
+  const logo = partner.logo ?? (partner.name === '쿠팡' ? 'https://image7.coupangcdn.com/image/coupang/common/logo_coupang_w350.png' : null);
+  return logo ? <Image source={{ uri: logo }} resizeMode="contain" style={{ width: size, height: size }} />
+    : <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: partner.name === '쿠팡' ? 16 : 20, fontWeight: '800', color: theme.primary }}>{partner.name === '쿠팡' ? '쿠팡' : partner.name.slice(0, 1)}</Text></View>;
+}
+export function EmptyProducts({ theme, partner }: { theme: ShoppingTheme; partner?: Pick<Partner, 'name' | 'logo'> }) {
+  return <View testID="shopping-empty" style={{ marginHorizontal: GUTTER, borderRadius: CARD_RADIUS, padding: CARD_PADDING, backgroundColor: theme.card, alignItems: 'center', gap: 8 }}>
+    {partner ? <PartnerLogo partner={partner} size={48} theme={theme} /> : null}
+    <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>상품 준비 중이에요</Text>
+    {partner ? <Text style={{ fontSize: 13, color: theme.sub }}>곧 {partner.name} 상품을 볼 수 있어요</Text> : null}
+  </View>;
+}
 
 /** 적립 딱지 — 포인트형은 「P 447」, 할인권형은 번개 모양 대신 「할인권 7」(그림은 앱마다 다르니 글로) */
 export function RewardBadge({ product, theme }: { product: Product; theme: ShoppingTheme }) {
@@ -53,7 +77,7 @@ export function DealRow({ deals, theme, now, onPress, onExpired }: { deals: Deal
   if (!left || !deals.items.length) return null;
   return <View>
     <View style={{ paddingHorizontal: 20 }}>
-      <Text accessibilityRole="header" style={{ fontSize: 20, fontWeight: '800', color: theme.text }}>{deals.title || '오늘만 이 가격에 살 수 있는 하루특가'}</Text>
+      <Text accessibilityRole="header" style={{ fontSize: 18, fontWeight: '700', color: theme.text }}>{deals.title || '오늘만 이 가격에 살 수 있는 하루특가'}</Text>
       <Text style={{ alignSelf: 'flex-start', marginTop: 6, backgroundColor: '#FFF0F0', color: theme.danger, fontSize: 14, fontWeight: '800', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 }}>⏰ {left} 남음</Text>
     </View>
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 12, paddingTop: 14 }}>
@@ -66,8 +90,8 @@ export function DealRow({ deals, theme, now, onPress, onExpired }: { deals: Deal
 export function ThemeRow({ section, theme, onPress }: { section: ThemeSection; theme: ShoppingTheme; onPress: (p: Product) => void }) {
   if (!section.items.length) return null;
   return <View>
-    <Text accessibilityRole="header" style={{ paddingHorizontal: 20, fontSize: 20, fontWeight: '800', color: theme.text }}>{section.title}</Text>
-    {section.subtitle ? <Text style={{ paddingHorizontal: 20, marginTop: 4, fontSize: 14, color: theme.sub }}>{section.subtitle}</Text> : null}
+    <Text accessibilityRole="header" style={{ paddingHorizontal: 20, fontSize: 18, fontWeight: '700', color: theme.text }}>{section.title}</Text>
+    {section.subtitle ? <Text style={{ paddingHorizontal: 20, marginTop: 4, fontSize: 13, color: theme.sub }}>{section.subtitle}</Text> : null}
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 12, paddingTop: 14 }}>
       {section.items.map(p => <ProductCard key={p.id} product={p} theme={theme} onPress={onPress} width={128} />)}
     </ScrollView>
@@ -77,9 +101,9 @@ export function ThemeRow({ section, theme, onPress }: { section: ThemeSection; t
 /** 대가성 문구는 원문 그대로 링크 가까이에 펼쳐 표시 */
 export function DisclosureNote({ text, theme }: { text?: string | null; theme: ShoppingTheme }) {
   if (!text?.trim()) return null;
-  return <View style={{ marginHorizontal: 20, flexDirection: 'row', gap: 6 }}>
+  return <View style={{ marginHorizontal: GUTTER, marginTop: 12, flexDirection: 'row', gap: 6 }}>
     <Text style={{ fontSize: 11, fontWeight: '700', color: theme.sub, borderWidth: 1, borderColor: theme.line, borderRadius: 4, paddingHorizontal: 5, height: 18, lineHeight: 16 }}>광고</Text>
-    <Text style={{ fontSize: 12.5, lineHeight: 18, color: theme.sub, flex: 1 }}>{text}</Text>
+    <Text style={{ fontSize: 12, lineHeight: 18, color: theme.sub, flex: 1 }}>{text}</Text>
   </View>;
 }
 
@@ -96,7 +120,7 @@ export function Chips({ items, value, onChange, theme }: { items: Category[]; va
       const on = c.id === value;
       return <Pressable key={c.id} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => onChange(c.id)}
         style={[s.chip, { backgroundColor: on ? theme.primarySoft : (theme.chipBg ?? '#F2F4F6') }]}>
-        <Text style={[s.chipText, { color: on ? theme.primary : '#6B7684', fontWeight: on ? '700' : '500' }]}>{c.name}</Text>
+        <Text style={[s.chipText, { color: on ? theme.primary : '#6B7684', fontWeight: '600' }]}>{c.name}</Text>
       </Pressable>;
     })}
   </ScrollView>;
@@ -163,7 +187,7 @@ export function StepList({ steps, theme }: { steps: Array<{ title: string; desc?
   return <View style={{ gap: 10 }}>{steps.map((step, i) => <View key={i} style={{ flexDirection: 'row', gap: 14, padding: 16, borderWidth: 1, borderColor: theme.line, borderRadius: 16, backgroundColor: '#FFFFFF' }}>
     <Text style={{ width: 32, height: 32, borderRadius: 16, lineHeight: 32, textAlign: 'center', overflow: 'hidden', backgroundColor: theme.primary, color: '#FFFFFF', fontSize: 15, fontWeight: '800' }}>{i + 1}</Text>
     <View style={{ flex: 1 }}><Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>{step.title}</Text>
-      {step.desc ? <Text style={{ marginTop: 4, fontSize: 14, color: theme.sub }}>{step.desc}</Text> : null}</View>
+      {step.desc ? <Text style={{ marginTop: 4, fontSize: 13, color: theme.sub }}>{step.desc}</Text> : null}</View>
   </View>)}</View>;
 }
 
@@ -181,19 +205,19 @@ export const s = StyleSheet.create({
   badgeText: { fontSize: 13, fontWeight: '800' },
   badgeAt: { position: 'absolute', left: 8, bottom: 8 },
   productCard: { borderRadius: 12, overflow: 'hidden' },
-  thumb: { width: '100%', aspectRatio: 1, borderTopLeftRadius: 12, borderTopRightRadius: 12, overflow: 'hidden', padding: 0 },
+  thumb: { width: '100%', aspectRatio: 1, borderRadius: 12, overflow: 'hidden', padding: 0 },
   thumbEmpty: { alignItems: 'center', justifyContent: 'center' },
   thumbLetter: { fontSize: 28, fontWeight: '700' },
   tag: { fontSize: 12, fontWeight: '700', marginTop: 8 },
   title: { fontSize: 14, lineHeight: 20, marginTop: 10, fontWeight: '400' },
   priceRow: { marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 4 },
   rate: { fontSize: 16, fontWeight: '800' },
-  price: { fontSize: 16, fontWeight: '800', flexShrink: 1 },
+  price: { fontSize: 16, fontWeight: '700', flexShrink: 1 },
   rating: { fontSize: 12, marginTop: 2 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, rowGap: 24, paddingHorizontal: 20 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, rowGap: 20, paddingHorizontal: GUTTER },
   chips: { paddingHorizontal: 20, gap: 8, paddingVertical: 0, alignItems: 'center' },
-  chip: { paddingHorizontal: 16, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
-  chipText: { fontSize: 15 },
+  chip: { paddingHorizontal: 14, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  chipText: { fontSize: 14 },
   notice: { paddingHorizontal: 20, paddingVertical: 24, marginTop: 28, gap: 20 },
   noticeHead: { fontSize: 20, fontWeight: '800' },
   noticeSec: { gap: 8 },

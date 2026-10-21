@@ -121,6 +121,12 @@ export type ShoppingApi = {
 };
 
 export type ShoppingTheme = {
+  headerBg?: string;
+  headerText?: string;
+  headerSub?: string;
+  headerArt?: import('react-native').ImageSourcePropType | null;
+  tabIndicator?: string;
+  headerShape?: 'flat' | 'round';
   /** 앱 이름 — 「{앱}에서 이동해야 적립돼요」 */
   appName: string;
   /** 문장에 쓰는 포인트 이름(예 「포인트」 · 「캐시」) — 「구매 금액의 3%를 포인트로 드려요」 */
