@@ -15,8 +15,9 @@
  *   const hub = useAppHub({ base: API_BASE, token: APP_TOKEN, storage: AsyncStorage });
  *   {hub.visible ? <Entrance title={hub.section.title ?? '추천 포인트 앱 둘러보기'} /> : null}
  */
-import { useCallback, useEffect, useReducer, useRef } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useMemo } from 'react';
 import { hubLoader, type FamilySection, type Hub } from './load';
+import { normLang, t, type Lang } from './i18n';
 import type { FamilyApp } from './pick';
 import { HUB_STORAGE_WAIT_MS, hubInitial, hubReduce, hubStorageUsable, hubView, readStoredHub, saveStoredHub, type HubStorage } from './store';
 
@@ -33,8 +34,15 @@ export type UseAppHub = {
   ready: boolean;
 };
 
-export function useAppHub(opts: { base?: string; token?: string; load?: () => Promise<Hub>; storage?: HubStorage; storageKey?: string }): UseAppHub {
-  const { base, token, load, storage, storageKey } = opts;
+export function localizeSection(section: FamilySection, lang?: Lang): FamilySection {
+  if (normLang(lang) === 'ko') return section;
+
+  return { ...section, title: section.title === null ? null : t(section.title, lang), desc: section.desc === null ? null : t(section.desc, lang) };
+}
+
+
+export function useAppHub(opts: { base?: string; token?: string; load?: () => Promise<Hub>; storage?: HubStorage; storageKey?: string; lang?: Lang }): UseAppHub {
+  const { base, token, load, storage, storageKey, lang } = opts;
   const hasStorage = hubStorageUsable(storage);
   const [state, dispatch] = useReducer(hubReduce, hasStorage, hubInitial);
   const storageRef = useRef(storage);
@@ -63,6 +71,7 @@ export function useAppHub(opts: { base?: string; token?: string; load?: () => Pr
   }, [hasStorage, storageKey]);
 
   const view = hubView(state);
+  const section = useMemo(() => localizeSection(view.section, lang), [view.section, lang]);
 
-  return { items: view.items, section: view.section, failed: state.failed, reload, visible: view.visible, ready: state.ready };
+  return { items: view.items, section, failed: state.failed, reload, visible: view.visible, ready: state.ready };
 }

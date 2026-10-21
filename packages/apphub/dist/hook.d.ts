@@ -1,4 +1,5 @@
 import { type FamilySection, type Hub } from './load';
+import { type Lang } from './i18n';
 import type { FamilyApp } from './pick';
 import { type HubStorage } from './store';
 export type UseAppHub = {
@@ -13,10 +14,12 @@ export type UseAppHub = {
     /** (1.2.0) 저장값을 읽는 중이면 false — 입구를 `section.on` 으로 직접 그리는 앱은 이 값이 true 가 된 뒤에 그린다 */
     ready: boolean;
 };
+export declare function localizeSection(section: FamilySection, lang?: Lang): FamilySection;
 export declare function useAppHub(opts: {
     base?: string;
     token?: string;
     load?: () => Promise<Hub>;
     storage?: HubStorage;
     storageKey?: string;
+    lang?: Lang;
 }): UseAppHub;

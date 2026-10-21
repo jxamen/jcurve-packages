@@ -18,6 +18,8 @@ import {
 } from 'react-native';
 import { familyRows, type FamilyApp, type FamilyRow } from './pick';
 import { storeLoader, type FamilySection, type Loader } from './load';
+// 이 파일은 색 묶음을 `t` 로 부른다 — 번역 함수는 tr 로 받는다
+import { t as tr, tf, type Lang } from './i18n';
 
 export type AppHubTheme = {
   /** 화면 바탕 */
@@ -61,9 +63,14 @@ export type AppHubSheetProps = {
   section?: FamilySection;
   /** 계측 — 앱의 `track()` 을 그대로 넘긴다(패키지는 아무 데도 보내지 않는다) */
   onEvent?: (name: string, props?: Record<string, string | number | boolean | null>) => void;
+  /**
+   * (1.1.1) 시트 문구 언어 — 앱이 정해 넘긴다(패키지는 기기 언어를 읽지 않는다). 없거나 'ko' 면 지금과 같은 한국어.
+   * 어드민 제목 · 설명(`section`)도 표에 있는 문구면 바꾼다(없으면 그대로).
+   */
+  lang?: Lang;
 };
 
-export function AppHubSheet({ open, onClose, base, token, load, theme, items, section, onEvent }: AppHubSheetProps) {
+export function AppHubSheet({ open, onClose, base, token, load, theme, items, section, onEvent, lang }: AppHubSheetProps) {
   const t = { ...DEF, ...(theme ?? {}) };
   const s = styles(t);
   const [rows, setRows] = useState<FamilyRow[] | null>(null);
@@ -104,33 +111,33 @@ export function AppHubSheet({ open, onClose, base, token, load, theme, items, se
     <Modal animationType="slide" visible onRequestClose={onClose}>
       <View style={s.page}>
         <View style={s.head}>
-          <Pressable onPress={onClose} hitSlop={12} style={s.close} accessibilityRole="button" accessibilityLabel="닫기">
+          <Pressable onPress={onClose} hitSlop={12} style={s.close} accessibilityRole="button" accessibilityLabel={tr('닫기', lang)}>
             <Text style={s.closeMark}>✕</Text>
           </Pressable>
-          <Text style={s.headTitle}>앱 모아보기</Text>
+          <Text style={s.headTitle}>{tr('앱 모아보기', lang)}</Text>
           {/* 제목이 가운데 오도록 오른쪽에 같은 폭을 비워 둔다 */}
           <View style={s.close} />
         </View>
 
         <ScrollView contentContainerStyle={s.body} showsVerticalScrollIndicator={false}>
           <View style={s.intro}>
-            <Text style={s.introTitle}>{section?.title ?? '추천 앱'}</Text>
-            <Text style={s.introBody}>{section?.desc ?? '받아서 시작하면 그 앱에서도 포인트를 모을 수 있어요\n포인트는 앱마다 따로 쌓여요'}</Text>
+            <Text style={s.introTitle}>{tr(section?.title ?? '추천 앱', lang)}</Text>
+            <Text style={s.introBody}>{tr(section?.desc ?? '받아서 시작하면 그 앱에서도 포인트를 모을 수 있어요\n포인트는 앱마다 따로 쌓여요', lang)}</Text>
           </View>
 
           {rows === null && !failed ? (
             <View style={s.center}><ActivityIndicator color={t.accent} /></View>
           ) : failed ? (
             <View style={s.center}>
-              <Text style={s.emptyTitle}>목록을 불러오지 못했어요</Text>
+              <Text style={s.emptyTitle}>{tr('목록을 불러오지 못했어요', lang)}</Text>
               <Pressable onPress={() => { void fetchRows(); }} style={s.retry}>
-                <Text style={s.retryText}>다시 시도</Text>
+                <Text style={s.retryText}>{tr('다시 시도', lang)}</Text>
               </Pressable>
             </View>
           ) : rows && rows.length === 0 ? (
             <View style={s.center}>
-              <Text style={s.emptyTitle}>아직 보여 드릴 앱이 없어요</Text>
-              <Text style={s.emptyBody}>새 앱이 나오면 여기에 나와요</Text>
+              <Text style={s.emptyTitle}>{tr('아직 보여 드릴 앱이 없어요', lang)}</Text>
+              <Text style={s.emptyBody}>{tr('새 앱이 나오면 여기에 나와요', lang)}</Text>
             </View>
           ) : (
             <View style={s.card}>
@@ -140,7 +147,7 @@ export function AppHubSheet({ open, onClose, base, token, load, theme, items, se
                   <Pressable
                     onPress={() => go(r)}
                     accessibilityRole="button"
-                    accessibilityLabel={r.name + ', 받으러 가기'}
+                    accessibilityLabel={tf('{0}, 받으러 가기', lang, r.name)}
                     style={({ pressed }: { pressed: boolean }) => [s.row, pressed ? s.pressed : null]}
                   >
                     {r.icon
@@ -167,7 +174,7 @@ export function AppHubSheet({ open, onClose, base, token, load, theme, items, se
             </View>
           )}
 
-          <Text style={s.foot}>스토어로 이동해요. 받는 것은 무료예요</Text>
+          <Text style={s.foot}>{tr('스토어로 이동해요. 받는 것은 무료예요', lang)}</Text>
           <View style={{ height: 32 }} />
         </ScrollView>
       </View>

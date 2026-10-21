@@ -7,5 +7,6 @@
 export { AppHubSheet, type AppHubSheetProps, type AppHubTheme } from './AppHubSheet';
 export { familyRows, tintOf, type FamilyApp, type FamilyRow } from './pick';
 export { storeLoader, hubLoader, parseHub, DEFAULT_SECTION, type Loader, type Hub, type FamilySection } from './load';
-export { useAppHub, type UseAppHub } from './hook';
+export { useAppHub, localizeSection, type UseAppHub } from './hook';
 export { readStoredHub, saveStoredHub, hubStorageUsable, hubInitial, hubReduce, hubView, HUB_STORAGE_KEY, HUB_STORAGE_WAIT_MS, type HubStorage, type HubState, type HubEvent } from './store';
+export type { Lang } from './i18n';

@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.localizeSection = localizeSection;
 exports.useAppHub = useAppHub;
 /**
  * 입구(하단 버튼)를 그리는 앱이 쓰는 훅 — 목록과 칸 설정을 **한 번에** 받는다.
@@ -20,9 +21,15 @@ exports.useAppHub = useAppHub;
  */
 const react_1 = require("react");
 const load_1 = require("./load");
+const i18n_1 = require("./i18n");
 const store_1 = require("./store");
+function localizeSection(section, lang) {
+    if ((0, i18n_1.normLang)(lang) === 'ko')
+        return section;
+    return { ...section, title: section.title === null ? null : (0, i18n_1.t)(section.title, lang), desc: section.desc === null ? null : (0, i18n_1.t)(section.desc, lang) };
+}
 function useAppHub(opts) {
-    const { base, token, load, storage, storageKey } = opts;
+    const { base, token, load, storage, storageKey, lang } = opts;
     const hasStorage = (0, store_1.hubStorageUsable)(storage);
     const [state, dispatch] = (0, react_1.useReducer)(store_1.hubReduce, hasStorage, store_1.hubInitial);
     const storageRef = (0, react_1.useRef)(storage);
@@ -52,5 +59,6 @@ function useAppHub(opts) {
         return () => { live = false; clearTimeout(timer); };
     }, [hasStorage, storageKey]);
     const view = (0, store_1.hubView)(state);
-    return { items: view.items, section: view.section, failed: state.failed, reload, visible: view.visible, ready: state.ready };
+    const section = (0, react_1.useMemo)(() => localizeSection(view.section, lang), [view.section, lang]);
+    return { items: view.items, section, failed: state.failed, reload, visible: view.visible, ready: state.ready };
 }
