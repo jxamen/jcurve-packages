@@ -5,15 +5,30 @@ import { productImage } from './image';
 import { countdown, isFiniteNumber, num, realRecent, won } from './format';
 import type { Partner, Deals, Category, NoticeSection, Product, RecentReward, ShoppingTheme, ThemeSection } from './types';
 
-/** Shared partner row and empty state for every shopping provider. */
+/** Equal-height two-column destination cards; text can grow without clipping. */
 export function PartnerCard({ partner, theme, onPress }: { partner: Partner; theme: ShoppingTheme; onPress: () => void }) {
   return <Pressable testID={`partner-card-${partner.id}`} accessibilityRole="button" onPress={onPress}
-    style={{ marginHorizontal: GUTTER, borderRadius: CARD_RADIUS, padding: CARD_PADDING, backgroundColor: theme.card, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-    <PartnerLogo partner={partner} size={40} theme={theme} />
-    <View style={{ flex: 1 }}><Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>{partner.name}</Text>
-      <Text style={{ fontSize: 13, color: theme.sub, marginTop: 4 }}>{partner.rateText}{partner.rewardKind === 'none' ? '' : ' 적립'}</Text></View>
-    <Text style={{ fontSize: 24, color: theme.sub }}>›</Text>
+    style={{ flex: 1, minWidth: 0, minHeight: 104, borderRadius: CARD_RADIUS, padding: 12, backgroundColor: theme.card, justifyContent: 'center', gap: 8 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+      <PartnerLogo partner={partner} size={28} theme={theme} />
+      <Text style={{ flex: 1, fontSize: 15, lineHeight: 22, fontWeight: '700', color: theme.text }}>{partner.name}</Text>
+    </View>
+    <Text style={{ fontSize: 12, lineHeight: 18, color: theme.sub }}>{partner.rateText}{partner.rewardKind === 'none' ? '' : ' 적립'}</Text>
   </Pressable>;
+}
+
+/** Same opening banner and disclosure spacing for Toss and Coupang. */
+export function PartnerIntro({ partner, text, theme, children }: { partner: Partner; text: string; theme: ShoppingTheme; children?: React.ReactNode }) {
+  return <View testID="partner-intro">
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: GUTTER, minHeight: 52, borderRadius: CARD_RADIUS, padding: CARD_PADDING, backgroundColor: theme.chipBg ?? '#F2F4F6' }}>
+      <View style={{ width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: partner.name === '쿠팡' ? undefined : theme.primary }}>
+        {partner.name === '쿠팡' || partner.logo ? <PartnerLogo partner={partner} size={22} theme={theme} /> : <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '800' }}>{partner.name.slice(0, 1)}</Text>}
+      </View>
+      <Text style={{ flex: 1, fontSize: 15, lineHeight: 22, fontWeight: '500', color: theme.text }}>{text}</Text>
+      {children}
+    </View>
+    <DisclosureNote text={partner.disclosure} theme={theme} />
+  </View>;
 }
 export function PartnerLogo({ partner, size, theme }: { partner: Pick<Partner, 'name' | 'logo'>; size: number; theme: ShoppingTheme }) {
   const logo = partner.logo ?? (partner.name === '쿠팡' ? 'https://image7.coupangcdn.com/image/coupang/common/logo_coupang_w350.png' : null);

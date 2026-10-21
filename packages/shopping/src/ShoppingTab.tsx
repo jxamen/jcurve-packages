@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View, type TextStyle } from 'react-native';
 import { dealEndsAt, num, partnerLine, partnerRewardName } from './format';
-import { PartnerCard, EmptyProducts, Chips, DisclosureNote, Disclosures, DealRow, ThemeRow, Notice, ProductGrid, RecentTicker } from './parts';
+import { PartnerCard, PartnerIntro, EmptyProducts, Chips, DisclosureNote, Disclosures, DealRow, ThemeRow, Notice, ProductGrid, RecentTicker } from './parts';
 import { ProductPager } from './products';
 import { ProofScreen } from './Proof';
 import { CouponInfoScreen } from './CouponInfo';
@@ -196,8 +196,12 @@ function AllView({ coupang, api, home, theme, onPartner, onOpen }: { coupang: bo
       <DisclosureNote text={home.partners.find(p => p.id === result.partnerId)?.disclosure} theme={theme} />
       <DealRow deals={result.deals} theme={theme} now={now} onPress={onProduct} onExpired={onExpired} />
     </> : null}
-    {home.partners.map(p => <PartnerCard key={p.id} partner={p} theme={theme} onPress={() => onPartner(p.id)} />)}
-    {coupang ? <PartnerCard partner={{ id: 'coupang', name: '쿠팡', rateText: '쿠팡 상품 둘러보기', rewardKind: 'none' }} theme={theme} onPress={() => onPartner('coupang')} /> : null}
+    {Array.from({ length: Math.ceil((home.partners.length + Number(coupang)) / 2) }, (_, row) => {
+      const destinations: Partner[] = [...home.partners, ...(coupang ? [{ id: 'coupang', name: '쿠팡', rateText: '쿠팡 상품 둘러보기', rewardKind: 'none' as const }] : [])];
+      return <View key={row} testID="partner-card-row" style={{ flexDirection: 'row', alignItems: 'stretch', gap: 12, paddingHorizontal: GUTTER }}>
+        {destinations.slice(row * 2, row * 2 + 2).map(p => <PartnerCard key={p.id} partner={p} theme={theme} onPress={() => onPartner(p.id)} />)}
+      </View>;
+    })}
     {themes.length ? themes.map(section => <ThemeRow key={section.id} section={section} theme={theme} onPress={onProduct} />) : <>
     {lead ? <Text style={[st.h2, { color: theme.text }]}>{lead.name}에서 구매하면 <Text style={{ color: theme.primary }}>{lead.rateText}</Text> 적립</Text> : null}
     <Chips items={cats} value={cat} onChange={setCat} theme={theme} />
@@ -246,12 +250,9 @@ function PartnerView({ api, partner, theme, onProduct, onCouponInfo, pickImage, 
     return () => { active = false; };
   }, [api, partner.id, coupon]);
   return <ScrollView contentContainerStyle={st.body} showsVerticalScrollIndicator={false} onScroll={themes.length ? undefined : onScroll} scrollEventThrottle={100}>
-    <View style={[st.info, { backgroundColor: theme.chipBg ?? '#F2F4F6' }]}>
-      <View style={[st.infoMark, { backgroundColor: theme.primary }]}>{partner.logo ? <Image source={{ uri: partner.logo }} resizeMode="contain" style={{ width: 22, height: 22 }} /> : <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '800' }}>{partner.name.slice(0, 1)}</Text>}</View>
-      <Text style={[st.infoText, { color: theme.text }]}>{partnerLine(partner, theme)}</Text>
+    <PartnerIntro partner={partner} text={partnerLine(partner, theme)} theme={theme}>
       {coupon && hasInfo ? <Pressable accessibilityRole="link" onPress={onCouponInfo} hitSlop={8}><Text style={[st.infoLink, { color: theme.sub }]}>{partnerRewardName(partner, theme)}이란?</Text></Pressable> : null}
-    </View>
-    <DisclosureNote text={partner.disclosure} theme={theme} />
+    </PartnerIntro>
     {result ? <DealRow deals={result.deals} theme={theme} now={now} onPress={onProduct} onExpired={onExpired} /> : null}
     {proofInfo ? <Pressable accessibilityRole="button" onPress={() => onProof(proofInfo)} style={[st.info, { backgroundColor: theme.primarySoft }]}><Text style={{ color: theme.primary, fontWeight: '700' }}>구매했다면 인증하고 포인트 받기 ›</Text></Pressable> : null}
     {themes.length ? themes.map(section => <ThemeRow key={section.id} section={section} theme={theme} onPress={onProduct} />) : <>

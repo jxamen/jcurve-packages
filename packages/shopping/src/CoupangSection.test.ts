@@ -26,7 +26,7 @@ describe('Coupang shopping section', () => {
     const texts = tree.root.findAllByType('Text');
     const disclosure = texts.find((n: any) => n.props.children === COUPANG_DISCLOSURE);
     expect(disclosure).toBeTruthy(); expect(disclosure.props.numberOfLines).toBeUndefined();
-    expect(texts.indexOf(disclosure)).toBeGreaterThan(texts.findIndex((n: any) => n.props.children === '상품'));
+    expect(texts.indexOf(disclosure)).toBeLessThan(texts.findIndex((n: any) => n.props.children === '상품'));
     await act(async () => tree.root.findByType('TextInput').props.onChangeText('사과 & 배'));
     await act(async () => tree.root.findByType('TextInput').props.onSubmitEditing());
     expect(request).toHaveBeenCalledWith('coupang/products?keyword=%EC%82%AC%EA%B3%BC%20%26%20%EB%B0%B0&category=');
