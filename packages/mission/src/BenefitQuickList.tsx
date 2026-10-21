@@ -3,6 +3,8 @@ import { AppState, View, Text, Pressable, StyleSheet } from 'react-native';
 import type { Requester } from './entry';
 import { composeHomeRows, resolveHomeKeys, withFreeItemRow, type HomeRowKey, type HomeStorage } from './home';
 import { useHomeConfig } from './useHomeConfig';
+import { useCoupangVisit } from './useCoupangVisit';
+import { COUPANG_DISCLOSURE } from './coupang';
 import { buildHomeItems, type HomeActions, type HomeContext, type RemoteValues } from './homeDefs';
 
 export type BenefitQuickIcon = 'calendar' | 'bag' | 'pin' | 'star' | 'ticket' | 'friend';
@@ -23,6 +25,8 @@ export type BenefitQuickItem = {
   progressLabel?: string;
   /** (0.7.4) 완료(done) 줄의 버튼 글자 — 이 줄만. 안 주면 목록의 `doneLabel` */
   doneLabel?: string;
+  /** Always visible, wrapping disclosure below the row. */
+  disclosure?: string;
 };
 export type BenefitQuickListProps = {
   title?: string;
@@ -129,6 +133,7 @@ type ViewProps = Omit<BenefitQuickListProps, 'items' | 'fetchJson' | 'homeKeys' 
 
 /** 서버 home_rows 를 얹는 층 — 훅이 있어 `fetchJson` 이 있을 때만 쓴다(없으면 BenefitQuickList 가 그림만 바로 그린다) */
 function ServerRowsList({ fetchJson, homeKeys, onRow, refreshKey, storage, storageKey, items, view, keepUnlisted }: { keepUnlisted?: boolean; fetchJson: Requester; homeKeys?: Readonly<Record<string, HomeRowKey>>; onRow?: (key: HomeRowKey) => void; refreshKey?: unknown; storage?: HomeStorage; storageKey?: string; items: readonly BenefitQuickItem[]; view: Omit<ViewProps, 'items'> }) {
+  const coupang = useCoupangVisit(fetchJson, refreshKey);
   const tick = useActiveTick();
   const key = useMemo(() => [refreshKey, tick], [refreshKey, tick]);
   const { config, ready } = useHomeConfig(fetchJson, key, storage, storageKey);
@@ -137,7 +142,13 @@ function ServerRowsList({ fetchJson, homeKeys, onRow, refreshKey, storage, stora
   // (0.4.6) 저장소를 쓰면 저장값을 읽을 때까지(최대 300ms) 그리지 않는다 — 앱 기본 순서를 잠깐 그렸다가 서버 순서로 바꾸지 않으려고. 저장소가 없으면 ready 는 늘 true
   if (!ready) return null;
 
-  return <QuickListView {...view} items={merged} />;
+  const rows = merged.filter(item => item.key !== 'coupang');
+  if (coupang.visible) rows.push({ key: 'coupang', title: `쿠팡 방문하고 ${coupang.status.visit_point}P 받기`, subtitle: '',
+    ctaLabel: '방문하기', doneLabel: '오늘 받음', done: coupang.status.today_done, icon: 'bag', tint: '#FDE6D6',
+    onPress: coupang.start, disclosure: COUPANG_DISCLOSURE });
+  return <View><QuickListView {...view} items={rows} />
+    {coupang.toast ? <View style={s.toast} accessibilityLiveRegion="polite"><Text style={s.toastText}>{coupang.toast}</Text></View> : null}
+  </View>;
 }
 
 /**
@@ -166,7 +177,7 @@ function QuickListView({ title = '바로 받는 혜택', seeAllLabel, onSeeAll, 
         누름이 두 겹으로 갈렸다 — 대표님 10-20 11:42 「행운 찬스 눌렸다 안눌렸다」. 이제 버튼은 그림(View)이고 줄 전체가 한 단추다.
         빠른 두 번 누름은 TAP_GUARD_MS 동안만 무시한다 — 시간이 지나면 반드시 풀린다(화면 이동 · 실패 · 취소를 기다리지 않는다)
       */}
-      {visible.map((item, index) => <Pressable key={item.key} accessibilityRole="button" accessibilityLabel={item.title + ', ' + (item.done ? (item.doneLabel ?? doneLabel) : item.ctaLabel)}
+      {visible.map((item, index) => <React.Fragment key={item.key}><Pressable accessibilityRole="button" accessibilityLabel={item.title + ', ' + (item.done ? (item.doneLabel ?? doneLabel) : item.ctaLabel)}
         accessibilityState={{ disabled: !!item.done }} disabled={item.done} onPress={() => { if (!item.done) pressOnce(item.onPress); }}
         style={({ pressed }) => [s.row, index < visible.length - 1 && s.border, pressed && !item.done && { opacity: 0.85 }]}>
         <View style={[s.icon, { backgroundColor: item.tint }]}><Icon icon={item.icon} /></View>
@@ -176,12 +187,15 @@ function QuickListView({ title = '바로 받는 혜택', seeAllLabel, onSeeAll, 
         <View pointerEvents="none" style={[s.button, { width: buttonWidth, height: buttonHeight, backgroundColor: item.done ? '#D3D7DD' : accentColor }]}>
           <Text style={s.cta} numberOfLines={1} adjustsFontSizeToFit>{item.done ? (item.doneLabel ?? doneLabel) : item.ctaLabel}</Text>
         </View>
-      </Pressable>)}
+      </Pressable>{item.disclosure ? <Text style={s.disclosure}>{item.disclosure}</Text> : null}</React.Fragment>)}
     </View>
     {footer != null ? <View style={s.footer}>{footer}</View> : null}
   </View>;
 }
 const s = StyleSheet.create({
+  disclosure: { fontSize: 12, color: '#6B5E52', lineHeight: 18, paddingBottom: 12 },
+  toast: { backgroundColor: '#2B2118', borderRadius: 12, padding: 12, marginTop: 8 },
+  toastText: { color: '#FFFFFF', textAlign: 'center' },
   root: { gap: 10 }, header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 },
   title: { fontSize: 19, fontWeight: '700', color: '#2B2118', flexShrink: 1 }, seeAll: { fontSize: 13 },
   card: { backgroundColor: '#FFFFFF', borderRadius: 20, paddingVertical: 6, paddingHorizontal: 14 },

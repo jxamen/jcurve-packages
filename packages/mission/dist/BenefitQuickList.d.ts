@@ -23,6 +23,8 @@ export type BenefitQuickItem = {
     progressLabel?: string;
     /** (0.7.4) 완료(done) 줄의 버튼 글자 — 이 줄만. 안 주면 목록의 `doneLabel` */
     doneLabel?: string;
+    /** Always visible, wrapping disclosure below the row. */
+    disclosure?: string;
 };
 export type BenefitQuickListProps = {
     title?: string;
