@@ -6,6 +6,7 @@ export type CoupangStatus = {
     eligible: boolean;
     today_done: boolean;
     visit_point: number;
+    min_stay_seconds: number | null;
 };
 export declare function parseCoupangStatus(value: unknown): CoupangStatus;
 export declare const coupangVisible: (s: CoupangStatus) => boolean;
@@ -16,12 +17,14 @@ export declare class CoupangVisit {
     private open;
     private changed;
     private notice;
+    private tooShort?;
     status: {
         enabled: boolean;
         test_only: boolean;
         eligible: boolean;
         today_done: boolean;
         visit_point: number;
+        min_stay_seconds: number | null;
     };
     private pending;
     private away;
@@ -29,7 +32,7 @@ export declare class CoupangVisit {
     private completing;
     private alive;
     private revision;
-    constructor(request: Requester, open: (url: string) => Promise<unknown>, changed: (status: CoupangStatus) => void, notice: (message: string) => void);
+    constructor(request: Requester, open: (url: string) => Promise<unknown>, changed: (status: CoupangStatus) => void, notice: (message: string) => void, tooShort?: ((seconds: number, points: number) => void) | undefined);
     dispose(): void;
     activate(): void;
     refresh(): Promise<void>;

@@ -1,6 +1,7 @@
 import React, { type ReactNode } from 'react';
 import type { Requester } from './entry';
 import { type HomeRowKey, type HomeStorage } from './home';
+import { type CoupangShortVisitPopupProps } from './CoupangShortVisitPopup';
 import { type HomeActions, type HomeContext, type RemoteValues } from './homeDefs';
 export type BenefitQuickIcon = 'calendar' | 'bag' | 'pin' | 'star' | 'ticket' | 'friend';
 export type BenefitQuickItem = {
@@ -27,6 +28,7 @@ export type BenefitQuickItem = {
     disclosure?: string;
 };
 export type BenefitQuickListProps = {
+    renderCoupangShortVisit?: (props: CoupangShortVisitPopupProps) => ReactNode;
     title?: string;
     doneLabel?: string;
     buttonWidth?: number;
