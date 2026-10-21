@@ -5,7 +5,7 @@ import { composeHomeRows, resolveHomeKeys, withFreeItemRow, type HomeRowKey, typ
 import { useHomeConfig } from './useHomeConfig';
 import { NewspicSection } from './NewspicSection';
 import { useCoupangVisit } from './useCoupangVisit';
-import { COUPANG_DISCLOSURE } from './coupang';
+import { CoupangShortVisitPopup, type CoupangShortVisitPopupProps } from './CoupangShortVisitPopup';
 import { buildHomeItems, type HomeActions, type HomeContext, type RemoteValues } from './homeDefs';
 
 export type BenefitQuickIcon = 'calendar' | 'bag' | 'pin' | 'star' | 'ticket' | 'friend';
@@ -30,6 +30,7 @@ export type BenefitQuickItem = {
   disclosure?: string;
 };
 export type BenefitQuickListProps = {
+  renderCoupangShortVisit?: (props: CoupangShortVisitPopupProps) => ReactNode;
   title?: string;
   doneLabel?: string;
   buttonWidth?: number;
@@ -145,9 +146,9 @@ function ServerRowsList({ fetchJson, homeKeys, onRow, refreshKey, storage, stora
   const showCoupang = coupang.visible && config.rows?.some(r => r.key === 'coupang_visit' && r.visible) === true;
   const base = useMemo(() => {
     const next = items.filter(item => item.key !== 'coupang' && item.key !== 'coupang_visit');
-    if (showCoupang) next.push({ key: 'coupang_visit', title: `쿠팡 방문하고 ${coupang.status.visit_point}P 받기`, subtitle: '',
-      ctaLabel: '방문하기', doneLabel: '오늘 받음', done: coupang.status.today_done, icon: 'bag', tint: '#FDE6D6',
-      onPress: coupang.start, disclosure: COUPANG_DISCLOSURE });
+    if (showCoupang) next.push({ key: 'coupang_visit', title: `쿠팡 방문하고 ${coupang.status.visit_point}P 받기`, subtitle: '1시간에 1번',
+      ctaLabel: '방문하기', doneLabel: '1시간 뒤', done: coupang.status.today_done, icon: 'bag', tint: '#FDE6D6',
+      onPress: coupang.start });
     return next;
   }, [items, showCoupang, coupang.status.visit_point, coupang.status.today_done, coupang.start]);
   const keys = useMemo(() => ({ ...resolveHomeKeys(base, homeKeys), coupang_visit: 'coupang_visit' as const }), [base, homeKeys]);
@@ -157,7 +158,8 @@ function ServerRowsList({ fetchJson, homeKeys, onRow, refreshKey, storage, stora
   // (0.4.6) 저장소를 쓰면 저장값을 읽을 때까지(최대 300ms) 그리지 않는다 — 앱 기본 순서를 잠깐 그렸다가 서버 순서로 바꾸지 않으려고. 저장소가 없으면 ready 는 늘 true
   if (!ready) return null;
 
-  return <View><NewspicSection fetchJson={fetchJson} refreshKey={refreshKey} /><QuickListView {...view} items={merged} />
+  return <View><NewspicSection fetchJson={fetchJson} refreshKey={refreshKey} /><QuickListView {...view} items={merged.map(item => item.key === 'coupang_visit' ? { ...item, subtitle: '1시간에 1번', disclosure: undefined } : item)} />
+    {coupang.shortVisit ? (view.renderCoupangShortVisit ?? (props => <CoupangShortVisitPopup {...props} />))({ seconds: coupang.shortVisit.seconds, points: coupang.shortVisit.points, onRetry: () => { coupang.closeShortVisit(); coupang.start(); }, onClose: coupang.closeShortVisit }) : null}
     {coupang.toast ? <View style={s.toast} accessibilityLiveRegion="polite"><Text style={s.toastText}>{coupang.toast}</Text></View> : null}
   </View>;
 }

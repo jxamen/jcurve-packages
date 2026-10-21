@@ -4,12 +4,13 @@ exports.CoupangVisit = exports.coupangVisible = exports.COUPANG_DISCLOSURE = voi
 exports.parseCoupangStatus = parseCoupangStatus;
 exports.isCoupangUrl = isCoupangUrl;
 exports.COUPANG_DISCLOSURE = '이 게시물은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.';
-const OFF = { enabled: false, test_only: true, eligible: false, today_done: false, visit_point: 1 };
+const OFF = { enabled: false, test_only: true, eligible: false, today_done: false, visit_point: 1, min_stay_seconds: null };
 function parseCoupangStatus(value) {
     // config is authenticated and server-filtered: test users receive 200, everyone else 404.
     const r = value;
     return { enabled: r?.enabled === true && r?.ok !== false, test_only: r?.test_only !== false,
         eligible: r?.enabled === true && r?.ok !== false, today_done: r?.visited_today === true,
+        min_stay_seconds: typeof r?.min_stay_seconds === 'number' && r.min_stay_seconds > 0 ? r.min_stay_seconds : null,
         visit_point: typeof r?.visit_point === 'number' && r.visit_point > 0 ? r.visit_point : 1 };
 }
 const coupangVisible = (s) => s.enabled && (!s.test_only || s.eligible);
@@ -28,11 +29,12 @@ function isCoupangUrl(value) {
 }
 /** One controller per mounted list/account. Consume a visit before awaiting complete. */
 class CoupangVisit {
-    constructor(request, open, changed, notice) {
+    constructor(request, open, changed, notice, tooShort) {
         this.request = request;
         this.open = open;
         this.changed = changed;
         this.notice = notice;
+        this.tooShort = tooShort;
         this.status = { ...OFF };
         this.pending = null;
         this.away = false;
@@ -67,6 +69,8 @@ class CoupangVisit {
                 return;
             if (r.ok === false || !r.visit_id || !isCoupangUrl(r.deep_link))
                 throw new Error('invalid_start');
+            if (typeof r.min_stay_seconds === 'number' && r.min_stay_seconds > 0)
+                this.status = { ...this.status, min_stay_seconds: r.min_stay_seconds };
             this.pending = r.visit_id;
             this.away = false;
             await this.open(r.deep_link);
@@ -117,10 +121,11 @@ class CoupangVisit {
         catch (error) {
             const e = error;
             const code = e?.error ?? e?.data?.error ?? e?.code;
-            if (this.alive && code !== 'already_claimed')
-                this.notice(code === 'visit_too_short'
-                    ? '방문 시간이 짧아 아직 지급되지 않았어요. 다시 방문해 주세요.'
-                    : '지급 결과를 확인하지 못했어요. 잠시 후 다시 확인해 주세요.');
+            const seconds = e?.min_stay_seconds ?? e?.data?.min_stay_seconds ?? this.status.min_stay_seconds;
+            if (this.alive && code === 'visit_too_short' && typeof seconds === 'number' && seconds > 0 && this.tooShort)
+                this.tooShort(seconds, this.status.visit_point);
+            else if (this.alive && code !== 'already_claimed')
+                this.notice('지급 결과를 확인하지 못했어요. 잠시 후 다시 확인해 주세요.');
         }
         finally {
             if (this.alive)
