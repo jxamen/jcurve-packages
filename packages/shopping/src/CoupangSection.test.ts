@@ -23,6 +23,7 @@ describe('Coupang shopping section', () => {
     const api = createCoupangApi(request as any);
     let tree: any;
     await act(async () => { tree = create(React.createElement(CoupangSection, { api, theme: DEFAULT_THEME })); });
+    expect(request).toHaveBeenCalledWith('coupang/products?keyword=&category=1001');
     const texts = tree.root.findAllByType('Text');
     const disclosure = texts.find((n: any) => n.props.children === COUPANG_DISCLOSURE);
     expect(disclosure).toBeTruthy(); expect(disclosure.props.numberOfLines).toBeUndefined();

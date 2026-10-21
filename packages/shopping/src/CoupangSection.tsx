@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, AppState, Image, Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { COUPANG_DISCLOSURE, isCoupangUrl, type CoupangApi, type CoupangConfig, type CoupangProduct, type CoupangProducts } from './coupang';
+import { COUPANG_CATEGORIES, COUPANG_DISCLOSURE, isCoupangUrl, type CoupangApi, type CoupangConfig, type CoupangProduct, type CoupangProducts } from './coupang';
 import { Chips, EmptyProducts, PartnerIntro, ProductGrid, ThemeRow } from './parts';
 import { GUTTER, SECTION_GAP } from './layout';
 import type { Product, ShoppingTheme } from './types';
@@ -29,6 +29,7 @@ export function CoupangSection({ api, theme }: { api?: CoupangApi; theme: Shoppi
 export function CoupangProductsView({ api, config, theme }: { api: CoupangApi; config: CoupangConfig; theme: ShoppingTheme }) {
   const [keyword, setKeyword] = useState('');
   const [query, setQuery] = useState({ keyword: '', category: '' });
+  const defaultCategory = config.categories?.[0]?.id || COUPANG_CATEGORIES[0].id;
   const [page, setPage] = useState<CoupangProducts | null>(null);
   const [failed, setFailed] = useState(false);
   const [revision, setRevision] = useState(0);
@@ -37,9 +38,9 @@ export function CoupangProductsView({ api, config, theme }: { api: CoupangApi; c
   useEffect(() => {
     let live = true;
     setPage(null); setFailed(false);
-    api.products(query).then(value => { if (live) setPage(value); }).catch(() => { if (live) setFailed(true); });
+    api.products({ ...query, category: query.category || (query.keyword ? '' : defaultCategory) }).then(value => { if (live) setPage(value); }).catch(() => { if (live) setFailed(true); });
     return () => { live = false; };
-  }, [api, query, revision]);
+  }, [api, query, revision, defaultCategory]);
   async function open(product: CoupangProduct) {
     if (opening || !isCoupangUrl(product.deep_link)) return;
     setOpening(true); setLinkError(false);
