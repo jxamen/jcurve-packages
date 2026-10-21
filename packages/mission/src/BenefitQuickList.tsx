@@ -137,16 +137,23 @@ function ServerRowsList({ fetchJson, homeKeys, onRow, refreshKey, storage, stora
   const tick = useActiveTick();
   const key = useMemo(() => [refreshKey, tick], [refreshKey, tick]);
   const { config, ready } = useHomeConfig(fetchJson, key, storage, storageKey);
-  const keys = useMemo(() => resolveHomeKeys(items, homeKeys), [items, homeKeys]);
-  const merged = useMemo(() => composeHomeRows(items, config.rows, keys, { onRow, keepUnlisted }), [items, config.rows, keys, onRow, keepUnlisted]);
+  // The server gate and the existing home-row toggle must both allow the row.
+  const showCoupang = coupang.visible && (config.rows === null || config.rows.some(r => r.key === 'coupang_visit' && r.visible));
+  const base = useMemo(() => {
+    const next = items.filter(item => item.key !== 'coupang' && item.key !== 'coupang_visit');
+    if (showCoupang) next.push({ key: 'coupang_visit', title: `쿠팡 방문하고 ${coupang.status.visit_point}P 받기`, subtitle: '',
+      ctaLabel: '방문하기', doneLabel: '오늘 받음', done: coupang.status.today_done, icon: 'bag', tint: '#FDE6D6',
+      onPress: coupang.start, disclosure: COUPANG_DISCLOSURE });
+    return next;
+  }, [items, showCoupang, coupang.status.visit_point, coupang.status.today_done, coupang.start]);
+  const keys = useMemo(() => ({ ...resolveHomeKeys(base, homeKeys), coupang_visit: 'coupang_visit' as const }), [base, homeKeys]);
+  // Never let onRow synthesize a Coupang action for an unauthorized member.
+  const configured = useMemo(() => config.rows?.filter(r => r.key !== 'coupang_visit' || showCoupang) ?? null, [config.rows, showCoupang]);
+  const merged = useMemo(() => composeHomeRows(base, configured, keys, { onRow, keepUnlisted }), [base, configured, keys, onRow, keepUnlisted]);
   // (0.4.6) 저장소를 쓰면 저장값을 읽을 때까지(최대 300ms) 그리지 않는다 — 앱 기본 순서를 잠깐 그렸다가 서버 순서로 바꾸지 않으려고. 저장소가 없으면 ready 는 늘 true
   if (!ready) return null;
 
-  const rows = merged.filter(item => item.key !== 'coupang');
-  if (coupang.visible) rows.push({ key: 'coupang', title: `쿠팡 방문하고 ${coupang.status.visit_point}P 받기`, subtitle: '',
-    ctaLabel: '방문하기', doneLabel: '오늘 받음', done: coupang.status.today_done, icon: 'bag', tint: '#FDE6D6',
-    onPress: coupang.start, disclosure: COUPANG_DISCLOSURE });
-  return <View><QuickListView {...view} items={rows} />
+  return <View><QuickListView {...view} items={merged} />
     {coupang.toast ? <View style={s.toast} accessibilityLiveRegion="polite"><Text style={s.toastText}>{coupang.toast}</Text></View> : null}
   </View>;
 }

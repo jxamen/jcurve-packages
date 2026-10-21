@@ -8,7 +8,7 @@ import type { BenefitQuickItem } from './BenefitQuickList';
 import type { Requester } from './entry';
 /** 서버가 아는 줄 행동 — jcurve-api MissionCardsController::HOME_KEYS 와 같다 */
 export declare const HOME_KEYS: readonly ["quiz1", "quiz2", "checkin", "steps", "free_item", "ad_item", "today_missions", "lucky_chance", "invite", "recommend"];
-export type HomeRowKey = typeof HOME_KEYS[number];
+export type HomeRowKey = typeof HOME_KEYS[number] | 'coupang_visit';
 export type HomeRow = {
     key: HomeRowKey;
     title: string;

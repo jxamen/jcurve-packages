@@ -9,7 +9,8 @@ import type { Requester } from './entry';
 
 /** 서버가 아는 줄 행동 — jcurve-api MissionCardsController::HOME_KEYS 와 같다 */
 export const HOME_KEYS = ['quiz1', 'quiz2', 'checkin', 'steps', 'free_item', 'ad_item', 'today_missions', 'lucky_chance', 'invite', 'recommend'] as const;
-export type HomeRowKey = typeof HOME_KEYS[number];
+export type HomeRowKey = typeof HOME_KEYS[number] | 'coupang_visit';
+const REMOTE_HOME_KEYS: readonly HomeRowKey[] = [...HOME_KEYS, 'coupang_visit'];
 
 export type HomeRow = { key: HomeRowKey; title: string; desc: string; button: string; badge: string; visible: boolean; order: number };
 export type HomeConfig = { rows: HomeRow[] | null; list: { adAfter: number | null; shoppingFirst: boolean | null } };
@@ -30,7 +31,7 @@ export function parseHomeResponse(response: unknown): HomeConfig {
       const x = raw as Record<string, unknown> | null;
       if (!x || typeof x !== 'object') return;
       const key = x.key;
-      if (typeof key !== 'string' || !(HOME_KEYS as readonly string[]).includes(key) || seen.has(key)) return;
+      if (typeof key !== 'string' || !(REMOTE_HOME_KEYS as readonly string[]).includes(key) || seen.has(key)) return;
       // (0.4.5) 제목이 비어도 줄은 산다 — 빈 title = 「앱 제목 그대로」(서버 home_rows 에서 title 을 비워 둔 줄, 대표님 10-20 「동적 제목은 서버 고정 제목이 덮지 않게」)
       const title = text(x.title, 30);
       seen.add(key);
@@ -235,10 +236,10 @@ export function adSlotIndex(items: readonly BenefitQuickItem[], adAfter: number 
 export function resolveHomeKeys(items: readonly BenefitQuickItem[], homeKeys?: Readonly<Record<string, HomeRowKey>>): Record<string, HomeRowKey> {
   const out: Record<string, HomeRowKey> = {};
   for (const item of items) {
-    if ((HOME_KEYS as readonly string[]).includes(item.key)) out[item.key] = item.key as HomeRowKey;
+    if ((REMOTE_HOME_KEYS as readonly string[]).includes(item.key)) out[item.key] = item.key as HomeRowKey;
   }
   for (const [k, v] of Object.entries(homeKeys ?? {})) {
-    if ((HOME_KEYS as readonly string[]).includes(v)) out[k] = v;
+    if ((REMOTE_HOME_KEYS as readonly string[]).includes(v)) out[k] = v;
   }
 
   return out;
@@ -264,11 +265,13 @@ export function withFreeItemRow(items: readonly BenefitQuickItem[], homeKeys: Re
 
 /** 앱 items 에 없는 서버 줄을 그릴 때 쓰는 기본 그림 · 바탕색(0.4.4) */
 const DEFAULT_ICON: Record<HomeRowKey, BenefitQuickItem['icon']> = {
+  coupang_visit: 'bag',
   quiz1: 'bag', quiz2: 'pin', checkin: 'calendar', steps: 'star', free_item: '🌱', ad_item: '🌱', today_missions: 'pin', lucky_chance: 'ticket', invite: 'friend', recommend: 'star',
 };
 
 /** 서버 title 이 비어 있는데 앱 items 에 짝이 없어 줄을 새로 만들 때 쓰는 기본 제목(0.4.5) */
 const DEFAULT_TITLE: Record<HomeRowKey, string> = {
+  coupang_visit: '쿠팡 방문하고 1P 받기',
   quiz1: '쇼핑 태그 퀴즈1', quiz2: '플레이스 · 쇼핑 태그 퀴즈2', checkin: '출석 체크', steps: '만보기', free_item: '무료 아이템 받기', ad_item: '광고 보고 아이템 받기',
   today_missions: '오늘의 미션', lucky_chance: '행운 찬스', invite: '친구 초대', recommend: '추천 앱 둘러보기',
 };

@@ -7,7 +7,8 @@
  * 순수 TS — react / react-native 를 가져오지 않는다(타입만 `import type`). 시험이 바로 돈다. 다른 줄(0.4.x)에 파일 그대로 옮길 수 있게 `pages/rows` 등 다른 모듈에 기대지 않는다.
  */
 import type { BenefitQuickItem } from './BenefitQuickList';
-import type { HomeRowKey } from './home';
+import type { HomeRowKey as RemoteHomeRowKey } from './home';
+type HomeRowKey = Exclude<RemoteHomeRowKey, 'coupang_visit'>;
 /** 줄 순서 — 서버 home_rows 기본 순서와 같다(HOME_KEYS) */
 export declare const HOME_ORDER: readonly HomeRowKey[];
 /** 줄마다 누르면 할 일 — **전 줄 필수**(0.7.13: 빼면 컴파일 오류. 기능이 아직 없는 줄은 그 앱이 만들어 넘긴다). 런타임에 빠져 있으면 줄은 그려지고 누름은 아무 일도 안 한다 */
@@ -83,3 +84,4 @@ export declare function homeRowOff(key: HomeRowKey, values: RemoteValues | undef
  * 숨김은 `homeRowOff`(원격설정)로만 — 앱이 줄을 뺄 수 없다
  */
 export declare function buildHomeItems(c: HomeContext, actions: Partial<HomeActions>, values?: RemoteValues): BenefitQuickItem[];
+export {};
