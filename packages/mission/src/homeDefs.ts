@@ -7,7 +7,9 @@
  * 순수 TS — react / react-native 를 가져오지 않는다(타입만 `import type`). 시험이 바로 돈다. 다른 줄(0.4.x)에 파일 그대로 옮길 수 있게 `pages/rows` 등 다른 모듈에 기대지 않는다.
  */
 import type { BenefitQuickItem } from './BenefitQuickList';
-import type { HomeRowKey } from './home';
+import type { HomeRowKey as RemoteHomeRowKey } from './home';
+// Coupang owns its authenticated action internally; existing apps still provide ten actions.
+type HomeRowKey = Exclude<RemoteHomeRowKey, 'coupang_visit'>;
 
 /** 줄 순서 — 서버 home_rows 기본 순서와 같다(HOME_KEYS) */
 export const HOME_ORDER: readonly HomeRowKey[] = ['quiz1', 'quiz2', 'checkin', 'steps', 'free_item', 'ad_item', 'today_missions', 'lucky_chance', 'invite', 'recommend'];

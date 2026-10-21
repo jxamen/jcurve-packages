@@ -389,3 +389,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';   // ⚠ 0
 - **서버 `home_rows` 는 글자 · 순서 · `visible:false` 덮기만** 한다 — 목록에 **없다고 줄을 숨기지 않는다**(예전엔 서버 목록이 곧 목록이었다). 목록에 없는 줄은 패키지 기본 자리에 둔다. 서버 키는 `ad_item` 이 더해졌다(jcurve-api `MissionCardsController::HOME_KEYS`).
 - **광고 아이템 줄(`ad_item`)**: 제목 「광고 보고 ○○ 받기」 · 부제 「짧은 광고를 보면 ○○을/를 더 드려요」(조사는 받침으로 — 맘마를 · 양분을) · 버튼 「광고 보기」. 아이콘은 `homeContext.itemIcon`(없으면 🌱), 바탕색은 기본 연초록이고 앱 테마색이 있으면 `homeContext.tints.ad_item`(이제 걸음 · 무료 · 광고 · 추천 네 줄).
 - 새 네이티브 0. 의존 · peer 변경 없음.
+
+
+### 쿠팡 어드민 홈 목록 연동 보완 (2026-10-21)
+
+기존 `mission.home_rows`의 `key: coupang_visit`로 순서·보임·제목·설명·버튼·배지를 관리합니다. 서버 쿠팡 권한과 홈 보임 설정을 모두 만족해야 표시합니다. 목록을 직접 정한 경우 쿠팡 줄이 없거나 `visible:false`이면 숨기며, 제목을 비우면 현재 방문 포인트로 제목을 만듭니다. 필수 수수료 문구는 제목/설명 수정과 관계없이 항상 유지합니다. 기존 앱의 필수 homeActions는 10개 그대로입니다. 이 보완 가지는 발행 또는 앱 OTA를 수행하지 않았습니다.

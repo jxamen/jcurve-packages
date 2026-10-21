@@ -101,17 +101,24 @@ function ServerRowsList({ fetchJson, homeKeys, onRow, refreshKey, storage, stora
     const tick = useActiveTick();
     const key = (0, react_1.useMemo)(() => [refreshKey, tick], [refreshKey, tick]);
     const { config, ready } = (0, useHomeConfig_1.useHomeConfig)(fetchJson, key, storage, storageKey);
-    const keys = (0, react_1.useMemo)(() => (0, home_1.resolveHomeKeys)(items, homeKeys), [items, homeKeys]);
-    const merged = (0, react_1.useMemo)(() => (0, home_1.composeHomeRows)(items, config.rows, keys, { onRow, keepUnlisted }), [items, config.rows, keys, onRow, keepUnlisted]);
+    // The server gate and the existing home-row toggle must both allow the row.
+    const showCoupang = coupang.visible && (config.rows === null || config.rows.some(r => r.key === 'coupang_visit' && r.visible));
+    const base = (0, react_1.useMemo)(() => {
+        const next = items.filter(item => item.key !== 'coupang' && item.key !== 'coupang_visit');
+        if (showCoupang)
+            next.push({ key: 'coupang_visit', title: `쿠팡 방문하고 ${coupang.status.visit_point}P 받기`, subtitle: '',
+                ctaLabel: '방문하기', doneLabel: '오늘 받음', done: coupang.status.today_done, icon: 'bag', tint: '#FDE6D6',
+                onPress: coupang.start, disclosure: coupang_1.COUPANG_DISCLOSURE });
+        return next;
+    }, [items, showCoupang, coupang.status.visit_point, coupang.status.today_done, coupang.start]);
+    const keys = (0, react_1.useMemo)(() => ({ ...(0, home_1.resolveHomeKeys)(base, homeKeys), coupang_visit: 'coupang_visit' }), [base, homeKeys]);
+    // Never let onRow synthesize a Coupang action for an unauthorized member.
+    const configured = (0, react_1.useMemo)(() => config.rows?.filter(r => r.key !== 'coupang_visit' || showCoupang) ?? null, [config.rows, showCoupang]);
+    const merged = (0, react_1.useMemo)(() => (0, home_1.composeHomeRows)(base, configured, keys, { onRow, keepUnlisted }), [base, configured, keys, onRow, keepUnlisted]);
     // (0.4.6) 저장소를 쓰면 저장값을 읽을 때까지(최대 300ms) 그리지 않는다 — 앱 기본 순서를 잠깐 그렸다가 서버 순서로 바꾸지 않으려고. 저장소가 없으면 ready 는 늘 true
     if (!ready)
         return null;
-    const rows = merged.filter(item => item.key !== 'coupang');
-    if (coupang.visible)
-        rows.push({ key: 'coupang', title: `쿠팡 방문하고 ${coupang.status.visit_point}P 받기`, subtitle: '',
-            ctaLabel: '방문하기', doneLabel: '오늘 받음', done: coupang.status.today_done, icon: 'bag', tint: '#FDE6D6',
-            onPress: coupang.start, disclosure: coupang_1.COUPANG_DISCLOSURE });
-    return (0, jsx_runtime_1.jsxs)(react_native_1.View, { children: [(0, jsx_runtime_1.jsx)(QuickListView, { ...view, items: rows }), coupang.toast ? (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.toast, accessibilityLiveRegion: "polite", children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: s.toastText, children: coupang.toast }) }) : null] });
+    return (0, jsx_runtime_1.jsxs)(react_native_1.View, { children: [(0, jsx_runtime_1.jsx)(QuickListView, { ...view, items: merged }), coupang.toast ? (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.toast, accessibilityLiveRegion: "polite", children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: s.toastText, children: coupang.toast }) }) : null] });
 }
 /**
  * 「바로 받는 혜택」 목록. (0.4.4) `fetchJson` 을 주면 서버 home_rows 를 스스로 적용하고, `onFreeItem` 을 주면 free_item 기본 줄이 생긴다 — 둘 다 없으면 0.4.3 과 똑같이 그린다.
