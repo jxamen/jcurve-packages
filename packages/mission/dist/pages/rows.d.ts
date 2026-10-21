@@ -4,10 +4,15 @@
  */
 import type { ReactNode } from 'react';
 import type { BenefitQuickItem } from '../BenefitQuickList';
-/** 「무료 {item} 받기 · 하루 3번 광고 없이 받기 [받기]」 줄 — carrot 홈 freeHeart 줄과 같은 모양 */
+/**
+ * 「무료 {item} 받기 · 하루 3번 들르면 {item} 받기 [받기]」 줄 — carrot 홈 freeHeart 줄과 같은 모양.
+ * 부제 기본은 **방문형** 「하루 N번 들르면 ○○ 받기」(0.7.1, 대표님 10-20 — 당근 문구). 광고형 앱은 `subtitle` 로 바꾼다(예: 「하루 3번 광고 없이 받기」).
+ */
 export declare function freeItemRow(args: {
     /** 아이템 이름 — 양분 · 캡슐 · 열매 · 먹이 */
     itemName: string;
+    /** 줄 부제 — 기본 「하루 N번 들르면 {itemName} 받기」(방문형). 광고형 앱은 이 값으로 덮는다 */
+    subtitle?: string;
     /** 오늘 남은 방문 수(0~total). 주면 「N번 남았어요」, 0 이면 완료(done) — 놓친 칸이 있으면 받은 수와 다를 수 있다(`received` 를 같이 준다) */
     left?: number;
     /**
