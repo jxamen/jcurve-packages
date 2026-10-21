@@ -29,15 +29,27 @@ export declare class ScannerError extends Error {
         cause?: unknown;
     });
 }
+export type PendingScan = {
+    uris: string[];
+};
+type ScanResult = {
+    status?: string;
+    scannedImages?: string[];
+    _pendingScanId?: string;
+};
+type ScannerPlugin = {
+    scanDocument: (options: object) => Promise<ScanResult>;
+    acknowledgeScan?: (id: string) => Promise<void>;
+    releaseScan?: (id: string) => Promise<void>;
+};
+type AndroidScanner = ScannerPlugin & {
+    getPendingScan: () => Promise<PendingScan | null>;
+};
 /** 시험할 때 바꾼다. 앱은 넘기지 않는다 */
 export type ScannerDeps = {
     os?: string;
-    plugin?: () => {
-        scanDocument: (o: object) => Promise<{
-            status?: string;
-            scannedImages?: string[];
-        }>;
-    };
+    plugin?: () => ScannerPlugin;
+    androidNative?: () => AndroidScanner | null;
     askCamera?: () => Promise<{
         granted: boolean;
         canAskAgain?: boolean;
@@ -50,5 +62,11 @@ export type ScannerDeps = {
  * **일반 촬영(`expo-image-picker` 의 `launchCameraAsync`)으로 넘어갈 길을 앱이 준다** — 영테크·총무님 모두 그렇다.
  */
 export declare function scanDocument(options?: ScanOptions, deps?: ScannerDeps): Promise<string[] | null>;
+/**
+ * Android 프로세스 재생성 뒤 보관된 사진을 한 번 꺼낸다. 없으면 null.
+ * iOS/웹/옛 네이티브 빌드는 null. 파일은 소비 후에도 남으므로 제출 후 앱에서 삭제할 수 있다.
+ */
+export declare function getPendingScan(deps?: ScannerDeps): Promise<PendingScan | null>;
 /** 오류 코드 → 사용자에게 보일 문구. `maxPages` 는 `scanner_multiple_pages` 문구에 쓴다 */
 export declare function scannerMessage(code: string, maxPages?: number): string;
+export {};

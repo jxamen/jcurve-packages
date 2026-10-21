@@ -20,7 +20,7 @@ afterAll(() => { rmSync(OUT, { recursive: true, force: true }); });
 
 describe('커밋된 dist 가 소스와 같다', () => {
   it('지금 빌드한 것과 글자까지 같다', () => {
-    execFileSync('npx', ['tsc', '-p', 'tsconfig.json', '--outDir', OUT], {
+    execFileSync(process.execPath, [require.resolve('typescript/bin/tsc'), '-p', 'tsconfig.json', '--outDir', OUT], {
       cwd: ROOT,
       shell: process.platform === 'win32',
       stdio: 'pipe',

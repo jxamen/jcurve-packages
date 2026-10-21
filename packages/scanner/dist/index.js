@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ScannerError = exports.scannerMessage = exports.scanDocument = void 0;
+exports.ScannerError = exports.scannerMessage = exports.scanDocument = exports.getPendingScan = void 0;
 /**
  * `@jcurve/scanner` — 리워드 앱이 **같이 쓰는 문서 스캐너**.
  *
@@ -21,6 +21,7 @@ exports.ScannerError = exports.scannerMessage = exports.scanDocument = void 0;
  * OCR 에 넘길 때는 `@jcurve/ocr` 의 `preparePhoto({ uri })` 를 거친다.
  */
 var scanner_1 = require("./scanner");
+Object.defineProperty(exports, "getPendingScan", { enumerable: true, get: function () { return scanner_1.getPendingScan; } });
 Object.defineProperty(exports, "scanDocument", { enumerable: true, get: function () { return scanner_1.scanDocument; } });
 Object.defineProperty(exports, "scannerMessage", { enumerable: true, get: function () { return scanner_1.scannerMessage; } });
 Object.defineProperty(exports, "ScannerError", { enumerable: true, get: function () { return scanner_1.ScannerError; } });

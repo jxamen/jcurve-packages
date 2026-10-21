@@ -1,0 +1,22 @@
+apply plugin: 'com.android.library'
+
+android {
+  namespace 'kr.co.jcurve.scanner'
+  compileSdkVersion rootProject.ext.has('compileSdkVersion') ? rootProject.ext.compileSdkVersion : 35
+  defaultConfig {
+    minSdkVersion rootProject.ext.has('minSdkVersion') ? rootProject.ext.minSdkVersion : 23
+    targetSdkVersion rootProject.ext.has('targetSdkVersion') ? rootProject.ext.targetSdkVersion : 35
+  }
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_1_8
+    targetCompatibility JavaVersion.VERSION_1_8
+  }
+  testOptions { unitTests.includeAndroidResources = true }
+}
+
+dependencies {
+  implementation 'com.facebook.react:react-android:+'
+  implementation 'com.google.android.gms:play-services-mlkit-document-scanner:16.0.0'
+  testImplementation 'junit:junit:4.13.2'
+  testImplementation 'org.robolectric:robolectric:4.14.1'
+}

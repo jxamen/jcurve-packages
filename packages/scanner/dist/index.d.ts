@@ -17,5 +17,5 @@
  *
  * OCR 에 넘길 때는 `@jcurve/ocr` 의 `preparePhoto({ uri })` 를 거친다.
  */
-export { scanDocument, scannerMessage, ScannerError } from './scanner';
-export type { ScanOptions, ScannerCode, ScannerDeps } from './scanner';
+export { getPendingScan, scanDocument, scannerMessage, ScannerError } from './scanner';
+export type { PendingScan, ScanOptions, ScannerCode, ScannerDeps } from './scanner';

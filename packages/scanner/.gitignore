@@ -1,0 +1,5 @@
+android/build/
+android-test/.gradle/
+android-test/build/
+android-test/app/build/
+android-test/local.properties

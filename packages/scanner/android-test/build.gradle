@@ -1,0 +1,12 @@
+plugins {
+  id 'com.android.library' version '8.9.2' apply false
+  id 'com.android.application' version '8.9.2' apply false
+}
+ext.minSdkVersion = 24
+ext.compileSdkVersion = 35
+ext.targetSdkVersion = 35
+subprojects {
+  configurations.configureEach {
+    resolutionStrategy.force 'com.facebook.react:react-android:0.79.6'
+  }
+}

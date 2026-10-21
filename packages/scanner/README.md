@@ -15,18 +15,19 @@
 
 ## 1. ⚠ 네이티브 모듈이다 — 새 스토어 빌드가 있어야 한다
 
-이 패키지 자체는 JS 뿐이지만, 속에서 부르는 `react-native-document-scanner-plugin` 은 **네이티브 모듈**이다.
+1.0.1은 Android 결과 복구용 네이티브 Activity를 포함한다. iOS는 기존 `react-native-document-scanner-plugin`을 그대로 쓴다.
 **OTA 로는 들어가지 않는다.** 처음 붙이는 앱은 새 스토어 빌드를 내야 한다.
 
 - 네이티브가 없는 옛 빌드에 OTA 로 이 코드만 가면 **앱이 죽지 않고** `scanner_unavailable` 을 던진다(지연 `require`).
   그러니 일반 촬영으로 넘어가는 길은 **늘** 둔다.
-- 이미 `react-native-document-scanner-plugin` **2.0.4** 가 든 스토어 빌드가 나가 있는 앱(영테크는 1.0.2(vc3) 부터 —
-  총무님은 §6 의 확인 1 로 본다)은 이 패키지로 바꾸는 것이 **JS 만의 변경이라 OTA 로 된다.** 플러그인 판을 바꾸면 다시 스토어 빌드다.
+- **1.0.1의 Android 복구 기능은 새 스토어 빌드가 필요하다.** React Native autolinking으로 자동 연결된다.
+  옛 빌드에 JS만 OTA로 올리면 기존 플러그인으로 동작하고 `getPendingScan()`은 `null`이다. 복구 기능은 생기지 않는다.
+- iOS 네이티브·권한·스캔 경로는 변경하지 않았다.
 
 ## 2. 설치
 
 ```bash
-npm i https://github.com/jxamen/jcurve-packages/releases/download/scanner-v1.0.0/jcurve-scanner-1.0.0.tgz
+npm i https://github.com/jxamen/jcurve-packages/releases/download/scanner-v1.0.1/jcurve-scanner-1.0.1.tgz
 npx expo install react-native-document-scanner-plugin@2.0.4 expo-image-picker
 ```
 
@@ -64,6 +65,20 @@ async function scan() {
   }
 }
 ```
+
+### 앱 재시작 뒤 사진 복구 (Android 1.0.1)
+
+```ts
+import { getPendingScan } from '@jcurve/scanner';
+const pending = await getPendingScan(); // 앱 시작 때 호출, 없으면 null; 한 번 반환하면 보관 목록에서 제거
+if (pending) openReceiptSubmission(pending.uris); // 영수증 탭으로 이동해 기존 제출 흐름에 연결
+```
+
+스캐너가 열린 동안 Android가 앱 프로세스를 정리해도, 완료 결과는 복구용 Activity가 먼저 내부 저장소에 복사한다.
+정상 `scanDocument()`로 받은 결과는 다시 반환하지 않는다. iOS·웹에서는 `null`이다.
+반환된 `file://` 사진은 목록을 비운 뒤에도 유지된다. 제출·취소를 마친 파일은 앱이 삭제한다.
+복구하지 않은 결과가 여러 건이면 촬영 순서로 합쳐 반환한다. 저장소 읽기·쓰기 실패는 `scanner_failed`다.
+앱 데이터 삭제·강제 종료(`force-stop`)·스캐너 자체에서 완료하지 않은 촬영은 복구 대상이 아니다.
 
 ### 옵션
 
@@ -120,7 +135,7 @@ if (pages) {
 | 총무님 | `RecordScreen.tsx` 가 직접 호출, 여러 장, 아이폰만 권한 | `scanDocument({ maxPages: maxShots, extraPages: 'keep' })` — 지금처럼 앱의 `take()` 가 잘라 쓴다. 권한 묻는 줄은 지운다(패키지가 한다) |
 
 **옮겨도 되는지 확인**:
-1. 그 앱의 **스토어에 나가 있는 빌드**에 `react-native-document-scanner-plugin` **2.0.4** 가 들어 있는가 — `package.json` 과 `app.json` 의 `plugins` 를 그 빌드 커밋에서 본다. 들어 있으면 OTA 로 되고, 없거나 판이 다르면 스토어 빌드가 필요하다.
+1. 그 앱의 **스토어에 나가 있는 빌드**에 `react-native-document-scanner-plugin` **2.0.4** 가 들어 있는가 — `package.json` 과 `app.json` 의 `plugins` 를 그 빌드 커밋에서 본다. 기존 스캔만 바꾸면 OTA가 가능하지만, 1.0.1 Android 결과 복구는 반드시 새 네이티브 빌드가 필요하다.
 2. 앱의 스캐너 시험(영테크 `scanner.test.ts`)을 패키지 호출로 바꿔 그대로 통과하는가 — 한 장 · 취소 · 여러 장 거절 · 빈 결과 · 네이티브 오류 · 웹.
 3. 실폰: 안드로이드에서 권한 창 **없이** 스캐너가 뜨는가, 아이폰에서 권한 창 → 스캐너가 뜨는가, 취소 · 일반 촬영으로 넘어가기가 되는가.
 

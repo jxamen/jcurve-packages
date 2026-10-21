@@ -9,6 +9,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ScannerError = void 0;
 exports.scanDocument = scanDocument;
+exports.getPendingScan = getPendingScan;
 exports.scannerMessage = scannerMessage;
 class ScannerError extends Error {
     constructor(code, 
@@ -52,7 +53,7 @@ async function scanDocument(options = {}, deps = {}) {
     // 지연 require — 네이티브 모듈이 없는 빌드에서 정적 import 는 앱 시작을 죽인다(플러그인이 getEnforcing 으로 찾는다)
     let plugin;
     try {
-        plugin = (deps.plugin ?? loadPlugin)();
+        plugin = deps.plugin ? deps.plugin() : loadPlugin(os, deps);
     }
     catch (cause) {
         throw new ScannerError('scanner_unavailable', true, { cause });
@@ -67,12 +68,38 @@ async function scanDocument(options = {}, deps = {}) {
     if (result?.status === 'cancel')
         return null;
     const pages = (result?.scannedImages ?? []).filter((p) => typeof p === 'string' && p !== '');
-    if (!pages.length)
-        throw new ScannerError('scanner_empty');
-    // VisionKit 은 장 수를 못 막는다. 넘친 것을 조용히 버리면 영수증을 잃는다 — 다시 찍게 한다
-    if (pages.length > maxPages && options.extraPages !== 'keep')
-        throw new ScannerError('scanner_multiple_pages');
+    const validationError = !pages.length ? 'scanner_empty'
+        : pages.length > maxPages && options.extraPages !== 'keep' ? 'scanner_multiple_pages' : null;
+    if (validationError) {
+        // Release the live call while retaining the journal for explicit recovery.
+        if (result._pendingScanId && plugin.releaseScan)
+            await plugin.releaseScan(result._pendingScanId);
+        throw new ScannerError(validationError);
+    }
+    if (result._pendingScanId && plugin.acknowledgeScan) {
+        try {
+            await plugin.acknowledgeScan(result._pendingScanId);
+        }
+        catch (cause) {
+            throw new ScannerError('scanner_failed', true, { cause });
+        }
+    }
     return pages;
+}
+/**
+ * Android 프로세스 재생성 뒤 보관된 사진을 한 번 꺼낸다. 없으면 null.
+ * iOS/웹/옛 네이티브 빌드는 null. 파일은 소비 후에도 남으므로 제출 후 앱에서 삭제할 수 있다.
+ */
+async function getPendingScan(deps = {}) {
+    if ((deps.os ?? platformOS()) !== 'android')
+        return null;
+    try {
+        const native = (deps.androidNative ?? loadAndroidScanner)();
+        return native ? await native.getPendingScan() : null;
+    }
+    catch (cause) {
+        throw new ScannerError('scanner_failed', true, { cause });
+    }
 }
 /** 오류 코드 → 사용자에게 보일 문구. `maxPages` 는 `scanner_multiple_pages` 문구에 쓴다 */
 function scannerMessage(code, maxPages = 1) {
@@ -96,7 +123,21 @@ function platformOS() {
         return 'web';
     }
 }
-function loadPlugin() {
+function loadAndroidScanner() {
+    try {
+        const native = require('react-native').NativeModules?.JcurveScanner;
+        return native?.scanDocument && native?.getPendingScan ? native : null;
+    }
+    catch {
+        return null;
+    }
+}
+function loadPlugin(os, deps) {
+    if (os === 'android') {
+        const native = (deps.androidNative ?? loadAndroidScanner)();
+        if (native)
+            return native;
+    }
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod = require('react-native-document-scanner-plugin');
     return mod.default ?? mod;
