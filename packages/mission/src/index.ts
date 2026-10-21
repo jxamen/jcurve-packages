@@ -30,3 +30,6 @@ export {
   waitLeftMs, clockText, drawLabel, drawSubLine, prizeLine, normalizeInviteCode, inviteHeadline,
   type FreeItemSlot, type StepsStage, type MissionDone,
 } from './pages/logic';
+
+export { NewspicSection } from './NewspicSection';
+export type { NewspicItem } from './NewspicSection';
