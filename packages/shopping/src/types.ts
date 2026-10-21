@@ -97,6 +97,8 @@ export type PickedImage = { uri: string; name: string; type: string };
 
 /** 앱이 넘기는 데이터 함수 — 서버 경로는 앱(또는 createHttpShoppingApi)이 정한다 */
 export type ShoppingApi = {
+  /** Optional for custom adapters; createHttpShoppingApi wires the authenticated Coupang API. */
+  coupang?: import('./coupang').CoupangApi;
   home(): Promise<ShoppingHome>;
   proof?: {
     info(partnerId: PartnerId): Promise<ProofInfo | null>;

@@ -1,3 +1,12 @@
+## 0.1.12 — 쿠팡 상품 칸 준비 (미발행)
+
+- `ShoppingTab` 전체 칸 상단에 쿠팡 상품 칸. `createHttpShoppingApi(request)`가 `api.coupang`을 제공한다. 사용자 정의 어댑터는 `createCoupangApi(request)` 또는 `CoupangApi`를 연결한다. 미연결이면 숨김.
+- 인증된 `GET coupang/config` 응답 전·실패·404·enabled=false는 칸 전체 숨김. test_only 회원 판정은 서버에서 한다. 복귀 시 다시 확인하고 요청 함수/계정이 바뀌면 이전 응답을 버린다(계정별 api identity/key 사용).
+- `GET coupang/products?keyword=&category=` 목록·검색·카테고리. 기본 분류는 여성패션(1001)·남성패션(1002)·식품(1012); 서버 `config.categories`가 있으면 대체. 첫 분류로 초기 목록 조회. 검색은 전체 분류, 분류 선택은 검색어를 비운다.
+- 상품은 서버 `deep_link`로 Linking.openURL. `POST coupang/products/click {product_id}`는 클릭 통계만 기록한다. 키 없음은 서버의 「설정 필요」를 표시. 늦은 이전 검색 응답은 폐기.
+- 필수 문구는 목록 위에 항상 줄임 없이 표시: 이 게시물은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.
+- 새 네이티브 의존·비밀 키·설정 변경·발행·앱 반영·OTA 없음. 실제 파트너스 키/실기기 연동은 미검증. 테스트는 모의 응답 사용.
+
 # @jcurve/shopping
 
 제휴 쇼핑 탭 — 대표님 2026-10-19 「쇼핑은 패키지로 제작 한다」. 화면 · 배치는 패키지가, **색 · 이름 · 데이터는 앱이** 넘긴다.

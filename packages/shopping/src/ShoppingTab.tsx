@@ -5,6 +5,7 @@ import { Chips, DisclosureNote, Disclosures, DealRow, ThemeRow, Notice, ProductG
 import { ProductPager } from './products';
 import { ProofScreen } from './Proof';
 import { CouponInfoScreen } from './CouponInfo';
+import { CoupangSection } from './CoupangSection';
 import { headCenterStyle, ShoppingHeaderTitle, shoppingTitleText, type ShoppingTitleAlign } from './Title';
 import { DEFAULT_THEME, type PickedImage, type ProofInfo, type Category, type Deals, type NoticeSection, type Partner, type PartnerId, type Product, type ShoppingApi, type ShoppingHome, type ShoppingTheme, type ThemeSection } from './types';
 
@@ -174,6 +175,7 @@ function AllView({ api, home, theme, onPartner, onOpen }: { api: ShoppingApi; ho
   const notice = useNotice(api, 'all');
   const { result, now, onExpired } = useDeals(api, home.partners.map(p => p.id));
   return <ScrollView contentContainerStyle={st.body} showsVerticalScrollIndicator={false} onScroll={onScroll} scrollEventThrottle={100}>
+    <CoupangSection api={api.coupang} theme={theme} />
     {result ? <>
       <DisclosureNote text={home.partners.find(p => p.id === result.partnerId)?.disclosure} theme={theme} />
       <DealRow deals={result.deals} theme={theme} now={now} onPress={onProduct} onExpired={onExpired} />

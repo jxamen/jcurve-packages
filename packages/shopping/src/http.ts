@@ -1,4 +1,5 @@
 import type { CouponInfo, Deals, NoticeSection, ProductPage, ShoppingApi, ShoppingHome, Category, ProofInfo, ProofItem, ThemeSection } from './types';
+import { createCoupangApi } from './coupang';
 
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const nullableString = (value: unknown) => value == null || typeof value === 'string';
@@ -45,6 +46,7 @@ export function createHttpShoppingApi(request: <T>(path: string, init?: { method
     }
   };
   return {
+    coupang: createCoupangApi(request),
     proof: {
       info: async partner => {
         try {
