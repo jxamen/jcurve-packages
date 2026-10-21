@@ -26,3 +26,5 @@ export { InvitePage, type InvitePageProps } from './pages/InvitePage';
 export { AppHubPage, type AppHubPageProps, type AppHubItem } from './pages/AppHubPage';
 export { freeItemRow, appHubRow } from './pages/rows';
 export { slotButtonLabel, slotStatusLine, slotWindowLabel, slotCount, missionProgress, bonusButtonLabel, stepsSummary, stepsBubble, UPDATE_NOTICE, waitLeftMs, clockText, drawLabel, drawSubLine, prizeLine, normalizeInviteCode, inviteHeadline, type FreeItemSlot, type StepsStage, type MissionDone, } from './pages/logic';
+export { NewspicSection } from './NewspicSection';
+export type { NewspicItem } from './NewspicSection';
