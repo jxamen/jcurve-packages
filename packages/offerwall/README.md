@@ -135,3 +135,11 @@ OTA 발행 환경에 ADPOPCORN_* 가 없어 manifest `extra.jcurveOfferwall` 키
 - 네이티브 변경 없음(0.2.1 과 같은 android · ios · plugin). OTA 로 바로 적용된다.
 
 앱 키 가드는 `builtAndroidKey()` 를 `builtOfferwallKeys().appKey` 로 바꾼다.
+
+## 0.2.3 — chance funnel (JS only)
+
+Configure `configureOfferwallFunnel((event, p) => existingApi.post('funnel', {device: existingDeviceId, event, p, platform, v}))`. Update `setOfferwallFunnelContext(kiapList, memberId)` after valid configuration reads and reset it on identity changes. These values are reduced locally to categories; never send the raw list or member identity.
+
+Each screen calls `useChanceFunnel()` and passes its result as `OfferwallView funnel`. Screen visibility emits `chance_tab_open` once; screen exit emits `offerwall_close` once, including the Android hardware back path. Existing SDK close callbacks emit sdk_close and share the same once-only guard. Each SDK view invocation emits one terminal `offerwall_open`: Android `loaded`, iOS `attached`, or `not_ready` / `invalid_usn` / `sdk_error` / `timeout` / `cancelled`. A retry is a new invocation. `attached` is not campaign load confirmation. An unready screen without a SDK invocation produces no open event. A process kill cannot guarantee close delivery.
+
+`p` = status:tester:visibility (max 40). tester: test/user/unknown; visibility: all/android/ios/both/list/off/unknown (`all` means `*`). App identity and OS use existing funnel columns. No new native dependency, permission, SDK callback or member payload. Sender failure never changes UI. SDK 1.0.0 exposes close/completion/reward totals, but no JS item-click/start callback: **SDK 미제공**; completion is never counted as a click.

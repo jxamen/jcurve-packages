@@ -1,3 +1,5 @@
+export * from './funnel';
+import type { ChanceFunnel, OfferwallAttempt } from './funnel';
 /** Native SDK is required lazily: importing this package works before keys/SDK exist. */
 export type OfferwallResult = { ok: true } | { ok: false; reason: 'not_ready' | 'invalid_usn' | 'sdk_error'; message: string };
 export type RewardInfo = { queryResult: boolean; totalCount: number; totalReward: string };
@@ -207,6 +209,7 @@ export function useOfferwallClosed(callback: () => void): void {
 }
 
 export type OfferwallViewProps = {
+  funnel?: ChanceFunnel;
   usn: string;
   style?: import('react-native').StyleProp<import('react-native').ViewStyle>;
   onLoaded?: () => void;
@@ -214,28 +217,45 @@ export type OfferwallViewProps = {
 };
 let embeddedView: import('react').ComponentType<any> | undefined;
 /** SDK ViewType list. Mount only after initializeOfferwall succeeds; unmount on exit/logout. */
-export function OfferwallView({ usn, style, onLoaded, onError }: OfferwallViewProps): import('react').ReactElement | null {
+export function OfferwallView({ usn, style, onLoaded, onError, funnel }: OfferwallViewProps): import('react').ReactElement | null {
   const React = require('react') as typeof import('react');
   const [readyUsn, setReadyUsn] = React.useState<string | null>(null);
+  const telemetry = React.useRef<{ usn: string; owner: ChanceFunnel; attempt: OfferwallAttempt; live: boolean } | null>(null);
   const error = React.useRef(onError);
   error.current = onError;
   React.useEffect(() => {
     setReadyUsn(null);
+    if (funnel && (telemetry.current?.usn !== usn || telemetry.current?.owner !== funnel)) {
+      telemetry.current?.attempt.fail('cancelled');
+      telemetry.current = { usn, owner: funnel, attempt: funnel.begin(require('react-native').Platform.OS), live: true };
+    }
+    const record = telemetry.current;
+    if (record) record.live = true;
+    const attempt = record?.attempt;
+    const fail = (result: OfferwallResult) => { if (!result.ok) attempt?.fail(result.reason); error.current?.(result); };
     try {
       const native = sdk();
-      if (!native) { error.current?.(pending()); return; }
+      if (!native) { fail(pending()); return; }
       if (!user(native, usn)) {
-        error.current?.({ ok: false, reason: 'invalid_usn', message: '회원 정보를 확인해 주세요' });
+        fail({ ok: false, reason: 'invalid_usn', message: '회원 정보를 확인해 주세요' });
         return;
       }
       const rn = require('react-native');
-      if (!rn.UIManager.getViewManagerConfig('JCurveOfferwallView')) { error.current?.(pending()); return; }
+      if (!rn.UIManager.getViewManagerConfig('JCurveOfferwallView')) { fail(pending()); return; }
       embeddedView ??= rn.requireNativeComponent('JCurveOfferwallView');
       setReadyUsn(usn);
     } catch {
-      error.current?.({ ok: false, reason: 'sdk_error', message: '잠시 후 다시 시도해 주세요' });
+      fail({ ok: false, reason: 'sdk_error', message: '잠시 후 다시 시도해 주세요' });
     }
-  }, [usn]);
+    const unsubscribe = funnel ? onOfferwallClosed(() => funnel.close('sdk_close')) : () => {};
+    return () => {
+      unsubscribe();
+      if (record) record.live = false;
+      Promise.resolve().then(() => {
+        if (record && !record.live) { record.attempt.fail('cancelled'); if (telemetry.current === record) telemetry.current = null; }
+      });
+    };
+  }, [usn, funnel]);
   if (readyUsn !== usn || !embeddedView) return null;
-  return React.createElement(embeddedView, { usn, style: [{ flex: 1 }, style], onLoaded });
+  return React.createElement(embeddedView, { usn, style: [{ flex: 1 }, style], onLoaded: () => { telemetry.current?.attempt.loaded(); onLoaded?.(); } });
 }

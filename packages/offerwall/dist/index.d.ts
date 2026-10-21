@@ -1,3 +1,5 @@
+export * from './funnel';
+import type { ChanceFunnel } from './funnel';
 /** Native SDK is required lazily: importing this package works before keys/SDK exist. */
 export type OfferwallResult = {
     ok: true;
@@ -73,11 +75,11 @@ export declare function onOfferwallClosed(callback: () => void): () => void;
 /** Stable callback recommended. Closing the SDK is a good time to refresh server balance. */
 export declare function useOfferwallClosed(callback: () => void): void;
 export type OfferwallViewProps = {
+    funnel?: ChanceFunnel;
     usn: string;
     style?: import('react-native').StyleProp<import('react-native').ViewStyle>;
     onLoaded?: () => void;
     onError?: (result: OfferwallResult) => void;
 };
 /** SDK ViewType list. Mount only after initializeOfferwall succeeds; unmount on exit/logout. */
-export declare function OfferwallView({ usn, style, onLoaded, onError }: OfferwallViewProps): import('react').ReactElement | null;
-export {};
+export declare function OfferwallView({ usn, style, onLoaded, onError, funnel }: OfferwallViewProps): import('react').ReactElement | null;

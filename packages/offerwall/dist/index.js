@@ -1,4 +1,18 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.OFFERWALL_KEYS_MARK = void 0;
 exports.resetOfferwall = resetOfferwall;
@@ -11,6 +25,7 @@ exports.getOfferwallTotalRewardInfo = getOfferwallTotalRewardInfo;
 exports.onOfferwallClosed = onOfferwallClosed;
 exports.useOfferwallClosed = useOfferwallClosed;
 exports.OfferwallView = OfferwallView;
+__exportStar(require("./funnel"), exports);
 const pending = () => ({ ok: false, reason: 'not_ready', message: '준비 중' });
 let config;
 let serverConfig;
@@ -257,36 +272,60 @@ function useOfferwallClosed(callback) {
 }
 let embeddedView;
 /** SDK ViewType list. Mount only after initializeOfferwall succeeds; unmount on exit/logout. */
-function OfferwallView({ usn, style, onLoaded, onError }) {
+function OfferwallView({ usn, style, onLoaded, onError, funnel }) {
     const React = require('react');
     const [readyUsn, setReadyUsn] = React.useState(null);
+    const telemetry = React.useRef(null);
     const error = React.useRef(onError);
     error.current = onError;
     React.useEffect(() => {
         setReadyUsn(null);
+        if (funnel && (telemetry.current?.usn !== usn || telemetry.current?.owner !== funnel)) {
+            telemetry.current?.attempt.fail('cancelled');
+            telemetry.current = { usn, owner: funnel, attempt: funnel.begin(require('react-native').Platform.OS), live: true };
+        }
+        const record = telemetry.current;
+        if (record)
+            record.live = true;
+        const attempt = record?.attempt;
+        const fail = (result) => { if (!result.ok)
+            attempt?.fail(result.reason); error.current?.(result); };
         try {
             const native = sdk();
             if (!native) {
-                error.current?.(pending());
+                fail(pending());
                 return;
             }
             if (!user(native, usn)) {
-                error.current?.({ ok: false, reason: 'invalid_usn', message: '회원 정보를 확인해 주세요' });
+                fail({ ok: false, reason: 'invalid_usn', message: '회원 정보를 확인해 주세요' });
                 return;
             }
             const rn = require('react-native');
             if (!rn.UIManager.getViewManagerConfig('JCurveOfferwallView')) {
-                error.current?.(pending());
+                fail(pending());
                 return;
             }
             embeddedView ?? (embeddedView = rn.requireNativeComponent('JCurveOfferwallView'));
             setReadyUsn(usn);
         }
         catch {
-            error.current?.({ ok: false, reason: 'sdk_error', message: '잠시 후 다시 시도해 주세요' });
+            fail({ ok: false, reason: 'sdk_error', message: '잠시 후 다시 시도해 주세요' });
         }
-    }, [usn]);
+        const unsubscribe = funnel ? onOfferwallClosed(() => funnel.close('sdk_close')) : () => { };
+        return () => {
+            unsubscribe();
+            if (record)
+                record.live = false;
+            Promise.resolve().then(() => {
+                if (record && !record.live) {
+                    record.attempt.fail('cancelled');
+                    if (telemetry.current === record)
+                        telemetry.current = null;
+                }
+            });
+        };
+    }, [usn, funnel]);
     if (readyUsn !== usn || !embeddedView)
         return null;
-    return React.createElement(embeddedView, { usn, style: [{ flex: 1 }, style], onLoaded });
+    return React.createElement(embeddedView, { usn, style: [{ flex: 1 }, style], onLoaded: () => { telemetry.current?.attempt.loaded(); onLoaded?.(); } });
 }
