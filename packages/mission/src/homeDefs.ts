@@ -29,9 +29,14 @@ export type HomeContext = {
   pointUnit?: string;
   /** 오늘 걸음 수 — 주면 「오늘 N걸음」, 없으면 「만보기」 */
   steps?: number | null;
-  /** (0.7.7) 걸음 권한이 아직 없다(묻기 전 · 거부) — true 면 걸음 줄 버튼이 「걸음 켜기」(누르면 권한부터 받는다), 아니면 「보상 받기」(대표님 20:11 아이폰 만보기 줄) */
+  /**
+   * (0.4.10) 걸음 권한이 없다 — `true` 일 때만 걸음 줄 버튼이 「걸음 켜기」(아니면 「보상 받기」). 앱이 권한 상태를 보고 넘긴다(대표님 20:11 아이폰 만보기 줄).
+   * 제목 · 부제 · 아이콘 · 바탕색은 그대로, 다른 줄은 영향 없음. 서버 home_rows 가 걸음 줄 `button` 을 적어 두면 그 값이 덮는다(서버 규칙 그대로)
+   */
   stepsNeedsPermission?: boolean;
-  /** (0.7.8) 오늘 출석을 이미 했다 — `=== true` 일 때만 출석 줄이 완료 모양(회색 · 「출석 완료」, 다른 줄의 done 과 같음) */
+  /**
+   * (0.4.11) 오늘 출석을 마쳤다 — `=== true` 일 때만 출석 줄이 완료 모양(`done` + 버튼 「출석 완료」, 다른 줄 done 과 같은 회색). 제목 · 부제 · 아이콘 · 바탕색은 그대로, 다른 값은 완료로 안 읽는다
+   */
   checkinDone?: boolean;
   /** 무료 아이템 줄 — 하루 방문 칸 수(기본 3) · 남은 칸(left) · 받은 횟수(received) */
   free?: { total?: number; left?: number; received?: number; claimableNow?: boolean };
@@ -47,6 +52,9 @@ export type HomeContext = {
    */
   tints?: Partial<Record<'steps' | 'free_item' | 'ad_item' | 'recommend', string>>;
 };
+
+/** 걸음 권한이 없을 때 걸음 줄 버튼 글자(stepsNeedsPermission) */
+export const STEPS_PERMISSION_LABEL = '걸음 켜기';
 
 const DEFAULT_NAME = '포인트';
 /** 당근의 soft 주황(carrotSoft) — 걸음 · 추천 줄 바탕. 당근 theme.ts(814f2f4) 값 */
@@ -70,15 +78,10 @@ const LOOK: Record<HomeRowKey, { icon: BenefitQuickItem['icon']; tint: string; c
 
 /** 무료 아이템 줄의 완료 버튼 글자 — 방문형이라 오늘 칸이 끝나면 「내일 다시」(대표님 10-20 19:01) */
 export const FREE_DONE_LABEL = '내일 다시';
-
-/** 출석을 이미 했을 때 출석 줄의 완료 버튼 글자(0.7.8) */
+/** 출석을 마친 출석 줄의 버튼 글자(checkinDone) */
 export const CHECKIN_DONE_LABEL = '출석 완료';
-
-/** 지금 받을 수 있는 칸이 있을 때 무료 아이템 줄의 배지(0.7.8) — 서버 home_rows 에 배지가 있으면 서버 값이 우선 */
+/** 지금 받을 수 있는 칸이 있을 때 무료 아이템 줄 배지(free.claimableNow) — 서버 home_rows 의 badge 가 있으면 서버 값이 이긴다 */
 export const FREE_NOW_BADGE = '지금 받기';
-
-/** 걸음 권한이 없을 때 걸음 줄의 버튼 글자(0.7.7) */
-export const STEPS_PERMISSION_LABEL = '걸음 켜기';
 
 /** 무료 아이템 줄 상태 — 막대(받은 횟수) · 글자 · 완료. 0.7.4 freeItemRow 와 같은 규칙(이 파일 안에서 끝낸다) */
 function freeState(total: number, left: number | undefined, received: number | undefined): Pick<BenefitQuickItem, 'done' | 'progress' | 'progressLabel'> {
@@ -133,14 +136,14 @@ export function homeItem(key: HomeRowKey, c: HomeContext, onPress: () => void): 
   const themed = key === 'steps' || key === 'free_item' || key === 'ad_item' || key === 'recommend' ? c.tints?.[key]?.trim() : undefined;
   const ctaLabel = key === 'steps' && c.stepsNeedsPermission === true ? STEPS_PERMISSION_LABEL : look.ctaLabel;
   const item: BenefitQuickItem = { key, title, subtitle, ctaLabel, icon, tint: themed || look.tint, onPress };
+  if (key === 'checkin' && c.checkinDone === true) {
+    return { ...item, done: true, doneLabel: CHECKIN_DONE_LABEL };
+  }
   if (key === 'free_item') {
     const state = freeState(Math.max(1, Math.floor(c.free?.total ?? 3)), c.free?.left, c.free?.received);
-    // 지금 받을 수 있는 칸이 있고 아직 끝나지 않았을 때만 「지금 받기」 배지(0.7.8)
-    const now = c.free?.claimableNow === true && state.done !== true;
 
-    return { ...item, doneLabel: FREE_DONE_LABEL, ...state, ...(now ? { badge: FREE_NOW_BADGE } : {}) };
+    return { ...item, doneLabel: FREE_DONE_LABEL, ...state, ...(c.free?.claimableNow === true && !state.done ? { badge: FREE_NOW_BADGE } : {}) };
   }
-  if (key === 'checkin' && c.checkinDone === true) return { ...item, done: true, doneLabel: CHECKIN_DONE_LABEL };
   if (key === 'today_missions' && c.todayMissions?.progress) {
     return { ...item, progress: c.todayMissions.progress, ...(c.todayMissions.progressLabel ? { progressLabel: c.todayMissions.progressLabel } : {}) };
   }

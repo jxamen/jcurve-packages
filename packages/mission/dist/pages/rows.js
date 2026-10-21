@@ -2,10 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.freeItemRow = freeItemRow;
 exports.appHubRow = appHubRow;
-/**
- * 「무료 {item} 받기 · 하루 3번 들르면 {item} 받기 [받기]」 줄 — carrot 홈 freeHeart 줄과 같은 모양.
- * 부제 기본은 **방문형** 「하루 N번 들르면 ○○ 받기」(0.7.1, 대표님 10-20 — 당근 문구). 광고형 앱은 `subtitle` 로 바꾼다(예: 「하루 3번 광고 없이 받기」).
- */
+/** 「무료 {item} 받기 · 하루 3번 광고 없이 받기 [받기]」 줄 — carrot 홈 freeHeart 줄과 같은 모양 */
 function freeItemRow(args) {
     const total = args.total ?? 3;
     const hasLeft = args.left !== undefined;
@@ -18,7 +15,7 @@ function freeItemRow(args) {
     return {
         key: args.key ?? 'freeItem',
         title: `무료 ${args.itemName} 받기`,
-        subtitle: args.subtitle ?? `하루 ${total}번 들르면 ${args.itemName} 받기`,
+        subtitle: `하루 ${total}번 광고 없이 받기`,
         ctaLabel: '받기',
         icon: args.icon ?? '🌱',
         tint: args.tint ?? '#FDE6D6',

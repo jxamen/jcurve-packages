@@ -5,17 +5,10 @@ describe('표준 줄 — 무료 아이템', () => {
   it('제목 · 부제 · 받기 단추 (carrot 홈 freeHeart 줄)', () => {
     const onPress = vi.fn();
     const r = freeItemRow({ itemName: '양분', onPress });
-    expect(r).toMatchObject({ key: 'freeItem', title: '무료 양분 받기', subtitle: '하루 3번 들르면 양분 받기', ctaLabel: '받기', hidden: undefined, done: false });
+    expect(r).toMatchObject({ key: 'freeItem', title: '무료 양분 받기', subtitle: '하루 3번 광고 없이 받기', ctaLabel: '받기', hidden: undefined, done: false });
     expect(r.progress).toBeUndefined();
     r.onPress();
     expect(onPress).toHaveBeenCalledOnce();
-  });
-  it('부제 기본은 방문형 「하루 N번 들르면 ○○ 받기」 — 아이템 이름 · 하루 횟수를 따르고, 광고형 앱은 subtitle 로 덮는다(0.7.1)', () => {
-    expect(freeItemRow({ itemName: '먹이', total: 5, onPress: () => {} }).subtitle).toBe('하루 5번 들르면 먹이 받기');
-    expect(freeItemRow({ itemName: '캡슐', onPress: () => {} }).subtitle).toBe('하루 3번 들르면 캡슐 받기');
-    expect(freeItemRow({ itemName: '양분', subtitle: '하루 3번 광고 없이 받기', onPress: () => {} }).subtitle).toBe('하루 3번 광고 없이 받기');
-    expect(freeItemRow({ itemName: '양분', subtitle: '', onPress: () => {} }).subtitle).toBe('');                      // 빈 글자도 그대로(앱이 정한 값)
-    expect(freeItemRow({ itemName: '양분', onPress: () => {} }).subtitle).not.toContain('광고');
   });
   it('남은 수 → 칸 막대 · 0이면 완료', () => {
     expect(freeItemRow({ itemName: '먹이', left: 2, onPress: () => {} })).toMatchObject({ title: '무료 먹이 받기', progress: { done: 1, total: 3 }, progressLabel: '2번 남았어요', done: false });

@@ -71,9 +71,11 @@ export type BenefitQuickListProps = {
     /** (0.4.6) 저장 키 — 기본 'jcurve.mission.home.v1'. 서버 · 계정마다 다른 목록을 쓰는 앱만 바꾼다 */
     storageKey?: string;
 };
+/** Pure RN shapes: no additional native dependency. Supply a ReactNode for branded icons. */
 /**
- * 아이콘 종류(0.7.9) — 'palette' 는 위 기본 그림 이름, 'text' 는 그 밖의 글자(이모지 👟 🌱 등), 'node' 는 앱이 넘긴 ReactNode.
- * RN 은 `<View>` 안의 글자를 그리지 않는다(iOS 빈 칸 · Android 오류) — 0.7.5~0.7.8 감자밭 「오늘 N걸음」 줄 아이콘이 빈 칸이던 원인(대표님 20:5x 캡처). 'text' 는 `<Text>` 로 감싼다
+ * (0.4.12) 아이콘이 어떻게 그려지는가 — 'palette'(패키지가 그리는 6개 이름), 'text'(그 밖의 글자: 👟 · 🌱 같은 이모지), 'node'(앱이 넘긴 ReactNode).
+ * 0.4.12 전에는 팔레트 이름이 아닌 문자열을 `<Text>` 없이 `<View>` 안에 그대로 내보내 RN 이 그리지 못했다 — 홈 목록의 걸음(👟) · 무료 아이템(🌱) 줄 아이콘이 빈 칸(대표님 10-20 감자밭).
+ * 팔레트 판정은 자기 키만 본다('toString' 같은 문자열이 팔레트로 읽히지 않게).
  */
 export declare function iconKind(icon: BenefitQuickItem['icon']): 'palette' | 'text' | 'node';
 /** 빠른 두 번 누름을 막는 시간(0.4.3) — 잠금 상태가 없어 영영 남을 수 없다. 이 시간이 지나면 다음 누름은 늘 들어간다 */
