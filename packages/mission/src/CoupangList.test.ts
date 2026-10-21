@@ -12,7 +12,7 @@ describe('Coupang row mounted in BenefitQuickList', () => {
   it('hides denied/off config, shows disclosure, and uses the real AppState subscription once', async () => {
     let enabled = false, done = false;
     const request = vi.fn(async (path: string) => {
-      if (path === 'mission/home') return { home_rows: [] };
+      if (path === 'mission/home') return { ok: true, rows: [{ key: 'coupang_visit', visible: true, order: 10 }] };
       if (path === 'coupang/config') return { ok: true, enabled, test_only: true, visited_today: done };
       if (path.endsWith('/start')) return { ok: true, visit_id: 'v1', deep_link: 'https://www.coupang.com/' };
       if (path.endsWith('/complete')) { done = true; return { ok: true, gained: 1 }; }
@@ -42,7 +42,7 @@ describe('Coupang uses the existing admin home row', () => {
   it('obeys order, text, hidden and removed rows while preserving disclosure and authorization', async () => {
     resetHomeConfig();
     let enabled = true;
-    let rows: unknown[] = [
+    let rows: unknown[] | null = [
       { key: 'coupang_visit', title: '', visible: true, order: 10 },
       { key: 'checkin', title: '출석', visible: true, order: 20 },
     ];
@@ -67,6 +67,9 @@ describe('Coupang uses the existing admin home row', () => {
     rows = [];
     resetHomeConfig();
     await act(async () => { tree.update(React.createElement(BenefitQuickList, { ...props, refreshKey: 3 })); });
+    expect(snapshot()).not.toContain(COUPANG_DISCLOSURE);
+    rows = null; resetHomeConfig();
+    await act(async () => { tree.update(React.createElement(BenefitQuickList, { ...props, refreshKey: 'missing' })); });
     expect(snapshot()).not.toContain(COUPANG_DISCLOSURE);
     rows = [{ key: 'coupang_visit', title: '쿠팡 혜택', visible: true, order: 10 }]; enabled = false;
     resetHomeConfig();

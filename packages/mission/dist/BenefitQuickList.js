@@ -102,7 +102,7 @@ function ServerRowsList({ fetchJson, homeKeys, onRow, refreshKey, storage, stora
     const key = (0, react_1.useMemo)(() => [refreshKey, tick], [refreshKey, tick]);
     const { config, ready } = (0, useHomeConfig_1.useHomeConfig)(fetchJson, key, storage, storageKey);
     // The server gate and the existing home-row toggle must both allow the row.
-    const showCoupang = coupang.visible && (config.rows === null || config.rows.some(r => r.key === 'coupang_visit' && r.visible));
+    const showCoupang = coupang.visible && config.rows?.some(r => r.key === 'coupang_visit' && r.visible) === true;
     const base = (0, react_1.useMemo)(() => {
         const next = items.filter(item => item.key !== 'coupang' && item.key !== 'coupang_visit');
         if (showCoupang)
