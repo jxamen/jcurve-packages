@@ -1,0 +1,49 @@
+{
+  "name": "@jcurve/mission",
+  "version": "0.4.17",
+  "description": "공용 미션 카드 페이지 · 쇼핑 미션 화면 · APIHUB 웹뷰와 브릿지",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-native": ">=0.74",
+    "react-native-webview": ">=13",
+    "@jcurve/overlay": ">=0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "react-native": {
+      "optional": true
+    },
+    "react-native-webview": {
+      "optional": true
+    },
+    "@jcurve/overlay": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.0",
+    "react": "^19.2.0",
+    "react-native": "^0.86.3",
+    "react-native-webview": "^13.16.0",
+    "typescript": "~5.9.2",
+    "vitest": "^3.2.4",
+    "react-test-renderer": "^19.2.0"
+  },
+  "license": "UNLICENSED",
+  "private": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jxamen/jcurve-packages",
+    "directory": "packages/mission"
+  }
+}
