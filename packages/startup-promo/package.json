@@ -1,0 +1,16 @@
+{
+  "name": "@jcurve/startup-promo",
+  "version": "0.1.0",
+  "main": "index.ts",
+  "types": "index.ts",
+  "private": false,
+  "files": [
+    "*.ts",
+    "*.tsx"
+  ],
+  "peerDependencies": {
+    "react": ">=19",
+    "react-native": ">=0.81",
+    "react-native-safe-area-context": ">=5"
+  }
+}
