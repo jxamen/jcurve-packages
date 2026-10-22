@@ -135,3 +135,11 @@ OTA 발행 환경에 ADPOPCORN_* 가 없어 manifest `extra.jcurveOfferwall` 키
 - 네이티브 변경 없음(0.2.1 과 같은 android · ios · plugin). OTA 로 바로 적용된다.
 
 앱 키 가드는 `builtAndroidKey()` 를 `builtOfferwallKeys().appKey` 로 바꾼다.
+
+## 0.2.3 — 공용 찬스 탭 화면
+
+`OfferwallScreen({usn, onClose, onRetry, loadingColor?, topInset?})`가 헤더 없는 찬스 화면을 제공합니다.
+앱의 복제된 화면 대신 이 컴포넌트로 연결합니다. 기존 로딩, 20초 시간 초과, 재시도와 Android 뒤로가기를 유지합니다.
+상태 표시줄과 하단 탭의 safe area는 호스트 책임입니다. 호스트가 상단 inset을 적용하지 않을 때만 topInset을 전달합니다(기본 0, 이중 여백 방지).
+애드팝콘 SDK 화면과 그 내부 광고 표시는 수정하지 않습니다. 앱 자체의 ‹ / 찬스 / 광고 머리줄만 없습니다.
+네이티브/플러그인 변경 없음. 심사 중 런타임에는 시험판 포함 OTA 발행 금지.

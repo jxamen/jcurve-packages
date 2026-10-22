@@ -239,3 +239,6 @@ export function OfferwallView({ usn, style, onLoaded, onError }: OfferwallViewPr
   if (readyUsn !== usn || !embeddedView) return null;
   return React.createElement(embeddedView, { usn, style: [{ flex: 1 }, style], onLoaded });
 }
+
+export { OfferwallScreen, OFFERWALL_SCREEN_MARK } from './OfferwallScreen';
+export type { OfferwallScreenProps } from './OfferwallScreen';

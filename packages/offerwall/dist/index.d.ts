@@ -80,4 +80,5 @@ export type OfferwallViewProps = {
 };
 /** SDK ViewType list. Mount only after initializeOfferwall succeeds; unmount on exit/logout. */
 export declare function OfferwallView({ usn, style, onLoaded, onError }: OfferwallViewProps): import('react').ReactElement | null;
-export {};
+export { OfferwallScreen, OFFERWALL_SCREEN_MARK } from './OfferwallScreen';
+export type { OfferwallScreenProps } from './OfferwallScreen';

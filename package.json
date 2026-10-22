@@ -1,7 +1,9 @@
 {
   "name": "jcurve-packages",
   "private": true,
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "test": "npm run test --workspaces --if-present"
@@ -9,6 +11,8 @@
   "devDependencies": {
     "typescript": "~5.9.2",
     "vitest": "^3.2.4",
-    "@types/node": "^22.10.2"
+    "@types/node": "^22.10.2",
+    "react": "19.2.3",
+    "react-test-renderer": "19.2.3"
   }
 }
