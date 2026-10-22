@@ -43,7 +43,6 @@ const react_1 = __importStar(require("react"));
 const react_native_1 = require("react-native");
 const home_1 = require("./home");
 const useHomeConfig_1 = require("./useHomeConfig");
-const NewspicSection_1 = require("./NewspicSection");
 const useCoupangVisit_1 = require("./useCoupangVisit");
 const coupang_1 = require("./coupang");
 const homeDefs_1 = require("./homeDefs");
@@ -118,7 +117,7 @@ function ServerRowsList({ fetchJson, homeKeys, onRow, refreshKey, storage, stora
     // (0.4.6) 저장소를 쓰면 저장값을 읽을 때까지(최대 300ms) 그리지 않는다 — 앱 기본 순서를 잠깐 그렸다가 서버 순서로 바꾸지 않으려고. 저장소가 없으면 ready 는 늘 true
     if (!ready)
         return null;
-    return (0, jsx_runtime_1.jsxs)(react_native_1.View, { children: [(0, jsx_runtime_1.jsx)(NewspicSection_1.NewspicSection, { fetchJson: fetchJson, refreshKey: refreshKey }), (0, jsx_runtime_1.jsx)(QuickListView, { ...view, items: merged }), coupang.toast ? (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.toast, accessibilityLiveRegion: "polite", children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: s.toastText, children: coupang.toast }) }) : null] });
+    return (0, jsx_runtime_1.jsxs)(react_native_1.View, { children: [(0, jsx_runtime_1.jsx)(QuickListView, { ...view, items: merged }), coupang.toast ? (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.toast, accessibilityLiveRegion: "polite", children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: s.toastText, children: coupang.toast }) }) : null] });
 }
 /**
  * 「바로 받는 혜택」 목록. (0.4.4) `fetchJson` 을 주면 서버 home_rows 를 스스로 적용하고, `onFreeItem` 을 주면 free_item 기본 줄이 생긴다 — 둘 다 없으면 0.4.3 과 똑같이 그린다.

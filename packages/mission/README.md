@@ -394,3 +394,6 @@ home_rows 가 없거나 읽기에 실패하면 **앱 기본 그대로**(60초 �
 ## 0.7.15 — 뉴스픽 읽을거리
 
 GET newspic/feed의 서버 권한에 따라 표시합니다. 기본 꺼짐, 시험 회원만. 공유 링크와 승인된 메타데이터만 사용하며 보상 요청은 없습니다. 광고 · 제휴 표시, 위아래 80px 분리, 누를 때만 외부 Linking.openURL. 등록 콘텐츠 없음은 설정 필요. 부모 계정 변경 시 기존 MemberBenefitQuickList key가 권한 상태를 초기화합니다. API·RSS 자동 수집은 공식 명세 미확인으로 구현하지 않습니다.
+
+## 0.7.15-apptech.1 — Apptech home removal
+BenefitQuickList no longer mounts or requests Newspic. The exported NewspicSection and server API remain available for a separate Eorok integration. Do not reconnect reading content to apptech homes. Base: 0.7.15; no other feature changes.
