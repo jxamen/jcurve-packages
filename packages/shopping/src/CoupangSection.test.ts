@@ -4,7 +4,7 @@ import { describe, it, expect, vi } from 'vitest';
 const native = vi.hoisted(() => ({ open: vi.fn(async () => {}) }));
 vi.mock('react-native', () => ({ View: 'View', Text: 'Text', TextInput: 'TextInput', Pressable: 'Pressable', ScrollView: 'ScrollView', Image: 'Image', ActivityIndicator: 'ActivityIndicator',
   StyleSheet: { create: (s: unknown) => s }, useWindowDimensions: () => ({ width: 390 }), PixelRatio: { get: () => 1 }, Linking: { openURL: native.open }, AppState: { addEventListener: () => ({ remove() {} }) } }));
-import { CoupangSection } from './CoupangSection';
+import { CoupangSection, CoupangProductsView } from './CoupangSection';
 import { COUPANG_DISCLOSURE, createCoupangApi, parseCoupangProducts } from './coupang';
 import { DEFAULT_THEME } from './types';
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
@@ -42,5 +42,25 @@ describe('Coupang shopping section', () => {
   it('preserves missing-key message and rejects malformed product links', () => {
     expect(parseCoupangProducts({ products: [], status: 'configuration_required', message: '설정 필요' })).toEqual({ products: [], status: 'configuration_required', message: '설정 필요' });
     expect(parseCoupangProducts({ products: [{ product_id: 1, name: 'x', deep_link: 'https://evil.com/' }] }).products).toEqual([]);
+  });
+});
+
+describe('unavailable catalog is never a customer-facing section', () => {
+  it.each(['configuration_required', 'empty', 'failed'])('omits disclosure, title, search and chips for %s', async status => {
+    const api: any = { config: async () => ({ enabled: true }), products: async () => {
+      if (status === 'failed') throw new Error('offline');
+      return { products: [], status, message: '설정 필요' };
+    }, click: vi.fn() };
+    let tree: any;
+    await act(async () => { tree = create(React.createElement(CoupangSection, { api, theme: DEFAULT_THEME })); });
+    expect(tree.toJSON()).toBeNull();
+    await act(async () => tree.unmount());
+  });
+  it('omits an empty filtered result instead of rendering raw server text', async () => {
+    const api: any = { products: async () => ({ products: [], message: '설정 필요' }), click: vi.fn() };
+    let tree: any;
+    await act(async () => { tree = create(React.createElement(CoupangProductsView, { api, config: { enabled: true, test_only: false }, theme: DEFAULT_THEME })); });
+    expect(tree.toJSON()).toBeNull();
+    await act(async () => tree.unmount());
   });
 });

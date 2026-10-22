@@ -5,8 +5,10 @@ import { Chips, EmptyProducts, PartnerIntro, ProductGrid, ThemeRow } from './par
 import { GUTTER, SECTION_GAP } from './layout';
 import type { Product, ShoppingTheme } from './types';
 
+type AvailableCoupangConfig = CoupangConfig & { initialProducts?: CoupangProducts };
+
 export function useCoupangConfig(api?: CoupangApi) {
-  const [result, setResult] = useState<{ owner: CoupangApi; config: CoupangConfig } | null>(null);
+  const [result, setResult] = useState<{ owner: CoupangApi; config: AvailableCoupangConfig } | null>(null);
   const [tick, setTick] = useState(0);
   useEffect(() => {
     if (!api) return;
@@ -15,7 +17,20 @@ export function useCoupangConfig(api?: CoupangApi) {
   }, [api]);
   useEffect(() => {
     let live = true;
-    if (api) api.config().then(config => { if (live) setResult({ owner: api, config }); }).catch(() => { if (live) setResult(null); });
+    setResult(null);
+    async function load() {
+      if (!api) return;
+      try {
+        const config = await api.config();
+        if (!live || !config.enabled) return;
+        const initialProducts = await api.products({ keyword: '', category: config.categories?.[0]?.id || COUPANG_CATEGORIES[0].id });
+        // Configuration may be enabled before credentials/catalog are ready.
+        if (live && initialProducts.status !== 'configuration_required' && initialProducts.products.length > 0) {
+          setResult({ owner: api, config: { ...config, initialProducts } });
+        }
+      } catch { if (live) setResult(null); }
+    }
+    void load();
     return () => { live = false; };
   }, [api, tick]);
   return api && result?.owner === api && result.config.enabled ? result.config : null;
@@ -26,7 +41,7 @@ export function CoupangSection({ api, theme }: { api?: CoupangApi; theme: Shoppi
   return api && config ? <CoupangProductsView api={api} config={config} theme={theme} /> : null;
 }
 
-export function CoupangProductsView({ api, config, theme }: { api: CoupangApi; config: CoupangConfig; theme: ShoppingTheme }) {
+export function CoupangProductsView({ api, config, theme }: { api: CoupangApi; config: AvailableCoupangConfig; theme: ShoppingTheme }) {
   const [keyword, setKeyword] = useState('');
   const [query, setQuery] = useState({ keyword: '', category: '' });
   const defaultCategory = config.categories?.[0]?.id || COUPANG_CATEGORIES[0].id;
@@ -38,9 +53,12 @@ export function CoupangProductsView({ api, config, theme }: { api: CoupangApi; c
   useEffect(() => {
     let live = true;
     setPage(null); setFailed(false);
-    api.products({ ...query, category: query.category || (query.keyword ? '' : defaultCategory) }).then(value => { if (live) setPage(value); }).catch(() => { if (live) setFailed(true); });
+    const request = !query.keyword && !query.category && revision === 0 && config.initialProducts
+      ? Promise.resolve(config.initialProducts)
+      : api.products({ ...query, category: query.category || (query.keyword ? '' : defaultCategory) });
+    request.then(value => { if (live) setPage(value); }).catch(() => { if (live) setFailed(true); });
     return () => { live = false; };
-  }, [api, query, revision, defaultCategory]);
+  }, [api, query, revision, defaultCategory, config.initialProducts]);
   async function open(product: CoupangProduct) {
     if (opening || !isCoupangUrl(product.deep_link)) return;
     setOpening(true); setLinkError(false);
@@ -58,7 +76,8 @@ export function CoupangProductsView({ api, config, theme }: { api: CoupangApi; c
     : !items.length ? <EmptyProducts theme={theme} partner={{ name: '쿠팡' }} />
     : browsing ? <ThemeRow section={{ id: 'coupang', title: '쿠팡 상품 둘러보기', items }} theme={theme} onPress={onProduct} />
     : <ProductGrid items={items} theme={theme} onPress={onProduct} />;
-  return <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingTop: SECTION_GAP, paddingBottom: 40, gap: SECTION_GAP }}>
+  if (!config.enabled || failed || !page || page.status === 'configuration_required' || !items.length) return null;
+  return <ScrollView testID="coupang-products-section" showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingTop: SECTION_GAP, paddingBottom: 40, gap: SECTION_GAP }}>
     <PartnerIntro partner={{ id: 'coupang', name: '쿠팡', rateText: '쿠팡 상품 둘러보기', rewardKind: 'none', disclosure: COUPANG_DISCLOSURE }} text="쿠팡 상품 둘러보기" theme={theme} />
     {browsing ? products : null}
     <View style={{ marginHorizontal: GUTTER, height: 44, borderRadius: 12, backgroundColor: theme.chipBg, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, gap: 8 }}>

@@ -12,7 +12,7 @@ import { Chips, ProductGrid, PartnerCard, EmptyProducts } from './parts';
 
 it('gates the tab, uses one all-tab card, shares chips/grid, and confines disclosure to Coupang', async () => {
   let enabled = true;
-  const products = vi.fn(async () => ({ products: [], status: 'configuration_required', message: '설정 필요' }));
+  const products = vi.fn(async () => ({ products: [{ product_id: '123', name: '예시 상품', price: 1000, deep_link: 'https://link.coupang.com/a/test' }] }));
   const api: any = { home: async () => ({ partners: [{ id: 'toss', name: '토스쇼핑', rewardKind: 'none', rateText: '토스 상품' }] }),
     categories: async () => [], products: async () => ({ items: [] }), deals: async () => null, notice: async () => [],
     coupang: { config: async () => ({ enabled, categories: [{ id: '1012', name: '식품' }] }), products, click: vi.fn() } };
@@ -23,10 +23,10 @@ it('gates the tab, uses one all-tab card, shares chips/grid, and confines disclo
   expect(tabs().map((n: any) => n.findByType('Text').props.children)).toEqual(['전체', '토스쇼핑', '쿠팡']);
   expect(tree.root.findAllByType(PartnerCard)).toHaveLength(2);
   expect(tree.root.findAllByProps({ testID: 'partner-card-coupang' }).filter((n: any) => n.type === 'Pressable')).toHaveLength(1);
-  expect(products).not.toHaveBeenCalled(); expect(json()).not.toContain(COUPANG_DISCLOSURE);
+  expect(products).toHaveBeenCalledTimes(1); expect(json()).not.toContain(COUPANG_DISCLOSURE);
   await act(async () => tree.root.findByProps({ testID: 'partner-card-coupang' }).props.onPress());
-  expect(json()).toContain('상품 준비 중이에요'); expect(json()).not.toContain('설정 필요');
-  expect(tree.root.findAllByType(EmptyProducts)).toHaveLength(1);
+  expect(json()).toContain('예시 상품'); expect(json()).not.toContain('설정 필요');
+  expect(tree.root.findAllByType(EmptyProducts)).toHaveLength(0);
   expect(tree.root.findAllByType(Chips)).toHaveLength(1);
   expect(json()).toContain(COUPANG_DISCLOSURE);
   await act(async () => tabs()[1].props.onPress());
@@ -35,5 +35,20 @@ it('gates the tab, uses one all-tab card, shares chips/grid, and confines disclo
   enabled = false;
   await act(async () => { native.listeners.forEach(cb => cb('active')); });
   expect(tabs()).toHaveLength(2);
+  await act(async () => tree.unmount());
+});
+
+it.each(['configuration_required', 'empty', 'failed'])('hides every Coupang entry when catalog is %s', async status => {
+  const api: any = { home: async () => ({ partners: [{ id: 'toss', name: '토스쇼핑', rewardKind: 'none' }] }),
+    categories: async () => [], products: async () => ({ items: [] }), deals: async () => null, notice: async () => [],
+    coupang: { config: async () => ({ enabled: true }), products: async () => {
+      if (status === 'failed') throw new Error('offline');
+      return { products: [], status, message: '설정 필요' };
+    }, click: vi.fn() } };
+  let tree: any;
+  await act(async () => { tree = create(React.createElement(ShoppingTab, { api, onOpenUrl: vi.fn() })); });
+  expect(JSON.stringify(tree.toJSON())).not.toContain('쿠팡');
+  expect(JSON.stringify(tree.toJSON())).not.toContain('설정 필요');
+  expect(tree.root.findAllByType(PartnerCard)).toHaveLength(1);
   await act(async () => tree.unmount());
 });
