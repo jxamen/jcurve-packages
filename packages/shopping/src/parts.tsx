@@ -5,26 +5,34 @@ import { productImage } from './image';
 import { countdown, isFiniteNumber, num, realRecent, won } from './format';
 import type { Partner, Deals, Category, NoticeSection, Product, RecentReward, ShoppingTheme, ThemeSection } from './types';
 
-/** Equal-height two-column destination cards; text can grow without clipping. */
-export function PartnerCard({ partner, theme, onPress }: { partner: Partner; theme: ShoppingTheme; onPress: () => void }) {
-  return <Pressable testID={`partner-card-${partner.id}`} accessibilityRole="button" onPress={onPress}
-    style={{ flex: 1, minWidth: 0, minHeight: 104, borderRadius: CARD_RADIUS, padding: 12, backgroundColor: theme.card, justifyContent: 'center', gap: 8 }}>
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-      <PartnerLogo partner={partner} size={28} theme={theme} />
-      <Text style={{ flex: 1, fontSize: 15, lineHeight: 22, fontWeight: '700', color: theme.text }}>{partner.name}</Text>
+/** Shared single-line banner for the All cards and each partner tab. */
+function partnerBannerStyle(theme: ShoppingTheme, compact = false) {
+  return { flexDirection: 'row' as const, alignItems: 'center' as const, gap: compact ? 6 : 10,
+    minHeight: 54, borderRadius: CARD_RADIUS, paddingVertical: CARD_PADDING,
+    paddingHorizontal: compact ? 10 : CARD_PADDING, backgroundColor: theme.chipBg ?? '#F2F4F6' };
+}
+function PartnerBannerContent({ partner, text, theme }: { partner: Partner; text: string; theme: ShoppingTheme }) {
+  return <>
+    <View style={{ width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: partner.name === '쿠팡' ? undefined : theme.primary }}>
+      {partner.name === '쿠팡' || partner.logo ? <PartnerLogo partner={partner} size={22} theme={theme} /> : <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '800' }}>{partner.name.slice(0, 1)}</Text>}
     </View>
-    <Text style={{ fontSize: 12, lineHeight: 18, color: theme.sub }}>{partner.rateText}{partner.rewardKind === 'none' ? '' : ' 적립'}</Text>
+    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}
+      style={{ flex: 1, minWidth: 0, fontSize: 15, lineHeight: 22, fontWeight: '500', color: theme.text }}>{text}</Text>
+  </>;
+}
+export function PartnerCard({ partner, theme, onPress, compact = false }: { partner: Partner; theme: ShoppingTheme; onPress: () => void; compact?: boolean }) {
+  const text = partner.rewardKind === 'none' ? (partner.rateText || `${partner.name}으로 이동`) : `${partner.name} ${partner.rateText} 적립`;
+  return <Pressable testID={`partner-card-${partner.id}`} accessibilityRole="button" accessibilityLabel={text} onPress={onPress}
+    style={[partnerBannerStyle(theme, compact), { flex: 1, minWidth: 0 }]}>
+    <PartnerBannerContent partner={partner} text={text} theme={theme} />
   </Pressable>;
 }
 
 /** Same opening banner and disclosure spacing for Toss and Coupang. */
 export function PartnerIntro({ partner, text, theme, children }: { partner: Partner; text: string; theme: ShoppingTheme; children?: React.ReactNode }) {
   return <View testID="partner-intro">
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: GUTTER, minHeight: 52, borderRadius: CARD_RADIUS, padding: CARD_PADDING, backgroundColor: theme.chipBg ?? '#F2F4F6' }}>
-      <View style={{ width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: partner.name === '쿠팡' ? undefined : theme.primary }}>
-        {partner.name === '쿠팡' || partner.logo ? <PartnerLogo partner={partner} size={22} theme={theme} /> : <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '800' }}>{partner.name.slice(0, 1)}</Text>}
-      </View>
-      <Text style={{ flex: 1, fontSize: 15, lineHeight: 22, fontWeight: '500', color: theme.text }}>{text}</Text>
+    <View style={[partnerBannerStyle(theme), { marginHorizontal: GUTTER }]}>
+      <PartnerBannerContent partner={partner} text={text} theme={theme} />
       {children}
     </View>
     <DisclosureNote text={partner.disclosure} theme={theme} />

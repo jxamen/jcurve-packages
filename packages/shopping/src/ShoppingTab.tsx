@@ -199,7 +199,7 @@ function AllView({ coupang, api, home, theme, onPartner, onOpen }: { coupang: bo
     {Array.from({ length: Math.ceil((home.partners.length + Number(coupang)) / 2) }, (_, row) => {
       const destinations: Partner[] = [...home.partners, ...(coupang ? [{ id: 'coupang', name: '쿠팡', rateText: '쿠팡 상품 둘러보기', rewardKind: 'none' as const }] : [])];
       return <View key={row} testID="partner-card-row" style={{ flexDirection: 'row', alignItems: 'stretch', gap: 12, paddingHorizontal: GUTTER }}>
-        {destinations.slice(row * 2, row * 2 + 2).map(p => <PartnerCard key={p.id} partner={p} theme={theme} onPress={() => onPartner(p.id)} />)}
+        {destinations.slice(row * 2, row * 2 + 2).map(p => <PartnerCard key={p.id} partner={p} compact={destinations.length > 1} theme={theme} onPress={() => onPartner(p.id)} />)}
       </View>;
     })}
     {themes.length ? themes.map(section => <ThemeRow key={section.id} section={section} theme={theme} onPress={onProduct} />) : <>
