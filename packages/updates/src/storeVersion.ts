@@ -61,7 +61,7 @@ export function storeLinks(os: string, p: StorePlatform | undefined): { app: str
     return { app: 'itms-apps://apps.apple.com/app/id' + p.appStoreId, web: 'https://apps.apple.com/kr/app/id' + p.appStoreId };
   }
   if (os === 'android' && p?.package && /^[\w.]+$/.test(p.package)) {
-    return { app: 'market://details?id=' + p.package, web: 'https://play.google.com/store/apps/details?id=' + p.package };
+    return { app: 'https://play.google.com/store/apps/details?id=' + p.package, web: 'https://play.google.com/store/apps/details?id=' + p.package };
   }
   return null;
 }

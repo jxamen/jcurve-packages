@@ -32,7 +32,7 @@ describe('막을까 · 권할까', () => {
 describe('스토어 주소', () => {
   it('App Store 는 앱 번호, Play 는 패키지명으로 만든다', () => {
     expect(storeLinks('ios', { appStoreId: '6804574363' })).toEqual({ app: 'itms-apps://apps.apple.com/app/id6804574363', web: 'https://apps.apple.com/kr/app/id6804574363' });
-    expect(storeLinks('android', { package: 'kr.co.jcurve.eggfarm' })).toEqual({ app: 'market://details?id=kr.co.jcurve.eggfarm', web: 'https://play.google.com/store/apps/details?id=kr.co.jcurve.eggfarm' });
+    expect(storeLinks('android', { package: 'kr.co.jcurve.eggfarm' })).toEqual({ app: 'https://play.google.com/store/apps/details?id=kr.co.jcurve.eggfarm', web: 'https://play.google.com/store/apps/details?id=kr.co.jcurve.eggfarm' });
   });
   it('번호를 모르면 null', () => {
     expect(storeLinks('ios', { appStoreId: null })).toBeNull();
@@ -74,7 +74,7 @@ describe('앱을 켤 때', () => {
     expect(d.alerts[0].buttons.map((b) => b.text)).toEqual(['업데이트']);
     d.alerts[0].buttons[0].onPress!();
     await flush();
-    expect(d.opened).toEqual(['market://details?id=kr.co.jcurve.eggfarm']);
+    expect(d.opened).toEqual(['https://play.google.com/store/apps/details?id=kr.co.jcurve.eggfarm']);
   });
 
   it('강제는 스토어에 다녀오면 10분을 기다리지 않고 다시 뜬다', async () => {
@@ -116,7 +116,7 @@ describe('앱을 켤 때', () => {
     await flush(); await flush();
     d.alerts[0].buttons[0].onPress!();
     for (let i = 0; i < 6; i++) await flush();
-    expect(tried).toEqual(['market://details?id=p.k', 'https://play.google.com/store/apps/details?id=p.k']);
+    expect(tried).toEqual(['https://play.google.com/store/apps/details?id=p.k', 'https://play.google.com/store/apps/details?id=p.k']);
     expect(d.alerts.length).toBeGreaterThanOrEqual(2);
   });
 
@@ -176,5 +176,29 @@ describe('앱을 켤 때', () => {
     device({ dev: () => true }); checkStoreVersion({ fetch });
     await flush();
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('HTTPS-first Android and unchanged iOS update buttons', () => {
+  it.each(['force', 'recommend'])('Android %s opens Play HTTPS first', async (kind) => {
+    const d = device();
+    checkStoreVersion({ fetch: server({ [kind === 'force' ? 'min' : 'recommend']: '2.0.0', package: 'kr.co.jcurve.mintrun' }) });
+    await flush(); await flush();
+    d.alerts[0].buttons.find((b) => b.text === '업데이트')!.onPress!();
+    await flush();
+    expect(d.opened).toEqual(['https://play.google.com/store/apps/details?id=kr.co.jcurve.mintrun']);
+  });
+
+  it.each(['force', 'recommend'])('iOS %s keeps the App Store scheme and HTTPS fallback', async (kind) => {
+    const tried: string[] = [];
+    const d = device({ os: () => 'ios', openURL: async (url) => {
+      tried.push(url);
+      if (url.startsWith('itms-apps:')) throw new Error('app unavailable');
+    } });
+    checkStoreVersion({ fetch: server({}, { [kind === 'force' ? 'min' : 'recommend']: '2.0.0', appStoreId: '6804574363' }) });
+    await flush(); await flush();
+    d.alerts[0].buttons.find((b) => b.text === '업데이트')!.onPress!();
+    await flush();
+    expect(tried).toEqual(['itms-apps://apps.apple.com/app/id6804574363', 'https://apps.apple.com/kr/app/id6804574363']);
   });
 });
