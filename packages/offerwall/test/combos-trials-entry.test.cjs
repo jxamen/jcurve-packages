@@ -180,3 +180,33 @@ test('「무료체험 확인」: the list can fail to load and be retried; a bod
   byLabel(s.again(), '닫기', true).props.onPress();
   assert.equal(texts(s.again()).includes('집핏'), false, 'closed');
 }, NATIVE));
+
+test('chip row: sized to the room between the wall\'s title and the right edge — full words when they fit, 「빨리 모으기」 and 「체험」 on smaller screens; never touching the title (8 apart)', () => {
+  const room = width => width - api.COMBO_CHIP_RIGHT - api.COMBO_TITLE_END - api.COMBO_TITLE_GAP;
+  const rowWidth = fit => {
+    const em = s => [...s].reduce((sum, ch) => sum + (/[가-힣]/.test(ch) ? 0.9 : /\s/.test(ch) ? 0.3 : 0.62), 0);
+    return em(fit.pill.label) * fit.pill.size + 2 * fit.pill.pad + 3 + api.COMBO_CHIP_GAP + em(fit.chip.label) * fit.chip.size + fit.chip.size * 0.6 + 4 + 2 * fit.chip.pad;
+  };
+  const big = api.comboChipFit(430, api.COMBO_CHIP_RIGHT);
+  assert.deepEqual([big.chip.label, big.pill.label], ['포인트 빨리 모으기', '무료체험'], 'a wide phone: both in full');
+  for (const width of [402, 411]) {
+    const fit = api.comboChipFit(width, api.COMBO_CHIP_RIGHT);
+    assert.deepEqual([fit.chip.label, fit.pill.label], ['빨리 모으기', '무료체험'], `${width}: the chip shortens, the button keeps its word`);
+  }
+  const small = api.comboChipFit(360, api.COMBO_CHIP_RIGHT);
+  assert.deepEqual([small.chip.label, small.pill.label], ['빨리 모으기', '체험'], '360: both short');
+  for (const width of [360, 375, 390, 402, 411, 430, 480]) assert.ok(rowWidth(api.comboChipFit(width, api.COMBO_CHIP_RIGHT)) <= room(width), `${width}: the row fits`);
+  assert.equal(api.COMBO_CHIP_GAP, 8);
+});
+
+test('chip row: the button sits right beside the chip (8 apart), and the full names stay for screen readers even when the words are short', () => withReact(async ctx => {
+  const s = await start(ctx, {combos: combosOf({trials: [trialRow('1')]}), extra: {loadTrials: loaded([])}});
+  const tree = s.again();
+  const row = walk(tree).find(n => n.type === 'View' && n.props.style && n.props.style.flexDirection === 'row' && n.props.style.position === 'absolute' && n.props.style.gap === 8);
+  assert.ok(row, 'one row with an 8 point gap');
+  const chip = byLabel(tree, '포인트 빨리 모으기');
+  const pill = byLabel(tree, '무료체험 확인');
+  assert.ok(chip && pill, 'both found by their full names');
+  assert.deepEqual(texts(chip).filter(x => x !== '›' && x !== '✕'), ['빨리 모으기'], 'the harness phone is 400 wide: the short words');
+  assert.deepEqual(texts(pill), ['무료체험']);
+}, NATIVE));

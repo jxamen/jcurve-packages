@@ -26,6 +26,27 @@ export declare function listenForComboRequests(opener: Opener, now?: number): ()
  * ~44 from the right, so a 36-high chip 8 left of the icon is top 6 / right 52. The header stays fixed when the list scrolls.
  */
 export declare const COMBO_CHIP_TOP = 6;
+/** The wall's own title (「리워드 충전소」) ends about this far from the left edge (iPhone 402pt and Galaxy A32 411dp captures: 145~150). */
+export declare const COMBO_TITLE_END = 150;
+/** Space kept between that title and our buttons. */
+export declare const COMBO_TITLE_GAP = 8;
+/** Space between the 「무료체험」 button and the chip. */
+export declare const COMBO_CHIP_GAP = 8;
+/** How a button in the chip row is drawn: its words, font size and side padding. */
+export type ComboChipFit = {
+    label: string;
+    size: number;
+    pad: number;
+};
+/**
+ * 대표님 10/27 22:50: with the 「무료체험」 button beside it the chip must not run into the wall's title on a small phone. Tries these in order and
+ * keeps the first whose row fits between the title (`COMBO_TITLE_END` + 8) and the chip's right edge: both buttons in full, then the chip as
+ * 「빨리 모으기」, then also the button as 「체험」 (the screen reader still hears the full names). `width` is the screen width, `right` the chip's right offset.
+ */
+export declare function comboChipFit(width: number, right: number): {
+    chip: ComboChipFit;
+    pill: ComboChipFit;
+};
 export declare const COMBO_CHIP_RIGHT = 52;
 export declare const COMBO_SHEET_TOP = 52;
 export type ComboChipProps = {
@@ -35,22 +56,23 @@ export type ComboChipProps = {
     top?: number;
     right?: number; /** Animated opacity for the blink (see usePulse). */
     opacity?: import('react-native').Animated.Value; /** drawn to the chip's left in the same row (the 「무료체험 확인」 button) */
-    before?: ReactElement | null; /** a smaller chip, to leave room for `before` */
-    compact?: boolean;
+    before?: ReactElement | null; /** words, size and padding when the row is crowded (see comboChipFit) */
+    fit?: ComboChipFit;
 };
 /**
  * Small chip that floats over the wall's own header row, left of its profile icon. Only the chip is drawn: no band,
  * no padding box, and the wrapper lets touches through everywhere else.
  */
-export declare function ComboChip({ onPress, open, theme, top, right, opacity, before, compact }: ComboChipProps): ReactElement;
+export declare function ComboChip({ onPress, open, theme, top, right, opacity, before, fit }: ComboChipProps): ReactElement;
 /**
  * 「무료체험 확인」 (대표님 10/27 22:11): a small button to the left of the chip that opens the member's own free-trial list. Short on purpose
  * (the wall's title is to its left): white with a yellow rim, so it does not compete with the chip.
  */
-export declare function ComboTrialsChip({ onPress, open, theme }: {
+export declare function ComboTrialsChip({ onPress, open, theme, fit }: {
     onPress: () => void;
     open?: boolean;
     theme?: ComboTheme;
+    fit?: ComboChipFit;
 }): ReactElement;
 export type ComboBannerProps = {
     combos: TodayCombos;

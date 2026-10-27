@@ -1,9 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.COMBO_POPUP_DELAY_MS = exports.COMBO_REFRESH_GAP_MS = exports.COMBO_SIGNAL_REFRESH_MS = exports.COMBO_CLOSED_FAST_MS = exports.COMBO_SHEET_TOP = exports.COMBO_CHIP_RIGHT = exports.COMBO_CHIP_TOP = exports.COMBOS_POPUP_ACTION = exports.COMBOS_ROUTE = void 0;
+exports.COMBO_POPUP_DELAY_MS = exports.COMBO_REFRESH_GAP_MS = exports.COMBO_SIGNAL_REFRESH_MS = exports.COMBO_CLOSED_FAST_MS = exports.COMBO_SHEET_TOP = exports.COMBO_CHIP_RIGHT = exports.COMBO_CHIP_GAP = exports.COMBO_TITLE_GAP = exports.COMBO_TITLE_END = exports.COMBO_CHIP_TOP = exports.COMBOS_POPUP_ACTION = exports.COMBOS_ROUTE = void 0;
 exports.isCombosRoute = isCombosRoute;
 exports.requestOpenCombos = requestOpenCombos;
 exports.listenForComboRequests = listenForComboRequests;
+exports.comboChipFit = comboChipFit;
 exports.ComboChip = ComboChip;
 exports.ComboTrialsChip = ComboTrialsChip;
 exports.ComboBanner = ComboBanner;
@@ -63,13 +64,37 @@ function listenForComboRequests(opener, now = Date.now()) {
  * ~44 from the right, so a 36-high chip 8 left of the icon is top 6 / right 52. The header stays fixed when the list scrolls.
  */
 exports.COMBO_CHIP_TOP = 6;
+/** The wall's own title (「리워드 충전소」) ends about this far from the left edge (iPhone 402pt and Galaxy A32 411dp captures: 145~150). */
+exports.COMBO_TITLE_END = 150;
+/** Space kept between that title and our buttons. */
+exports.COMBO_TITLE_GAP = 8;
+/** Space between the 「무료체험」 button and the chip. */
+exports.COMBO_CHIP_GAP = 8;
+/** Rough text width in points: Hangul about 0.9 em (bold), a space 0.3 em, anything else 0.62 em. */
+const textWidth = (text, size) => [...text].reduce((sum, ch) => sum + (/[\uAC00-\uD7A3]/.test(ch) ? 0.9 : /\s/.test(ch) ? 0.3 : 0.62), 0) * size;
+/**
+ * 대표님 10/27 22:50: with the 「무료체험」 button beside it the chip must not run into the wall's title on a small phone. Tries these in order and
+ * keeps the first whose row fits between the title (`COMBO_TITLE_END` + 8) and the chip's right edge: both buttons in full, then the chip as
+ * 「빨리 모으기」, then also the button as 「체험」 (the screen reader still hears the full names). `width` is the screen width, `right` the chip's right offset.
+ */
+function comboChipFit(width, right) {
+    const room = width - right - exports.COMBO_TITLE_END - exports.COMBO_TITLE_GAP;
+    const options = [
+        { chip: { label: combos_1.COMBO_NAME, size: 14, pad: 11 }, pill: { label: '무료체험', size: 12, pad: 9 } },
+        { chip: { label: combos_1.COMBO_NAME, size: 13, pad: 10 }, pill: { label: '무료체험', size: 12, pad: 9 } },
+        { chip: { label: '빨리 모으기', size: 13, pad: 10 }, pill: { label: '무료체험', size: 12, pad: 9 } },
+        { chip: { label: '빨리 모으기', size: 12, pad: 8 }, pill: { label: '체험', size: 12, pad: 8 } },
+    ];
+    const rowWidth = (o) => (textWidth(o.pill.label, o.pill.size) + 2 * o.pill.pad + 3) + exports.COMBO_CHIP_GAP + (textWidth(o.chip.label, o.chip.size) + o.chip.size * 0.6 + 4 + 2 * o.chip.pad);
+    return options.find(o => rowWidth(o) <= room) ?? options[options.length - 1];
+}
 exports.COMBO_CHIP_RIGHT = 52;
 exports.COMBO_SHEET_TOP = 52;
 /**
  * Small chip that floats over the wall's own header row, left of its profile icon. Only the chip is drawn: no band,
  * no padding box, and the wrapper lets touches through everywhere else.
  */
-function ComboChip({ onPress, open = false, theme = combos_1.DEFAULT_COMBO_THEME, top = exports.COMBO_CHIP_TOP, right = exports.COMBO_CHIP_RIGHT, opacity, before, compact = false }) {
+function ComboChip({ onPress, open = false, theme = combos_1.DEFAULT_COMBO_THEME, top = exports.COMBO_CHIP_TOP, right = exports.COMBO_CHIP_RIGHT, opacity, before, fit }) {
     const React = require('react');
     const { View, Text, Pressable, Animated } = require('react-native');
     const h = React.createElement;
@@ -77,27 +102,27 @@ function ComboChip({ onPress, open = false, theme = combos_1.DEFAULT_COMBO_THEME
     const pressable = h(Pressable, {
         accessibilityRole: 'button', accessibilityLabel: combos_1.COMBO_NAME, accessibilityState: { expanded: open }, onPress, hitSlop: 6,
         style: ({ pressed }) => ({
-            height: 36, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: compact ? 11 : 14, borderRadius: t.radius.chip,
+            height: 36, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: fit ? fit.pad : 14, borderRadius: t.radius.chip,
             backgroundColor: t.accent, opacity: pressed ? 0.8 : 1, ...t.shadow,
         }),
-    }, h(Text, { style: { fontSize: compact ? t.font.small - 1 : t.font.small, fontWeight: '900', color: t.text } }, combos_1.COMBO_NAME), h(Text, { accessible: false, style: { fontSize: compact ? t.font.small - 1 : t.font.small, fontWeight: '900', color: t.accentText } }, open ? '✕' : '›'));
-    return h(View, { pointerEvents: 'box-none', style: { position: 'absolute', top, right, zIndex: 30, elevation: 30, flexDirection: 'row', alignItems: 'center', gap: 5 } }, before ?? null, opacity ? h(Animated.View, { style: { opacity } }, pressable) : pressable);
+    }, h(Text, { numberOfLines: 1, style: { fontSize: fit ? fit.size : t.font.small, fontWeight: '900', color: t.text } }, fit ? fit.label : combos_1.COMBO_NAME), h(Text, { accessible: false, style: { fontSize: fit ? fit.size : t.font.small, fontWeight: '900', color: t.accentText } }, open ? '✕' : '›'));
+    return h(View, { pointerEvents: 'box-none', style: { position: 'absolute', top, right, zIndex: 30, elevation: 30, flexDirection: 'row', alignItems: 'center', gap: exports.COMBO_CHIP_GAP } }, before ?? null, opacity ? h(Animated.View, { style: { opacity } }, pressable) : pressable);
 }
 /**
  * 「무료체험 확인」 (대표님 10/27 22:11): a small button to the left of the chip that opens the member's own free-trial list. Short on purpose
  * (the wall's title is to its left): white with a yellow rim, so it does not compete with the chip.
  */
-function ComboTrialsChip({ onPress, open = false, theme = combos_1.DEFAULT_COMBO_THEME }) {
+function ComboTrialsChip({ onPress, open = false, theme = combos_1.DEFAULT_COMBO_THEME, fit }) {
     const React = require('react');
     const { Text, Pressable } = require('react-native');
     const t = theme;
     return React.createElement(Pressable, {
         key: 'trials-chip', accessibilityRole: 'button', accessibilityLabel: comboTrials_1.COMBO_TRIALS_NAME, accessibilityState: { expanded: open }, onPress, hitSlop: 6,
         style: ({ pressed }) => ({
-            height: 30, paddingHorizontal: 9, borderRadius: t.radius.chip, alignItems: 'center', justifyContent: 'center',
+            height: 30, paddingHorizontal: fit ? fit.pad : 9, borderRadius: t.radius.chip, alignItems: 'center', justifyContent: 'center',
             backgroundColor: open ? t.accentSoft : '#FFFFFF', borderWidth: 1.5, borderColor: t.accent, opacity: pressed ? 0.8 : 1,
         }),
-    }, React.createElement(Text, { style: { fontSize: 12, fontWeight: '900', color: t.accentText } }, '무료체험'));
+    }, React.createElement(Text, { numberOfLines: 1, style: { fontSize: fit ? fit.size : 12, fontWeight: '900', color: t.accentText } }, fit ? fit.label : '무료체험'));
 }
 /** Home banner: the name large, the goal numbers emphasized. */
 function ComboBanner({ combos, onPress, theme = combos_1.DEFAULT_COMBO_THEME, opacity }) {
@@ -245,7 +270,7 @@ function ComboToast({ text, top, theme }) {
  */
 function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combos_1.DEFAULT_COMBO_THEME, sample = false, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, onDetailSignal, onTrialConsent, loadTrials, onTrialCancelled, chipTop, chipRight, sheetTop = exports.COMBO_SHEET_TOP, popupArt, popupAd, }) {
     const React = require('react');
-    const { Modal, Pressable, SafeAreaView } = require('react-native');
+    const { Modal, Pressable, SafeAreaView, Dimensions } = require('react-native');
     const h = React.createElement;
     const state = (0, combos_1.useTodayCombos)({ url, headers, load, loadKey, sample });
     const [open, setOpen] = React.useState(false);
@@ -579,6 +604,7 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     });
     // 「무료체험 확인」 is there when the app can load the list and the server turned free trials on (it sent trials or trial keys)
     const trialsChip = shown && trialsAvailable && !!state.combos && !!(state.combos.trials?.length || state.combos.trialKeys?.length);
+    const chipFit = trialsChip ? comboChipFit(Dimensions.get('window').width, chipRight ?? exports.COMBO_CHIP_RIGHT) : null;
     const consentView = consent ? h(comboTrials_1.TrialConsentPopup, { key: 'consent', name: consent.name, theme, onAnswer: answerConsent }) : null;
     if (!shown && !open && !notice && !popup && !trialsOpen && !consent)
         return null;
@@ -597,8 +623,8 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
         // a row of my own list opens its campaign straight away (these were joined already: no consent question again)
         onOpen: (trial) => { void handleMission({ id: trial.campaignKey, name: trial.name, points: trial.points ?? 1, todo: '', level: 'easy', campaignKey: trial.campaignKey }, { goal: 0, missions: [], total: 0 }, { skipConsent: true }); },
     })) : null, popup && !open && !trialsOpen && state.combos ? h(ComboPopup, { combos: state.combos, theme, art: popupArt, ad: popupAd, onOpen: () => { setPopup(false); setOpen(true); }, onClose: () => setPopup(false) }) : null, shown ? h(ComboChip, {
-        key: 'chip', open, theme, top: chipTop, right: chipRight, opacity: blink, compact: trialsChip,
-        before: trialsChip ? h(ComboTrialsChip, { open: trialsOpen, theme, onPress: () => { if (trialsOpen)
+        key: 'chip', open, theme, top: chipTop, right: chipRight, opacity: blink, fit: chipFit ? chipFit.chip : undefined,
+        before: trialsChip && chipFit ? h(ComboTrialsChip, { open: trialsOpen, theme, fit: chipFit.pill, onPress: () => { if (trialsOpen)
                 setTrialsOpen(false);
             else
                 openTrials(); } }) : null,
