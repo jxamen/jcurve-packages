@@ -83,6 +83,17 @@ static void JCAfter(NSTimeInterval seconds, dispatch_block_t block) {
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(seconds * NSEC_PER_SEC)), dispatch_get_main_queue(), block);
 }
 
+/// The SDK puts its own screen on top at once, while its "page opened" callback only comes after the web page has loaded
+/// (which can take longer than a few seconds). So a new top view controller also counts as opened; with neither, this
+/// settles NO after `polls` x 0.3 s. Whatever settles first wins (JCOnce ignores the rest).
+static void JCWatchPresented(UIViewController * _Nullable base, JCOnce *once, NSInteger polls) {
+  if (once.done) return;
+  UIViewController *top = JCTopViewController();
+  if (base != nil && top != nil && top != base) { [once resolveValue:@YES]; return; }
+  if (polls <= 0) { [once resolveValue:@NO]; return; }
+  JCAfter(0.3, ^{ JCWatchPresented(base, once, polls - 1); });
+}
+
 @interface JCurveOfferwallModule : RCTEventEmitter <RCTBridgeModule, AdPopcornOfferwallDelegate, AdPopcornCustomRewardDelegate, AdPopcornCustomRewardCPMDelegate, AdPopcornRewardCustomNativeAdDelegate>
 @property (nonatomic, strong) AdPopcornCustomReward *customReward;
 @property (nonatomic, strong) AdPopcornCustomRewardCPM *customCpm;
@@ -118,18 +129,20 @@ RCT_EXPORT_MODULE(JCurveOfferwallModule)
 
 #pragma mark - campaign detail / participation
 
-/// Opens one campaign's detail page. YES = the SDK opened it, NO = nothing happened within 5 s.
+/// Opens one campaign's detail page. YES = the SDK opened it (its screen is up, or its "page opened" callback came),
+/// NO = nothing happened within 12 s.
 RCT_EXPORT_METHOD(openCampaignDetail:(NSString *)campaignKey resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
   if (campaignKey.length == 0) { resolve(@NO); return; }
   JCOnce *once = [JCOnce withResolve:resolve reject:reject];
   self.detailOnce = once;
+  UIViewController *base = JCTopViewController();
   @try {
-    [AdPopcornOfferwall openCampaignDetailViewController:JCTopViewController() campaignKey:campaignKey delegate:self];
+    [AdPopcornOfferwall openCampaignDetailViewController:base campaignKey:campaignKey delegate:self];
   } @catch (NSException *e) {
     [once rejectCode:@"E_FAILED" message:e.reason ?: @"exception"];
     return;
   }
-  JCAfter(5.0, ^{ [once resolveValue:@NO]; });
+  JCAfter(0.3, ^{ JCWatchPresented(base, once, 39); });
 }
 
 /// SDK-side participation attempt: { success, code, message, landingUrl }.

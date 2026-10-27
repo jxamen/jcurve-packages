@@ -253,3 +253,11 @@ if (isCombosRoute(action)) { goTab('offerwall'); requestOpenCombos(); }   // 탭
 - `onDiagnostic` — 누를 때마다 무엇이 일어났는지(브리지 여부 · 목록 개수/오류/앞 5개 이름 · 시도한 키와 방법 · `open` 결과와 걸린 시간 · 복사 여부). 앱이 시험 회원일 때만 서버로 보낸다.
 - `combos.easy` — 「쉬운 것부터 가볍게」 탭, 위 서버 응답 절 참고.
 - **알려진 한계**: iOS 모듈은 `onOpenCampaignDetailPage` 가 5초 안에 안 오면 `false` 로 끝낸다. 상세는 웹 페이지라 느리면 열렸는데도 `false` 가 날 수 있다 — 그래서 5초 가까운 `false` 뒤에는 다른 키를 더 시도하지 않는다. 시간 자체를 늘리려면 네이티브 수정이 필요해 다음 빌드 몫이다. 서버 키만으로 SDK 가 상세를 여는지(목록 없이)는 SDK 바이너리 문자열로는 목록이 필수가 아닌 것으로 보이나 **실기기로 확인 전**이다. 대안: 임베드 뷰 `OfferwallView detailCampaignKey`(iOS) · `campaignKeys`(Android).
+
+## 0.3.2 — iOS 상세 열림 확인을 늘림 (iOS 네이티브 파일 1개 변경, **새 빌드 필요**)
+
+- 바뀐 것은 `ios/JCurveOfferwallModule.m` 하나뿐(0.3.1 과 JS · Android · plugin · podspec 은 같다). `openCampaignDetail` 이 예전에는 SDK 의 「상세 열림」 콜백(`onOpenCampaignDetailPage`)만 5초 기다렸다. 이 콜백은 웹 페이지가 다 뜬 뒤에야 와서 느린 망에서는 화면이 열렸는데도 `false` 로 끝나고, 앱이 「찾아 주세요」 폴백을 위에 얹을 수 있었다.
+- 이제 호출 직후 0.3초마다 맨 위 화면을 본다: **SDK 가 새 화면을 올리면 바로 `true`**, 콜백이 먼저 오면 그것도 `true`, 둘 다 없이 12초가 지나면 `false`. 먼저 일어난 쪽이 이긴다(`JCOnce`).
+- JS 쪽 `onDiagnostic` 의 `openMs` 로 걸린 시간을 볼 수 있다. 4.5초 넘는 `false` 뒤에는 다른 키를 더 시도하지 않는 규칙(0.3.1)은 그대로다.
+- 컴파일 · 실기기 확인 **전**의 소스(이 PC 에는 Xcode 가 없다 — 맥북16 빌드에서 처음 컴파일된다).
+- 하지 않은 것(검토 결과): 웹 오퍼월 목록 조회용 파라미터(`getParameter`)를 JS 로 꺼내는 것. Android 는 `ApRewardWebOfferWallLayout.getParameter()`(웹 뷰가 살아 있을 때만), iOS 는 공개 헤더에 없고 웹뷰의 JS 메시지 안에서만 답하는 값이라 비공개 API 없이는 못 꺼내며, 광고 ID 를 앱 JS 로 옮기게 되어 하지 않기로 했다.
