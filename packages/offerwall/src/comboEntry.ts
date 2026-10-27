@@ -64,31 +64,41 @@ export const COMBO_TITLE_GAP = 8;
 /** Space between the 「무료체험」 button and the chip. */
 export const COMBO_CHIP_GAP = 8;
 
-/** How a button in the chip row is drawn: its words, font size and side padding. */
-export type ComboChipFit = { label: string; size: number; pad: number };
-/** Rough text width in points: Hangul about 0.9 em (bold), a space 0.3 em, anything else 0.62 em. */
-const textWidth = (text: string, size: number): number => [...text].reduce((sum, ch) => sum + (/[\uAC00-\uD7A3]/.test(ch) ? 0.9 : /\s/.test(ch) ? 0.3 : 0.62), 0) * size;
 /**
- * 대표님 10/27 22:50: with the 「무료체험」 button beside it the chip must not run into the wall's title on a small phone. Tries these in order and
- * keeps the first whose row fits between the title (`COMBO_TITLE_END` + 8) and the chip's right edge: both buttons in full, then the chip as
- * 「빨리 모으기」, then also the button as 「체험」 (the screen reader still hears the full names). `width` is the screen width, `right` the chip's right offset.
+ * How the two buttons of the chip row are drawn. 대표님 10/27 23:06 「버튼 크기 동일하게」: the 「무료체험」 button and the chip have the same height, the
+ * same width, the same font size and the same rounding; only the colours differ (white with a yellow rim / yellow).
  */
-export function comboChipFit(width: number, right: number): { chip: ComboChipFit; pill: ComboChipFit } {
+export type ComboChipFit = { chipLabel: string; pillLabel: string; size: number; pad: number; width: number; height: number };
+/** Rough text width in points: Hangul about 0.95 em (bold, a little more than measured so nothing is cut), a space 0.3 em, anything else 0.62 em. */
+const textWidth = (text: string, size: number): number => [...text].reduce((sum, ch) => sum + (/[\uAC00-\uD7A3]/.test(ch) ? 0.95 : /\s/.test(ch) ? 0.3 : 0.62), 0) * size;
+/** Height of both buttons when they sit side by side. */
+export const COMBO_CHIP_PAIR_HEIGHT = 34;
+/**
+ * With the 「무료체험」 button beside it the row must not run into the wall's title (`COMBO_TITLE_END` + 8 from the left). Tries these in order and keeps
+ * the first whose two equal-width buttons fit between the title and the chip's right edge: both in full, then 「빨리 모으기」 at smaller and smaller sizes
+ * (both buttons shrink together), then the short words 「모으기」 / 「체험」 for the narrowest phones (the screen reader still hears the full names).
+ * `width` is the screen width, `right` the chip's right offset.
+ */
+export function comboChipFit(width: number, right: number): ComboChipFit {
   const room = width - right - COMBO_TITLE_END - COMBO_TITLE_GAP;
-  const options: Array<{ chip: ComboChipFit; pill: ComboChipFit }> = [
-    { chip: { label: COMBO_NAME, size: 14, pad: 11 }, pill: { label: '무료체험', size: 12, pad: 9 } },
-    { chip: { label: COMBO_NAME, size: 13, pad: 10 }, pill: { label: '무료체험', size: 12, pad: 9 } },
-    { chip: { label: '빨리 모으기', size: 13, pad: 10 }, pill: { label: '무료체험', size: 12, pad: 9 } },
-    { chip: { label: '빨리 모으기', size: 12, pad: 8 }, pill: { label: '체험', size: 12, pad: 8 } },
+  const options: Array<Omit<ComboChipFit, 'width' | 'height'>> = [
+    { chipLabel: COMBO_NAME, pillLabel: '무료체험', size: 14, pad: 11 },
+    { chipLabel: '빨리 모으기', pillLabel: '무료체험', size: 13, pad: 10 },
+    { chipLabel: '빨리 모으기', pillLabel: '무료체험', size: 12, pad: 9 },
+    { chipLabel: '빨리 모으기', pillLabel: '무료체험', size: 11, pad: 8 },
+    { chipLabel: '모으기', pillLabel: '체험', size: 11, pad: 8 },
+    { chipLabel: '모으기', pillLabel: '체험', size: 10.5, pad: 6 },
   ];
-  const rowWidth = (o: { chip: ComboChipFit; pill: ComboChipFit }): number =>
-    (textWidth(o.pill.label, o.pill.size) + 2 * o.pill.pad + 3) + COMBO_CHIP_GAP + (textWidth(o.chip.label, o.chip.size) + o.chip.size * 0.6 + 4 + 2 * o.chip.pad);
-  return options.find(o => rowWidth(o) <= room) ?? options[options.length - 1];
+  // the chip also carries its arrow (›, or ✕ when open) and a 4 point gap; both buttons have a 1.5 point rim
+  const widthOf = (o: Omit<ComboChipFit, 'width' | 'height'>): number =>
+    Math.ceil(Math.max(textWidth(o.chipLabel, o.size) + o.size * 0.6 + 4, textWidth(o.pillLabel, o.size)) + 2 * o.pad + 3);
+  const pick = options.find(o => 2 * widthOf(o) + COMBO_CHIP_GAP <= room) ?? options[options.length - 1];
+  return { ...pick, width: widthOf(pick), height: COMBO_CHIP_PAIR_HEIGHT };
 }
 export const COMBO_CHIP_RIGHT = 52;
 export const COMBO_SHEET_TOP = 52;
 
-export type ComboChipProps = { onPress: () => void; open?: boolean; theme?: ComboTheme; top?: number; right?: number; /** Animated opacity for the blink (see usePulse). */ opacity?: import('react-native').Animated.Value; /** drawn to the chip's left in the same row (the 「무료체험 확인」 button) */ before?: ReactElement | null; /** words, size and padding when the row is crowded (see comboChipFit) */ fit?: ComboChipFit };
+export type ComboChipProps = { onPress: () => void; open?: boolean; theme?: ComboTheme; top?: number; right?: number; /** Animated opacity for the blink (see usePulse). */ opacity?: import('react-native').Animated.Value; /** drawn to the chip's left in the same row (the 「무료체험 확인」 button) */ before?: ReactElement | null; /** size, words and width shared with the button beside it (see comboChipFit) */ fit?: ComboChipFit };
 /**
  * Small chip that floats over the wall's own header row, left of its profile icon. Only the chip is drawn: no band,
  * no padding box, and the wrapper lets touches through everywhere else.
@@ -101,11 +111,11 @@ export function ComboChip({ onPress, open = false, theme = DEFAULT_COMBO_THEME, 
   const pressable = h(Pressable, {
     accessibilityRole: 'button', accessibilityLabel: COMBO_NAME, accessibilityState: { expanded: open }, onPress, hitSlop: 6,
     style: ({ pressed }: { pressed: boolean }): import('react-native').ViewStyle => ({
-      height: 36, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: fit ? fit.pad : 14, borderRadius: t.radius.chip,
-      backgroundColor: t.accent, opacity: pressed ? 0.8 : 1, ...t.shadow,
+      height: fit ? fit.height : 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: fit ? fit.pad : 14, borderRadius: t.radius.chip,
+      backgroundColor: t.accent, opacity: pressed ? 0.8 : 1, ...(fit ? { width: fit.width, borderWidth: 1.5, borderColor: t.accent } : {}), ...t.shadow,
     }),
   },
-    h(Text, { numberOfLines: 1, style: { fontSize: fit ? fit.size : t.font.small, fontWeight: '900', color: t.text } }, fit ? fit.label : COMBO_NAME),
+    h(Text, { numberOfLines: 1, style: { fontSize: fit ? fit.size : t.font.small, fontWeight: '900', color: t.text } }, fit ? fit.chipLabel : COMBO_NAME),
     h(Text, { accessible: false, style: { fontSize: fit ? fit.size : t.font.small, fontWeight: '900', color: t.accentText } }, open ? '✕' : '›'));
   return h(View, { pointerEvents: 'box-none', style: { position: 'absolute', top, right, zIndex: 30, elevation: 30, flexDirection: 'row', alignItems: 'center', gap: COMBO_CHIP_GAP } },
     before ?? null,
@@ -123,10 +133,11 @@ export function ComboTrialsChip({ onPress, open = false, theme = DEFAULT_COMBO_T
   return React.createElement(Pressable, {
     key: 'trials-chip', accessibilityRole: 'button', accessibilityLabel: COMBO_TRIALS_NAME, accessibilityState: { expanded: open }, onPress, hitSlop: 6,
     style: ({ pressed }: { pressed: boolean }): import('react-native').ViewStyle => ({
-      height: 30, paddingHorizontal: fit ? fit.pad : 9, borderRadius: t.radius.chip, alignItems: 'center', justifyContent: 'center',
+      height: fit ? fit.height : 30, paddingHorizontal: fit ? fit.pad : 9, borderRadius: t.radius.chip, alignItems: 'center', justifyContent: 'center',
+      ...(fit ? { width: fit.width } : {}),
       backgroundColor: open ? t.accentSoft : '#FFFFFF', borderWidth: 1.5, borderColor: t.accent, opacity: pressed ? 0.8 : 1,
     }),
-  }, React.createElement(Text, { numberOfLines: 1, style: { fontSize: fit ? fit.size : 12, fontWeight: '900', color: t.accentText } }, fit ? fit.label : '무료체험'));
+  }, React.createElement(Text, { numberOfLines: 1, style: { fontSize: fit ? fit.size : 12, fontWeight: '900', color: t.accentText } }, fit ? fit.pillLabel : '무료체험'));
 }
 
 export type ComboBannerProps = { combos: TodayCombos; onPress: () => void; theme?: ComboTheme; /** Animated opacity for the blink (see usePulse). */ opacity?: import('react-native').Animated.Value };
@@ -676,8 +687,8 @@ export function ComboEntry({
       })) : null,
     popup && !open && !trialsOpen && state.combos ? h(ComboPopup, { combos: state.combos, theme, art: popupArt, ad: popupAd, onOpen: () => { setPopup(false); setOpen(true); }, onClose: () => setPopup(false) }) : null,
     shown ? h(ComboChip, {
-      key: 'chip', open, theme, top: chipTop, right: chipRight, opacity: blink, fit: chipFit ? chipFit.chip : undefined,
-      before: trialsChip && chipFit ? h(ComboTrialsChip, { open: trialsOpen, theme, fit: chipFit.pill, onPress: () => { if (trialsOpen) setTrialsOpen(false); else openTrials(); } }) : null,
+      key: 'chip', open, theme, top: chipTop, right: chipRight, opacity: blink, fit: chipFit ?? undefined,
+      before: trialsChip && chipFit ? h(ComboTrialsChip, { open: trialsOpen, theme, fit: chipFit, onPress: () => { if (trialsOpen) setTrialsOpen(false); else openTrials(); } }) : null,
       onPress: () => { setTrialsOpen(false); setOpen(o => !o); },
     }) : null,
     notice ? h(ComboToast, { key: 'notice', text: notice, top: sheetTop + 8, theme }) : null,

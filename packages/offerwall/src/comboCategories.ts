@@ -6,7 +6,7 @@
  * Without `categories` the guide is the steps screen as before (see ComboGuideScreen).
  */
 import type { ReactElement } from 'react';
-import { COMBO_NAME, COMBO_TRIAL_NOTE, DEFAULT_COMBO_THEME, formatPoints, autoDoneIds } from './combos';
+import { COMBO_NAME, COMBO_TAB_HIT_SLOP, COMBO_TAB_ROW_PROPS, COMBO_TRIAL_NOTE, DEFAULT_COMBO_THEME, formatPoints, autoDoneIds } from './combos';
 import type { ComboCategory, ComboCategoryItem, ComboGuideScreenProps, ComboMission } from './combos';
 
 /** Rows shown at first in a tab, and added by each 「더 보기」 (a tab can have a few hundred rows: games). */
@@ -41,14 +41,15 @@ export function ComboCategoryScreen({
   const chipBg = t.chipBg ?? '#F2F4F6';
   const side = 20;
   const [notice, setNotice] = React.useState('');
-  const [selected, setSelected] = React.useState(0);
+  const [selected, setSelected] = React.useState<string | null>(null); // the tab's key: a refetch keeps the member on the same tab
   const [shown, setShown] = React.useState<Record<string, number>>({});
   React.useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => { onClose(); return true; });
     return () => subscription.remove();
   }, [onClose]);
   const cats = combos?.categories ?? [];
-  const index = Math.min(selected, Math.max(0, cats.length - 1));
+  const found = selected === null ? -1 : cats.findIndex(c => c.key === selected);
+  const index = Math.min(found < 0 ? 0 : found, Math.max(0, cats.length - 1));
   const cat = cats[index];
   const autoDone = autoDoneIds(combos);
   const isDoneId = (id: string) => done.has(id) || autoDone.has(id);
@@ -109,14 +110,14 @@ export function ComboCategoryScreen({
         h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 12, style: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' } },
           h(Text, { style: { fontSize: 28, color: t.text } }, '‹')),
         h(Text, { style: { fontSize: 18, fontWeight: '700', color: t.text } }, COMBO_NAME))) : null,
-    h(ScrollView, { contentContainerStyle: { paddingBottom: 32 } },
+    h(ScrollView, { contentContainerStyle: { paddingBottom: 32 }, keyboardShouldPersistTaps: 'handled' },
       // many tabs: the row scrolls sideways
-      cats.length > 1 ? h(ScrollView, { horizontal: true, showsHorizontalScrollIndicator: false, style: { flexGrow: 0 }, contentContainerStyle: { paddingHorizontal: side, paddingVertical: 4, gap: 8, alignItems: 'center' } },
+      cats.length > 1 ? h(ScrollView, { horizontal: true, showsHorizontalScrollIndicator: false, ...COMBO_TAB_ROW_PROPS, style: { flexGrow: 0 }, contentContainerStyle: { paddingHorizontal: side, paddingVertical: 4, gap: 8, alignItems: 'center' } },
         cats.map((c, i) => {
           const on = i === index;
           return h(Pressable, {
-            key: c.key, accessibilityRole: 'button', accessibilityState: { selected: on }, accessibilityLabel: c.title, onPress: () => setSelected(i),
-            style: { height: 34, paddingHorizontal: 14, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? t.accentSoft : chipBg },
+            key: c.key, accessibilityRole: 'button', accessibilityState: { selected: on }, accessibilityLabel: c.title, onPress: () => setSelected(c.key), hitSlop: COMBO_TAB_HIT_SLOP,
+            style: ({ pressed }: { pressed: boolean }): import('react-native').ViewStyle => ({ height: 36, paddingHorizontal: 14, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: pressed ? (on ? '#FFE6A8' : '#E4E7EB') : on ? t.accentSoft : chipBg }),
           }, h(Text, { style: { fontSize: 14, fontWeight: '600', color: on ? t.accentText : t.sub } }, c.title));
         })) : null,
       // the one line under the tabs: the total (nothing that costs money in it), or the cancel note, or a plain word that there is no total

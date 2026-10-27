@@ -45,6 +45,11 @@ export type TodayCombos = {
    * some, the guide shows these tabs instead of the easy / amount / trial tabs; without them it is the screen it always was.
    */
   categories?: ComboCategory[];
+  /**
+   * What the recommendation popup says (the server's `popup`, 대표님 10/27 23:09): the points of what costs nothing plus the free trials (games and shopping left out)
+   * and how many missions that is. Absent = the popup is worded from `easy`, as before.
+   */
+  popup?: { points: number; count: number };
 };
 /** One row of a category: what to do (`line`, one line: for games the goal and its time limit) and what it costs (`cost`, a short phrase, none when it is free). */
 export type ComboCategoryItem = {
@@ -155,10 +160,13 @@ export function normalizeTodayCombos(raw: unknown): TodayCombos | null {
   const trialKeys = cleanKeys(data.trial_keys ?? data.trialKeys).map(k => k.toLowerCase());
   const trialConsent = cleanConsent(data.trial_consent ?? data.trialConsent);
   const categories = cleanCategories(data.categories, soldout, paid);
+  const popupPoints = whole(data.popup?.points, 100_000_000_000);
+  const popupCount = whole(data.popup?.count, 100_000);
   return {
     ...(date ? { date } : {}), display, bundles, ...(singles.length ? { singles } : {}), ...(easy ? { easy } : {}), ...(done.length ? { done } : {}),
     ...(trials.length ? { trials } : {}), ...(trialKeys.length ? { trialKeys } : {}), ...(Object.keys(trialConsent).length ? { trialConsent } : {}),
     ...(categories.length ? { categories } : {}),
+    ...(popupPoints ? { popup: { points: popupPoints, count: popupCount } } : {}),
   };
 }
 
@@ -440,6 +448,10 @@ export const COMBO_POPUP_NOTICE = '선착순 · 캠페인마다 인원이 차면
  * how many easy missions there are, with how long one takes when the server gave minutes (the middle value, so one odd mission does not decide it).
  */
 export function comboPopupContent(combos: TodayCombos): ComboPopupContent {
+  // the server's own sum and count (대표님 10/27 23:09 「계산이 안 맞아」): 「오늘 +N P 모을 수 있어요 · 미션 n개」 — no 「쉬운」, there is no minutes figure
+  if (combos.popup) {
+    return { before: '오늘 ', amount: `+${formatPoints(combos.popup.points)}`, after: ' 모을 수 있어요', sub: combos.popup.count ? `미션 ${combos.popup.count}개` : '', notice: COMBO_POPUP_NOTICE };
+  }
   const easy = combos.easy;
   const top = combos.bundles.reduce((max, b) => Math.max(max, b.goal), 0);
   if (easy) {
@@ -678,6 +690,12 @@ export type ComboGuideScreenProps = {
   onPressTrial?: (trial: ComboTrial) => void;
 };
 const NO_DONE: ReadonlySet<string> = new Set();
+/**
+ * 대표님 10/27 23:09 「탭이 눌릴 때도 안 눌릴 때도 있음」: a tab is pressed on a bigger area (the finger rarely lands exactly on a 34 high chip), and the sideways row
+ * must not hold a touch back to see whether it is a scroll (iOS `delaysContentTouches`), nor let the sheet's own gestures take the tap.
+ */
+export const COMBO_TAB_HIT_SLOP = { top: 8, bottom: 8, left: 4, right: 4 };
+export const COMBO_TAB_ROW_PROPS = { keyboardShouldPersistTaps: 'always', nestedScrollEnabled: true, directionalLockEnabled: true, scrollEventThrottle: 16 } as const;
 /** First character of a name (a whole character even for emoji / surrogate pairs), for the icon fallback. */
 const firstChar = (name: string): string => Array.from(name.trim())[0] ?? '·';
 
@@ -724,7 +742,7 @@ export function ComboStepsScreen({ combos, loading = false, onClose, onPressMiss
   const t = theme;
   const chipBg = t.chipBg ?? '#F2F4F6';
   const [notice, setNotice] = React.useState('');
-  const [selected, setSelected] = React.useState(0);
+  const [selected, setSelected] = React.useState<string | null>(null); // the tab's key, so a refetch that adds or removes a tab keeps the member where they are
   React.useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => { onClose(); return true; });
     return () => subscription.remove();
@@ -736,7 +754,9 @@ export function ComboStepsScreen({ combos, loading = false, onClose, onPressMiss
   // Tabs: 「쉽게 모으기」 first when the server sent it (and it is what opens), then the steps, and 「무료체험」 last when the server sent trials.
   // The easy list is a bundle with goal 0; the trial list is not a bundle at all (no sum, nothing counted with the others).
   const tabCount = bundles.length + (easy ? 1 : 0) + (trials.length ? 1 : 0);
-  const index = Math.min(selected, Math.max(0, tabCount - 1));
+  const tabKeys = [...(easy ? ['easy'] : []), ...bundles.map(b => `step-${b.goal}`), ...(trials.length ? ['trials'] : [])];
+  const found = selected === null ? -1 : tabKeys.indexOf(selected);
+  const index = Math.min(found < 0 ? 0 : found, Math.max(0, tabCount - 1));
   const onTrials = trials.length > 0 && index === tabCount - 1;
   const onEasy = !onTrials && !!easy && index === 0;
   const stepIndex = index - (easy ? 1 : 0);
@@ -808,8 +828,8 @@ export function ComboStepsScreen({ combos, loading = false, onClose, onPressMiss
         h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 12, style: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' } },
           h(Text, { style: { fontSize: 28, color: t.text } }, '‹')),
         h(Text, { style: { fontSize: 18, fontWeight: '700', color: t.text } }, COMBO_NAME))) : null,
-    h(ScrollView, { contentContainerStyle: { paddingBottom: 32 } },
-      tabCount > 1 ? h(ScrollView, { horizontal: true, showsHorizontalScrollIndicator: false, style: { flexGrow: 0 }, contentContainerStyle: { paddingHorizontal: side, paddingVertical: 4, gap: 8, alignItems: 'center' } },
+    h(ScrollView, { contentContainerStyle: { paddingBottom: 32 }, keyboardShouldPersistTaps: 'handled' },
+      tabCount > 1 ? h(ScrollView, { horizontal: true, showsHorizontalScrollIndicator: false, ...COMBO_TAB_ROW_PROPS, style: { flexGrow: 0 }, contentContainerStyle: { paddingHorizontal: side, paddingVertical: 4, gap: 8, alignItems: 'center' } },
         [...(easy ? [null] : []), ...bundles, ...(trials.length ? ['trials' as const] : [])].map((b, i) => {
           const on = i === index;
           const isEasyTab = b === null;
@@ -818,8 +838,9 @@ export function ComboStepsScreen({ combos, loading = false, onClose, onPressMiss
           const label = isEasyTab ? COMBO_EASY_NAME : isTrialTab ? COMBO_TRIAL_NAME : formatGoal(b.goal);
           return h(Pressable, {
             key: isEasyTab ? 'easy' : isTrialTab ? 'trials' : `step-${b.goal}`, accessibilityRole: 'button', accessibilityState: { selected: on },
-            accessibilityLabel: isEasyTab ? COMBO_EASY_NAME : isTrialTab ? COMBO_TRIAL_NAME : `${step + 1}단계 ${formatGoal(b.goal)}`, onPress: () => setSelected(i),
-            style: { height: 34, paddingHorizontal: 14, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? t.accentSoft : chipBg },
+            accessibilityLabel: isEasyTab ? COMBO_EASY_NAME : isTrialTab ? COMBO_TRIAL_NAME : `${step + 1}단계 ${formatGoal(b.goal)}`, onPress: () => setSelected(tabKeys[i] ?? null),
+            hitSlop: COMBO_TAB_HIT_SLOP,
+            style: ({ pressed }: { pressed: boolean }): import('react-native').ViewStyle => ({ height: 36, paddingHorizontal: 14, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: pressed ? (on ? '#FFE6A8' : '#E4E7EB') : on ? t.accentSoft : chipBg }),
           }, h(Text, { style: { fontSize: 14, fontWeight: '600', color: on ? t.accentText : t.sub } }, label));
         })) : null,
       // 「무료체험」 tab: one line about cancelling, then the rows in the same numbered look; no sum (it is not counted with the steps)

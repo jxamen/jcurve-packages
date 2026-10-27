@@ -32,21 +32,27 @@ export declare const COMBO_TITLE_END = 150;
 export declare const COMBO_TITLE_GAP = 8;
 /** Space between the 「무료체험」 button and the chip. */
 export declare const COMBO_CHIP_GAP = 8;
-/** How a button in the chip row is drawn: its words, font size and side padding. */
+/**
+ * How the two buttons of the chip row are drawn. 대표님 10/27 23:06 「버튼 크기 동일하게」: the 「무료체험」 button and the chip have the same height, the
+ * same width, the same font size and the same rounding; only the colours differ (white with a yellow rim / yellow).
+ */
 export type ComboChipFit = {
-    label: string;
+    chipLabel: string;
+    pillLabel: string;
     size: number;
     pad: number;
+    width: number;
+    height: number;
 };
+/** Height of both buttons when they sit side by side. */
+export declare const COMBO_CHIP_PAIR_HEIGHT = 34;
 /**
- * 대표님 10/27 22:50: with the 「무료체험」 button beside it the chip must not run into the wall's title on a small phone. Tries these in order and
- * keeps the first whose row fits between the title (`COMBO_TITLE_END` + 8) and the chip's right edge: both buttons in full, then the chip as
- * 「빨리 모으기」, then also the button as 「체험」 (the screen reader still hears the full names). `width` is the screen width, `right` the chip's right offset.
+ * With the 「무료체험」 button beside it the row must not run into the wall's title (`COMBO_TITLE_END` + 8 from the left). Tries these in order and keeps
+ * the first whose two equal-width buttons fit between the title and the chip's right edge: both in full, then 「빨리 모으기」 at smaller and smaller sizes
+ * (both buttons shrink together), then the short words 「모으기」 / 「체험」 for the narrowest phones (the screen reader still hears the full names).
+ * `width` is the screen width, `right` the chip's right offset.
  */
-export declare function comboChipFit(width: number, right: number): {
-    chip: ComboChipFit;
-    pill: ComboChipFit;
-};
+export declare function comboChipFit(width: number, right: number): ComboChipFit;
 export declare const COMBO_CHIP_RIGHT = 52;
 export declare const COMBO_SHEET_TOP = 52;
 export type ComboChipProps = {
@@ -56,7 +62,7 @@ export type ComboChipProps = {
     top?: number;
     right?: number; /** Animated opacity for the blink (see usePulse). */
     opacity?: import('react-native').Animated.Value; /** drawn to the chip's left in the same row (the 「무료체험 확인」 button) */
-    before?: ReactElement | null; /** words, size and padding when the row is crowded (see comboChipFit) */
+    before?: ReactElement | null; /** size, words and width shared with the button beside it (see comboChipFit) */
     fit?: ComboChipFit;
 };
 /**

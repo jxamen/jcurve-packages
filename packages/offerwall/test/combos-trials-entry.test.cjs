@@ -186,21 +186,20 @@ test('「무료체험 확인」: the list can fail to load and be retried; a bod
   assert.equal(texts(s.again()).includes('집핏'), false, 'closed');
 }, NATIVE));
 
-test('chip row: sized to the room between the wall\'s title and the right edge — full words when they fit, 「빨리 모으기」 and 「체험」 on smaller screens; never touching the title (8 apart)', () => {
+test('chip row: the two buttons share height, width, font size and rounding; sized to the room between the wall\'s title and the right edge — both shrink together; never touching the title', () => {
   const room = width => width - api.COMBO_CHIP_RIGHT - api.COMBO_TITLE_END - api.COMBO_TITLE_GAP;
-  const rowWidth = fit => {
-    const em = s => [...s].reduce((sum, ch) => sum + (/[가-힣]/.test(ch) ? 0.9 : /\s/.test(ch) ? 0.3 : 0.62), 0);
-    return em(fit.pill.label) * fit.pill.size + 2 * fit.pill.pad + 3 + api.COMBO_CHIP_GAP + em(fit.chip.label) * fit.chip.size + fit.chip.size * 0.6 + 4 + 2 * fit.chip.pad;
-  };
-  const big = api.comboChipFit(430, api.COMBO_CHIP_RIGHT);
-  assert.deepEqual([big.chip.label, big.pill.label], ['포인트 빨리 모으기', '무료체험'], 'a wide phone: both in full');
-  for (const width of [402, 411]) {
+  const widths = [360, 375, 390, 402, 411, 430, 480, 540];
+  for (const width of widths) {
     const fit = api.comboChipFit(width, api.COMBO_CHIP_RIGHT);
-    assert.deepEqual([fit.chip.label, fit.pill.label], ['빨리 모으기', '무료체험'], `${width}: the chip shortens, the button keeps its word`);
+    assert.ok(2 * fit.width + api.COMBO_CHIP_GAP <= room(width), `${width}: two equal buttons and the gap fit (${2 * fit.width + api.COMBO_CHIP_GAP} <= ${room(width)})`);
+    assert.equal(fit.height, api.COMBO_CHIP_PAIR_HEIGHT);
+    assert.ok(fit.size >= 10.5, `${width}: still readable`);
   }
-  const small = api.comboChipFit(360, api.COMBO_CHIP_RIGHT);
-  assert.deepEqual([small.chip.label, small.pill.label], ['빨리 모으기', '체험'], '360: both short');
-  for (const width of [360, 375, 390, 402, 411, 430, 480]) assert.ok(rowWidth(api.comboChipFit(width, api.COMBO_CHIP_RIGHT)) <= room(width), `${width}: the row fits`);
+  const sizes = widths.map(w => api.comboChipFit(w, api.COMBO_CHIP_RIGHT).size);
+  assert.deepEqual(sizes, [...sizes].sort((a, b) => a - b), 'a wider phone never gets smaller words');
+  assert.equal(api.comboChipFit(540, api.COMBO_CHIP_RIGHT).chipLabel, '포인트 빨리 모으기', 'a wide screen (tablet): the full name');
+  for (const width of [402, 411]) assert.deepEqual([api.comboChipFit(width, api.COMBO_CHIP_RIGHT).chipLabel, api.comboChipFit(width, api.COMBO_CHIP_RIGHT).pillLabel], ['빨리 모으기', '무료체험'], `${width}`);
+  assert.deepEqual([api.comboChipFit(360, api.COMBO_CHIP_RIGHT).chipLabel, api.comboChipFit(360, api.COMBO_CHIP_RIGHT).pillLabel], ['모으기', '체험'], '360: the short words');
   assert.equal(api.COMBO_CHIP_GAP, 8);
 });
 
@@ -214,4 +213,8 @@ test('chip row: the button sits right beside the chip (8 apart), and the full na
   assert.ok(chip && pill, 'both found by their full names');
   assert.deepEqual(texts(chip).filter(x => x !== '›' && x !== '✕'), ['빨리 모으기'], 'the harness phone is 400 wide: the short words');
   assert.deepEqual(texts(pill), ['무료체험']);
+  const cs = chip.props.style({pressed: false}); const ps = pill.props.style({pressed: false});
+  assert.deepEqual([cs.width, cs.height, cs.borderRadius], [ps.width, ps.height, ps.borderRadius], 'same width, height and rounding');
+  const textSize = node => walk(node).find(n => n.type === 'Text').props.style.fontSize;
+  assert.equal(textSize(chip), textSize(pill), 'same font size');
 }, NATIVE));

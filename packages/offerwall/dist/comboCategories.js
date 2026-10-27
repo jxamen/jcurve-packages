@@ -33,14 +33,15 @@ function ComboCategoryScreen({ combos, loading = false, onClose, onPressMission,
     const chipBg = t.chipBg ?? '#F2F4F6';
     const side = 20;
     const [notice, setNotice] = React.useState('');
-    const [selected, setSelected] = React.useState(0);
+    const [selected, setSelected] = React.useState(null); // the tab's key: a refetch keeps the member on the same tab
     const [shown, setShown] = React.useState({});
     React.useEffect(() => {
         const subscription = BackHandler.addEventListener('hardwareBackPress', () => { onClose(); return true; });
         return () => subscription.remove();
     }, [onClose]);
     const cats = combos?.categories ?? [];
-    const index = Math.min(selected, Math.max(0, cats.length - 1));
+    const found = selected === null ? -1 : cats.findIndex(c => c.key === selected);
+    const index = Math.min(found < 0 ? 0 : found, Math.max(0, cats.length - 1));
     const cat = cats[index];
     const autoDone = (0, combos_1.autoDoneIds)(combos);
     const isDoneId = (id) => done.has(id) || autoDone.has(id);
@@ -90,13 +91,13 @@ function ComboCategoryScreen({ combos, loading = false, onClose, onPressMission,
     const closeText = (label) => h(Text, { style: { fontSize: 14, fontWeight: '600', color: t.sub } }, label);
     return h(View, { style: { flex: 1, backgroundColor: t.bg, paddingTop: Math.max(0, topInset) } }, showHeader ? (variant === 'sheet'
         ? h(View, { style: { height: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: side } }, h(Text, { style: { fontSize: 18, fontWeight: '700', color: t.text } }, combos_1.COMBO_NAME), h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 12, style: { paddingVertical: 8, paddingLeft: 8 } }, closeText('닫기')))
-        : h(View, { style: { height: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8 } }, h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 12, style: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' } }, h(Text, { style: { fontSize: 28, color: t.text } }, '‹')), h(Text, { style: { fontSize: 18, fontWeight: '700', color: t.text } }, combos_1.COMBO_NAME))) : null, h(ScrollView, { contentContainerStyle: { paddingBottom: 32 } }, 
+        : h(View, { style: { height: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8 } }, h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 12, style: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' } }, h(Text, { style: { fontSize: 28, color: t.text } }, '‹')), h(Text, { style: { fontSize: 18, fontWeight: '700', color: t.text } }, combos_1.COMBO_NAME))) : null, h(ScrollView, { contentContainerStyle: { paddingBottom: 32 }, keyboardShouldPersistTaps: 'handled' }, 
     // many tabs: the row scrolls sideways
-    cats.length > 1 ? h(ScrollView, { horizontal: true, showsHorizontalScrollIndicator: false, style: { flexGrow: 0 }, contentContainerStyle: { paddingHorizontal: side, paddingVertical: 4, gap: 8, alignItems: 'center' } }, cats.map((c, i) => {
+    cats.length > 1 ? h(ScrollView, { horizontal: true, showsHorizontalScrollIndicator: false, ...combos_1.COMBO_TAB_ROW_PROPS, style: { flexGrow: 0 }, contentContainerStyle: { paddingHorizontal: side, paddingVertical: 4, gap: 8, alignItems: 'center' } }, cats.map((c, i) => {
         const on = i === index;
         return h(Pressable, {
-            key: c.key, accessibilityRole: 'button', accessibilityState: { selected: on }, accessibilityLabel: c.title, onPress: () => setSelected(i),
-            style: { height: 34, paddingHorizontal: 14, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? t.accentSoft : chipBg },
+            key: c.key, accessibilityRole: 'button', accessibilityState: { selected: on }, accessibilityLabel: c.title, onPress: () => setSelected(c.key), hitSlop: combos_1.COMBO_TAB_HIT_SLOP,
+            style: ({ pressed }) => ({ height: 36, paddingHorizontal: 14, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: pressed ? (on ? '#FFE6A8' : '#E4E7EB') : on ? t.accentSoft : chipBg }),
         }, h(Text, { style: { fontSize: 14, fontWeight: '600', color: on ? t.accentText : t.sub } }, c.title));
     })) : null, 
     // the one line under the tabs: the total (nothing that costs money in it), or the cancel note, or a plain word that there is no total

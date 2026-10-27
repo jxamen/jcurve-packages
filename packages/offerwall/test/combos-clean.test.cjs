@@ -92,7 +92,7 @@ test('row: ticking works from the small check; a ticked row dims, strikes the na
   assert.equal(byLabel(tree, '일 e1 완료 표시').props.accessibilityState.checked, true);
 }));
 
-test('look: white sheet header is thin (title + 닫기), tabs are small flat chips (34 high), the selected one is soft-coloured, the sum is one line', () => withReact(({host, rn}) => {
+test('look: white sheet header is thin (title + 닫기), tabs are small flat chips (36 high, a bigger touch area), the selected one is soft-coloured, the sum is one line', () => withReact(({host, rn}) => {
   rn.Image = 'Image';
   const theme = {...api.DEFAULT_COMBO_THEME, bg: '#FFFFFF', chipBg: '#F2F4F6'};
   const data = combos({easy: {missions: [mission('e1', 102), mission('e2', 150)]}});
@@ -104,10 +104,13 @@ test('look: white sheet header is thin (title + 닫기), tabs are small flat chi
   assert.deepEqual(texts(header), ['포인트 빨리 모으기', '닫기']);
   const easyChip = byLabel(tree, '쉽게 모으기');
   const stepChip = byLabel(tree, '1단계 1천P');
-  assert.equal(easyChip.props.style.height, 34);
-  assert.equal(easyChip.props.style.borderRadius, 17);
-  assert.equal(easyChip.props.style.backgroundColor, theme.accentSoft, 'selected: soft colour');
-  assert.equal(stepChip.props.style.backgroundColor, '#F2F4F6', 'not selected: flat grey');
+  const chipStyle = chip => chip.props.style({pressed: false});
+  assert.equal(chipStyle(easyChip).height, 36);
+  assert.equal(chipStyle(easyChip).borderRadius, 18);
+  assert.equal(chipStyle(easyChip).backgroundColor, theme.accentSoft, 'selected: soft colour');
+  assert.equal(chipStyle(stepChip).backgroundColor, '#F2F4F6', 'not selected: flat grey');
+  assert.notEqual(stepChip.props.style({pressed: true}).backgroundColor, '#F2F4F6', 'pressed: the colour changes at once');
+  assert.deepEqual(easyChip.props.hitSlop, api.COMBO_TAB_HIT_SLOP, 'a bigger area than the chip');
   assert.deepEqual(texts(stepChip), ['1천P']);
   // the sum: one short line, label + amount
   const sumLine = walk(root).find(n => n.type === 'View' && texts(n).join('|') === '다 하면|+252P');
@@ -119,7 +122,7 @@ test('look: white sheet header is thin (title + 닫기), tabs are small flat chi
 test('look: without the chipBg token the unselected chip is still the shopping grey; the loading and empty states still read', () => withReact(({host, rn}) => {
   rn.Image = 'Image';
   const tree = host.render(() => api.ComboGuideScreen(props({combos: combos()})));
-  assert.equal(byLabel(tree, '2단계 5천P').props.style.backgroundColor, '#F2F4F6');
+  assert.equal(byLabel(tree, '2단계 5천P').props.style({pressed: false}).backgroundColor, '#F2F4F6');
   assert.ok(texts(host.render(() => api.ComboGuideScreen(props({combos: null, loading: true})))).includes('불러오고 있어요'));
   assert.ok(texts(host.render(() => api.ComboGuideScreen(props({combos: null})))).some(t => t.includes('준비하고 있어요')));
 }));

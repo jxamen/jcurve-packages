@@ -61,6 +61,14 @@ export type TodayCombos = {
      * some, the guide shows these tabs instead of the easy / amount / trial tabs; without them it is the screen it always was.
      */
     categories?: ComboCategory[];
+    /**
+     * What the recommendation popup says (the server's `popup`, 대표님 10/27 23:09): the points of what costs nothing plus the free trials (games and shopping left out)
+     * and how many missions that is. Absent = the popup is worded from `easy`, as before.
+     */
+    popup?: {
+        points: number;
+        count: number;
+    };
 };
 /** One row of a category: what to do (`line`, one line: for games the goal and its time limit) and what it costs (`cost`, a short phrase, none when it is free). */
 export type ComboCategoryItem = {
@@ -305,6 +313,22 @@ export type ComboGuideScreenProps = {
     onToggleDone?: (id: string) => void;
     /** A row of the 「무료체험」 tab was tapped (the app asks for the cancel-notice consent, then opens the campaign). Without it `onPressMission` gets the row as a mission. */
     onPressTrial?: (trial: ComboTrial) => void;
+};
+/**
+ * 대표님 10/27 23:09 「탭이 눌릴 때도 안 눌릴 때도 있음」: a tab is pressed on a bigger area (the finger rarely lands exactly on a 34 high chip), and the sideways row
+ * must not hold a touch back to see whether it is a scroll (iOS `delaysContentTouches`), nor let the sheet's own gestures take the tap.
+ */
+export declare const COMBO_TAB_HIT_SLOP: {
+    top: number;
+    bottom: number;
+    left: number;
+    right: number;
+};
+export declare const COMBO_TAB_ROW_PROPS: {
+    readonly keyboardShouldPersistTaps: "always";
+    readonly nestedScrollEnabled: true;
+    readonly directionalLockEnabled: true;
+    readonly scrollEventThrottle: 16;
 };
 /**
  * A campaign's icon (`mission.icon`, https only), else the first letter of the name on a soft circle; a picture that fails to load
