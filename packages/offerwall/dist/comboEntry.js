@@ -5,9 +5,11 @@ exports.isCombosRoute = isCombosRoute;
 exports.requestOpenCombos = requestOpenCombos;
 exports.listenForComboRequests = listenForComboRequests;
 exports.ComboChip = ComboChip;
+exports.ComboTrialsChip = ComboTrialsChip;
 exports.ComboBanner = ComboBanner;
 exports.ComboEntry = ComboEntry;
 const combos_1 = require("./combos");
+const comboTrials_1 = require("./comboTrials");
 const campaigns_1 = require("./campaigns");
 const comboDone_1 = require("./comboDone");
 const native_1 = require("./native");
@@ -67,7 +69,7 @@ exports.COMBO_SHEET_TOP = 52;
  * Small chip that floats over the wall's own header row, left of its profile icon. Only the chip is drawn: no band,
  * no padding box, and the wrapper lets touches through everywhere else.
  */
-function ComboChip({ onPress, open = false, theme = combos_1.DEFAULT_COMBO_THEME, top = exports.COMBO_CHIP_TOP, right = exports.COMBO_CHIP_RIGHT, opacity }) {
+function ComboChip({ onPress, open = false, theme = combos_1.DEFAULT_COMBO_THEME, top = exports.COMBO_CHIP_TOP, right = exports.COMBO_CHIP_RIGHT, opacity, before, compact = false }) {
     const React = require('react');
     const { View, Text, Pressable, Animated } = require('react-native');
     const h = React.createElement;
@@ -75,11 +77,27 @@ function ComboChip({ onPress, open = false, theme = combos_1.DEFAULT_COMBO_THEME
     const pressable = h(Pressable, {
         accessibilityRole: 'button', accessibilityLabel: combos_1.COMBO_NAME, accessibilityState: { expanded: open }, onPress, hitSlop: 6,
         style: ({ pressed }) => ({
-            height: 36, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, borderRadius: t.radius.chip,
+            height: 36, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: compact ? 11 : 14, borderRadius: t.radius.chip,
             backgroundColor: t.accent, opacity: pressed ? 0.8 : 1, ...t.shadow,
         }),
-    }, h(Text, { style: { fontSize: t.font.small, fontWeight: '900', color: t.text } }, combos_1.COMBO_NAME), h(Text, { accessible: false, style: { fontSize: t.font.small, fontWeight: '900', color: t.accentText } }, open ? '✕' : '›'));
-    return h(View, { pointerEvents: 'box-none', style: { position: 'absolute', top, right, zIndex: 30, elevation: 30 } }, opacity ? h(Animated.View, { style: { opacity } }, pressable) : pressable);
+    }, h(Text, { style: { fontSize: compact ? t.font.small - 1 : t.font.small, fontWeight: '900', color: t.text } }, combos_1.COMBO_NAME), h(Text, { accessible: false, style: { fontSize: compact ? t.font.small - 1 : t.font.small, fontWeight: '900', color: t.accentText } }, open ? '✕' : '›'));
+    return h(View, { pointerEvents: 'box-none', style: { position: 'absolute', top, right, zIndex: 30, elevation: 30, flexDirection: 'row', alignItems: 'center', gap: 5 } }, before ?? null, opacity ? h(Animated.View, { style: { opacity } }, pressable) : pressable);
+}
+/**
+ * 「무료체험 확인」 (대표님 10/27 22:11): a small button to the left of the chip that opens the member's own free-trial list. Short on purpose
+ * (the wall's title is to its left): white with a yellow rim, so it does not compete with the chip.
+ */
+function ComboTrialsChip({ onPress, open = false, theme = combos_1.DEFAULT_COMBO_THEME }) {
+    const React = require('react');
+    const { Text, Pressable } = require('react-native');
+    const t = theme;
+    return React.createElement(Pressable, {
+        key: 'trials-chip', accessibilityRole: 'button', accessibilityLabel: comboTrials_1.COMBO_TRIALS_NAME, accessibilityState: { expanded: open }, onPress, hitSlop: 6,
+        style: ({ pressed }) => ({
+            height: 30, paddingHorizontal: 9, borderRadius: t.radius.chip, alignItems: 'center', justifyContent: 'center',
+            backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: t.accent, opacity: pressed ? 0.8 : 1,
+        }),
+    }, React.createElement(Text, { style: { fontSize: 12, fontWeight: '900', color: t.accentText } }, open ? '무료체험 ✕' : '무료체험'));
 }
 /** Home banner: the name large, the goal numbers emphasized. */
 function ComboBanner({ combos, onPress, theme = combos_1.DEFAULT_COMBO_THEME, opacity }) {
@@ -225,7 +243,7 @@ function ComboToast({ text, top, theme }) {
  * server's id when it is a key) and its detail page opens. Otherwise, or when nothing is found, the name is shown at the
  * top (and copied when possible) and the plain list is revealed: the Chance tab closes the guide, Home opens the list.
  */
-function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combos_1.DEFAULT_COMBO_THEME, sample = false, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, onDetailSignal, chipTop, chipRight, sheetTop = exports.COMBO_SHEET_TOP, popupArt, popupAd, }) {
+function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combos_1.DEFAULT_COMBO_THEME, sample = false, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, onDetailSignal, onTrialConsent, loadTrials, onTrialCancelled, chipTop, chipRight, sheetTop = exports.COMBO_SHEET_TOP, popupArt, popupAd, }) {
     const React = require('react');
     const { Modal, Pressable, SafeAreaView } = require('react-native');
     const h = React.createElement;
@@ -242,8 +260,8 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     const [notice, setNotice] = React.useState(null);
     const noticeTimer = React.useRef(null);
     const campaignCache = React.useRef(null);
-    const latest = React.useRef({ campaigns, copyText, reportCampaigns, usn, placement, onDiagnostic, onDetailSignal, refresh: state.refresh });
-    latest.current = { campaigns, copyText, reportCampaigns, usn, placement, onDiagnostic, onDetailSignal, refresh: state.refresh };
+    const latest = React.useRef({ campaigns, copyText, reportCampaigns, usn, placement, onDiagnostic, onDetailSignal, onTrialConsent, loadTrials, onTrialCancelled, combos: state.combos, refresh: state.refresh });
+    latest.current = { campaigns, copyText, reportCampaigns, usn, placement, onDiagnostic, onDetailSignal, onTrialConsent, loadTrials, onTrialCancelled, combos: state.combos, refresh: state.refresh };
     const signalled = React.useRef(new Set());
     const signalTimer = React.useRef(null);
     const lastOpened = React.useRef(null); // the detail page the SDK opened last, until it closes
@@ -402,10 +420,65 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
      * straight to the SDK without waiting for any list, 2) the same name in the SDK's list, 3) the row id when it is in the list,
      * 4) the fallback (name at the top, copied, plain list). Every tap reports what happened through `onDiagnostic`.
      */
-    const handleMission = async (mission, bundle) => {
+    // ---- free trials: the cancel-notice question before a trial's detail page, and the member's own list ----
+    const answered = React.useRef(new Map()); // this visit's answers (lower-case key), until the server's `trial_consent` has them
+    const [consent, setConsent] = React.useState(null);
+    const consentResolve = React.useRef(null);
+    const askConsent = (name) => new Promise(resolve => { consentResolve.current = resolve; setConsent({ name }); });
+    const answerConsent = (answer) => { const resolve = consentResolve.current; consentResolve.current = null; setConsent(null); resolve?.(answer); };
+    const [trialsOpen, setTrialsOpen] = React.useState(false);
+    const [trialsFocus, setTrialsFocus] = React.useState(undefined);
+    const [mine, setMine] = React.useState({ items: null, loading: false, failed: false });
+    const mineRequest = React.useRef(0);
+    const loadMine = () => {
+        const load = latest.current.loadTrials;
+        if (!load)
+            return;
+        const mine_ = ++mineRequest.current;
+        setMine(m => ({ ...m, loading: true, failed: false }));
+        Promise.resolve().then(load).then(body => {
+            if (mine_ !== mineRequest.current)
+                return;
+            const list = (0, comboTrials_1.parseMyTrials)(body);
+            setMine(m => (list ? { items: list, loading: false, failed: false } : { items: m.items, loading: false, failed: true }));
+        }, () => { if (mine_ === mineRequest.current)
+            setMine(m => ({ ...m, loading: false, failed: true })); });
+    };
+    React.useEffect(() => { if (trialsOpen)
+        loadMine(); }, [trialsOpen]);
+    const openTrials = (key) => { setTrialsFocus(key); setOpen(false); setPopup(false); setTrialsOpen(true); };
+    const trialsAvailable = !!loadTrials && placement === 'chance';
+    React.useEffect(() => (trialsAvailable ? (0, comboTrials_1.listenForTrialRequests)({ priority: 2, open: openTrials }) : undefined), [trialsAvailable]);
+    const markCancelled = (trial, cancelled) => {
+        setMine(m => ({ ...m, items: m.items ? m.items.map(x => (x.campaignKey === trial.campaignKey ? { ...x, cancelled } : x)) : m.items }));
+        let sent;
+        try {
+            sent = latest.current.onTrialCancelled?.(trial.campaignKey, cancelled);
+        }
+        catch {
+            sent = Promise.reject(new Error('send'));
+        }
+        void Promise.resolve(sent).catch(() => { loadMine(); }); // a failed send: show what the server really has
+    };
+    const handleMission = async (mission, bundle, opts = {}) => {
         if (onPressMission) {
             onPressMission(mission, bundle);
             return;
+        }
+        // A free-trial campaign asks once, before its detail page opens: 「해지 안내를 받으시겠어요?」. Either answer goes on to the campaign;
+        // dismissing the question without answering does not open it (and it is asked again next time).
+        if (!opts.skipConsent && latest.current.onTrialConsent) {
+            const trialKey = [mission.campaignKey, isCampaignKey(mission.id) ? mission.id : undefined].find(k => (0, combos_1.needsTrialConsent)(latest.current.combos, k, answered.current));
+            if (trialKey) {
+                const answer = await askConsent(mission.name);
+                if (answer === 'cancel')
+                    return;
+                answered.current.set(trialKey.toLowerCase(), answer === 'agree');
+                try {
+                    void Promise.resolve(latest.current.onTrialConsent?.(trialKey, answer === 'agree')).catch(() => { });
+                }
+                catch { /* the answer is kept for this visit anyway */ }
+            }
         }
         const started = Date.now();
         const api = bridge();
@@ -498,14 +571,37 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     const guide = (variant) => h(combos_1.ComboGuideScreen, {
         combos: state.combos, loading: state.status === 'loading', onClose: close, onPressMission: handleMission, usn, theme, variant,
         done: doneIds, onToggleDone: toggleDone,
+        onPressTrial: (trial) => {
+            const row = (0, combos_1.trialMissions)(state.combos).find(m => m.id === trial.campaignKey);
+            if (row)
+                void handleMission(row, { goal: 0, missions: [row], total: row.points });
+        },
     });
-    if (!shown && !open && !notice && !popup)
+    // 「무료체험 확인」 is there when the app can load the list and the server turned free trials on (it sent trials or trial keys)
+    const trialsChip = shown && trialsAvailable && !!state.combos && !!(state.combos.trials?.length || state.combos.trialKeys?.length);
+    const consentView = consent ? h(comboTrials_1.TrialConsentPopup, { key: 'consent', name: consent.name, theme, onAnswer: answerConsent }) : null;
+    if (!shown && !open && !notice && !popup && !trialsOpen && !consent)
         return null;
     if (placement === 'home') {
-        return h(React.Fragment, null, shown && state.combos ? h(ComboBanner, { combos: state.combos, onPress: () => setOpen(true), theme, opacity: blink }) : null, open ? h(Modal, { visible: true, animationType: 'slide', onRequestClose: close }, h(SafeAreaView, { style: { flex: 1, backgroundColor: theme.bg } }, guide('page'), notice ? h(ComboToast, { text: notice, top: 8, theme }) : null)) : null);
+        return h(React.Fragment, null, shown && state.combos ? h(ComboBanner, { combos: state.combos, onPress: () => setOpen(true), theme, opacity: blink }) : null, open ? h(Modal, { visible: true, animationType: 'slide', onRequestClose: close }, h(SafeAreaView, { style: { flex: 1, backgroundColor: theme.bg } }, guide('page'), notice ? h(ComboToast, { text: notice, top: 8, theme }) : null, consentView)) : null, !open ? consentView : null);
     }
     return h(React.Fragment, null, open ? h(Pressable, {
         key: 'backdrop', accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: close,
         style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20, elevation: 20, backgroundColor: 'rgba(0,0,0,0.3)' },
-    }) : null, open ? h(ComboSheet, { key: 'sheet', top: sheetTop, theme }, guide('sheet')) : null, popup && !open && state.combos ? h(ComboPopup, { combos: state.combos, theme, art: popupArt, ad: popupAd, onOpen: () => { setPopup(false); setOpen(true); }, onClose: () => setPopup(false) }) : null, shown ? h(ComboChip, { key: 'chip', open, theme, top: chipTop, right: chipRight, opacity: blink, onPress: () => setOpen(o => !o) }) : null, notice ? h(ComboToast, { key: 'notice', text: notice, top: sheetTop + 8, theme }) : null);
+    }) : null, open ? h(ComboSheet, { key: 'sheet', top: sheetTop, theme }, guide('sheet')) : null, trialsOpen ? h(Pressable, {
+        key: 'trials-backdrop', accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: () => setTrialsOpen(false),
+        style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20, elevation: 20, backgroundColor: 'rgba(0,0,0,0.3)' },
+    }) : null, trialsOpen ? h(ComboSheet, { key: 'trials-sheet', top: sheetTop, theme }, h(comboTrials_1.ComboTrialsScreen, {
+        items: mine.items, loading: mine.loading, failed: mine.failed, theme, focusKey: trialsFocus, onRetry: loadMine,
+        onClose: () => setTrialsOpen(false), onCancelled: markCancelled,
+        // a row of my own list opens its campaign straight away (these were joined already: no consent question again)
+        onOpen: (trial) => { void handleMission({ id: trial.campaignKey, name: trial.name, points: trial.points ?? 1, todo: '', level: 'easy', campaignKey: trial.campaignKey }, { goal: 0, missions: [], total: 0 }, { skipConsent: true }); },
+    })) : null, popup && !open && !trialsOpen && state.combos ? h(ComboPopup, { combos: state.combos, theme, art: popupArt, ad: popupAd, onOpen: () => { setPopup(false); setOpen(true); }, onClose: () => setPopup(false) }) : null, shown ? h(ComboChip, {
+        key: 'chip', open, theme, top: chipTop, right: chipRight, opacity: blink, compact: trialsChip,
+        before: trialsChip ? h(ComboTrialsChip, { open: trialsOpen, theme, onPress: () => { if (trialsOpen)
+                setTrialsOpen(false);
+            else
+                openTrials(); } }) : null,
+        onPress: () => { setTrialsOpen(false); setOpen(o => !o); },
+    }) : null, notice ? h(ComboToast, { key: 'notice', text: notice, top: sheetTop + 8, theme }) : null, consentView);
 }

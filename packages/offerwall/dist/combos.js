@@ -1,7 +1,12 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.COMBO_LIST_HINT = exports.TODAY_COMBOS_SAMPLE = exports.DEFAULT_COMBO_THEME = exports.COMBO_POPUP_HEADLINE_WIDTH = exports.COMBO_POPUP_NOTICE = exports.COMBO_LEVEL_LABEL = exports.COMBO_EASY_NAME = exports.COMBO_NAME = void 0;
+exports.COMBO_LIST_HINT = exports.TODAY_COMBOS_SAMPLE = exports.DEFAULT_COMBO_THEME = exports.COMBO_POPUP_HEADLINE_WIDTH = exports.COMBO_POPUP_NOTICE = exports.COMBO_TRIAL_NAME = exports.COMBO_TRIAL_NOTE = exports.COMBO_LEVEL_LABEL = exports.COMBO_EASY_NAME = exports.COMBO_NAME = void 0;
 exports.normalizeTodayCombos = normalizeTodayCombos;
+exports.formatWon = formatWon;
+exports.trialLine = trialLine;
+exports.trialMissions = trialMissions;
+exports.isTrialKey = isTrialKey;
+exports.needsTrialConsent = needsTrialConsent;
 exports.autoDoneIds = autoDoneIds;
 exports.kstDate = kstDate;
 exports.isTodayCombos = isTodayCombos;
@@ -109,7 +114,111 @@ function normalizeTodayCombos(raw) {
     const done = cleanKeys(data.done);
     const singles = cleanSingles(data.singles, goals, gone);
     const easy = cleanEasy(data.easy, gone);
-    return { ...(date ? { date } : {}), display, bundles, ...(singles.length ? { singles } : {}), ...(easy ? { easy } : {}), ...(done.length ? { done } : {}) };
+    const trials = cleanTrials(data.trials, soldout, paid);
+    const trialKeys = cleanKeys(data.trial_keys ?? data.trialKeys).map(k => k.toLowerCase());
+    const trialConsent = cleanConsent(data.trial_consent ?? data.trialConsent);
+    return {
+        ...(date ? { date } : {}), display, bundles, ...(singles.length ? { singles } : {}), ...(easy ? { easy } : {}), ...(done.length ? { done } : {}),
+        ...(trials.length ? { trials } : {}), ...(trialKeys.length ? { trialKeys } : {}), ...(Object.keys(trialConsent).length ? { trialConsent } : {}),
+    };
+}
+/** Sanity limit for the free-trial list. */
+const MAX_TRIALS = 100;
+const optionalWhole = (v, max) => { const n = whole(v, max); return n || undefined; };
+/**
+ * `trials`: [{ campaignKey, name, icon, points, trial_days, trial_hours, charge_amount, cancel_after_hours }]. A row needs a key, a name and points;
+ * the rest is kept when it reads as a whole number (icon: https only). One row per key; a sold-out key (not one this member was paid for today) is dropped.
+ */
+function cleanTrials(raw, soldout, paid) {
+    if (!Array.isArray(raw))
+        return [];
+    const seen = new Set();
+    const out = [];
+    for (const item of raw.slice(0, MAX_TRIALS * 2)) {
+        if (out.length >= MAX_TRIALS)
+            break;
+        const rawKey = typeof item?.campaignKey === 'number' ? String(item.campaignKey) : item?.campaignKey ?? item?.campaign_key;
+        const campaignKey = text(typeof rawKey === 'number' ? String(rawKey) : rawKey, 64);
+        const name = text(item?.name, 40);
+        const points = whole(item?.points, MAX_POINTS);
+        if (!campaignKey || !name || !points || seen.has(campaignKey))
+            continue;
+        if (soldout.has(campaignKey) && !paid.has(campaignKey))
+            continue;
+        seen.add(campaignKey);
+        const iconUrl = text(item.icon ?? item.icon_url ?? item.iconUrl, 500);
+        const trialDays = optionalWhole(item.trial_days ?? item.trialDays, 365);
+        const trialHours = optionalWhole(item.trial_hours ?? item.trialHours, 8760);
+        const chargeAmount = optionalWhole(item.charge_amount ?? item.chargeAmount, 10000000);
+        const cancelAfterHours = optionalWhole(item.cancel_after_hours ?? item.cancelAfterHours, 8760);
+        out.push({
+            campaignKey, name, points,
+            ...(/^https:\/\/\S+$/i.test(iconUrl) ? { icon: iconUrl } : {}),
+            ...(trialDays ? { trialDays } : {}), ...(trialHours ? { trialHours } : {}),
+            ...(chargeAmount ? { chargeAmount } : {}), ...(cancelAfterHours ? { cancelAfterHours } : {}),
+        });
+    }
+    return out;
+}
+/** `trial_consent`: { "<key>": true | false }. Keys are lower-cased and kept short; only real booleans count. At most 500. */
+function cleanConsent(raw) {
+    const out = {};
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+        return out;
+    for (const [key, value] of Object.entries(raw).slice(0, 1000)) {
+        if (Object.keys(out).length >= 500)
+            break;
+        if (typeof value !== 'boolean' || key.length > 64)
+            continue;
+        const k = text(key, 64).toLowerCase();
+        if (k)
+            out[k] = value;
+    }
+    return out;
+}
+/** 29900 → 「29,900원」 */
+function formatWon(amount) {
+    return `${Math.round(amount).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}원`;
+}
+/**
+ * The second line of a free-trial row: 「7일 무료 · 이후 월 16,500원」. Days win over hours (whole days are said as days); with neither,
+ * just 「무료체험」; the price part is left out when the server gave none.
+ */
+function trialLine(trial) {
+    const days = trial.trialDays ?? (trial.trialHours && trial.trialHours % 24 === 0 ? trial.trialHours / 24 : 0);
+    const free = days ? `${days}일 무료` : trial.trialHours ? `${trial.trialHours}시간 무료` : '무료체험';
+    return trial.chargeAmount ? `${free} · 이후 월 ${formatWon(trial.chargeAmount)}` : free;
+}
+/**
+ * The free-trial list as mission rows: id = campaign key, the second line is 「7일 무료 · 이후 월 16,500원」. They are never in a sum; they only
+ * share the number circle, the hand check and the 「already paid today」 mark with the other rows.
+ */
+function trialMissions(combos) {
+    return (combos?.trials ?? []).map(x => ({
+        id: x.campaignKey, name: x.name, points: x.points, todo: trialLine(x), level: 'easy', campaignKey: x.campaignKey, ...(x.icon ? { icon: x.icon } : {}),
+    }));
+}
+/** The tab's one-line note, right where the other tabs show their sum (대표님 10/27 22:29). */
+exports.COMBO_TRIAL_NOTE = '끝나기 전에 해지하면 무료 · 해지 안내를 받을 수 있어요';
+/** Name of the free-trial tab, last in the tab row. */
+exports.COMBO_TRIAL_NAME = '무료체험';
+/** Is this campaign key one of the free-trial campaigns (case does not matter)? */
+function isTrialKey(combos, key) {
+    if (!key || !combos)
+        return false;
+    const k = key.toLowerCase();
+    return !!combos.trialKeys?.includes(k) || !!combos.trials?.some(x => x.campaignKey.toLowerCase() === k);
+}
+/**
+ * Does opening this campaign's detail page have to ask about cancel notices first? Yes when it is a free-trial campaign and this member
+ * has not answered for it yet (neither on the server, `trial_consent`, nor in this visit, `answered`).
+ */
+function needsTrialConsent(combos, key, answered = {}) {
+    if (!key || !isTrialKey(combos, key))
+        return false;
+    const k = key.toLowerCase();
+    const known = answered instanceof Map ? answered.has(k) : Object.prototype.hasOwnProperty.call(answered, k);
+    return !known && !(combos?.trialConsent && Object.prototype.hasOwnProperty.call(combos.trialConsent, k));
 }
 /** `done` (earned today) and `soldout` (places ran out): campaign keys, strings or numbers. Kept as short unique strings, at most 500. */
 function cleanKeys(raw) {
@@ -138,7 +247,7 @@ function autoDoneIds(combos) {
     if (!combos?.done?.length)
         return ids;
     const paid = new Set(combos.done);
-    const rows = [...combos.bundles.flatMap(b => b.missions), ...(combos.singles ?? []).flatMap(s => s.missions), ...(combos.easy?.missions ?? [])];
+    const rows = [...combos.bundles.flatMap(b => b.missions), ...(combos.singles ?? []).flatMap(s => s.missions), ...(combos.easy?.missions ?? []), ...trialMissions(combos)];
     for (const m of rows)
         if ((m.campaignKey && paid.has(m.campaignKey)) || paid.has(m.id))
             ids.add(m.id);
@@ -429,7 +538,7 @@ function ComboMissionIcon({ name, uri, size = 44, theme = exports.DEFAULT_COMBO_
  * The guide page, laid out like the shopping tab: white, a thin title row, small flat tabs (쉽게 모으기 · 1천 · 5천 · 1만P), a
  * one-line total, and a plain list: number, name + what to do, +points, a small check. The whole row is the button.
  */
-function ComboGuideScreen({ combos, loading = false, onClose, onPressMission, usn, theme = exports.DEFAULT_COMBO_THEME, showHeader = true, topInset = 0, variant = 'page', hint = exports.COMBO_LIST_HINT, done = NO_DONE, onToggleDone }) {
+function ComboGuideScreen({ combos, loading = false, onClose, onPressMission, usn, theme = exports.DEFAULT_COMBO_THEME, showHeader = true, topInset = 0, variant = 'page', hint = exports.COMBO_LIST_HINT, done = NO_DONE, onToggleDone, onPressTrial }) {
     const React = require('react');
     const { View, Text, Pressable, ScrollView, BackHandler } = require('react-native');
     const h = React.createElement;
@@ -443,12 +552,16 @@ function ComboGuideScreen({ combos, loading = false, onClose, onPressMission, us
     }, [onClose]);
     const bundles = combos?.bundles ?? [];
     const easy = combos?.easy;
-    // Tabs: 「쉽게 모으기」 first when the server sent it (and it is what opens), then the steps. Its list is a bundle with goal 0.
-    const tabCount = bundles.length + (easy ? 1 : 0);
+    const trials = combos?.trials ?? [];
+    const trialRows = trialMissions(combos);
+    // Tabs: 「쉽게 모으기」 first when the server sent it (and it is what opens), then the steps, and 「무료체험」 last when the server sent trials.
+    // The easy list is a bundle with goal 0; the trial list is not a bundle at all (no sum, nothing counted with the others).
+    const tabCount = bundles.length + (easy ? 1 : 0) + (trials.length ? 1 : 0);
     const index = Math.min(selected, Math.max(0, tabCount - 1));
-    const onEasy = !!easy && index === 0;
+    const onTrials = trials.length > 0 && index === tabCount - 1;
+    const onEasy = !onTrials && !!easy && index === 0;
     const stepIndex = index - (easy ? 1 : 0);
-    const bundle = onEasy && easy ? { goal: 0, missions: easy.missions, total: easy.total } : bundles[stepIndex];
+    const bundle = onTrials ? undefined : onEasy && easy ? { goal: 0, missions: easy.missions, total: easy.total } : bundles[stepIndex];
     // Rows the server says were paid today are done on their own (their check is filled and not tappable); hand ticks work for the rest.
     const autoDone = autoDoneIds(combos);
     const isDoneId = (id) => done.has(id) || autoDone.has(id);
@@ -463,6 +576,13 @@ function ComboGuideScreen({ combos, loading = false, onClose, onPressMission, us
         const result = (0, index_1.openOfferwall)({ usn });
         setNotice(result.ok ? '' : result.message);
     };
+    const pressTrial = (trial, mission) => {
+        if (onPressTrial) {
+            onPressTrial(trial);
+            return;
+        }
+        press(mission, { goal: 0, missions: trialRows, total: trialRows.reduce((sum, m) => sum + m.points, 0) });
+    };
     const todo = bundle ? bundle.missions.filter(m => !isDoneId(m.id)) : [];
     const rows = bundle ? [...todo, ...bundle.missions.filter(m => isDoneId(m.id))] : [];
     const remaining = todo.reduce((sum, m) => sum + m.points, 0);
@@ -473,15 +593,15 @@ function ComboGuideScreen({ combos, loading = false, onClose, onPressMission, us
     const singleRows = [...singles.filter(m => !isDoneId(m.id)), ...singles.filter(m => isDoneId(m.id))];
     const side = 20;
     /** One mission row, the same look in the list and in the 「한 번에 끝내기」 list. `no` counts the ones not done yet (screen readers only). */
-    const missionRow = (mission, index, no, forPress) => {
+    const missionRow = (mission, index, no, forPress, trial) => {
         const isDone = isDoneId(mission.id);
         return h(Pressable, {
             key: mission.id,
             accessibilityRole: 'button',
             accessibilityLabel: isDone ? `${mission.name}, 완료`
-                : `${no}번 ${mission.name}, ${formatPoints(mission.points)}, ${exports.COMBO_LEVEL_LABEL[mission.level]}${actionable ? ', 하러 가기' : ''}`,
+                : `${no}번 ${mission.name}, ${formatPoints(mission.points)}, ${trial ? trialLine(trial) : exports.COMBO_LEVEL_LABEL[mission.level]}${actionable ? ', 하러 가기' : ''}`,
             disabled: !actionable || isDone,
-            onPress: () => press(mission, forPress),
+            onPress: () => (trial ? pressTrial(trial, mission) : press(mission, forPress)),
             style: ({ pressed }) => ({
                 flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: side,
                 borderTopWidth: index === 0 ? 0 : 1, borderTopColor: t.line, backgroundColor: pressed ? '#F7F8FA' : 'transparent', opacity: isDone ? 0.5 : 1,
@@ -499,21 +619,26 @@ function ComboGuideScreen({ combos, loading = false, onClose, onPressMission, us
     };
     let nextNo = 0;
     let nextSingleNo = 0;
+    let nextTrialNo = 0;
     const closeText = (label) => h(Text, { style: { fontSize: 14, fontWeight: '600', color: t.sub } }, label);
     return h(View, { style: { flex: 1, backgroundColor: t.bg, paddingTop: Math.max(0, topInset) } }, showHeader ? (variant === 'sheet'
         ? h(View, { style: { height: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: side } }, h(Text, { style: { fontSize: 18, fontWeight: '700', color: t.text } }, exports.COMBO_NAME), h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 12, style: { paddingVertical: 8, paddingLeft: 8 } }, closeText('닫기')))
-        : h(View, { style: { height: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8 } }, h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 12, style: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' } }, h(Text, { style: { fontSize: 28, color: t.text } }, '‹')), h(Text, { style: { fontSize: 18, fontWeight: '700', color: t.text } }, exports.COMBO_NAME))) : null, h(ScrollView, { contentContainerStyle: { paddingBottom: 32 } }, tabCount > 1 ? h(ScrollView, { horizontal: true, showsHorizontalScrollIndicator: false, style: { flexGrow: 0 }, contentContainerStyle: { paddingHorizontal: side, paddingVertical: 4, gap: 8, alignItems: 'center' } }, [...(easy ? [null] : []), ...bundles].map((b, i) => {
+        : h(View, { style: { height: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8 } }, h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 12, style: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' } }, h(Text, { style: { fontSize: 28, color: t.text } }, '‹')), h(Text, { style: { fontSize: 18, fontWeight: '700', color: t.text } }, exports.COMBO_NAME))) : null, h(ScrollView, { contentContainerStyle: { paddingBottom: 32 } }, tabCount > 1 ? h(ScrollView, { horizontal: true, showsHorizontalScrollIndicator: false, style: { flexGrow: 0 }, contentContainerStyle: { paddingHorizontal: side, paddingVertical: 4, gap: 8, alignItems: 'center' } }, [...(easy ? [null] : []), ...bundles, ...(trials.length ? ['trials'] : [])].map((b, i) => {
         const on = i === index;
         const isEasyTab = b === null;
+        const isTrialTab = b === 'trials';
         const step = i - (easy ? 1 : 0);
+        const label = isEasyTab ? exports.COMBO_EASY_NAME : isTrialTab ? exports.COMBO_TRIAL_NAME : formatGoal(b.goal);
         return h(Pressable, {
-            key: isEasyTab ? 'easy' : `step-${b.goal}`, accessibilityRole: 'button', accessibilityState: { selected: on },
-            accessibilityLabel: isEasyTab ? exports.COMBO_EASY_NAME : `${step + 1}단계 ${formatGoal(b.goal)}`, onPress: () => setSelected(i),
+            key: isEasyTab ? 'easy' : isTrialTab ? 'trials' : `step-${b.goal}`, accessibilityRole: 'button', accessibilityState: { selected: on },
+            accessibilityLabel: isEasyTab ? exports.COMBO_EASY_NAME : isTrialTab ? exports.COMBO_TRIAL_NAME : `${step + 1}단계 ${formatGoal(b.goal)}`, onPress: () => setSelected(i),
             style: { height: 34, paddingHorizontal: 14, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? t.accentSoft : chipBg },
-        }, h(Text, { style: { fontSize: 14, fontWeight: '600', color: on ? t.accentText : t.sub } }, isEasyTab ? exports.COMBO_EASY_NAME : formatGoal(b.goal)));
+        }, h(Text, { style: { fontSize: 14, fontWeight: '600', color: on ? t.accentText : t.sub } }, label));
     })) : null, 
+    // 「무료체험」 tab: one line about cancelling, then the rows in the same numbered look; no sum (it is not counted with the steps)
+    onTrials ? h(View, { key: 'trials' }, h(Text, { style: { paddingHorizontal: side, paddingTop: 14, paddingBottom: 6, fontSize: 13, lineHeight: 18, color: t.sub } }, exports.COMBO_TRIAL_NOTE), [...trialRows.filter(m => !isDoneId(m.id)), ...trialRows.filter(m => isDoneId(m.id))].map((mission, i) => missionRow(mission, i, isDoneId(mission.id) ? 0 : ++nextTrialNo, { goal: 0, missions: [mission], total: mission.points }, trials.find(x => x.campaignKey === mission.id))), h(Text, { style: { paddingHorizontal: side, paddingTop: 18, fontSize: 12, lineHeight: 18, color: t.sub } }, '무료체험은 기간이 끝나면 자동으로 결제돼요. 끝나기 전에 꼭 해지해 주세요. 이 목록의 포인트는 위 합계에 들어가지 않고 따로 계산해요.')) : null, 
     // the sum as one line: what is left (or what finishing everything gives)
     bundle ? h(View, { style: { flexDirection: 'row', alignItems: 'baseline', paddingHorizontal: side, paddingTop: 14, paddingBottom: 6, gap: 6 } }, h(Text, { style: { fontSize: 13, color: t.sub } }, allDone ? '모두 마쳤어요' : anyDone ? '남은 합계' : onEasy ? '다 하면' : '합계'), allDone ? null : h(Text, { style: { fontSize: 16, fontWeight: '800', color: t.point } }, onEasy ? `+${formatPoints(remaining)}` : formatPoints(remaining))) : null, actionable && !onPressMission && hint && bundle ? h(Text, { style: { paddingHorizontal: side, paddingBottom: 6, fontSize: 12, lineHeight: 18, color: t.sub } }, hint) : null, bundle ? h(View, { key: String(bundle.goal) }, rows.map((mission, i) => missionRow(mission, i, isDoneId(mission.id) ? 0 : ++nextNo, bundle))) : null, 
     // 「한 번에 끝내기」: a second list under the step's, one mission is enough to reach the goal. Hidden when the server sent none.
-    bundle && singleRows.length ? h(View, { key: `singles-${bundle.goal}`, style: { marginTop: 22 } }, h(View, { style: { paddingHorizontal: side, paddingBottom: 6 } }, h(Text, { accessibilityRole: 'header', style: { fontSize: 16, fontWeight: '700', color: t.text } }, '한 번에 끝내기'), h(Text, { style: { marginTop: 2, fontSize: 13, color: t.sub } }, `아래 중 하나만 해도 ${formatPoints(bundle.goal)}를 채워요`)), singleRows.map((mission, i) => missionRow(mission, i, isDoneId(mission.id) ? 0 : ++nextSingleNo, { goal: bundle.goal, missions: [mission], total: mission.points }))) : null, !bundle ? h(Text, { style: { marginTop: 48, fontSize: 15, lineHeight: 22, textAlign: 'center', color: t.sub } }, loading ? '불러오고 있어요' : '지금은 준비하고 있어요.\n잠시 뒤에 다시 확인해 주세요.') : null, bundle ? h(Text, { style: { paddingHorizontal: side, paddingTop: 18, fontSize: 12, lineHeight: 18, color: t.sub } }, '합계는 표시된 항목을 모두 마쳤을 때 기준이에요. 오늘 하루 기준이고 내일은 새로 바뀌어요. 항목마다 참여 조건이 달라서, 눌러서 안내를 꼭 확인해 주세요.') : null, notice ? h(Text, { style: { paddingHorizontal: side, paddingTop: 10, fontSize: 14, fontWeight: '700', color: '#E5484D' } }, notice) : null));
+    bundle && singleRows.length ? h(View, { key: `singles-${bundle.goal}`, style: { marginTop: 22 } }, h(View, { style: { paddingHorizontal: side, paddingBottom: 6 } }, h(Text, { accessibilityRole: 'header', style: { fontSize: 16, fontWeight: '700', color: t.text } }, '한 번에 끝내기'), h(Text, { style: { marginTop: 2, fontSize: 13, color: t.sub } }, `아래 중 하나만 해도 ${formatPoints(bundle.goal)}를 채워요`)), singleRows.map((mission, i) => missionRow(mission, i, isDoneId(mission.id) ? 0 : ++nextSingleNo, { goal: bundle.goal, missions: [mission], total: mission.points }))) : null, !bundle && !onTrials ? h(Text, { style: { marginTop: 48, fontSize: 15, lineHeight: 22, textAlign: 'center', color: t.sub } }, loading ? '불러오고 있어요' : '지금은 준비하고 있어요.\n잠시 뒤에 다시 확인해 주세요.') : null, bundle ? h(Text, { style: { paddingHorizontal: side, paddingTop: 18, fontSize: 12, lineHeight: 18, color: t.sub } }, '합계는 표시된 항목을 모두 마쳤을 때 기준이에요. 오늘 하루 기준이고 내일은 새로 바뀌어요. 항목마다 참여 조건이 달라서, 눌러서 안내를 꼭 확인해 주세요.') : null, notice ? h(Text, { style: { paddingHorizontal: side, paddingTop: 10, fontSize: 14, fontWeight: '700', color: '#E5484D' } }, notice) : null));
 }

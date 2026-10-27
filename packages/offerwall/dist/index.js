@@ -312,6 +312,7 @@ Object.defineProperty(exports, "OfferwallScreen", { enumerable: true, get: funct
 Object.defineProperty(exports, "OFFERWALL_SCREEN_MARK", { enumerable: true, get: function () { return OfferwallScreen_1.OFFERWALL_SCREEN_MARK; } });
 __exportStar(require("./combos"), exports);
 __exportStar(require("./comboEntry"), exports);
+__exportStar(require("./comboTrials"), exports);
 __exportStar(require("./campaigns"), exports);
 __exportStar(require("./native"), exports);
 __exportStar(require("./comboDone"), exports);

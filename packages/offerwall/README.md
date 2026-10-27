@@ -331,3 +331,14 @@ if (isCombosRoute(action)) { goTab('offerwall'); requestOpenCombos(); }   // 탭
 - **숫자 윗부분 안 잘림**: 말과 숫자가 **같은 lineHeight**(숫자 크기 × 1.25)를 쓴다 — 부모 줄 높이(30)보다 큰 안쪽 글자(숫자 34)가 iOS 에서 윗부분이 잘리던 것이 원인이었다.
 - **「추천 보기」 버튼** 높이 52 → **36**(글자 17 → 15, 위 간격 18 → 14), **선착순 알약** 위 · 아래 여백 6 → 3(글자 13 → 12).
 - 이 밖에 0.3.9 와 같다. 0.3.9 tgz 는 iOS OTA 한 번으로 이미 나갔고 같은 이름으로 바꿔 끼우면 잠금 무결성이 깨지므로 새 번호로 낸다.
+
+## 0.3.11 — 무료체험: 동의 팝업 · 「무료체험」 탭 · 「무료체험 확인」 목록 · 푸시로 목록 열기 (JS only)
+
+대표님 10/27 22:11~22:29. 서버(앱보조5)가 정한 계약 그대로이고 앱은 보여 주기만 한다. 네이티브 diff 0.
+
+- **응답 필드**(`GET offerwall/combos`): `trials: [{campaignKey, name, icon(https만), points, trial_days, trial_hours, charge_amount(이후 월 원), cancel_after_hours}]`(합계 · 조합에 안 들어가는 별도 목록, 읽히지 않은 값은 키 없음), `trial_keys: [...]`(무료체험 캠페인 전체 키), `trial_consent: {키(소문자): true|false}`(이 회원이 이미 답한 것). 소진된 키(`soldout`)는 목록에서 빠진다(오늘 이미 받은 것은 남음).
+- **「무료체험」 탭**: 시트 탭 줄 맨 끝(「쉽게 모으기 · 1천P · 5천P · 1만P · 무료체험」, 탭 줄은 가로로 밀린다). 탭 위에 한 줄 「끝나기 전에 해지하면 무료 · 해지 안내를 받을 수 있어요」, 줄은 번호 줄 모양(이름 · 「7일 무료 · 이후 월 16,500원」 · +P · 체크)이고 **합계는 없다**(위 합계와 따로). 누르면 `onPressTrial(trial)`(없으면 `onPressMission`에 미션 모양으로). `trialLine(trial)` · `trialMissions(combos)` · `COMBO_TRIAL_NAME` · `COMBO_TRIAL_NOTE`.
+- **동의 팝업**: 캠페인 상세를 열기 전에 그 키가 `trial_keys`(또는 `trials`)에 있고 아직 답하지 않았으면(`trial_consent` 에도 이번 방문에도 없으면) 「무료체험이 끝나기 전에 해지 안내를 받으시겠어요?」 [안내 받기] [괜찮아요]. 둘 다 그 캠페인을 열고 답은 `onTrialConsent(campaignKey, agree)` 로 앱이 서버에 보낸다(`POST offerwall/trials/consent`, 실패해도 열린다). 어두운 배경 · 뒤로가기는 답이 아니다: 열지 않고 다음에 다시 묻는다. `onTrialConsent` 를 안 주면 묻지 않는다. 내 목록에서 누르는 줄은 이미 참여한 것이라 다시 묻지 않는다. `needsTrialConsent` · `isTrialKey`.
+- **「무료체험 확인」**: 「포인트 빨리 모으기」 칩 **왼쪽**의 작은 버튼(`ComboTrialsChip`, 칩은 같은 줄에서 한 단계 작아진다). 앱이 `loadTrials()`(`GET offerwall/trials` 본문 전체)를 주고 서버가 체험을 켰을 때(`trials` 또는 `trial_keys` 가 옴)만 나온다. 누르면 내 목록 시트: 줄마다 아이콘 · 이름 · 「10/27 참여 · 11/3 결제 예정 · 월 29,900원」 · 상태 알약(체험 중 / 지금 해지 가능 / 결제 시작됨 — 서버가 계산). 해지할 때가 지났고 아직 해지 표시가 없으면 「해지했나요?」 [했어요] [아직] → `onTrialCancelled(campaignKey, true|false)`(`POST offerwall/trials/{key}/cancelled`), 했어요면 「해지 완료 ✓」가 바로 보이고 보내기가 실패하면 목록을 다시 받는다. 줄을 누르면 그 캠페인 상세. `parseMyTrials(body)` 는 모양이 틀리면 null(「목록을 불러오지 못했어요」 + 다시 불러오기).
+- **푸시 → 목록**: `requestOpenTrials(campaignKey?)` — 칩이 있는 찬스 탭 화면이 아직 없으면 10초까지 기다렸다가 처음 뜨는 곳이 받는다(`requestOpenCombos` 와 같다). 그 캠페인 줄이 맨 위에서 강조된다.
+- 새 props(모두 선택): `onTrialConsent` · `loadTrials` · `onTrialCancelled`. 안 주면 0.3.10 과 똑같이 동작한다.

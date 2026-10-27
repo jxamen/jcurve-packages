@@ -34,13 +34,24 @@ export type ComboChipProps = {
     theme?: ComboTheme;
     top?: number;
     right?: number; /** Animated opacity for the blink (see usePulse). */
-    opacity?: import('react-native').Animated.Value;
+    opacity?: import('react-native').Animated.Value; /** drawn to the chip's left in the same row (the 「무료체험 확인」 button) */
+    before?: ReactElement | null; /** a smaller chip, to leave room for `before` */
+    compact?: boolean;
 };
 /**
  * Small chip that floats over the wall's own header row, left of its profile icon. Only the chip is drawn: no band,
  * no padding box, and the wrapper lets touches through everywhere else.
  */
-export declare function ComboChip({ onPress, open, theme, top, right, opacity }: ComboChipProps): ReactElement;
+export declare function ComboChip({ onPress, open, theme, top, right, opacity, before, compact }: ComboChipProps): ReactElement;
+/**
+ * 「무료체험 확인」 (대표님 10/27 22:11): a small button to the left of the chip that opens the member's own free-trial list. Short on purpose
+ * (the wall's title is to its left): white with a yellow rim, so it does not compete with the chip.
+ */
+export declare function ComboTrialsChip({ onPress, open, theme }: {
+    onPress: () => void;
+    open?: boolean;
+    theme?: ComboTheme;
+}): ReactElement;
 export type ComboBannerProps = {
     combos: TodayCombos;
     onPress: () => void;
@@ -130,6 +141,15 @@ export type ComboEntryProps = {
      * combos). Sending it is the app's business.
      */
     onDetailSignal?: (signal: ComboDetailSignal) => unknown;
+    /**
+     * Free trials (0.3.11). The app sends the member's answer to the cancel-notice question (`POST offerwall/trials/consent`). Without this the
+     * question is not asked and a trial campaign opens like any other.
+     */
+    onTrialConsent?: (campaignKey: string, agree: boolean) => unknown;
+    /** The member's own free-trial list (`GET offerwall/trials`, the whole body): gives the 「무료체험 확인」 button and its list. Without it neither exists. */
+    loadTrials?: () => Promise<unknown>;
+    /** 「했어요」 / 「아직」 on a trial row (`POST offerwall/trials/{key}/cancelled`). */
+    onTrialCancelled?: (campaignKey: string, cancelled: boolean) => unknown;
     chipTop?: number;
     chipRight?: number;
     sheetTop?: number;
@@ -151,5 +171,5 @@ export type ComboEntryProps = {
  * server's id when it is a key) and its detail page opens. Otherwise, or when nothing is found, the name is shown at the
  * top (and copied when possible) and the plain list is revealed: the Chance tab closes the guide, Home opens the list.
  */
-export declare function ComboEntry({ placement, url, headers, load, loadKey, usn, theme, sample, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, onDetailSignal, chipTop, chipRight, sheetTop, popupArt, popupAd, }: ComboEntryProps): ReactElement | null;
+export declare function ComboEntry({ placement, url, headers, load, loadKey, usn, theme, sample, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, onDetailSignal, onTrialConsent, loadTrials, onTrialCancelled, chipTop, chipRight, sheetTop, popupArt, popupAd, }: ComboEntryProps): ReactElement | null;
 export {};

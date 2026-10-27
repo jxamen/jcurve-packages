@@ -1,6 +1,6 @@
 {
   "name": "@jcurve/offerwall",
-  "version": "0.3.10",
+  "version": "0.3.11",
   "description": "AdPopcorn 서버 보상 오퍼월 · Expo 설정 · 회원 별칭",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

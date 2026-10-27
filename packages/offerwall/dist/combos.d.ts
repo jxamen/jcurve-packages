@@ -50,12 +50,56 @@ export type TodayCombos = {
     easy?: ComboEasy;
     /** Campaign keys this member was already paid for today (the server's `done`). Rows with such a key are shown as done on their own. */
     done?: string[];
+    /** 무료체험 campaigns (the server's `trials`): a list of its own, never part of the sums or the steps. Absent = no 「무료체험」 tab. */
+    trials?: ComboTrial[];
+    /** Every free-trial campaign key (sold-out and other-OS ones too): opening one of these asks for the cancel-notice consent first. */
+    trialKeys?: string[];
+    /** The campaigns this member already answered (`trial_consent`): key (lower case) → agreed or not. An answered one is not asked again. */
+    trialConsent?: Record<string, boolean>;
+};
+/**
+ * One free-trial campaign. Everything but key, name and points is optional: a value the server could not read is simply missing
+ * (e.g. no `chargeAmount` for some), and the line then says less.
+ */
+export type ComboTrial = {
+    campaignKey: string;
+    name: string;
+    points: number;
+    icon?: string;
+    /** free days / hours, the monthly price after the trial (won), and how many hours after joining the trial can be cancelled */
+    trialDays?: number;
+    trialHours?: number;
+    chargeAmount?: number;
+    cancelAfterHours?: number;
 };
 /** Name of the tab that lists only easy missions, before the 1천 → 5천 → 1만P steps. */
 export declare const COMBO_EASY_NAME = "\uC27D\uAC8C \uBAA8\uC73C\uAE30";
 export declare const COMBO_LEVEL_LABEL: Record<ComboLevel, string>;
 /** Keeps only well-formed rows; totals are recomputed so the screen never shows a sum the rows do not add up to. */
 export declare function normalizeTodayCombos(raw: unknown): TodayCombos | null;
+/** 29900 → 「29,900원」 */
+export declare function formatWon(amount: number): string;
+/**
+ * The second line of a free-trial row: 「7일 무료 · 이후 월 16,500원」. Days win over hours (whole days are said as days); with neither,
+ * just 「무료체험」; the price part is left out when the server gave none.
+ */
+export declare function trialLine(trial: Pick<ComboTrial, 'trialDays' | 'trialHours' | 'chargeAmount'>): string;
+/**
+ * The free-trial list as mission rows: id = campaign key, the second line is 「7일 무료 · 이후 월 16,500원」. They are never in a sum; they only
+ * share the number circle, the hand check and the 「already paid today」 mark with the other rows.
+ */
+export declare function trialMissions(combos: TodayCombos | null | undefined): ComboMission[];
+/** The tab's one-line note, right where the other tabs show their sum (대표님 10/27 22:29). */
+export declare const COMBO_TRIAL_NOTE = "\uB05D\uB098\uAE30 \uC804\uC5D0 \uD574\uC9C0\uD558\uBA74 \uBB34\uB8CC \u00B7 \uD574\uC9C0 \uC548\uB0B4\uB97C \uBC1B\uC744 \uC218 \uC788\uC5B4\uC694";
+/** Name of the free-trial tab, last in the tab row. */
+export declare const COMBO_TRIAL_NAME = "\uBB34\uB8CC\uCCB4\uD5D8";
+/** Is this campaign key one of the free-trial campaigns (case does not matter)? */
+export declare function isTrialKey(combos: TodayCombos | null | undefined, key: string | undefined): boolean;
+/**
+ * Does opening this campaign's detail page have to ask about cancel notices first? Yes when it is a free-trial campaign and this member
+ * has not answered for it yet (neither on the server, `trial_consent`, nor in this visit, `answered`).
+ */
+export declare function needsTrialConsent(combos: TodayCombos | null | undefined, key: string | undefined, answered?: ReadonlyMap<string, boolean> | Record<string, boolean>): boolean;
 /**
  * Ids of the missions the server says were already paid today: a mission counts when its `campaignKey` (or, when the server
  * made the id the key, its `id`) is in `combos.done`. The guide shows these rows as done on its own (down the list, out of the
@@ -229,6 +273,8 @@ export type ComboGuideScreenProps = {
     done?: ReadonlySet<string>;
     /** Called when the round mark in front of a row is tapped. Without it the marks are not interactive. */
     onToggleDone?: (id: string) => void;
+    /** A row of the 「무료체험」 tab was tapped (the app asks for the cancel-notice consent, then opens the campaign). Without it `onPressMission` gets the row as a mission. */
+    onPressTrial?: (trial: ComboTrial) => void;
 };
 /**
  * A campaign's icon (`mission.icon`, https only), else the first letter of the name on a soft circle; a picture that fails to load
@@ -244,5 +290,5 @@ export declare function ComboMissionIcon({ name, uri, size, theme }: {
  * The guide page, laid out like the shopping tab: white, a thin title row, small flat tabs (쉽게 모으기 · 1천 · 5천 · 1만P), a
  * one-line total, and a plain list: number, name + what to do, +points, a small check. The whole row is the button.
  */
-export declare function ComboGuideScreen({ combos, loading, onClose, onPressMission, usn, theme, showHeader, topInset, variant, hint, done, onToggleDone }: ComboGuideScreenProps): ReactElement;
+export declare function ComboGuideScreen({ combos, loading, onClose, onPressMission, usn, theme, showHeader, topInset, variant, hint, done, onToggleDone, onPressTrial }: ComboGuideScreenProps): ReactElement;
 export {};
