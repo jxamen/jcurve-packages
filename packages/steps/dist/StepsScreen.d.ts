@@ -25,7 +25,8 @@ export type PendingStepsClaim = {
 };
 export type StepsScreenProps = {
     api: {
-        fetchStages(): Promise<StepsState>;
+        fetchStages(): Promise<StepsState>; /** 0.3.0: `GET steps/stages?day=YYYY-MM-DD`(서버는 오늘 · 어제만). 안 주면 「어제 걸음」 카드가 없다 */
+        fetchStagesOn?(day: string): Promise<StepsState>;
         claimStage(stageId: string, day: string, earned?: boolean): Promise<StepsState & {
             gained: number;
             balance: number;

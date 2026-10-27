@@ -13,8 +13,11 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.todayOf = exports.emptyBook = void 0;
 exports.kstDay = kstDay;
+exports.yesterdayKst = yesterdayKst;
 exports.kstStart = kstStart;
 exports.recentDays = recentDays;
+exports.keepRecent = keepRecent;
+exports.stepsOn = stepsOn;
 exports.mergeDays = mergeDays;
 exports.pruneBook = pruneBook;
 exports.toSend = toSend;
@@ -32,6 +35,10 @@ const DAY_MS = 24 * 3600000;
 function kstDay(ms) {
     return new Date(ms + KST_MS).toISOString().slice(0, 10);
 }
+/** 어제의 한국 날짜 — 한국은 서머타임이 없어 하루는 늘 24시간이다 */
+function yesterdayKst(now = Date.now()) {
+    return kstDay(now - DAY_MS);
+}
 /** 그 한국 날짜의 자정(UTC 밀리초) */
 function kstStart(date) {
     const [y, m, d] = date.split('-').map(Number);
@@ -46,6 +53,16 @@ function recentDays(now, n) {
         out.push({ date: kstDay(start), start, end: i === 0 ? now : start + DAY_MS });
     }
     return out;
+}
+/** 오늘과 어제만 남긴다 — 서버가 받는 날은 이 둘뿐이다(그 앞 날을 올려도 거절). */
+function keepRecent(days, now) {
+    const keep = new Set([kstDay(now), yesterdayKst(now)]);
+    return days.filter((d) => keep.has(d.date));
+}
+/** 그 날짜 걸음 수 — 기록이 여러 개면 가장 큰 값, 그 날 기록이 없으면 null */
+function stepsOn(days, date) {
+    const same = days.filter((d) => d.date === date);
+    return same.length ? Math.max(...same.map((d) => d.steps)) : null;
 }
 const cleanSteps = (v) => {
     const n = typeof v === 'number' ? v : Number(v);

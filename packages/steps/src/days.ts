@@ -30,6 +30,11 @@ export function kstDay(ms: number): string {
   return new Date(ms + KST_MS).toISOString().slice(0, 10);
 }
 
+/** 어제의 한국 날짜 — 한국은 서머타임이 없어 하루는 늘 24시간이다 */
+export function yesterdayKst(now: number = Date.now()): string {
+  return kstDay(now - DAY_MS);
+}
+
 /** 그 한국 날짜의 자정(UTC 밀리초) */
 export function kstStart(date: string): number {
   const [y, m, d] = date.split('-').map(Number);
@@ -47,6 +52,20 @@ export function recentDays(now: number, n: number): Array<{ date: string; start:
   }
 
   return out;
+}
+
+/** 오늘과 어제만 남긴다 — 서버가 받는 날은 이 둘뿐이다(그 앞 날을 올려도 거절). */
+export function keepRecent(days: DaySteps[], now: number): DaySteps[] {
+  const keep = new Set([kstDay(now), yesterdayKst(now)]);
+
+  return days.filter((d) => keep.has(d.date));
+}
+
+/** 그 날짜 걸음 수 — 기록이 여러 개면 가장 큰 값, 그 날 기록이 없으면 null */
+export function stepsOn(days: DaySteps[], date: string): number | null {
+  const same = days.filter((d) => d.date === date);
+
+  return same.length ? Math.max(...same.map((d) => d.steps)) : null;
 }
 
 const cleanSteps = (v: unknown): number => {

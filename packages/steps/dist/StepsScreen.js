@@ -39,6 +39,8 @@ const jsx_runtime_1 = require("react/jsx-runtime");
 const react_1 = __importStar(require("react"));
 const react_native_1 = require("react-native");
 const stages_1 = require("./stages");
+const days_1 = require("./days");
+const StepsYesterdayCard_1 = require("./StepsYesterdayCard");
 const source_1 = require("./source");
 const sync_1 = require("./sync");
 exports.defaultStepsTheme = { bg: '#FFF6EC', card: '#FFFFFF', text: '#2B2118', sub: '#8A7A6B', line: '#F6EEE6', dim: '#C4B7A9', primary: '#F5A3B8', primarySoft: '#FFEDF2', primaryDeep: '#D9738E', bgSoft: '#FFFBF5', onPrimary: '#fff', radius: 20 };
@@ -62,6 +64,7 @@ function StepsScreen({ api, showRewardedAd, onPendingClaim, onBalance, theme, st
     const holdClaim = (_kind, purpose, key, body, earned) => onPendingClaim?.({ purpose, key, ...body, earned });
     const member = memberId == null ? null : { id: memberId };
     const [state, setState] = (0, react_1.useState)(null);
+    const [yState, setYState] = (0, react_1.useState)(null);
     const [reading, setReading] = (0, react_1.useState)(null);
     const [message, setMessage] = (0, react_1.useState)('');
     const [pending, setPending] = (0, react_1.useState)(null);
@@ -70,6 +73,20 @@ function StepsScreen({ api, showRewardedAd, onPendingClaim, onBalance, theme, st
     const stop = (0, react_1.useRef)(() => { });
     const error = (e) => { if (active.current)
         setMessage(isApiError(e) && e.code === 'day_changed' ? '날짜가 바뀌었어요. 오늘 단계를 다시 확인해 주세요.' : isApiError(e) ? t(errorCopy[e.code] ?? '잠시 후 다시 시도해 주세요') : '걸음 수를 읽지 못했어요. 다시 시도해 주세요.'); };
+    // 어제 걸음(0.3.0) — 어제 상태는 서버 응답(steps/stages?day=어제)을 그대로 본다. 실패해도 오늘 화면은 그대로 둔다(어제 카드만 안 보인다)
+    const loadYesterday = (0, react_1.useCallback)(async () => {
+        if (!api.fetchStagesOn)
+            return;
+        try {
+            const y = await api.fetchStagesOn((0, days_1.yesterdayKst)());
+            if (active.current)
+                setYState(y);
+        }
+        catch {
+            if (active.current)
+                setYState(null);
+        }
+    }, [api]);
     const load = (0, react_1.useCallback)(async () => {
         if (loading.current)
             return;
@@ -80,6 +97,7 @@ function StepsScreen({ api, showRewardedAd, onPendingClaim, onBalance, theme, st
             if (!active.current)
                 return;
             setState(first);
+            void loadYesterday();
             const r = await (0, source_1.readToday)();
             if (!active.current)
                 return;
@@ -91,6 +109,7 @@ function StepsScreen({ api, showRewardedAd, onPendingClaim, onBalance, theme, st
                     setState(next);
                     setMessage('');
                 }
+                await loadYesterday(); // 어제 걸음도 방금 올렸으니 서버 상태를 다시 본다
             }
         }
         catch (e) {
@@ -99,7 +118,7 @@ function StepsScreen({ api, showRewardedAd, onPendingClaim, onBalance, theme, st
         finally {
             loading.current = false;
         }
-    }, [api, memberId]);
+    }, [api, memberId, loadYesterday]);
     // 다른 길(알림 등)로 들어와도 옛 빌드면 업데이트 창을 띄우고 닫는다
     (0, react_1.useEffect)(() => { void ensureStepsVersion().then((ok) => { if (active.current && !ok)
         onClose(); }).catch(error); }, [ensureVersion, onClose]);
@@ -133,7 +152,11 @@ function StepsScreen({ api, showRewardedAd, onPendingClaim, onBalance, theme, st
     async function claim(id, day, purpose, earned) {
         const next = await claimStepsStage(id, day, earned);
         if (active.current) {
-            setState(next);
+            // 어제 몫을 받았으면 어제 카드가, 오늘 몫이면 오늘 카드가 새 상태를 받는다(청구 응답의 day 가 기준)
+            if (next.day === yState?.day && next.day !== state?.day)
+                setYState(next);
+            else
+                setState(next);
             setPending(null);
             setMessage(next.gained ? `${next.gained}P 받았어요` : '이미 받은 단계예요');
         }
@@ -157,13 +180,15 @@ function StepsScreen({ api, showRewardedAd, onPendingClaim, onBalance, theme, st
     const [busy, setBusy] = (0, react_1.useState)(null);
     const [refreshing, setRefreshing] = (0, react_1.useState)(false);
     const lock = (0, react_1.useRef)(false);
-    async function open(stage) {
-        if (!state || lock.current || reading?.status !== 'ready' || pending || !(0, stages_1.canClaimStage)(state, stage))
+    async function open(stage, which = 'today') {
+        const src = which === 'today' ? state : yState;
+        // 오늘 몫은 걸음 센서가 읽힐 때만, 어제 몫은 서버가 이미 아는 걸음이라 센서 상태와 무관하다
+        if (!src || lock.current || (which === 'today' && reading?.status !== 'ready') || pending || !(0, stages_1.canClaimStage)(src, stage))
             return;
         lock.current = true;
         setBusy(stage.stage_id);
         // 옛 빌드(걸음 센서 없음)는 받기 전에 업데이트 창(대표님 10-19 22:30 「걸음 수 보상 받을려고 하면 버전 체크」)
-        const day = state.day;
+        const day = src.day;
         const purpose = stage.ad_purpose;
         const hold = (earned) => {
             holdClaim('steps', purpose, purpose + ':' + day, { stage_id: stage.stage_id, day }, earned);
@@ -212,8 +237,8 @@ function StepsScreen({ api, showRewardedAd, onPendingClaim, onBalance, theme, st
     return (0, jsx_runtime_1.jsx)(StringsContext.Provider, { value: strings, children: (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: st.root, children: [header ?? (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: st.header, children: [(0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: t('뒤로'), hitSlop: 12, onPress: onClose, style: st.back, children: (0, jsx_runtime_1.jsx)(Copy, { style: st.backText, children: "\u2039" }) }), (0, jsx_runtime_1.jsx)(Copy, { style: [st.headerTitle, { flex: 1, textAlign: 'center' }], children: t('만보기') }), (0, jsx_runtime_1.jsx)(react_native_1.View, { style: st.back })] }), (0, jsx_runtime_1.jsxs)(react_native_1.ScrollView, { contentContainerStyle: st.content, refreshControl: (0, jsx_runtime_1.jsx)(react_native_1.RefreshControl, { refreshing: refreshing, onRefresh: () => { setRefreshing(true); void load().finally(() => setRefreshing(false)); } }), children: [(0, jsx_runtime_1.jsxs)(react_native_1.View, { style: st.top, children: [(0, jsx_runtime_1.jsxs)(Copy, { style: st.count, children: [steps.toLocaleString(), (0, jsx_runtime_1.jsx)(Copy, { style: st.countUnit, children: " \uAC78\uC74C" })] }), (0, jsx_runtime_1.jsx)(react_native_1.View, { style: st.bubble, children: (0, jsx_runtime_1.jsx)(Copy, { style: st.bubbleText, children: !ready ? '걸음 수를 켜면 포인트를 받을 수 있어요' : claimable.length > 0 ? `포인트를 ${claimable.length}번 받을 수 있어요` : next ? `${(next.threshold - steps).toLocaleString()}걸음 더 걸으면 ${points}P` : '오늘 걸음 포인트를 다 받았어요' }) })] }), reading && reading.status !== 'ready' ? (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: st.notice, children: [(0, jsx_runtime_1.jsx)(Copy, { style: st.noticeTitle, children: reading.status === 'unavailable' ? '이 기기에서는 걸음 수를 읽을 수 없어요' : reading.status === 'denied' ? '걸음 수 권한이 꺼져 있어요' : reading.status === 'error' ? '걸음 수를 읽지 못했어요' : '걸음 수를 켜 주세요' }), reading.status === 'denied' ? (0, jsx_runtime_1.jsx)(react_native_1.Pressable, { onPress: () => { void react_native_1.Linking.openSettings(); }, style: st.noticeBtn, children: (0, jsx_runtime_1.jsx)(Copy, { style: st.noticeBtnText, children: "\uC124\uC815\uC5D0\uC11C \uCF1C\uAE30" }) })
                                     : reading.status === 'unknown' ? (0, jsx_runtime_1.jsx)(react_native_1.Pressable, { onPress: () => { void enable(); }, style: st.noticeBtn, children: (0, jsx_runtime_1.jsx)(Copy, { style: st.noticeBtnText, children: "\uAC78\uC74C \uC218 \uCF1C\uAE30" }) })
                                         : reading.status === 'error' ? (0, jsx_runtime_1.jsx)(react_native_1.Pressable, { onPress: () => { void load(); }, style: st.noticeBtn, children: (0, jsx_runtime_1.jsx)(Copy, { style: st.noticeBtnText, children: "\uB2E4\uC2DC \uBD88\uB7EC\uC624\uAE30" }) }) : null] }) : null, message ? (0, jsx_runtime_1.jsx)(Copy, { accessibilityLiveRegion: "polite", style: st.message, children: message }) : null, pending ? (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: st.notice, children: [(0, jsx_runtime_1.jsx)(Copy, { style: st.noticeTitle, children: "\uAD11\uACE0 \uD655\uC778\uC744 \uAE30\uB2E4\uB9AC\uACE0 \uC788\uC5B4\uC694. \uC7A0\uC2DC \uD6C4 \uB2E4\uC2DC \uD655\uC778\uD560\uAC8C\uC694" }), (0, jsx_runtime_1.jsx)(react_native_1.Pressable, { onPress: () => { void claim(pending.id, pending.day, pending.purpose).catch(error); }, style: st.noticeBtn, children: (0, jsx_runtime_1.jsx)(Copy, { style: st.noticeBtnText, children: "\uBCF4\uC0C1 \uB2E4\uC2DC \uBC1B\uAE30" }) }), (0, jsx_runtime_1.jsx)(react_native_1.Pressable, { onPress: () => setPending(null), hitSlop: 8, children: (0, jsx_runtime_1.jsx)(Copy, { style: st.link, children: "\uB2EB\uAE30" }) })] }) : null, (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: st.claimCard, children: [(0, jsx_runtime_1.jsxs)(Copy, { style: st.claimLeft, children: ["\uB0A8\uC740 \uD69F\uC218 ", (0, jsx_runtime_1.jsxs)(Copy, { style: st.claimLeftNum, children: [claimable.length, "\uBC88"] })] }), (0, jsx_runtime_1.jsxs)(Copy, { style: st.claimSub, children: ["1,000\uAC78\uC74C\uB9C8\uB2E4 \uAD11\uACE0 \uBCF4\uACE0 ", points, "P \u00B7 \uC624\uB298 \uBC1B\uC740 \uD3EC\uC778\uD2B8 ", state?.earned_today ?? 0, "P"] }), (0, jsx_runtime_1.jsx)(react_native_1.View, { children: (0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: t(busy ? '확인 중…' : `광고 보고 ${points}P 받기`) + t(', 광고가 열려요'), accessibilityState: { disabled: !first || busy !== null }, disabled: !first || busy !== null, onPress: () => { if (first)
-                                            void open(first); }, style: ({ pressed }) => [st.claimBtn, (!first || busy !== null) && st.boxBtnOff, pressed && first && busy === null ? { opacity: 0.85, transform: [{ scale: 0.99 }] } : null], children: (0, jsx_runtime_1.jsx)(Copy, { numberOfLines: 1, style: [st.claimBtnText, (!first || busy !== null) && { color: C.primaryDeep ?? C.primary }], children: busy ? '확인 중…' : `광고 보고 ${points}P 받기` }) }) })] }), !state ? (0, jsx_runtime_1.jsx)(Copy, { style: st.message, children: "\uBD88\uB7EC\uC624\uB294 \uC911\uC774\uC5D0\uC694" }) : null, adSlot, (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: st.guide, children: [(0, jsx_runtime_1.jsx)(Copy, { style: st.guideTitle, children: "\uB9CC\uBCF4\uAE30 \uC548\uB0B4\uC0AC\uD56D" }), ['꿀꿀캐시 만보기는 1,000걸음마다 광고 보기를 완료하면 포인트를 받아요.',
-                                    '걸음 수와 남은 횟수는 매일 자정(한국 시간)에 초기화되고, 받지 않은 횟수는 다음 날로 넘어가지 않아요.',
+                                            void open(first); }, style: ({ pressed }) => [st.claimBtn, (!first || busy !== null) && st.boxBtnOff, pressed && first && busy === null ? { opacity: 0.85, transform: [{ scale: 0.99 }] } : null], children: (0, jsx_runtime_1.jsx)(Copy, { numberOfLines: 1, style: [st.claimBtnText, (!first || busy !== null) && { color: C.primaryDeep ?? C.primary }], children: busy ? '확인 중…' : `광고 보고 ${points}P 받기` }) }) })] }), (0, jsx_runtime_1.jsx)(StepsYesterdayCard_1.StepsYesterdayCard, { state: yState, busy: busy !== null || !!pending, theme: C, onClaim: (stage) => { void open(stage, 'yesterday'); } }), !state ? (0, jsx_runtime_1.jsx)(Copy, { style: st.message, children: "\uBD88\uB7EC\uC624\uB294 \uC911\uC774\uC5D0\uC694" }) : null, adSlot, (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: st.guide, children: [(0, jsx_runtime_1.jsx)(Copy, { style: st.guideTitle, children: "\uB9CC\uBCF4\uAE30 \uC548\uB0B4\uC0AC\uD56D" }), ['꿀꿀캐시 만보기는 1,000걸음마다 광고 보기를 완료하면 포인트를 받아요.',
+                                    '걸음 수와 남은 횟수는 매일 자정(한국 시간)에 새로 시작해요. 받지 못한 어제 몫은 오늘 자정까지 「어제 걸음」에서 받을 수 있고, 그 뒤에는 사라져요.',
                                     'Android 는 앱이 켜진 동안의 걸음을 기록하고, Health Connect 기록이 있으면 오늘 걸음도 불러와요. iPhone 은 동작 및 피트니스 기록에서 불러와요.',
                                     '배터리 절약 모드 등에서는 걸음 수가 정확하지 않을 수 있어요.',
                                     '만보기 보상과 조건은 사정에 따라 바뀔 수 있어요.'].map(line => (0, jsx_runtime_1.jsxs)(Copy, { style: st.guideLine, children: ["\u00B7 ", line] }, line))] })] })] }) });

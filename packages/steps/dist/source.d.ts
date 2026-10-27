@@ -4,7 +4,7 @@ export type StepsPermission = 'unknown' | 'granted' | 'denied' | 'unavailable';
 export declare function stepsPermission(): Promise<StepsPermission>;
 /** 권한을 묻는다 — 안드로이드는 헬스 커넥트 먼저, 없거나 거부하면 걸음 센서 */
 export declare function requestStepsPermission(explain: () => Promise<boolean>): Promise<StepsPermission>;
-/** 오늘 KST 걸음 — 권한 없음/읽기 실패는 빈 목록으로, readToday가 상태를 구분한다. */
+/** 오늘 + 어제(KST) 걸음 — 권한 없음/읽기 실패는 빈 목록으로, readToday가 상태를 구분한다. */
 export declare function readDays(now: number): Promise<DaySteps[]>;
 /**
  * 앱이 켜진 동안 걸음이 늘면 알린다 — 화면이 다시 읽는다.

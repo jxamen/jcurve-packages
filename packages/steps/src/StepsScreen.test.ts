@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('react-native', () => ({
  Platform: { OS: 'ios' }, StyleSheet: { create: (s: unknown) => s },
  Text: 'Text', View: 'View', Pressable: 'Pressable', ScrollView: 'ScrollView', RefreshControl: 'RefreshControl',
@@ -22,6 +22,45 @@ async function screen(options: any = {}) {
  return { root, props, text, press };
 }
 beforeEach(() => { vi.mocked(readToday).mockResolvedValue({ status: 'ready', steps: 3450, days: [], sensorOnly: false }); });
+const yesterdayState: StepsState = { ok: true, day: '2026-10-19', today_steps: 2400, daily_max: 250, earned_today: 5, stages: [1000, 2000, 3000].map((threshold, i) => ({ stage_id: 'stage_' + (i + 1), threshold, points: 5, claimed: i === 0, available: true, ad_purpose: 'steps_stage:2026-10-19:stage_' + (i + 1) })) };
+const withYesterday = (state: StepsState | (() => Promise<StepsState>) = yesterdayState) => ({ fetchStages: vi.fn(async () => sample), fetchStagesOn: vi.fn(typeof state === 'function' ? state : async () => state), sync: vi.fn(async () => ({})), claimStage: vi.fn(async (_id: string, day: string) => ({ ...(day === yesterdayState.day ? yesterdayState : sample), gained: 5, balance: 40 })) });
+describe('StepsScreen yesterday card', () => {
+ beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-20T07:00:00Z')); });
+ afterEach(() => { vi.useRealTimers(); });
+ it('asks the server for yesterday and shows the card under today with what is left', async () => {
+  const api = withYesterday(); const s = await screen({ api });
+  expect(api.fetchStagesOn).toHaveBeenCalledWith('2026-10-19');
+  expect(s.text()).toContain('어제 받은 포인트 5P'); expect(s.text()).toContain('2,400'); expect(s.text()).toMatch(/남은 횟수\s+1번 오늘 자정\(한국 시간\)까지 받을 수 있어요 · 어제 받은 포인트 5P/);
+  expect(s.text().indexOf('어제 받은 포인트')).toBeGreaterThan(s.text().indexOf('오늘 받은 포인트')); // below today's card
+  await act(async () => s.root.unmount());
+ });
+ it('claims yesterday with the server ad purpose and yesterday\'s date, not today\'s', async () => {
+  const api = withYesterday(); const showRewardedAd = vi.fn(async () => ({ earned: true })); const s = await screen({ api, showRewardedAd });
+  const yesterdayButton = s.root.root.findAllByType('Pressable').find((n: any) => String(n.props.accessibilityLabel ?? '').startsWith('어제 걸음'));
+  await act(async () => { yesterdayButton.props.onPress(); });
+  expect(showRewardedAd).toHaveBeenCalledWith('steps_stage:2026-10-19:stage_2');
+  expect(api.claimStage).toHaveBeenCalledWith('stage_2', '2026-10-19', true);
+  await act(async () => s.root.unmount());
+ });
+ it('hides when yesterday has nothing left, when the server answers with another day, or when the api has no yesterday support', async () => {
+  const none = await screen({ api: withYesterday({ ...yesterdayState, today_steps: 0 }) }); expect(none.text()).not.toContain('어제 받은 포인트'); await act(async () => none.root.unmount());
+  const wrong = await screen({ api: withYesterday({ ...yesterdayState, day: '2026-10-20' }) }); expect(wrong.text()).not.toContain('어제 받은 포인트'); await act(async () => wrong.root.unmount());
+  const off = await screen({}); expect(off.text()).not.toContain('어제 받은 포인트'); await act(async () => off.root.unmount());
+ });
+ it('a failing yesterday request never breaks today (no card, today still claimable)', async () => {
+  const api = withYesterday(async () => { throw new Error('offline'); }); const s = await screen({ api });
+  expect(s.text()).not.toContain('어제 받은 포인트'); expect(s.text()).toContain('포인트를 1번 받을 수 있어요');
+  await act(async () => s.root.unmount());
+ });
+ it('claiming yesterday does not need the step sensor (the server already has those steps)', async () => {
+  vi.mocked(readToday).mockResolvedValue({ status: 'denied', steps: null, days: [], sensorOnly: false });
+  const api = withYesterday(); const s = await screen({ api });
+  const yesterdayButton = s.root.root.findAllByType('Pressable').find((n: any) => String(n.props.accessibilityLabel ?? '').startsWith('어제 걸음'));
+  await act(async () => { yesterdayButton.props.onPress(); });
+  expect(api.claimStage).toHaveBeenCalledWith('stage_2', '2026-10-19', true);
+  await act(async () => s.root.unmount());
+ });
+});
 describe('StepsScreen', () => {
  it('calculates remaining stage and claim button after two claims', async () => { const s = await screen(); expect(s.text()).toContain('포인트를 1번 받을 수 있어요'); expect(s.text()).toContain('3,450'); expect(s.text()).toContain('남은 횟수'); expect(s.text()).toContain('1번'); expect(s.text()).not.toContain('👟'); expect(s.text()).toContain('꿀꿀캐시 만보기는'); await act(async () => s.root.unmount()); });
  it('claims only after earned and refreshes balance', async () => { const s = await screen(); await s.press(); expect(s.props.api.claimStage).toHaveBeenCalledWith('2', sample.day, true); expect(s.props.onBalance).toHaveBeenCalled(); expect(s.text()).toContain('5P 받았어요'); await act(async () => s.root.unmount()); });

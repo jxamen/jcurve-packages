@@ -20,4 +20,5 @@ __exportStar(require("./storage"), exports);
 __exportStar(require("./stages"), exports);
 __exportStar(require("./sync"), exports);
 __exportStar(require("./StepsStageCard"), exports);
+__exportStar(require("./StepsYesterdayCard"), exports);
 __exportStar(require("./StepsScreen"), exports);

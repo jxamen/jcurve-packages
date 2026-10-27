@@ -23,6 +23,8 @@ export type StepsBook = {
 export declare const emptyBook: () => StepsBook;
 /** 이 순간의 한국 날짜 'YYYY-MM-DD' */
 export declare function kstDay(ms: number): string;
+/** 어제의 한국 날짜 — 한국은 서머타임이 없어 하루는 늘 24시간이다 */
+export declare function yesterdayKst(now?: number): string;
 /** 그 한국 날짜의 자정(UTC 밀리초) */
 export declare function kstStart(date: string): number;
 /** 오늘을 포함한 최근 n일 — 오래된 날부터. 오늘 칸의 끝은 지금(미래를 묻지 않는다) */
@@ -31,6 +33,10 @@ export declare function recentDays(now: number, n: number): Array<{
     start: number;
     end: number;
 }>;
+/** 오늘과 어제만 남긴다 — 서버가 받는 날은 이 둘뿐이다(그 앞 날을 올려도 거절). */
+export declare function keepRecent(days: DaySteps[], now: number): DaySteps[];
+/** 그 날짜 걸음 수 — 기록이 여러 개면 가장 큰 값, 그 날 기록이 없으면 null */
+export declare function stepsOn(days: DaySteps[], date: string): number | null;
 /** 새로 읽은 값을 장부에 합친다 — 날짜별 최댓값만. **줄어든 값은 무시**한다 */
 export declare function mergeDays(book: StepsBook, fresh: DaySteps[]): StepsBook;
 /** 오래된 날짜를 지운다(기본 35일 — 헬스 커넥트 30일보다 조금 길게) */

@@ -10,8 +10,9 @@ const react_native_1 = require("react-native");
 const storage_1 = require("./storage");
 const days_1 = require("./days");
 const SENSOR_KEY = 'sensor';
-const IOS_DAYS = 1;
-const ANDROID_DAYS = 1;
+/** 읽는 날 수 — 오늘 + 어제(0.3.0, 어제 걸음도 받게). 서버는 그 앞 날을 안 받는다 */
+const IOS_DAYS = 2;
+const ANDROID_DAYS = 2;
 /** 헬스 커넥트 사용 가능(SdkAvailabilityStatus.SDK_AVAILABLE) */
 const HC_AVAILABLE = 3;
 /*
@@ -129,7 +130,7 @@ async function requestStepsPermission(explain) {
 async function sensorCounts(bookStorage = storage_1.stepsStorage) {
     return (await bookStorage.getJson(SENSOR_KEY)) ?? {};
 }
-/** 오늘 KST 걸음 — 권한 없음/읽기 실패는 빈 목록으로, readToday가 상태를 구분한다. */
+/** 오늘 + 어제(KST) 걸음 — 권한 없음/읽기 실패는 빈 목록으로, readToday가 상태를 구분한다. */
 async function readDays(now) {
     if (react_native_1.Platform.OS === 'ios') {
         const p = pedometer();
@@ -178,7 +179,7 @@ async function readDays(now) {
     if (!out.some(d => d.date === (0, days_1.kstDay)(now)) && await sensorPermission(false) === 'granted') {
         out.push({ date: (0, days_1.kstDay)(now), steps: 0, source: 'sensor' });
     }
-    return out.filter((d) => d.date === (0, days_1.kstDay)(now));
+    return (0, days_1.keepRecent)(out, now);
 }
 /**
  * 앱이 켜진 동안 걸음이 늘면 알린다 — 화면이 다시 읽는다.
@@ -256,7 +257,8 @@ async function readToday(now = Date.now()) {
         return { status, steps: null, days: [], sensorOnly: false };
     try {
         const days = await readDays(now);
-        return { status: days.length ? 'ready' : 'error', steps: days.length ? Math.max(...days.map(d => d.steps)) : null,
+        // `steps` 는 오늘 걸음 — days 에는 어제도 들어 있어 전체 최댓값을 쓰면 어제가 더 큰 날 오늘 숫자가 틀린다
+        return { status: days.length ? 'ready' : 'error', steps: (0, days_1.stepsOn)(days, (0, days_1.kstDay)(now)) ?? (days.length ? 0 : null),
             days, sensorOnly: react_native_1.Platform.OS === 'android' && !days.some(d => d.source === 'healthconnect') };
     }
     catch {

@@ -1,13 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState, createContext, useContext } from 'react';
 import { AppState, BackHandler, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { canClaimStage, type StepsState, type StepsStage } from './stages';
+import { canClaimStage, yesterdayView, type StepsState, type StepsStage } from './stages';
+import { yesterdayKst } from './days';
+import { StepsYesterdayCard } from './StepsYesterdayCard';
 import { readToday, requestStepsPermission, watchSteps, type TodayReading } from './source';
 import { syncToday } from './sync';
 export type StepsTheme = { bg: string; card: string; text: string; sub: string; line: string; dim: string; primary: string; primarySoft: string; onPrimary: string; radius: number; primaryDeep?: string; bgSoft?: string };
 export const defaultStepsTheme: StepsTheme = { bg: '#FFF6EC', card: '#FFFFFF', text: '#2B2118', sub: '#8A7A6B', line: '#F6EEE6', dim: '#C4B7A9', primary: '#F5A3B8', primarySoft: '#FFEDF2', primaryDeep: '#D9738E', bgSoft: '#FFFBF5', onPrimary: '#fff', radius: 20 };
 export type PendingStepsClaim = { stage_id: string; day: string; purpose: string; key: string; earned: boolean };
 export type StepsScreenProps = {
- api: { fetchStages(): Promise<StepsState>; claimStage(stageId: string, day: string, earned?: boolean): Promise<StepsState & { gained: number; balance: number }>; sync: Parameters<typeof syncToday>[1] };
+ api: { fetchStages(): Promise<StepsState>; /** 0.3.0: `GET steps/stages?day=YYYY-MM-DD`(서버는 오늘 · 어제만). 안 주면 「어제 걸음」 카드가 없다 */ fetchStagesOn?(day: string): Promise<StepsState>; claimStage(stageId: string, day: string, earned?: boolean): Promise<StepsState & { gained: number; balance: number }>; sync: Parameters<typeof syncToday>[1] };
  showRewardedAd(purpose: string): Promise<{ earned: boolean; opened?: boolean; noAd?: boolean; message?: string }>;
  onPendingClaim?(claim: PendingStepsClaim): void; onBalance?(): void | Promise<unknown>;
  theme?: Partial<StepsTheme>; strings?: Record<string, string>; header?: React.ReactNode; adSlot?: React.ReactNode;
@@ -34,25 +36,34 @@ export function StepsScreen({ api, showRewardedAd, onPendingClaim, onBalance, th
   const holdClaim = (_kind: string, purpose: string, key: string, body: { stage_id: string; day: string }, earned: boolean) => onPendingClaim?.({ purpose, key, ...body, earned });
   const member = memberId == null ? null : { id: memberId };
   const [state, setState] = useState<StepsState | null>(null);
+  const [yState, setYState] = useState<StepsState | null>(null);
   const [reading, setReading] = useState<TodayReading | null>(null);
   const [message, setMessage] = useState('');
   const [pending, setPending] = useState<{ id: string; day: string; purpose: string } | null>(null);
   const active = useRef(true); const loading = useRef(false);
   const stop = useRef<() => void>(() => {});
   const error = (e: unknown) => { if (active.current) setMessage(isApiError(e) && e.code === 'day_changed' ? '날짜가 바뀌었어요. 오늘 단계를 다시 확인해 주세요.' : isApiError(e) ? t(errorCopy[e.code] ?? '잠시 후 다시 시도해 주세요') : '걸음 수를 읽지 못했어요. 다시 시도해 주세요.'); };
+  // 어제 걸음(0.3.0) — 어제 상태는 서버 응답(steps/stages?day=어제)을 그대로 본다. 실패해도 오늘 화면은 그대로 둔다(어제 카드만 안 보인다)
+  const loadYesterday = useCallback(async () => {
+    if (!api.fetchStagesOn) return;
+    try { const y = await api.fetchStagesOn(yesterdayKst()); if (active.current) setYState(y); }
+    catch { if (active.current) setYState(null); }
+  }, [api]);
   const load = useCallback(async () => {
     if (loading.current) return;
     loading.current = true;
     try {
       // 상자 목록을 먼저 그린다 — 걸음 센서가 늦거나 없어도 「불러오는 중」에 멈추지 않게(10-19 시뮬 점검)
       const first = await fetchStepsStages(); if (!active.current) return; setState(first);
+      void loadYesterday();
       const r = await readToday(); if (!active.current) return; setReading(r);
       if (r.status === 'ready') {
         await syncToday(r.days, syncSteps);
         const next = await fetchStepsStages(); if (active.current) { setState(next); setMessage(''); }
+        await loadYesterday(); // 어제 걸음도 방금 올렸으니 서버 상태를 다시 본다
       }
     } catch (e) { error(e); } finally { loading.current = false; }
-  }, [api, memberId]);
+  }, [api, memberId, loadYesterday]);
   // 다른 길(알림 등)로 들어와도 옛 빌드면 업데이트 창을 띄우고 닫는다
   useEffect(() => { void ensureStepsVersion().then((ok) => { if (active.current && !ok) onClose(); }).catch(error); }, [ensureVersion, onClose]);
   useEffect(() => {
@@ -73,7 +84,11 @@ export function StepsScreen({ api, showRewardedAd, onPendingClaim, onBalance, th
   }
   async function claim(id: string, day: string, purpose: string, earned?: boolean) {
     const next = await claimStepsStage(id, day, earned);
-    if (active.current) { setState(next); setPending(null); setMessage(next.gained ? `${next.gained}P 받았어요` : '이미 받은 단계예요'); }
+    if (active.current) {
+      // 어제 몫을 받았으면 어제 카드가, 오늘 몫이면 오늘 카드가 새 상태를 받는다(청구 응답의 day 가 기준)
+      if (next.day === yState?.day && next.day !== state?.day) setYState(next); else setState(next);
+      setPending(null); setMessage(next.gained ? `${next.gained}P 받았어요` : '이미 받은 단계예요');
+    }
     await refresh();
   }
   /** 'ok' 받을 수 있다(`earned` 는 앱이 보상 콜백을 받은 것) · 'hold' 확인을 기다려 적어 둔다 · false 멈춘다 */
@@ -90,12 +105,14 @@ export function StepsScreen({ api, showRewardedAd, onPendingClaim, onBalance, th
   const [busy, setBusy] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const lock = useRef(false);
-  async function open(stage: StepsStage) {
-    if (!state || lock.current || reading?.status !== 'ready' || pending || !canClaimStage(state, stage)) return;
+  async function open(stage: StepsStage, which: 'today' | 'yesterday' = 'today') {
+    const src = which === 'today' ? state : yState;
+    // 오늘 몫은 걸음 센서가 읽힐 때만, 어제 몫은 서버가 이미 아는 걸음이라 센서 상태와 무관하다
+    if (!src || lock.current || (which === 'today' && reading?.status !== 'ready') || pending || !canClaimStage(src, stage)) return;
     lock.current = true; setBusy(stage.stage_id);
     // 옛 빌드(걸음 센서 없음)는 받기 전에 업데이트 창(대표님 10-19 22:30 「걸음 수 보상 받을려고 하면 버전 체크」)
 
-    const day = state.day;
+    const day = src.day;
     const purpose = stage.ad_purpose;
     const hold = (earned: boolean) => {
       holdClaim('steps', purpose, purpose + ':' + day, { stage_id: stage.stage_id, day }, earned);
@@ -156,6 +173,7 @@ export function StepsScreen({ api, showRewardedAd, onPendingClaim, onBalance, th
           <Copy numberOfLines={1} style={[st.claimBtnText, (!first || busy !== null) && { color: C.primaryDeep ?? C.primary }]}>{busy ? '확인 중…' : `광고 보고 ${points}P 받기`}</Copy>
         </Pressable></View>
       </View>
+      <StepsYesterdayCard state={yState} busy={busy !== null || !!pending} theme={C} onClaim={(stage) => { void open(stage, 'yesterday'); }} />
       {!state ? <Copy style={st.message}>불러오는 중이에요</Copy> : null}
 
       {adSlot}
@@ -163,7 +181,7 @@ export function StepsScreen({ api, showRewardedAd, onPendingClaim, onBalance, th
       <View style={st.guide}>
         <Copy style={st.guideTitle}>만보기 안내사항</Copy>
         {['꿀꿀캐시 만보기는 1,000걸음마다 광고 보기를 완료하면 포인트를 받아요.',
-          '걸음 수와 남은 횟수는 매일 자정(한국 시간)에 초기화되고, 받지 않은 횟수는 다음 날로 넘어가지 않아요.',
+          '걸음 수와 남은 횟수는 매일 자정(한국 시간)에 새로 시작해요. 받지 못한 어제 몫은 오늘 자정까지 「어제 걸음」에서 받을 수 있고, 그 뒤에는 사라져요.',
           'Android 는 앱이 켜진 동안의 걸음을 기록하고, Health Connect 기록이 있으면 오늘 걸음도 불러와요. iPhone 은 동작 및 피트니스 기록에서 불러와요.',
           '배터리 절약 모드 등에서는 걸음 수가 정확하지 않을 수 있어요.',
           '만보기 보상과 조건은 사정에 따라 바뀔 수 있어요.'].map(line => <Copy key={line} style={st.guideLine}>· {line}</Copy>)}

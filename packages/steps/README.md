@@ -60,3 +60,23 @@ compare-pig-vs-package.png는 좌 꿀꿀 원본/우 패키지 각 390×844이다
 검증 범위: 원본 ScreenHero(문구·간격·실제 phone 캐릭터 PNG)를 양쪽에 사용한다. Skia HeroSky 배경만 웹에서 제외했고 SwipeBack은 정지 View로 대체했다. 실제 광고 SDK도 대체 슬롯이다. 본문 RGB 픽셀 차이는 0이다. 캐릭터 그림 경계 107픽셀은 브라우저의 소수점 위치 이미지 보간 차이가 있다(전체 차이 영역 x289–370, y37–119). Skia 배경·실기기 제스처·광고 SDK 콘텐츠의 일치를 증명하는 캡처는 아니다. 앱에서 원래 ScreenHero/SwipeBack/HarvestNative를 주입하면 해당 그림과 동작은 앱이 제공한다.
 
 재현: origin/store/pigcash-1.1.6-1020의 src/screens/StepsScreen.tsx, src/ui, assets/pig30을 별도 디렉터리로 추출한다. packages/steps/verification/render.mjs를 STEPS_TOOLS(React/react-dom/react-native-web/esbuild/playwright 설치 경로), PIG_SOURCE(추출한 StepsScreen.tsx), STEPS_OUT(출력 디렉터리)와 함께 실행한다.
+
+
+## 0.3.0 — 어제 걸음도 받기 (대표님 10/28 07:53 「어제 걸음도 받게 하기」 + 「어제 이미 보상을 받았는지를 잘 체크해야 해」)
+
+서버(앱보조5, 10/28 08:08 배포): `GET steps/stages?day=YYYY-MM-DD`(KST, **오늘 · 어제만**, 그 앞은 422 `bad_day`) · `POST steps/stages/claim {stage_id, day}`(어제도 오늘과 같은 규칙, 그 앞 날짜 · 내일 · 이상한 값은 409 `day_changed`) ·
+`steps/sync` 의 `days[]` 에 어제 날짜를 넣으면 받는다. 광고 용도는 날짜를 따라간다(`steps_stage:<day>:stage_N` — 어제 청구면 어제 날짜로 광고를 본다). 같은 (회원 · 날짜 · 단계) 재청구는 지급 없이 `200 {replayed:true, gained:0}`. 하루 최대(250P)는 날짜마다 따로 센다.
+
+바뀐 것
+- **센서 읽기**: iOS 는 어제까지(CoreMotion 날짜별), Android 는 헬스 커넥트가 어제까지(없으면 앱이 켜진 동안 센 만큼만 — 이미 장부에 있던 어제 값). 이전에는 `readDays` 가 읽고도 오늘만 남겼다. `readToday().steps` 는 **오늘** 걸음이고 `days` 에 어제가 같이 들어 있다.
+- **서버로 올리기**: `syncToday(days, send)` 가 오늘 + 어제를 보낸다(그 앞 날은 안 보냄).
+- **받은 여부는 서버 응답만 믿는다**: `yesterdayView(state)` 가 `steps/stages?day=어제` 응답의 `claimed` · `available` · 하루 최대로 「받을 수 있는 단계」를 센다. 응답이 없거나, 응답의 `day` 가 어제가 아니거나(자정이 지났다 · 서버가 오늘을 줬다), 받을 단계가 0 이면 카드는 **안 보인다**(걸음 0 · 다 받음 · 하루 최대 · 서버가 `available:false`).
+- **`<StepsYesterdayCard state onClaim busy theme />`**: 오늘 카드 바로 아래에 두는 「어제 걸음」 카드(어제 걸음 수 · 남은 횟수 · 「광고 보고 N P 받기」 · 「오늘 자정(한국 시간)까지 받을 수 있어요」).
+- **`<StepsScreen api={{ …, fetchStagesOn }}>`**: `fetchStagesOn(day)` 를 주면 화면이 어제 상태를 받아 카드를 단다. 안 주면 예전과 같다. 어제 요청이 실패해도 오늘 화면은 그대로(카드만 안 보인다). 어제 받기는 걸음 센서 상태와 무관하다(서버가 이미 아는 걸음).
+- 안내 문구 한 줄이 바뀌었다: 「…받지 않은 횟수는 다음 날로 넘어가지 않아요」 → 「…받지 못한 어제 몫은 오늘 자정까지 「어제 걸음」에서 받을 수 있고, 그 뒤에는 사라져요」. `strings` 로 그 줄을 바꿔 쓰는 앱은 새 문장으로 맞춰야 한다.
+
+자기 만보기 화면을 가진 앱(예: 에그머니 `StepsPage`, 당근 `StepsScreen` 0.1.x 방식)에 붙이는 법
+1. api: `fetchStepsStages(day?)` → `GET steps/stages` + (day 가 있으면) `?day=`. `claimStepsStage(stage_id, day)` 는 이미 day 를 받는다.
+2. 화면이 열릴 때 · 걸음 동기화 뒤: `const y = await fetchStepsStages(yesterdayKst())`(실패는 삼킨다).
+3. 오늘 카드 아래: `<StepsYesterdayCard state={y} busy={…} theme={…} onClaim={(stage) => { /* 어제 날짜의 stage.ad_purpose 로 광고 → claim(stage.stage_id, y.day) */ }} />`. 광고에는 응답의 `ad_purpose` 를 그대로 넘긴다(어제 날짜가 들어 있다).
+4. `feed_used`(에그머니: 그날 걸음을 먹이로 바꿨으면 포인트 거절) · `daily_max` · `not_enough_steps` · `day_changed` · `bad_stage` · `bad_day` 는 기다리지 않고 알린다.
