@@ -52,8 +52,9 @@ type TrialsOpener = {
  */
 export declare function requestOpenTrials(focusKey?: string, now?: number): boolean;
 export declare function listenForTrialRequests(opener: TrialsOpener, now?: number): () => void;
-export declare const COMBO_CONSENT_TITLE = "\uBB34\uB8CC\uCCB4\uD5D8\uC774 \uB05D\uB098\uAE30 \uC804\uC5D0 \uD574\uC9C0 \uC548\uB0B4\uB97C \uBC1B\uC73C\uC2DC\uACA0\uC5B4\uC694?";
-export declare const COMBO_CONSENT_BODY = "\uAE30\uAC04\uC774 \uB05D\uB098\uAE30 \uC804\uC5D0 \uD574\uC9C0\uD558\uC9C0 \uC54A\uC73C\uBA74 \uC790\uB3D9\uC73C\uB85C \uACB0\uC81C\uB420 \uC218 \uC788\uC5B4\uC694. \uC548\uB0B4\uB97C \uBC1B\uC73C\uBA74 \uD574\uC9C0\uD560 \uB54C\uAC00 \uB418\uC5C8\uC744 \uB54C \uC54C\uB9BC\uC73C\uB85C \uC54C\uB824 \uB4DC\uB824\uC694.";
+/** Broken by hand after 「전에」 so no word is cut in the middle (the sentence is 「무료체험이 끝나기 전에 해지 안내를 받으시겠어요?」). */
+export declare const COMBO_CONSENT_TITLE = "\uBB34\uB8CC\uCCB4\uD5D8\uC774 \uB05D\uB098\uAE30 \uC804\uC5D0\n\uD574\uC9C0 \uC548\uB0B4\uB97C \uBC1B\uC73C\uC2DC\uACA0\uC5B4\uC694?";
+export declare const COMBO_CONSENT_BODY = "\uD574\uC9C0\uD558\uC9C0 \uC54A\uC73C\uBA74 \uC790\uB3D9\uC73C\uB85C \uACB0\uC81C\uB420 \uC218 \uC788\uC5B4\uC694.\n\uC548\uB0B4\uB97C \uBC1B\uC73C\uBA74 \uD574\uC9C0\uD560 \uB54C \uC54C\uB824 \uB4DC\uB824\uC694.";
 export type ConsentAnswer = 'agree' | 'decline' | 'cancel';
 /**
  * Asked before a free-trial campaign's detail page opens. 「안내 받기」 and 「괜찮아요」 both go on to the campaign (the caller records the

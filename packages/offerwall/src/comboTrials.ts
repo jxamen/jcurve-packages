@@ -121,8 +121,9 @@ export function listenForTrialRequests(opener: TrialsOpener, now: number = Date.
 
 // ---- the consent popup -----------------------------------------------------------------------------------------------
 
-export const COMBO_CONSENT_TITLE = '무료체험이 끝나기 전에 해지 안내를 받으시겠어요?';
-export const COMBO_CONSENT_BODY = '기간이 끝나기 전에 해지하지 않으면 자동으로 결제될 수 있어요. 안내를 받으면 해지할 때가 되었을 때 알림으로 알려 드려요.';
+/** Broken by hand after 「전에」 so no word is cut in the middle (the sentence is 「무료체험이 끝나기 전에 해지 안내를 받으시겠어요?」). */
+export const COMBO_CONSENT_TITLE = '무료체험이 끝나기 전에\n해지 안내를 받으시겠어요?';
+export const COMBO_CONSENT_BODY = '해지하지 않으면 자동으로 결제될 수 있어요.\n안내를 받으면 해지할 때 알려 드려요.';
 export type ConsentAnswer = 'agree' | 'decline' | 'cancel';
 
 /**
@@ -212,10 +213,11 @@ export function ComboTrialsScreen({ items, loading = false, failed = false, them
       h(View, { style: { flexDirection: 'row', alignItems: 'center' } },
         h(ComboMissionIcon, { name: trial.name, uri: trial.icon, size: 40, theme: t }),
         h(View, { style: { flex: 1, minWidth: 0, marginLeft: 12 } },
-          h(Text, { numberOfLines: 1, ellipsizeMode: 'tail', style: { fontSize: 15, lineHeight: 21, fontWeight: '700', color: t.text } }, trial.name),
-          line ? h(Text, { numberOfLines: 1, ellipsizeMode: 'tail', style: { marginTop: 1, fontSize: 12.5, lineHeight: 18, color: t.sub } }, line) : null),
-        badge ? h(View, { style: { marginLeft: 8, borderRadius: 999, paddingVertical: 4, paddingHorizontal: 10, backgroundColor: badge.bg } },
-          h(Text, { style: { fontSize: 12, fontWeight: '800', color: badge.fg } }, trial.status)) : null),
+          h(View, { style: { flexDirection: 'row', alignItems: 'center' } },
+            h(Text, { numberOfLines: 1, ellipsizeMode: 'tail', style: { flexShrink: 1, fontSize: 15, lineHeight: 21, fontWeight: '700', color: t.text } }, trial.name),
+            badge ? h(View, { style: { marginLeft: 8, borderRadius: 999, paddingVertical: 2, paddingHorizontal: 8, backgroundColor: badge.bg } },
+              h(Text, { style: { fontSize: 11.5, lineHeight: 16, fontWeight: '800', color: badge.fg } }, trial.status)) : null),
+          line ? h(Text, { numberOfLines: 1, ellipsizeMode: 'tail', style: { marginTop: 2, fontSize: 12.5, lineHeight: 18, color: t.sub } }, line) : null)),
       trial.cancelled === true
         ? h(Text, { style: { marginTop: 10, fontSize: 13, fontWeight: '800', color: t.accentText } }, '해지 완료 ✓')
         : asksCancelled(trial)
@@ -233,7 +235,7 @@ export function ComboTrialsScreen({ items, loading = false, failed = false, them
         h(Text, { style: { fontSize: 14, fontWeight: '600', color: t.sub } }, '닫기'))),
     h(ScrollView, { contentContainerStyle: { paddingBottom: 32 } },
       h(Text, { style: { paddingHorizontal: side, paddingTop: 4, paddingBottom: 10, fontSize: 13, lineHeight: 19, color: t.sub } },
-        '참여한 무료체험이에요. 해지할 수 있는 때가 지나면 해지했는지 물어봐요.'),
+        '참여한 무료체험이에요.\n해지할 때가 되면 해지했는지 물어봐요.'),
       loading && !rows.length ? h(Text, { style: { marginTop: 40, fontSize: 15, textAlign: 'center', color: t.sub } }, '불러오고 있어요') : null,
       !loading && failed && !rows.length ? h(View, { style: { marginTop: 40, alignItems: 'center' } },
         h(Text, { style: { fontSize: 15, lineHeight: 22, textAlign: 'center', color: t.sub } }, '목록을 불러오지 못했어요.\n잠시 뒤에 다시 해 주세요.'),

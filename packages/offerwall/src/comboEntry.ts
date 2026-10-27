@@ -96,9 +96,9 @@ export function ComboTrialsChip({ onPress, open = false, theme = DEFAULT_COMBO_T
     key: 'trials-chip', accessibilityRole: 'button', accessibilityLabel: COMBO_TRIALS_NAME, accessibilityState: { expanded: open }, onPress, hitSlop: 6,
     style: ({ pressed }: { pressed: boolean }): import('react-native').ViewStyle => ({
       height: 30, paddingHorizontal: 9, borderRadius: t.radius.chip, alignItems: 'center', justifyContent: 'center',
-      backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: t.accent, opacity: pressed ? 0.8 : 1,
+      backgroundColor: open ? t.accentSoft : '#FFFFFF', borderWidth: 1.5, borderColor: t.accent, opacity: pressed ? 0.8 : 1,
     }),
-  }, React.createElement(Text, { style: { fontSize: 12, fontWeight: '900', color: t.accentText } }, open ? '무료체험 ✕' : '무료체험'));
+  }, React.createElement(Text, { style: { fontSize: 12, fontWeight: '900', color: t.accentText } }, '무료체험'));
 }
 
 export type ComboBannerProps = { combos: TodayCombos; onPress: () => void; theme?: ComboTheme; /** Animated opacity for the blink (see usePulse). */ opacity?: import('react-native').Animated.Value };

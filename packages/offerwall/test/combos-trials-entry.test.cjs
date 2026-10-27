@@ -39,12 +39,12 @@ test('consent: a trial campaign asks first (the question, both answers go on to 
   s.openSheet();
   await s.tapFirst();
   assert.deepEqual(opened, [], 'nothing opens before the answer');
-  assert.ok(texts(s.again()).includes('무료체험이 끝나기 전에 해지 안내를 받으시겠어요?'));
+  assert.ok(texts(s.again()).includes(api.COMBO_CONSENT_TITLE));
   byLabel(s.again(), '안내 받기').props.onPress();
   await tick(20);
   assert.deepEqual(sent, [[KEY, true]]);
   assert.deepEqual(opened, [KEY], 'then the campaign opens');
-  assert.equal(texts(s.again()).includes('무료체험이 끝나기 전에 해지 안내를 받으시겠어요?'), false, 'the question is gone');
+  assert.equal(texts(s.again()).includes(api.COMBO_CONSENT_TITLE), false, 'the question is gone');
   // asked once: the same campaign again goes straight in
   await s.tapFirst();
   assert.deepEqual(opened, [KEY, KEY]);

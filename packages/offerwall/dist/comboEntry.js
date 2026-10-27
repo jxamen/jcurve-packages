@@ -95,9 +95,9 @@ function ComboTrialsChip({ onPress, open = false, theme = combos_1.DEFAULT_COMBO
         key: 'trials-chip', accessibilityRole: 'button', accessibilityLabel: comboTrials_1.COMBO_TRIALS_NAME, accessibilityState: { expanded: open }, onPress, hitSlop: 6,
         style: ({ pressed }) => ({
             height: 30, paddingHorizontal: 9, borderRadius: t.radius.chip, alignItems: 'center', justifyContent: 'center',
-            backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: t.accent, opacity: pressed ? 0.8 : 1,
+            backgroundColor: open ? t.accentSoft : '#FFFFFF', borderWidth: 1.5, borderColor: t.accent, opacity: pressed ? 0.8 : 1,
         }),
-    }, React.createElement(Text, { style: { fontSize: 12, fontWeight: '900', color: t.accentText } }, open ? '무료체험 ✕' : '무료체험'));
+    }, React.createElement(Text, { style: { fontSize: 12, fontWeight: '900', color: t.accentText } }, '무료체험'));
 }
 /** Home banner: the name large, the goal numbers emphasized. */
 function ComboBanner({ combos, onPress, theme = combos_1.DEFAULT_COMBO_THEME, opacity }) {

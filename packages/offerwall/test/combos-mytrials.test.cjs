@@ -76,7 +76,8 @@ test('consent popup: the question, the campaign name, two answers; the dimmed ar
   const answers = [];
   const tree = host.render(() => api.TrialConsentPopup({name: '집핏', onAnswer: a => answers.push(a)}));
   const all = texts(tree);
-  assert.ok(all.includes('무료체험이 끝나기 전에 해지 안내를 받으시겠어요?'));
+  assert.ok(all.includes(api.COMBO_CONSENT_TITLE));
+  assert.equal(api.COMBO_CONSENT_TITLE.replace('\n', ' '), '무료체험이 끝나기 전에 해지 안내를 받으시겠어요?', 'the sentence, broken only by hand after 전에');
   assert.ok(all.includes('집핏'));
   assert.ok(all.includes('안내 받기') && all.includes('괜찮아요'));
   byLabel(tree, '안내 받기').props.onPress();
