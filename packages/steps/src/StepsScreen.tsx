@@ -170,7 +170,7 @@ export function StepsScreen({ api, showRewardedAd, onPendingClaim, onBalance, th
         <Copy style={st.claimSub}>1,000걸음마다 광고 보고 {points}P · 오늘 받은 포인트 {state?.earned_today ?? 0}P</Copy>
         <View><Pressable accessibilityRole="button" accessibilityLabel={t(busy ? '확인 중…' : `광고 보고 ${points}P 받기`) + t(', 광고가 열려요')} accessibilityState={{ disabled: !first || busy !== null }} disabled={!first || busy !== null} onPress={() => { if (first) void open(first); }}
           style={({ pressed }) => [st.claimBtn, (!first || busy !== null) && st.boxBtnOff, pressed && first && busy === null ? { opacity: 0.85, transform: [{ scale: 0.99 }] } : null]}>
-          <Copy numberOfLines={1} style={[st.claimBtnText, (!first || busy !== null) && { color: C.primaryDeep ?? C.primary }]}>{busy ? '확인 중…' : `광고 보고 ${points}P 받기`}</Copy>
+          <Copy style={[st.claimBtnText, (!first || busy !== null) && { color: C.primaryDeep ?? C.primary }]}>{busy ? '확인 중…' : `광고 보고 ${points}P 받기`}</Copy>
         </Pressable></View>
       </View>
       <StepsYesterdayCard state={yState} busy={busy !== null || !!pending} theme={C} onClaim={(stage) => { void open(stage, 'yesterday'); }} />
@@ -192,7 +192,7 @@ export function StepsScreen({ api, showRewardedAd, onPendingClaim, onBalance, th
 
 const makeStyles = (C: StepsTheme & { carrot: string }) => StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
-  header: { height: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8 },
+  header: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8 },
   back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   backText: { fontSize: 32, color: C.text, marginTop: -4 },
   headerTitle: { fontSize: 18, fontWeight: '700', color: C.text },
@@ -214,23 +214,23 @@ const makeStyles = (C: StepsTheme & { carrot: string }) => StyleSheet.create({
   dotTextOn: { color: C.onPrimary },
   notice: { marginTop: 16, marginHorizontal: 16, padding: 16, borderRadius: 16, backgroundColor: C.card, alignItems: 'center', gap: 8 },
   noticeTitle: { fontSize: 16, fontWeight: '700', color: C.text },
-  noticeBtn: { paddingHorizontal: 16, height: 48, borderRadius: 16, backgroundColor: C.carrot, alignItems: 'center', justifyContent: 'center' },
-  noticeBtnText: { color: C.onPrimary, fontSize: 19, fontWeight: '800' },
+  noticeBtn: { paddingHorizontal: 16, paddingVertical: 8, minHeight: 48, borderRadius: 16, backgroundColor: C.carrot, alignItems: 'center', justifyContent: 'center' },
+  noticeBtnText: { color: C.onPrimary, fontSize: 19, fontWeight: '800', textAlign: 'center' },
   link: { color: C.sub, fontSize: 14, textDecorationLine: 'underline' },
   message: { marginTop: 12, marginHorizontal: 16, textAlign: 'center', color: C.sub, fontSize: 14 },
   claimCard: { marginTop: 20, marginHorizontal: 16, padding: 20, borderRadius: C.radius, backgroundColor: C.card, alignItems: 'center', gap: 8 },
   claimLeft: { fontSize: 18, fontWeight: '700', color: C.text },
   claimLeftNum: { color: C.primaryDeep ?? C.primary, fontSize: 22, fontWeight: '800' },
   claimSub: { fontSize: 13, color: C.sub },
-  claimBtn: { height: 48, paddingHorizontal: 16, borderRadius: 16, backgroundColor: C.carrot, alignItems: 'center', justifyContent: 'center' },
-  claimBtnText: { color: C.onPrimary, fontSize: 19, fontWeight: '800' },
+  claimBtn: { minHeight: 48, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 16, backgroundColor: C.carrot, alignItems: 'center', justifyContent: 'center' },
+  claimBtnText: { color: C.onPrimary, fontSize: 19, fontWeight: '800', textAlign: 'center' },
   grid: { marginTop: 20, paddingHorizontal: 12, flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
   box: { width: '31%', backgroundColor: C.card, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 8, alignItems: 'center', gap: 6 },
   gift: { fontSize: 30 },
   giftDim: { opacity: 0.35 },
   boxLabel: { fontSize: 14, fontWeight: '700', color: C.text },
   boxLabelDim: { color: C.dim },
-  boxBtn: { alignSelf: 'stretch', height: 36, borderRadius: 10, backgroundColor: C.carrot, alignItems: 'center', justifyContent: 'center' },
+  boxBtn: { alignSelf: 'stretch', minHeight: 36, paddingVertical: 4, borderRadius: 10, backgroundColor: C.carrot, alignItems: 'center', justifyContent: 'center' },
   boxBtnOff: { backgroundColor: C.primarySoft },
   boxBtnDone: { backgroundColor: '#D3D7DD' },
   boxBtnText: { color: C.onPrimary, fontSize: 14, fontWeight: '700' },

@@ -24,6 +24,28 @@ async function screen(options: any = {}) {
 beforeEach(() => { vi.mocked(readToday).mockResolvedValue({ status: 'ready', steps: 3450, days: [], sensorOnly: false }); });
 const yesterdayState: StepsState = { ok: true, day: '2026-10-19', today_steps: 2400, daily_max: 250, earned_today: 5, stages: [1000, 2000, 3000].map((threshold, i) => ({ stage_id: 'stage_' + (i + 1), threshold, points: 5, claimed: i === 0, available: true, ad_purpose: 'steps_stage:2026-10-19:stage_' + (i + 1) })) };
 const withYesterday = (state: StepsState | (() => Promise<StepsState>) = yesterdayState) => ({ fetchStages: vi.fn(async () => sample), fetchStagesOn: vi.fn(typeof state === 'function' ? state : async () => state), sync: vi.fn(async () => ({})), claimStage: vi.fn(async (_id: string, day: string) => ({ ...(day === yesterdayState.day ? yesterdayState : sample), gained: 5, balance: 40 })) });
+// 큰 글씨(접근성 2.0) — 글자 상자에 고정 height · 한 줄 제한이 없다(0.3.1, 앱보조6 지적)
+const flat = (style: any): Record<string, any> => (Array.isArray(style) ? style.reduce((all, one) => ({ ...all, ...flat(one) }), {}) : typeof style === 'function' ? flat(style({ pressed: false })) : style ?? {});
+describe('large text safety', () => {
+ beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-20T07:00:00Z')); });
+ afterEach(() => { vi.useRealTimers(); });
+ it('the yesterday card button grows with the text: minHeight, no fixed height, no one-line limit', async () => {
+  const s = await screen({ api: withYesterday() });
+  const button = s.root.root.findAllByType('Pressable').find((n: any) => String(n.props.accessibilityLabel ?? '').startsWith('어제 걸음'));
+  const style = flat(button.props.style);
+  expect(style.height).toBeUndefined(); expect(style.minHeight).toBeGreaterThanOrEqual(48); expect(style.paddingVertical).toBeGreaterThan(0);
+  const label = button.findAllByType('Text')[0];
+  expect(label.props.numberOfLines).toBeUndefined(); expect(flat(label.props.style).textAlign).toBe('center');
+  await act(async () => s.root.unmount());
+ });
+ it('the shared screen claim button and notice buttons also use minHeight and wrap', async () => {
+  const s = await screen({});
+  const buttons = s.root.root.findAllByType('Pressable').filter((n: any) => n.props.accessibilityRole === 'button' && String(n.props.accessibilityLabel ?? '').includes('광고 보고'));
+  expect(buttons.length).toBeGreaterThan(0);
+  for (const b of buttons) { const st = flat(b.props.style); expect(st.height).toBeUndefined(); expect(st.minHeight).toBeGreaterThanOrEqual(48); for (const t of b.findAllByType('Text')) expect(t.props.numberOfLines).toBeUndefined(); }
+  await act(async () => s.root.unmount());
+ });
+});
 describe('StepsScreen yesterday card', () => {
  beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-20T07:00:00Z')); });
  afterEach(() => { vi.useRealTimers(); });

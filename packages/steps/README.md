@@ -80,3 +80,7 @@ compare-pig-vs-package.png는 좌 꿀꿀 원본/우 패키지 각 390×844이다
 2. 화면이 열릴 때 · 걸음 동기화 뒤: `const y = await fetchStepsStages(yesterdayKst())`(실패는 삼킨다).
 3. 오늘 카드 아래: `<StepsYesterdayCard state={y} busy={…} theme={…} onClaim={(stage) => { /* 어제 날짜의 stage.ad_purpose 로 광고 → claim(stage.stage_id, y.day) */ }} />`. 광고에는 응답의 `ad_purpose` 를 그대로 넘긴다(어제 날짜가 들어 있다).
 4. `feed_used`(에그머니: 그날 걸음을 먹이로 바꿨으면 포인트 거절) · `daily_max` · `not_enough_steps` · `day_changed` · `bad_stage` · `bad_day` 는 기다리지 않고 알린다.
+
+## 0.3.1 — 큰 글씨(접근성 2.0)에서 버튼 글자가 잘리지 않게 (앱보조6 지적)
+
+`StepsYesterdayCard` 의 받기 버튼과 공용 `StepsScreen` 의 받기 · 안내 버튼이 고정 `height` 48 + 한 줄 제한(`numberOfLines={1}`)이라 큰 글씨에서 글자가 잘렸다. 고정 `height` → `minHeight`(+ 위아래 여백), 글자는 줄바꿈을 허용하고 가운데 정렬로 바꿨다(머리줄도 `minHeight`). 동작 · API 는 0.3.0 과 같다.

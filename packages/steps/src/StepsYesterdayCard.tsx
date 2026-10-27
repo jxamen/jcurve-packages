@@ -34,7 +34,7 @@ export function StepsYesterdayCard({ state, onClaim, busy = false, theme, now }:
     <Text style={[styles.sub, { color: C.sub }]}>오늘 자정(한국 시간)까지 받을 수 있어요 · 어제 받은 포인트 {v.earned}P</Text>
     <Pressable accessibilityRole="button" accessibilityLabel={`어제 걸음 ${label}, 광고가 열려요`} accessibilityState={{ disabled: busy }} disabled={busy}
       onPress={() => onClaim(first)} style={({ pressed }) => [styles.btn, { backgroundColor: busy ? C.primarySoft : C.primary }, pressed && !busy ? { opacity: 0.85 } : null]}>
-      <Text numberOfLines={1} style={[styles.btnText, { color: busy ? (C.primaryDeep ?? C.primary) : C.onPrimary }]}>{label}</Text>
+      <Text style={[styles.btnText, { color: busy ? (C.primaryDeep ?? C.primary) : C.onPrimary }]}>{label}</Text>
     </Pressable>
   </View>;
 }
@@ -45,6 +45,7 @@ const styles = StyleSheet.create({
   left: { fontSize: 18, fontWeight: '700' },
   num: { fontSize: 22, fontWeight: '800' },
   sub: { fontSize: 13, textAlign: 'center' },
-  btn: { height: 48, paddingHorizontal: 16, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  btnText: { fontSize: 19, fontWeight: '800' },
+  // 큰 글씨(접근성 2.0)에서 글자가 잘리지 않게: 고정 height 대신 minHeight + 위아래 여백, 글자는 줄바꿈을 허용하고 가운데 정렬(0.3.1)
+  btn: { minHeight: 48, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  btnText: { fontSize: 19, fontWeight: '800', textAlign: 'center' },
 });
