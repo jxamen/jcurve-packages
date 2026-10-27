@@ -7,7 +7,7 @@
  */
 import type { ReactElement } from 'react';
 import type { ComboCategory, ComboCategoryItem, ComboGuideScreenProps, ComboMission } from './combos';
-/** Rows shown at first in a tab, and added by each 「더 보기」 (a tab can have a few hundred rows: games). */
+/** Rows shown at first in a tab, and added by each 「더 보기」 (a tab can have a few hundred rows: games, and the server's midnight reset made 「쉬운 미션」 186). */
 export declare const COMBO_CATEGORY_PAGE = 40;
 /** The tab with free trials: no total, the cancel note instead. */
 export declare const COMBO_TRIAL_CATEGORY = "trial";
@@ -18,4 +18,4 @@ export declare function categoryRemaining(category: ComboCategory, isDone: (camp
     total: number;
     paid: number;
 } | null;
-export declare function ComboCategoryScreen({ combos, loading, onClose, onPressMission, usn, theme, showHeader, topInset, variant, done, onToggleDone, onTrialTab, }: ComboGuideScreenProps): ReactElement;
+export declare function ComboCategoryScreen({ combos, loading, onClose, onPressMission, usn, theme, showHeader, topInset, variant, done, onToggleDone, onTrialTab, onShown, }: ComboGuideScreenProps): ReactElement;

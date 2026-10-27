@@ -6,11 +6,11 @@
  * Without `categories` the guide is the steps screen as before (see ComboGuideScreen).
  */
 import type { ReactElement } from 'react';
-import { COMBO_NAME, COMBO_TAB_HIT_SLOP, COMBO_TAB_ROW_PROPS, COMBO_TRIAL_NOTE, DEFAULT_COMBO_THEME, formatPoints, autoDoneIds } from './combos';
+import { COMBO_NAME, COMBO_PAGE_ROWS, COMBO_TAB_HIT_SLOP, COMBO_TAB_ROW_PROPS, COMBO_TRIAL_NOTE, DEFAULT_COMBO_THEME, afterFirstPaint, formatPoints, autoDoneIds } from './combos';
 import type { ComboCategory, ComboCategoryItem, ComboGuideScreenProps, ComboMission } from './combos';
 
-/** Rows shown at first in a tab, and added by each 「더 보기」 (a tab can have a few hundred rows: games). */
-export const COMBO_CATEGORY_PAGE = 40;
+/** Rows shown at first in a tab, and added by each 「더 보기」 (a tab can have a few hundred rows: games, and the server's midnight reset made 「쉬운 미션」 186). */
+export const COMBO_CATEGORY_PAGE = COMBO_PAGE_ROWS;
 /** The tab with free trials: no total, the cancel note instead. */
 export const COMBO_TRIAL_CATEGORY = 'trial';
 const NO_DONE: ReadonlySet<string> = new Set();
@@ -32,7 +32,7 @@ export function categoryRemaining(category: ComboCategory, isDone: (campaignKey:
 const PILL = { bg: '#FFEBDD', fg: '#C2410C' };
 
 export function ComboCategoryScreen({
-  combos, loading = false, onClose, onPressMission, usn, theme = DEFAULT_COMBO_THEME, showHeader = true, topInset = 0, variant = 'page', done = NO_DONE, onToggleDone, onTrialTab,
+  combos, loading = false, onClose, onPressMission, usn, theme = DEFAULT_COMBO_THEME, showHeader = true, topInset = 0, variant = 'page', done = NO_DONE, onToggleDone, onTrialTab, onShown,
 }: ComboGuideScreenProps): ReactElement {
   const React = require('react') as typeof import('react');
   const { View, Text, Pressable, ScrollView, BackHandler } = require('react-native') as typeof import('react-native');
@@ -68,6 +68,8 @@ export function ComboCategoryScreen({
   const sum = cat ? categoryRemaining(cat, isDoneId) : null;
   const isTrialTab = !!cat && cat.key === COMBO_TRIAL_CATEGORY;
   React.useEffect(() => { if (isTrialTab) onTrialTab?.(); }, [isTrialTab]);
+  // how long the first screen took (the host logs it): reported once, after the first paint
+  React.useEffect(() => (onShown ? afterFirstPaint(() => onShown({ tabs: cats.length, rows: visible.length })) : undefined), []);
   let nextNo = 0;
   const row = (item: ComboCategoryItem, i: number): ReactElement => {
     const mission = categoryItemMission(item);

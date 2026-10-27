@@ -130,6 +130,13 @@ export type ComboDetailSignal = {
     platform: string;
     ms: number;
 };
+/** What `onSheetShown` reports: the milliseconds the guide took to open, and how much it showed first. */
+export type ComboSheetShown = {
+    ms: number;
+    tabs: number;
+    rows: number;
+    total: number;
+};
 /** A detail page that closes within this long after opening (ms) counts as `closed_fast`. */
 export declare const COMBO_CLOSED_FAST_MS = 15000;
 /** After sending a detail signal, the combos are fetched again this long after (the server may answer with a `soldout` list). */
@@ -171,6 +178,12 @@ export type ComboEntryProps = {
      */
     onDetailSignal?: (signal: ComboDetailSignal) => unknown;
     /**
+     * How long the guide sheet took to open (0.3.15), for the app to log: called once per opening, after its first paint, with the milliseconds from the render
+     * that opened it to two animation frames after the screen mounted, and what it showed first (`tabs`, `rows` = the first page of the tab that opened, `total` = the
+     * campaigns in the document). Nothing is sent anywhere by the package; an app logs it (e.g. `console.log('[combos] sheet', info)`) to read on a device.
+     */
+    onSheetShown?: (info: ComboSheetShown) => void;
+    /**
      * Free trials (0.3.11). The app sends the member's answer to the cancel-notice question (`POST offerwall/trials/consent`). Without this the
      * question is not asked and a trial campaign opens like any other.
      */
@@ -206,5 +219,5 @@ export type ComboEntryProps = {
  * server's id when it is a key) and its detail page opens. Otherwise, or when nothing is found, the name is shown at the
  * top (and copied when possible) and the plain list is revealed: the Chance tab closes the guide, Home opens the list.
  */
-export declare function ComboEntry({ placement, url, headers, load, loadKey, usn, theme, sample, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, onDetailSignal, onTrialConsent, onTrialNotify, loadTrials, onTrialCancelled, chipTop, chipRight, sheetTop, popupArt, popupAd, }: ComboEntryProps): ReactElement | null;
+export declare function ComboEntry({ placement, url, headers, load, loadKey, usn, theme, sample, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, onDetailSignal, onSheetShown, onTrialConsent, onTrialNotify, loadTrials, onTrialCancelled, chipTop, chipRight, sheetTop, popupArt, popupAd, }: ComboEntryProps): ReactElement | null;
 export {};

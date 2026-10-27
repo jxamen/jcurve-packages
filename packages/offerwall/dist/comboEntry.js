@@ -276,17 +276,21 @@ function ComboToast({ text, top, theme }) {
  * server's id when it is a key) and its detail page opens. Otherwise, or when nothing is found, the name is shown at the
  * top (and copied when possible) and the plain list is revealed: the Chance tab closes the guide, Home opens the list.
  */
-function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combos_1.DEFAULT_COMBO_THEME, sample = false, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, onDetailSignal, onTrialConsent, onTrialNotify, loadTrials, onTrialCancelled, chipTop, chipRight, sheetTop = exports.COMBO_SHEET_TOP, popupArt, popupAd, }) {
+function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combos_1.DEFAULT_COMBO_THEME, sample = false, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, onDetailSignal, onSheetShown, onTrialConsent, onTrialNotify, loadTrials, onTrialCancelled, chipTop, chipRight, sheetTop = exports.COMBO_SHEET_TOP, popupArt, popupAd, }) {
     const React = require('react');
     const { Modal, Pressable, SafeAreaView, Dimensions } = require('react-native');
     const h = React.createElement;
     const state = (0, combos_1.useTodayCombos)({ url, headers, load, loadKey, sample });
     const [open, setOpen] = React.useState(false);
+    // When the render that opened the guide began, for `onSheetShown` (cleared when it closes, so every opening is timed on its own).
+    const openedAt = React.useRef(null);
+    if (!open)
+        openedAt.current = null;
+    else if (openedAt.current === null)
+        openedAt.current = Date.now();
     // Hand ticks are kept per member and per campaign key (the server's key when it gave one, else the row id), with no daily reset.
     const marks = (0, comboDone_1.useDoneMissions)({ storage, scope: loadKey });
-    const missionRows = state.combos
-        ? [...state.combos.bundles.flatMap(b => b.missions), ...(state.combos.singles ?? []).flatMap(s => s.missions), ...(state.combos.easy?.missions ?? []), ...(0, combos_1.trialMissions)(state.combos), ...(0, combos_1.categoryMissions)(state.combos)]
-        : [];
+    const missionRows = (0, combos_1.missionRowsOf)(state.combos);
     const markKey = (m) => m.campaignKey || m.id;
     const doneIds = new Set(missionRows.filter(m => marks.done.has(markKey(m))).map(m => m.id));
     const toggleDone = (id) => { const m = missionRows.find(x => x.id === id); marks.toggle(m ? markKey(m) : id); };
@@ -626,6 +630,16 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
         combos: state.combos, loading: state.status === 'loading', onClose: close, onPressMission: handleMission, usn, theme, variant,
         done: doneIds, onToggleDone: toggleDone,
         onTrialTab,
+        // the guide's first paint: how long since the render that opened it (only when the app asked)
+        ...(onSheetShown ? { onShown: (first) => {
+                const start = openedAt.current;
+                if (start === null)
+                    return;
+                try {
+                    onSheetShown({ ms: Math.max(0, Date.now() - start), tabs: first.tabs, rows: first.rows, total: new Set((0, combos_1.missionRowsOf)(state.combos).map(m => m.campaignKey || m.id)).size });
+                }
+                catch { /* the app's log must not break the sheet */ }
+            } } : {}),
         onPressTrial: (trial) => {
             const row = (0, combos_1.trialMissions)(state.combos).find(m => m.id === trial.campaignKey);
             if (row)

@@ -1,6 +1,6 @@
 /** Ways into 「포인트 빨리 모으기」: Chance-tab chip, Home banner, and a route that popups / pushes / deep links can fire. */
 import type { ReactElement } from 'react';
-import { COMBO_NAME, ComboGuideScreen, DEFAULT_COMBO_THEME, categoryMissions, comboPopupContent, formatGoal, needsTrialConsent, popupHeadlineSizes, trialMissions, useTodayCombos } from './combos';
+import { COMBO_NAME, ComboGuideScreen, DEFAULT_COMBO_THEME, comboPopupContent, formatGoal, missionRowsOf, needsTrialConsent, popupHeadlineSizes, trialMissions, useTodayCombos } from './combos';
 import type { ComboBundle, ComboMission, ComboTheme, ComboTrial, TodayCombos } from './combos';
 import { COMBO_CONSENT_TOAST, COMBO_CONSENT_TOAST_OFF, COMBO_TRIALS_NAME, ComboTrialsScreen, TrialConsentPopup, listenForTrialRequests, parseMyTrials, trialNoticeDeclineKey, useTrialNoticeAgreed } from './comboTrials';
 import type { ConsentAnswer, MyTrial, TrialNotifyResult } from './comboTrials';
@@ -227,6 +227,8 @@ export type ComboTapDiagnostic = {
  * Opening and closing quickly is also what a quick participation looks like, so this is a hint and nothing more.
  */
 export type ComboDetailSignal = { result: 'open_failed' | 'closed_fast'; campaignKey: string; platform: string; ms: number };
+/** What `onSheetShown` reports: the milliseconds the guide took to open, and how much it showed first. */
+export type ComboSheetShown = { ms: number; tabs: number; rows: number; total: number };
 /** A detail page that closes within this long after opening (ms) counts as `closed_fast`. */
 export const COMBO_CLOSED_FAST_MS = 15_000;
 /** After sending a detail signal, the combos are fetched again this long after (the server may answer with a `soldout` list). */
@@ -372,6 +374,12 @@ export type ComboEntryProps = {
    */
   onDetailSignal?: (signal: ComboDetailSignal) => unknown;
   /**
+   * How long the guide sheet took to open (0.3.15), for the app to log: called once per opening, after its first paint, with the milliseconds from the render
+   * that opened it to two animation frames after the screen mounted, and what it showed first (`tabs`, `rows` = the first page of the tab that opened, `total` = the
+   * campaigns in the document). Nothing is sent anywhere by the package; an app logs it (e.g. `console.log('[combos] sheet', info)`) to read on a device.
+   */
+  onSheetShown?: (info: ComboSheetShown) => void;
+  /**
    * Free trials (0.3.11). The app sends the member's answer to the cancel-notice question (`POST offerwall/trials/consent`). Without this the
    * question is not asked and a trial campaign opens like any other.
    */
@@ -409,18 +417,19 @@ export type ComboEntryProps = {
  */
 export function ComboEntry({
   placement, url, headers, load, loadKey, usn, theme = DEFAULT_COMBO_THEME, sample = false, onPressMission, storage, copyText, campaigns,
-  reportCampaigns, onDiagnostic, onDetailSignal, onTrialConsent, onTrialNotify, loadTrials, onTrialCancelled, chipTop, chipRight, sheetTop = COMBO_SHEET_TOP, popupArt, popupAd,
+  reportCampaigns, onDiagnostic, onDetailSignal, onSheetShown, onTrialConsent, onTrialNotify, loadTrials, onTrialCancelled, chipTop, chipRight, sheetTop = COMBO_SHEET_TOP, popupArt, popupAd,
 }: ComboEntryProps): ReactElement | null {
   const React = require('react') as typeof import('react');
   const { Modal, Pressable, SafeAreaView, Dimensions } = require('react-native') as typeof import('react-native');
   const h = React.createElement;
   const state = useTodayCombos({ url, headers, load, loadKey, sample });
   const [open, setOpen] = React.useState(false);
+  // When the render that opened the guide began, for `onSheetShown` (cleared when it closes, so every opening is timed on its own).
+  const openedAt = React.useRef<number | null>(null);
+  if (!open) openedAt.current = null; else if (openedAt.current === null) openedAt.current = Date.now();
   // Hand ticks are kept per member and per campaign key (the server's key when it gave one, else the row id), with no daily reset.
   const marks = useDoneMissions({ storage, scope: loadKey });
-  const missionRows = state.combos
-    ? [...state.combos.bundles.flatMap(b => b.missions), ...(state.combos.singles ?? []).flatMap(s => s.missions), ...(state.combos.easy?.missions ?? []), ...trialMissions(state.combos), ...categoryMissions(state.combos)]
-    : [];
+  const missionRows = missionRowsOf(state.combos);
   const markKey = (m: ComboMission) => m.campaignKey || m.id;
   const doneIds = new Set(missionRows.filter(m => marks.done.has(markKey(m))).map(m => m.id));
   const toggleDone = (id: string) => { const m = missionRows.find(x => x.id === id); marks.toggle(m ? markKey(m) : id); };
@@ -663,6 +672,12 @@ export function ComboEntry({
     combos: state.combos, loading: state.status === 'loading', onClose: close, onPressMission: handleMission, usn, theme, variant,
     done: doneIds, onToggleDone: toggleDone,
     onTrialTab,
+    // the guide's first paint: how long since the render that opened it (only when the app asked)
+    ...(onSheetShown ? { onShown: (first: { tabs: number; rows: number }) => {
+      const start = openedAt.current;
+      if (start === null) return;
+      try { onSheetShown({ ms: Math.max(0, Date.now() - start), tabs: first.tabs, rows: first.rows, total: new Set(missionRowsOf(state.combos).map(m => m.campaignKey || m.id)).size }); } catch { /* the app's log must not break the sheet */ }
+    } } : {}),
     onPressTrial: (trial: ComboTrial) => {
       const row = trialMissions(state.combos).find(m => m.id === trial.campaignKey);
       if (row) void handleMission(row, { goal: 0, missions: [row], total: row.points });

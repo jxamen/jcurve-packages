@@ -5,8 +5,8 @@ exports.categoryItemMission = categoryItemMission;
 exports.categoryRemaining = categoryRemaining;
 exports.ComboCategoryScreen = ComboCategoryScreen;
 const combos_1 = require("./combos");
-/** Rows shown at first in a tab, and added by each 「더 보기」 (a tab can have a few hundred rows: games). */
-exports.COMBO_CATEGORY_PAGE = 40;
+/** Rows shown at first in a tab, and added by each 「더 보기」 (a tab can have a few hundred rows: games, and the server's midnight reset made 「쉬운 미션」 186). */
+exports.COMBO_CATEGORY_PAGE = combos_1.COMBO_PAGE_ROWS;
 /** The tab with free trials: no total, the cancel note instead. */
 exports.COMBO_TRIAL_CATEGORY = 'trial';
 const NO_DONE = new Set();
@@ -25,7 +25,7 @@ function categoryRemaining(category, isDone) {
     return { total: Math.max(0, category.totalPoints - paid), paid };
 }
 const PILL = { bg: '#FFEBDD', fg: '#C2410C' };
-function ComboCategoryScreen({ combos, loading = false, onClose, onPressMission, usn, theme = combos_1.DEFAULT_COMBO_THEME, showHeader = true, topInset = 0, variant = 'page', done = NO_DONE, onToggleDone, onTrialTab, }) {
+function ComboCategoryScreen({ combos, loading = false, onClose, onPressMission, usn, theme = combos_1.DEFAULT_COMBO_THEME, showHeader = true, topInset = 0, variant = 'page', done = NO_DONE, onToggleDone, onTrialTab, onShown, }) {
     const React = require('react');
     const { View, Text, Pressable, ScrollView, BackHandler } = require('react-native');
     const h = React.createElement;
@@ -65,6 +65,8 @@ function ComboCategoryScreen({ combos, loading = false, onClose, onPressMission,
     const isTrialTab = !!cat && cat.key === exports.COMBO_TRIAL_CATEGORY;
     React.useEffect(() => { if (isTrialTab)
         onTrialTab?.(); }, [isTrialTab]);
+    // how long the first screen took (the host logs it): reported once, after the first paint
+    React.useEffect(() => (onShown ? (0, combos_1.afterFirstPaint)(() => onShown({ tabs: cats.length, rows: visible.length })) : undefined), []);
     let nextNo = 0;
     const row = (item, i) => {
         const mission = categoryItemMission(item);

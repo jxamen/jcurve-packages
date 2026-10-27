@@ -108,11 +108,23 @@ export type ComboTrial = {
 };
 /** Name of the tab that lists only easy missions, before the 1천 → 5천 → 1만P steps. */
 export declare const COMBO_EASY_NAME = "\uC27D\uAC8C \uBAA8\uC73C\uAE30";
+/**
+ * Rows a long list shows at first, and how many each 「더 보기」 adds. A tab can have a few hundred rows (the server's midnight reset made it 777 campaigns,
+ * 186 of them in 「쉬운 미션」); mounting them all at once is what makes a sheet slow to open, and only the rows on screen load anything.
+ */
+export declare const COMBO_PAGE_ROWS = 40;
 export declare const COMBO_LEVEL_LABEL: Record<ComboLevel, string>;
 /** Keeps only well-formed rows; totals are recomputed so the screen never shows a sum the rows do not add up to. */
 export declare function normalizeTodayCombos(raw: unknown): TodayCombos | null;
 /** The category rows as mission-shaped rows (id = campaign key), for the check marks and the 「paid today」 mark. A campaign in two tabs is one row here. */
 export declare function categoryMissions(combos: TodayCombos | null | undefined): ComboMission[];
+/**
+ * Runs `fn` once, after the screen that asked has been painted: two animation frames later (the first frame draws what was just mounted), or on a
+ * timer where there are no frames. Returns the cleanup. Used to time how long a sheet took to open.
+ */
+export declare function afterFirstPaint(fn: () => void): () => void;
+/** Every mission-shaped row of a document (steps, singles, easy, trials, categories), for the hand ticks and the paid-today marks. Built once per document. */
+export declare function missionRowsOf(combos: TodayCombos | null | undefined): ComboMission[];
 /** The terms of a free-trial campaign for the consent popup: from the `trials` list, else from a category row that carries them. Empty when unknown. */
 export declare function trialTerms(combos: TodayCombos | null | undefined, key: string | undefined): string;
 /** 29900 → 「29,900원」 */
@@ -329,6 +341,11 @@ export type ComboGuideScreenProps = {
     onPressTrial?: (trial: ComboTrial) => void;
     /** The member walked into the 무료체험 tab (called each time the tab is entered). The entry asks the cancel-notice question there. */
     onTrialTab?: () => void;
+    /** Called once, after the screen's first paint, with what it showed first (the entry turns it into `onSheetShown` with the milliseconds). */
+    onShown?: (info: {
+        tabs: number;
+        rows: number;
+    }) => void;
 };
 /**
  * 대표님 10/27 23:09 「탭이 눌릴 때도 안 눌릴 때도 있음」: a tab is pressed on a bigger area (the finger rarely lands exactly on a 34 high chip), and the sideways row
@@ -365,5 +382,5 @@ export declare function ComboGuideScreen(props: ComboGuideScreenProps): ReactEle
  * The steps screen, laid out like the shopping tab: white, a thin title row, small flat tabs (쉽게 모으기 · 1천 · 5천 · 1만P), a
  * one-line total, and a plain list: number, name + what to do, +points, a small check. The whole row is the button.
  */
-export declare function ComboStepsScreen({ combos, loading, onClose, onPressMission, usn, theme, showHeader, topInset, variant, hint, done, onToggleDone, onPressTrial, onTrialTab }: ComboGuideScreenProps): ReactElement;
+export declare function ComboStepsScreen({ combos, loading, onClose, onPressMission, usn, theme, showHeader, topInset, variant, hint, done, onToggleDone, onPressTrial, onTrialTab, onShown }: ComboGuideScreenProps): ReactElement;
 export {};
