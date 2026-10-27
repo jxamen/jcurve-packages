@@ -88,7 +88,7 @@ test('route matcher accepts in-app and scheme forms of offerwall/combos and the 
   assert.equal(api.COMBOS_POPUP_ACTION, 'combos');
 });
 
-test('fetch: unwraps combos / data / bare bodies and rejects failures, stale days and dateless bodies', async () => {
+test('fetch: unwraps combos / data / bare bodies, rejects failures and dateless bodies, uses an earlier day as stale', async () => {
   const reply = body => ({fetcher: async () => ({ok: true, json: async () => body}), now: NOON_KST});
   const good = raw();
   for (const body of [good, {ok: true, combos: good}, {ok: true, data: good}]) {
@@ -98,7 +98,9 @@ test('fetch: unwraps combos / data / bare bodies and rejects failures, stale day
   }
   assert.deepEqual(await api.fetchTodayCombos({url: 'u', ...reply({ok: false, combos: good})}), {ok: false, reason: 'bad_response'});
   assert.deepEqual(await api.fetchTodayCombos({url: 'u', ...reply({ok: true})}), {ok: false, reason: 'bad_response'});
-  assert.deepEqual(await api.fetchTodayCombos({url: 'u', ...reply(raw({date: '2026-10-26'}))}), {ok: false, reason: 'stale'});
+  const earlier = await api.fetchTodayCombos({url: 'u', ...reply(raw({date: '2026-10-26'}))});
+  assert.deepEqual([earlier.ok, earlier.stale, earlier.combos.date, earlier.combos.bundles[0].total], [true, true, '2026-10-26', 1050]);
+  assert.equal((await api.fetchTodayCombos({url: 'u', ...reply(good)})).stale, undefined, 'today\'s document is not flagged');
   const {date, ...dateless} = good;
   assert.deepEqual(await api.fetchTodayCombos({url: 'u', ...reply(dateless)}), {ok: false, reason: 'stale'});
   assert.deepEqual(await api.fetchTodayCombos({url: 'u', fetcher: async () => ({ok: false, json: async () => ({})}), now: NOON_KST}), {ok: false, reason: 'bad_response'});
@@ -108,12 +110,15 @@ test('fetch: unwraps combos / data / bare bodies and rejects failures, stale day
   assert.deepEqual(seen, ['https://x/c', {'X-App-Token': 't'}, 'no-store']);
 });
 
-test('load: the app\'s own request function is used; throws, timeouts, bad and stale bodies are failures', async () => {
+test('load: the app\'s own request function is used; throws, timeouts, bad and dateless bodies are failures', async () => {
   const good = raw();
   assert.equal(api.parseCombosBody(good, NOON_KST).ok, true);
   assert.deepEqual(api.parseCombosBody(null), {ok: false, reason: 'bad_response'});
   assert.deepEqual(api.parseCombosBody({ok: false}), {ok: false, reason: 'bad_response'});
-  assert.deepEqual(api.parseCombosBody(raw({date: '2026-10-26'}), NOON_KST), {ok: false, reason: 'stale'});
+  const earlier = api.parseCombosBody(raw({date: '2026-10-26'}), NOON_KST);
+  assert.deepEqual([earlier.ok, earlier.stale], [true, true]);
+  const {date, ...dateless} = good;
+  assert.deepEqual(api.parseCombosBody(dateless, NOON_KST), {ok: false, reason: 'stale'});
   assert.equal((await api.loadTodayCombos({load: async () => ({ok: true, combos: good}), now: NOON_KST})).ok, true);
   assert.deepEqual(await api.loadTodayCombos({load: async () => { throw new Error('401'); }}), {ok: false, reason: 'network'});
   assert.deepEqual(await api.loadTodayCombos({load: () => new Promise(() => {}), timeoutMs: 20}), {ok: false, reason: 'network'});
@@ -234,7 +239,7 @@ test('guide: without a callback, usn opens the whole list (with a hint); no usn 
   assert.equal(texts(noUsn).includes('하러 가기 ›'), false);
 }));
 
-test('hook: nothing without url unless sample; sample is ready; url loads; stale and failed stay empty', () => withReact(async ({make}) => {
+test('hook: nothing without url unless sample; sample is ready; url loads; an earlier day still shows its rows; dateless stays empty', () => withReact(async ({make}) => {
   const off = make();
   assert.deepEqual([off.render(() => api.useTodayCombos({})).status, off.render(() => api.useTodayCombos({})).combos], ['empty', null]);
   const sample = make();
@@ -259,7 +264,9 @@ test('hook: nothing without url unless sample; sample is ready; url loads; stale
     const stale = make();
     stale.render(() => api.useTodayCombos({url: 'u'})); stale.flush();
     await new Promise(r => setTimeout(r, 5));
-    assert.equal(stale.render(() => api.useTodayCombos({url: 'u'})).status, 'empty');
+    const earlier = stale.render(() => api.useTodayCombos({url: 'u'}));
+    assert.equal(earlier.status, 'ready', 'the rows of an earlier day stay (the chip must not vanish)');
+    assert.equal(earlier.combos.bundles[0].total, 1050);
 
     global.fetch = async () => ({ok: true, json: async () => ({ok: true, combos: (({date, ...rest}) => rest)(good)})});
     const dateless = make();
@@ -292,6 +299,72 @@ test('hook: a new url or member never shows the previous rows, and midnight re-f
     midnight[0]();
     live.render(() => api.useTodayCombos(props)); live.flush();
     assert.ok(calls > before, 'fetched again after the timer fired');
+  } finally { global.fetch = realFetch; global.setTimeout = realTimeout; }
+}));
+
+test('an earlier day\'s document keeps the rows but not the done marks (nothing finished yesterday looks finished today)', () => {
+  const paid = {done: ['k1'], bundles: [{goal: 1000, missions: [mission('a', 600, {campaignKey: 'k1'}), mission('b', 450)]}]};
+  const todays = api.parseCombosBody(raw(paid), NOON_KST);
+  assert.deepEqual([...api.autoDoneIds(todays.combos)], ['a']);
+  const earlier = api.parseCombosBody(raw({...paid, date: '2026-10-26'}), NOON_KST);
+  assert.equal(earlier.stale, true);
+  assert.deepEqual(earlier.combos.bundles[0].missions.map(m => m.id), ['a', 'b'], 'the rows stay');
+  assert.deepEqual([...api.autoDoneIds(earlier.combos)], [], 'no done marks');
+  assert.equal(earlier.combos.done, undefined);
+  // the server's per-row `done` in the categories goes too, and the other fields stay
+  const cats = api.normalizeTodayCombos(raw({
+    date: '2026-10-26', ...paid,
+    categories: [{key: 'signup', title: '회원가입', total_points: 100, count: 2, items: [
+      {campaignKey: 'k1', name: '알바천국', points: 100, line: '가입하기', done: true}, {campaignKey: 'k2', name: '다른 곳', points: 50, line: '가입하기', done: false}]}],
+  }));
+  assert.deepEqual([...api.autoDoneIds(cats)].sort(), ['a', 'k1']);
+  const stripped = api.withoutDone(cats);
+  assert.deepEqual([...api.autoDoneIds(stripped)], []);
+  assert.deepEqual(stripped.categories[0].items.map(i => i.name), ['알바천국', '다른 곳']);
+  assert.equal(stripped.date, '2026-10-26');
+  assert.equal(api.withoutDone(cats), stripped, 'cached per document: a screen that asks on every render gets the same object');
+  assert.equal(cats.done.length, 1, 'the original is not changed');
+});
+
+test('hook: an earlier day\'s document stays on screen without done marks and is asked for again every minute until today\'s arrives', () => withReact(async ({make}) => {
+  const realFetch = global.fetch, realTimeout = global.setTimeout;
+  const timers = [];
+  let calls = 0;
+  let day = '2000-01-01';
+  const paid = {done: ['k1'], bundles: [{goal: 1000, missions: [mission('a', 600, {campaignKey: 'k1'}), mission('b', 450)]}]};
+  const wait = () => new Promise(r => realTimeout(r, 5));
+  const retries = () => timers.filter(t => t[1] === api.COMBO_STALE_RETRY_MS);
+  try {
+    global.fetch = async () => { calls++; return {ok: true, json: async () => ({ok: true, combos: raw({...paid, date: day})})}; };
+    global.setTimeout = (fn, ms) => { timers.push([fn, ms]); return timers.length; };
+    const live = make();
+    const props = {url: 'u'};
+    const read = () => live.render(() => api.useTodayCombos(props));
+    read(); live.flush(); await wait();
+    const shown = read(); live.flush();
+    assert.equal(shown.status, 'ready', 'the chip and the sheet keep their rows');
+    assert.deepEqual(shown.combos.bundles[0].missions.map(m => m.id), ['a', 'b']);
+    assert.deepEqual([...api.autoDoneIds(shown.combos)], [], 'yesterday\'s done marks are not shown');
+    assert.equal(retries().length, 1, 'a one-minute retry is armed');
+    // the minute passes, the server still answers with the old day: asked again, still shown, another retry armed
+    let before = calls;
+    retries()[0][0]();
+    read(); live.flush(); await wait();
+    assert.ok(calls > before, 'asked again');
+    assert.equal(read().status, 'ready'); live.flush();
+    assert.ok(retries().length >= 2, 'and again in a minute');
+    // the server has today's document: it replaces the old one, the done marks come back, no more retries
+    day = api.kstDate();
+    before = calls;
+    retries()[retries().length - 1][0]();
+    read(); live.flush(); await wait();
+    assert.ok(calls > before);
+    const fresh = read(); live.flush();
+    assert.equal(fresh.combos.date, day);
+    assert.deepEqual([...api.autoDoneIds(fresh.combos)], ['a'], 'today\'s own done marks');
+    const armed = retries().length;
+    read(); live.flush(); read(); live.flush();
+    assert.equal(retries().length, armed, 'nothing armed once today\'s document is on screen');
   } finally { global.fetch = realFetch; global.setTimeout = realTimeout; }
 }));
 

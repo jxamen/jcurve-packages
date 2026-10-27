@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.COMBO_TAB_ROW_PROPS = exports.COMBO_TAB_HIT_SLOP = exports.COMBO_LIST_HINT = exports.TODAY_COMBOS_SAMPLE = exports.DEFAULT_COMBO_THEME = exports.COMBO_POPUP_HEADLINE_WIDTH = exports.COMBO_POPUP_NOTICE = exports.COMBO_TRIAL_NAME = exports.COMBO_TRIAL_NOTE = exports.COMBO_LEVEL_LABEL = exports.COMBO_EASY_NAME = exports.COMBO_NAME = void 0;
+exports.COMBO_TAB_ROW_PROPS = exports.COMBO_TAB_HIT_SLOP = exports.COMBO_LIST_HINT = exports.TODAY_COMBOS_SAMPLE = exports.DEFAULT_COMBO_THEME = exports.COMBO_POPUP_HEADLINE_WIDTH = exports.COMBO_POPUP_NOTICE = exports.COMBO_STALE_RETRY_MS = exports.COMBO_TRIAL_NAME = exports.COMBO_TRIAL_NOTE = exports.COMBO_LEVEL_LABEL = exports.COMBO_EASY_NAME = exports.COMBO_NAME = void 0;
 exports.normalizeTodayCombos = normalizeTodayCombos;
 exports.categoryMissions = categoryMissions;
 exports.trialTerms = trialTerms;
@@ -12,6 +12,7 @@ exports.needsTrialConsent = needsTrialConsent;
 exports.autoDoneIds = autoDoneIds;
 exports.kstDate = kstDate;
 exports.isTodayCombos = isTodayCombos;
+exports.withoutDone = withoutDone;
 exports.msUntilKstMidnight = msUntilKstMidnight;
 exports.formatPoints = formatPoints;
 exports.comboPopupContent = comboPopupContent;
@@ -410,9 +411,28 @@ function cleanSingles(raw, bundleGoals, gone) {
 function kstDate(now = Date.now()) {
     return new Date(now + 9 * 3600 * 1000).toISOString().slice(0, 10);
 }
-/** Yesterday's combos must not be shown as today's, so a body without a date counts as stale too. */
+/** Is this document today's? A body without a date is not (it cannot be told from yesterday's). */
 function isTodayCombos(combos, now = Date.now()) {
     return combos.date === kstDate(now);
+}
+/** While only an old document is at hand (the server has not built today's yet, e.g. just after midnight) the app asks again this often. */
+exports.COMBO_STALE_RETRY_MS = 60000;
+const withoutDoneCache = new WeakMap();
+/**
+ * The same document with nothing marked done. An old document (the server's answer in the first minutes after midnight) still shows the day's
+ * rows — the chip and the sheet must not vanish — but what the member finished *yesterday* must not look finished today, so its `done` marks go.
+ * The result is cached per document, so a screen that asks on every render gets the same object back.
+ */
+function withoutDone(combos) {
+    const known = withoutDoneCache.get(combos);
+    if (known)
+        return known;
+    const { done: _paid, ...rest } = combos;
+    const out = combos.categories
+        ? { ...rest, categories: combos.categories.map(category => ({ ...category, items: category.items.map(({ done: _item, ...item }) => item) })) }
+        : rest;
+    withoutDoneCache.set(combos, out);
+    return out;
 }
 /** Milliseconds until the next 00:00 in Korea. */
 function msUntilKstMidnight(now = Date.now()) {
@@ -510,7 +530,11 @@ async function fetchTodayCombos({ url, headers = {}, timeoutMs = 8000, now, fetc
         clearTimeout(timer);
     }
 }
-/** A response body (`{ok, combos}`, `{ok, data}` or the combos themselves) → checked combos for today. */
+/**
+ * A response body (`{ok, combos}`, `{ok, data}` or the combos themselves) → checked combos. A document of an earlier day is still used (`stale: true`,
+ * without its done marks): at 00:00 the server may answer with yesterday's for a few minutes, and an empty chip is worse than yesterday's rows.
+ * A body with no date at all is refused.
+ */
 function parseCombosBody(body, now) {
     const data = body && typeof body === 'object' ? body : null;
     if (!data || data.ok === false)
@@ -518,7 +542,9 @@ function parseCombosBody(body, now) {
     const combos = normalizeTodayCombos(data.combos ?? data.data ?? data);
     if (!combos)
         return { ok: false, reason: 'bad_response' };
-    return isTodayCombos(combos, now) ? { ok: true, combos } : { ok: false, reason: 'stale' };
+    if (isTodayCombos(combos, now))
+        return { ok: true, combos };
+    return combos.date ? { ok: true, combos: withoutDone(combos), stale: true } : { ok: false, reason: 'stale' };
 }
 /**
  * Same as `fetchTodayCombos` but the app does the request with its own API function (auth, device and OTA headers,
@@ -618,9 +644,18 @@ function useTodayCombos({ url, headers, load, loadKey, sample = false }) {
     /** Fetches again without showing a loading state; the rows already on screen stay until the new answer arrives. */
     const refresh = () => { setTick(n => n + 1); };
     const current = state.key === key ? state : { key, ...start() };
-    // Re-checked on every render, so a render after midnight never shows yesterday's rows.
-    const fresh = current.combos && (current.combos === exports.TODAY_COMBOS_SAMPLE || isTodayCombos(current.combos)) ? current.combos : null;
-    return { status: fresh ? current.status : current.status === 'loading' ? 'loading' : 'empty', combos: fresh, reload, refresh };
+    // Re-checked on every render. After midnight (or when the server still answers with yesterday's document) the rows stay — the chip and the
+    // sheet must not vanish — but without yesterday's done marks, until today's document arrives.
+    const old = !!current.combos && current.combos !== exports.TODAY_COMBOS_SAMPLE && !isTodayCombos(current.combos);
+    const shown = current.combos && old ? withoutDone(current.combos) : current.combos;
+    // Only an old document at hand: ask again every minute until the server has today's (the midnight timer above does the first ask).
+    React.useEffect(() => {
+        if (!enabled || !old)
+            return;
+        const timer = setTimeout(() => setTick(n => n + 1), exports.COMBO_STALE_RETRY_MS);
+        return () => clearTimeout(timer);
+    }, [enabled, old, tick]);
+    return { status: shown ? current.status : current.status === 'loading' ? 'loading' : 'empty', combos: shown, reload, refresh };
 }
 exports.COMBO_LIST_HINT = '누르면 혜택 목록이 열려요. 같은 이름을 찾아 참여해 주세요.';
 const NO_DONE = new Set();

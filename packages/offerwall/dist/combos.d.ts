@@ -146,8 +146,16 @@ export declare function needsTrialConsent(combos: TodayCombos | null | undefined
 export declare function autoDoneIds(combos: TodayCombos | null | undefined): Set<string>;
 /** Calendar date in Korea (the daily reset), YYYY-MM-DD. */
 export declare function kstDate(now?: number): string;
-/** Yesterday's combos must not be shown as today's, so a body without a date counts as stale too. */
+/** Is this document today's? A body without a date is not (it cannot be told from yesterday's). */
 export declare function isTodayCombos(combos: TodayCombos, now?: number): boolean;
+/** While only an old document is at hand (the server has not built today's yet, e.g. just after midnight) the app asks again this often. */
+export declare const COMBO_STALE_RETRY_MS = 60000;
+/**
+ * The same document with nothing marked done. An old document (the server's answer in the first minutes after midnight) still shows the day's
+ * rows — the chip and the sheet must not vanish — but what the member finished *yesterday* must not look finished today, so its `done` marks go.
+ * The result is cached per document, so a screen that asks on every render gets the same object back.
+ */
+export declare function withoutDone(combos: TodayCombos): TodayCombos;
 /** Milliseconds until the next 00:00 in Korea. */
 export declare function msUntilKstMidnight(now?: number): number;
 export declare function formatPoints(n: number): string;
@@ -230,9 +238,11 @@ type TokenSet = {
 };
 /** Maps the family's `C`/`R`/`F`/`shadow` objects (tree → accent, treeDark → accentText, treeSoft → accentSoft). */
 export declare function comboThemeFromTokens({ C, R, F, shadow }: TokenSet): ComboTheme;
+/** `stale: true` = a dated document that is not today's (shown without its done marks until today's arrives); `reason: 'stale'` = no date at all, so it cannot be used. */
 export type FetchCombosResult = {
     ok: true;
     combos: TodayCombos;
+    stale?: true;
 } | {
     ok: false;
     reason: 'network' | 'bad_response' | 'stale';
@@ -252,7 +262,11 @@ export declare function fetchTodayCombos({ url, headers, timeoutMs, now, fetcher
     now?: number;
     fetcher?: Fetcher;
 }): Promise<FetchCombosResult>;
-/** A response body (`{ok, combos}`, `{ok, data}` or the combos themselves) → checked combos for today. */
+/**
+ * A response body (`{ok, combos}`, `{ok, data}` or the combos themselves) → checked combos. A document of an earlier day is still used (`stale: true`,
+ * without its done marks): at 00:00 the server may answer with yesterday's for a few minutes, and an empty chip is worse than yesterday's rows.
+ * A body with no date at all is refused.
+ */
 export declare function parseCombosBody(body: unknown, now?: number): FetchCombosResult;
 /**
  * Same as `fetchTodayCombos` but the app does the request with its own API function (auth, device and OTA headers,
