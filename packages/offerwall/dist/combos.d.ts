@@ -61,11 +61,19 @@ export declare function isTodayCombos(combos: TodayCombos, now?: number): boolea
 /** Milliseconds until the next 00:00 in Korea. */
 export declare function msUntilKstMidnight(now?: number): number;
 export declare function formatPoints(n: number): string;
+export type ComboPopupContent = {
+    /** headline pieces: `before` + big `amount` + `after`, e.g. 「오늘 」 「+5,965P」 「 모을 수 있어요」 */
+    before: string;
+    amount: string;
+    after: string;
+    /** one line under it, e.g. 「쉬운 미션 18개 · 하나에 3분이면 끝」 */
+    sub: string;
+};
 /**
- * What the recommendation popup says, from the server's combos: how many easy missions and their sum, then the goal path.
- * e.g. ["쉬운 미션 18개로 +5,965P", "1천 · 5천 · 1만P 길 추천"]. Always at least one line.
+ * What the recommendation popup says, from the server's combos: the easy missions' sum as the big number (else the top goal), and
+ * how many easy missions there are, with how long one takes when the server gave minutes (the middle value, so one odd mission does not decide it).
  */
-export declare function comboPopupLines(combos: TodayCombos): string[];
+export declare function comboPopupContent(combos: TodayCombos): ComboPopupContent;
 /** 1000 → 1천P, 5000 → 5천P, 10000 → 1만P, anything else → 1,500P */
 export declare function formatGoal(goal: number): string;
 /**

@@ -170,17 +170,27 @@ export function msUntilKstMidnight(now: number = Date.now()): number {
 export function formatPoints(n: number): string {
   return `${Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}P`;
 }
+export type ComboPopupContent = {
+  /** headline pieces: `before` + big `amount` + `after`, e.g. 「오늘 」 「+5,965P」 「 모을 수 있어요」 */
+  before: string; amount: string; after: string;
+  /** one line under it, e.g. 「쉬운 미션 18개 · 하나에 3분이면 끝」 */
+  sub: string;
+};
 /**
- * What the recommendation popup says, from the server's combos: how many easy missions and their sum, then the goal path.
- * e.g. ["쉬운 미션 18개로 +5,965P", "1천 · 5천 · 1만P 길 추천"]. Always at least one line.
+ * What the recommendation popup says, from the server's combos: the easy missions' sum as the big number (else the top goal), and
+ * how many easy missions there are, with how long one takes when the server gave minutes (the middle value, so one odd mission does not decide it).
  */
-export function comboPopupLines(combos: TodayCombos): string[] {
+export function comboPopupContent(combos: TodayCombos): ComboPopupContent {
+  const easy = combos.easy;
+  const top = combos.bundles.reduce((max, b) => Math.max(max, b.goal), 0);
+  if (easy) {
+    const minutes = easy.missions.map(m => m.minutes ?? 0).filter(n => n > 0).sort((a, b) => a - b);
+    const typical = minutes.length ? minutes[Math.floor((minutes.length - 1) / 2)] : 0;
+    return { before: '오늘 ', amount: `+${formatPoints(easy.total)}`, after: ' 모을 수 있어요', sub: `쉬운 미션 ${easy.missions.length}개${typical ? ` · 하나에 ${typical}분이면 끝` : ''}` };
+  }
   const goals = combos.bundles.map(b => formatGoal(b.goal));
   const path = goals.map((g, i) => (i < goals.length - 1 ? g.replace(/P$/, '') : g)).join(' · ');
-  const lines: string[] = [];
-  if (combos.easy) lines.push(`쉬운 미션 ${combos.easy.missions.length}개로 +${formatPoints(combos.easy.total)}`);
-  if (path) lines.push(combos.easy ? `${path} 길 추천` : `${path} 길을 차례로 모아 보세요`);
-  return lines.length ? lines : [COMBO_NAME];
+  return { before: '오늘 ', amount: top ? formatGoal(top) : '', after: '까지 모을 수 있어요', sub: path ? `${path} 길을 차례로 모아 보세요` : '' };
 }
 
 /** 1000 → 1천P, 5000 → 5천P, 10000 → 1만P, anything else → 1,500P */

@@ -108,6 +108,8 @@ export type ComboEntryProps = {
     chipTop?: number;
     chipRight?: number;
     sheetTop?: number;
+    /** Picture at the top of the recommendation popup (the app's coin art). Without it a coin is drawn from plain views. */
+    popupArt?: import('react-native').ImageSourcePropType;
 };
 /**
  * Chance tab: put it next to the wall inside one container, `<View style={{flex:1}}><OfferwallScreen/><ComboEntry placement="chance"/></View>`.
@@ -119,5 +121,5 @@ export type ComboEntryProps = {
  * server's id when it is a key) and its detail page opens. Otherwise, or when nothing is found, the name is shown at the
  * top (and copied when possible) and the plain list is revealed: the Chance tab closes the guide, Home opens the list.
  */
-export declare function ComboEntry({ placement, url, headers, load, loadKey, usn, theme, sample, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, chipTop, chipRight, sheetTop, }: ComboEntryProps): ReactElement | null;
+export declare function ComboEntry({ placement, url, headers, load, loadKey, usn, theme, sample, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, chipTop, chipRight, sheetTop, popupArt, }: ComboEntryProps): ReactElement | null;
 export {};

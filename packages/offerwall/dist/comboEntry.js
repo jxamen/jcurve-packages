@@ -132,35 +132,46 @@ const isCampaignKey = (value) => !!value && /^\d{3,20}$/.test(value);
 /** How long after the wall has loaded the recommendation popup waits before it appears. */
 exports.COMBO_POPUP_DELAY_MS = 600;
 /**
- * Recommendation popup in the middle of the wall, shown once a day after the Chance tab's wall has loaded. It sits under the chip
- * (the chip stays visible and tappable), over a dimmed wall; tapping the dim area closes it. 「추천 보기」 opens the guide sheet.
+ * Recommendation popup in the middle of the wall, shown once a day after the Chance tab's wall has loaded: a big picture on top,
+ * the sum as a large headline (「오늘 +5,965P 모을 수 있어요」), one subtitle line, one wide button and a small 닫기 link. It scales in
+ * over a dimmed wall and sits under the chip (the chip stays visible and tappable); tapping the dim area closes it.
  */
-function ComboPopup({ combos, theme, onOpen, onClose }) {
+function ComboPopup({ combos, theme, art, onOpen, onClose }) {
     const React = require('react');
-    const { View, Text, Pressable } = require('react-native');
+    const { View, Text, Pressable, Image, Animated } = require('react-native');
     const h = React.createElement;
     const t = theme;
-    const lines = (0, combos_1.comboPopupLines)(combos);
-    const button = (label, onPress, primary, flex) => h(Pressable, {
-        key: label, accessibilityRole: 'button', accessibilityLabel: label, onPress,
-        style: ({ pressed }) => ({
-            flex, alignItems: 'center', justifyContent: 'center', paddingVertical: 13, borderRadius: t.radius.slot, opacity: pressed ? 0.8 : 1,
-            backgroundColor: primary ? t.accent : t.accentSoft,
-        }),
-    }, h(Text, { style: { fontSize: t.font.body, fontWeight: '900', color: primary ? t.text : t.accentText } }, label));
+    const content = (0, combos_1.comboPopupContent)(combos);
+    const grow = React.useRef(null);
+    if (!grow.current)
+        grow.current = new Animated.Value(0);
+    React.useEffect(() => { Animated.timing(grow.current, { toValue: 1, duration: 240, useNativeDriver: true }).start(); }, []);
+    const scale = grow.current.interpolate({ inputRange: [0, 1], outputRange: [0.88, 1] });
+    const opacity = grow.current.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
+    const sparkle = (key, left, top, size, rotate, color) => h(View, {
+        key, accessible: false, style: { position: 'absolute', left: left, top, width: size, height: size, borderRadius: 2, backgroundColor: color, transform: [{ rotate }] },
+    });
+    // The picture: the app's own art when it gives one, else a coin drawn from plain views.
+    const coin = (size, key, style = {}) => art
+        ? h(Image, { key, source: art, resizeMode: 'contain', accessibilityIgnoresInvertColors: true, style: { width: size, height: size, ...style } })
+        : h(View, { key, accessible: false, style: { width: size, height: size, borderRadius: size / 2, borderWidth: Math.max(3, size / 12), borderColor: t.text, backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center', ...style } }, h(Text, { style: { fontSize: size * 0.42, fontWeight: '900', color: t.text } }, 'P'));
     return h(View, {
         key: 'popup', pointerEvents: 'box-none',
         style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 22, elevation: 22, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
     }, h(Pressable, {
         accessibilityRole: 'button', accessibilityLabel: '팝업 닫기', onPress: onClose,
-        style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)' },
-    }), h(View, {
+        style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.55)' },
+    }), h(Animated.View, {
         accessibilityViewIsModal: true,
-        style: { width: '100%', maxWidth: 340, borderRadius: t.radius.card, backgroundColor: t.card, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 18, ...t.shadow },
-    }, h(Text, { style: { fontSize: t.font.title, fontWeight: '900', color: t.text } }, combos_1.COMBO_NAME), lines.map((line, i) => h(Text, {
-        key: `line-${i}`,
-        style: { marginTop: i === 0 ? 10 : 4, fontSize: t.font.body, lineHeight: 24, fontWeight: i === 0 ? '800' : '600', color: i === 0 ? t.text : t.sub },
-    }, line)), h(View, { style: { flexDirection: 'row', gap: 10, marginTop: 20 } }, button('닫기', onClose, false, 1), button('추천 보기', onOpen, true, 1.4))));
+        style: { width: '100%', maxWidth: 320, borderRadius: 24, overflow: 'hidden', backgroundColor: t.card, opacity, transform: [{ scale }], ...t.shadow },
+    }, h(View, { accessible: false, style: { height: 132, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accentSoft } }, coin(40, 'coin-left', { position: 'absolute', left: 48, top: 66, opacity: 0.9 }), coin(40, 'coin-right', { position: 'absolute', right: 48, top: 22, opacity: 0.9 }), coin(96, 'coin-main'), sparkle('s1', 34, 26, 10, '45deg', t.accent), sparkle('s2', '76%', 78, 8, '45deg', t.accentText), sparkle('s3', 70, 100, 7, '45deg', t.accentText), sparkle('s4', '84%', 18, 12, '45deg', t.accent)), h(View, { style: { paddingHorizontal: 22, paddingTop: 20, paddingBottom: 14, alignItems: 'center' } }, 
+    // Two lines on purpose (a break in the middle of 「있어요」 would look broken): 「오늘 +5,965P」 with the big number, then the rest.
+    h(Text, { accessibilityRole: 'header', style: { fontSize: 20, lineHeight: 30, fontWeight: '700', color: t.text, textAlign: 'center' } }, content.before, h(Text, { style: { fontSize: 34, lineHeight: 42, fontWeight: '900', color: t.point } }, content.amount), '\n', content.after.trim()), content.sub ? h(Text, { style: { marginTop: 6, fontSize: 14, lineHeight: 20, color: t.sub, textAlign: 'center' } }, content.sub) : null, h(Pressable, {
+        accessibilityRole: 'button', accessibilityLabel: '추천 보기', onPress: onOpen,
+        style: ({ pressed }) => ({
+            alignSelf: 'stretch', height: 52, marginTop: 20, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accent, opacity: pressed ? 0.85 : 1,
+        }),
+    }, h(Text, { style: { fontSize: 17, fontWeight: '800', color: t.text } }, '추천 보기')), h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 8, style: { marginTop: 6, paddingVertical: 10, paddingHorizontal: 16 } }, h(Text, { style: { fontSize: 14, fontWeight: '600', color: t.sub } }, '닫기')))));
 }
 /** Short message at the top ("신한 SOL페이" 를 찾아 주세요). Touches go through it. */
 function ComboToast({ text, top, theme }) {
@@ -181,7 +192,7 @@ function ComboToast({ text, top, theme }) {
  * server's id when it is a key) and its detail page opens. Otherwise, or when nothing is found, the name is shown at the
  * top (and copied when possible) and the plain list is revealed: the Chance tab closes the guide, Home opens the list.
  */
-function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combos_1.DEFAULT_COMBO_THEME, sample = false, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, chipTop, chipRight, sheetTop = exports.COMBO_SHEET_TOP, }) {
+function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combos_1.DEFAULT_COMBO_THEME, sample = false, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, chipTop, chipRight, sheetTop = exports.COMBO_SHEET_TOP, popupArt, }) {
     const React = require('react');
     const { Modal, Pressable, SafeAreaView } = require('react-native');
     const h = React.createElement;
@@ -376,5 +387,5 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     return h(React.Fragment, null, open ? h(Pressable, {
         key: 'backdrop', accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: close,
         style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20, elevation: 20, backgroundColor: 'rgba(0,0,0,0.3)' },
-    }) : null, open ? h(ComboSheet, { key: 'sheet', top: sheetTop, theme }, guide('sheet')) : null, popup && !open && state.combos ? h(ComboPopup, { combos: state.combos, theme, onOpen: () => { setPopup(false); setOpen(true); }, onClose: () => setPopup(false) }) : null, shown ? h(ComboChip, { key: 'chip', open, theme, top: chipTop, right: chipRight, opacity: blink, onPress: () => setOpen(o => !o) }) : null, notice ? h(ComboToast, { key: 'notice', text: notice, top: sheetTop + 8, theme }) : null);
+    }) : null, open ? h(ComboSheet, { key: 'sheet', top: sheetTop, theme }, guide('sheet')) : null, popup && !open && state.combos ? h(ComboPopup, { combos: state.combos, theme, art: popupArt, onOpen: () => { setPopup(false); setOpen(true); }, onClose: () => setPopup(false) }) : null, shown ? h(ComboChip, { key: 'chip', open, theme, top: chipTop, right: chipRight, opacity: blink, onPress: () => setOpen(o => !o) }) : null, notice ? h(ComboToast, { key: 'notice', text: notice, top: sheetTop + 8, theme }) : null);
 }
