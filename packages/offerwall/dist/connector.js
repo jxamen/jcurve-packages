@@ -34,7 +34,7 @@ function normalizeServerUrl(serverUrl) {
     const url = typeof serverUrl === 'string' ? serverUrl.trim().replace(/\/+$/, '') : '';
     return /^https?:\/\/[^\s/]+(\/\S*)?$/i.test(url) ? url : '';
 }
-function createOfferwallClient({ serverUrl, getAuthHeaders, timeoutMs = 15000, fetcher }) {
+function createOfferwallClient({ serverUrl, getAuthHeaders, onUnauthorized, timeoutMs = 15000, fetcher }) {
     const base = normalizeServerUrl(serverUrl);
     const call = async (method, path, body) => {
         if (!base)
@@ -58,6 +58,12 @@ function createOfferwallClient({ serverUrl, getAuthHeaders, timeoutMs = 15000, f
                 json = await response.json();
             }
             catch { /* an empty or invalid body */ }
+            if (response.status === 401) {
+                try {
+                    onUnauthorized?.();
+                }
+                catch { /* the app's handler must not change the failure */ }
+            }
             if (!response.ok)
                 throw new OfferwallRequestError(typeof json?.error === 'string' ? json.error.slice(0, 80) : 'http_' + response.status, response.status);
             return json;

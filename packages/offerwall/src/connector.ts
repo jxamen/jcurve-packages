@@ -16,6 +16,8 @@ export type OfferwallClientOptions = {
   serverUrl: string;
   /** The app's own auth headers (app token, member session, device, OTA …), asked for on every request so a fresh login is picked up. */
   getAuthHeaders?: () => Record<string, string> | Promise<Record<string, string>>;
+  /** Called when the server answers 401 (the member's session is gone): the app drops it, as it does for its own requests. The request still fails. */
+  onUnauthorized?: () => void;
   /** Default 15 s. */
   timeoutMs?: number;
   /** For tests. */
@@ -47,7 +49,7 @@ export function normalizeServerUrl(serverUrl: unknown): string {
   return /^https?:\/\/[^\s/]+(\/\S*)?$/i.test(url) ? url : '';
 }
 
-export function createOfferwallClient({ serverUrl, getAuthHeaders, timeoutMs = 15_000, fetcher }: OfferwallClientOptions): OfferwallClient {
+export function createOfferwallClient({ serverUrl, getAuthHeaders, onUnauthorized, timeoutMs = 15_000, fetcher }: OfferwallClientOptions): OfferwallClient {
   const base = normalizeServerUrl(serverUrl);
   const call = async <T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> => {
     if (!base) throw new OfferwallRequestError('no_server', 0);
@@ -65,6 +67,7 @@ export function createOfferwallClient({ serverUrl, getAuthHeaders, timeoutMs = 1
       })]);
       let json: any = null;
       try { json = await response.json(); } catch { /* an empty or invalid body */ }
+      if (response.status === 401) { try { onUnauthorized?.(); } catch { /* the app's handler must not change the failure */ } }
       if (!response.ok) throw new OfferwallRequestError(typeof json?.error === 'string' ? json.error.slice(0, 80) : 'http_' + response.status, response.status);
       return json as T;
     } catch (error) {

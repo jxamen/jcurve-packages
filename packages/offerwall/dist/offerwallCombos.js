@@ -129,7 +129,7 @@ function createComboHandlers({ client, memberId, askTestMember, onListTap }) {
 }
 function OfferwallCombos(props) {
     const React = require('react');
-    const { placement, usn, memberId, serverUrl, tokens, theme: themeOverride, popupArt, adUnit, adTestMode = false, adTestDevices, popupAd: popupAdOn = true, chipTop, chipRight, sheetTop } = props;
+    const { placement, usn, memberId, serverUrl = '', tokens, theme: themeOverride, popupArt, adUnit, adTestMode = false, adTestDevices, popupAd: popupAdOn = true, chipTop, chipRight, sheetTop } = props;
     // the latest props for the callbacks below (they are created once; the entry keeps asking them what to do)
     const latest = React.useRef(props);
     latest.current = props;
@@ -139,7 +139,7 @@ function OfferwallCombos(props) {
         if (latest.current.client)
             return latest.current.client;
         if (!clientRef.current || clientRef.current.__key !== clientKey) {
-            const made = (0, connector_1.createOfferwallClient)({ serverUrl: clientKey, getAuthHeaders: () => latest.current.getAuthHeaders?.() ?? {} });
+            const made = (0, connector_1.createOfferwallClient)({ serverUrl: clientKey, getAuthHeaders: () => latest.current.getAuthHeaders?.() ?? {}, onUnauthorized: () => latest.current.onUnauthorized?.() });
             made.__key = clientKey;
             clientRef.current = made;
         }
@@ -221,7 +221,7 @@ function OfferwallCombos(props) {
         return () => { live = false; uploader.stop(); handle?.stop(); };
     }, [listTap, memberId]);
     const adReady = popupAdOn !== false && (0, popupAd_1.popupAdAvailable)({ adUnit, testMode: adTestMode });
-    const popupAd = adReady ? () => React.createElement(popupAd_1.OfferwallPopupAd, { adUnit, testMode: adTestMode, testDevices: adTestDevices, theme }) : undefined;
+    const popupAd = adReady ? () => React.createElement(popupAd_1.OfferwallPopupAd, { key: (0, popupAd_1.popupAdUnit)(adUnit) || 'test', adUnit, testMode: adTestMode, testDevices: adTestDevices, theme }) : undefined;
     if (memberId == null)
         return null;
     return React.createElement(comboEntry_1.ComboEntry, {

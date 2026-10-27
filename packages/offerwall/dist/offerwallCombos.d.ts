@@ -30,9 +30,16 @@ export type OfferwallCombosProps = {
     usn: string | null;
     /** Who is signed in. Null = nothing is shown (and nothing is asked of the server). Also the scope of the device-side marks. */
     memberId: number | string | null | undefined;
-    /** The app's server address and its auth headers. */
-    serverUrl: string;
+    /** The app's server address and its auth headers (the package makes the requests) … */
+    serverUrl?: string;
     getAuthHeaders?: OfferwallClientOptions['getAuthHeaders'];
+    /** … and what to do when the server says 401 (drop the session). */
+    onUnauthorized?: () => void;
+    /**
+     * … or, instead of the three above, the app's own request layer (`{ get(path), post(path, body) }`, paths relative to the app's server such as `offerwall/combos`), when it
+     * already handles headers, 401s and retries. When given, `serverUrl` / `getAuthHeaders` are not used.
+     */
+    client?: OfferwallClient;
     /** Colors and shape: the app's token objects, and/or single values on top (applied in that order over the defaults). */
     tokens?: OfferwallTokens;
     theme?: Partial<ComboTheme>;
@@ -46,9 +53,10 @@ export type OfferwallCombosProps = {
     popupAd?: boolean;
     /**
      * Is this member a test member? Only test members send the SDK campaign list and the per-tap diagnostics (the server accepts them from nobody else), and only
-     * test members keep the 「항상」 popup. Without it nobody is one. Asked at most once per member, and only when an answer needs it.
+     * test members keep the 「항상」 popup. Without it nobody is one. Asked at most once per member, and only when an answer needs it; answer `null` when it could not
+     * be found out (the answer counts as "no" this time and is asked again next time).
      */
-    isTestMember?: () => Promise<boolean>;
+    isTestMember?: () => Promise<boolean | null | undefined>;
     /** AsyncStorage-shaped store for the device-side marks. Default: `@react-native-async-storage/async-storage` when the app has it. */
     storage?: ComboStorage;
     /** Free trials: how the phone's notifications and the push token are seen to (see `ensureTrialNotify`). */
@@ -60,8 +68,6 @@ export type OfferwallCombosProps = {
     chipTop?: number;
     chipRight?: number;
     sheetTop?: number;
-    /** For tests: the request client and the parts the component otherwise finds itself. */
-    client?: OfferwallClient;
 };
 /**
  * The answer as the connector wants it: a combos document that does not say `display.chance` for itself keeps the chip off (nothing turns on by default),
@@ -72,7 +78,7 @@ export type ComboHandlerDeps = {
     client: () => OfferwallClient;
     memberId: () => number | string | null | undefined;
     /** The app's own answer to "is this member a test member?" (undefined = nobody is). */
-    askTestMember?: () => Promise<boolean> | boolean;
+    askTestMember?: () => Promise<boolean | null | undefined> | boolean | null | undefined;
     /** Told, on every combos answer, whether the server switched the iPhone list reading on. */
     onListTap?: (on: boolean) => void;
 };

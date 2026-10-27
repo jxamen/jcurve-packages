@@ -12,6 +12,8 @@ export type OfferwallClientOptions = {
     serverUrl: string;
     /** The app's own auth headers (app token, member session, device, OTA …), asked for on every request so a fresh login is picked up. */
     getAuthHeaders?: () => Record<string, string> | Promise<Record<string, string>>;
+    /** Called when the server answers 401 (the member's session is gone): the app drops it, as it does for its own requests. The request still fails. */
+    onUnauthorized?: () => void;
     /** Default 15 s. */
     timeoutMs?: number;
     /** For tests. */
@@ -38,7 +40,7 @@ export declare class OfferwallRequestError extends Error {
 }
 /** The base address with no trailing slash, or '' when it is not an http(s) address. */
 export declare function normalizeServerUrl(serverUrl: unknown): string;
-export declare function createOfferwallClient({ serverUrl, getAuthHeaders, timeoutMs, fetcher }: OfferwallClientOptions): OfferwallClient;
+export declare function createOfferwallClient({ serverUrl, getAuthHeaders, onUnauthorized, timeoutMs, fetcher }: OfferwallClientOptions): OfferwallClient;
 /** What `POST offerwall/campaigns` takes per campaign: key, name and reward, and (from a list read out of the web page) optional `info` and `icon`. */
 export type CampaignBodyItem = {
     campaignKey: string;

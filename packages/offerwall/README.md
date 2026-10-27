@@ -410,16 +410,19 @@ import { OfferwallCombos, OfferwallScreen } from '@jcurve/offerwall';
     memberId={member?.id}            // 없으면 아무것도 안 그리고 아무것도 요청하지 않는다
     serverUrl={API_BASE}             // 앱 서버 주소 (offerwall/… 앞까지)
     getAuthHeaders={() => ({ 'X-App-Token': TOKEN, Authorization: 'Bearer ' + session.token, ...ota })}
+    onUnauthorized={dropSession}     // 서버가 401 을 주면 알려 줌 (선택)
     tokens={{ C, R, F, shadow }}     // 앱의 색 · 둥글기 · 글자 크기 (comboThemeFromTokens 와 같다)
     theme={{ /* 낱개로 덮을 값 */ }}
     popupArt={require('./coin.png')} // 추천 팝업 위 그림 (없으면 동전을 그린다)
     adUnit={{ ios: '…', android: '…' }}  // 추천 팝업 아래 네이티브 광고. 없으면 광고도 자리도 없다
     popupAd={remoteAdOn}             // 앱의 끔 스위치 (기본 true)
-    isTestMember={async () => …}     // 시험 회원 판정 (없으면 아무도 아님)
+    isTestMember={async () => …}     // 시험 회원 판정 (없으면 아무도 아님; 알 수 없으면 null → 이번엔 아님, 다음에 다시 물음)
     syncPushToken={syncPushToken}    // 무료체험 알림 허용 뒤 푸시 토큰을 앱 서버에 다시 올리는 앱 함수
   />
 </View>
 ```
+
+앱에 자기 요청 계층(401 처리 · 재시도 · 기기/OTA 헤더)이 이미 있으면 `serverUrl`/`getAuthHeaders`/`onUnauthorized` 대신 `client={{ get: (path) => …, post: (path, body) => … }}` 를 넘길 수 있다(경로는 `offerwall/combos` 처럼 앱 서버 기준 상대 경로). 에그머니가 이 방식이다.
 
 앱 코드에 남는 것: 위 값들과 알림을 눌렀을 때의 화면 이동(`comboPushTarget(data)` 가 `'combos' | 'trials' | null` 을 주고, 열기는 기존 `requestOpenCombos()` / `requestOpenTrials(campaignKey)`). **앱에서 사라지는 것**: `EggCombos`류 글루 전부 — 요청(`offerwall/combos` · `campaigns` · `combos/diag` · `trials` · `trials/consent` · `trials/{key}/cancelled`), 시험 회원 분기, 「항상」 팝업 막기(`hasAlwaysPopup`/`dropAlwaysPopup`), 요청 본문(`campaignsBody` · `diagBody` · `detailSignalBody`), 푸시 길(`isTrialsRoute` · `pushCampaignKey` · `comboPushTarget`), 알림 권한 묻기(`ensureTrialNotify`), 팝업 네이티브 광고(`OfferwallPopupAd`), iPhone 목록 읽기와 올리기. 화면을 직접 짜는 앱은 같은 함수들(`createOfferwallClient` · `createComboHandlers` · 위 본문 함수)을 따로 쓸 수 있다.
 
@@ -469,4 +472,4 @@ iOS 의 애드팝콘 오퍼월 목록(「전체 미션」)은 SDK 안의 웹 화
 - **JS 추가**: `OfferwallCombos` · `createComboHandlers` · `createOfferwallClient` · `campaignsBody`/`diagBody`/`detailSignalBody`/`hasAlwaysPopup`/`dropAlwaysPopup`/`listTapSwitch`/`guardedBody` · `comboPushTarget`/`isTrialsRoute`/`pushCampaignKey` · `ensureTrialNotify`/`defaultTrialNotifyDeps`/`notifyState` · `OfferwallPopupAd`/`popupAdAvailable`/`popupAdUnit` · `startWebTap`/`parseTapMessage`/`WEB_TAP_*` · `createTapUploader`. `TodayCombos.display.listTap` 신설.
 - **동작이 바뀐 것**: (1) 복사할 수단이 없으면 복사를 시도하지 않고 「…찾아 주세요 · 이름을 기억해 두세요」(이전엔 「…찾아 주세요」만). (2) `display` 에 `list_tap:"on"` 만 있는 문서도 받는다(칩은 끈 채). (3) `OfferwallCombos` 로 쓰면 `display.chance` 가 없는 응답은 칩을 켜지 않는다(`ComboEntry` 를 직접 쓰는 옛 방식은 예전 기본값 `chip` 그대로).
 - **선택 peer(없어도 import 가 깨지지 않는다)**: `react-native-google-mobile-ads`(팝업 광고) · `expo-notifications`(알림 권한) · `@react-native-async-storage/async-storage`(체크 · 오늘 봤음 표시 저장).
-- **확인 상태**: 단위 테스트 273개(손으로 만든 React 대역 위) 통과, `tsc` 통과. **네이티브(ObjC · Java)는 아직 컴파일해 본 적이 없다** — 첫 컴파일은 맥북16 빌드 잡(에그머니 iOS)이고, 웹 탭 스크립트는 Node `vm` 의 가짜 페이지에서만 돌려 봤다. 실기기 · 시뮬레이터 확인 전이다.
+- **확인 상태**: 단위 테스트 275개(손으로 만든 React 대역 위) 통과, `tsc` 통과. **네이티브(ObjC · Java)는 아직 컴파일해 본 적이 없다** — 첫 컴파일은 맥북16 빌드 잡(에그머니 iOS)이고, 웹 탭 스크립트는 Node `vm` 의 가짜 페이지에서만 돌려 봤다. 실기기 · 시뮬레이터 확인 전이다.

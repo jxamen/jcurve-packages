@@ -32,6 +32,18 @@ test('client: joins the address and path, sends the app\'s headers (fresh each t
   assert.equal(calls[1].body, JSON.stringify({campaignKey: 'k', agree: true}));
 });
 
+test('client: a 401 tells the app (so it can drop the session) and still fails; other statuses do not', async () => {
+  let told = 0;
+  const unauthorized = api.createOfferwallClient({serverUrl: 'https://a.example.com', onUnauthorized: () => { told += 1; }, fetcher: fakeFetch([{ok: false, status: 401, body: {error: 'unauthorized'}}]).fetcher});
+  await assert.rejects(unauthorized.get('offerwall/combos'), e => e.status === 401);
+  assert.equal(told, 1);
+  const missing = api.createOfferwallClient({serverUrl: 'https://a.example.com', onUnauthorized: () => { told += 1; }, fetcher: fakeFetch([{ok: false, status: 404, body: {}}]).fetcher});
+  await assert.rejects(missing.get('offerwall/combos'));
+  assert.equal(told, 1);
+  const throwing = api.createOfferwallClient({serverUrl: 'https://a.example.com', onUnauthorized: () => { throw new Error('app bug'); }, fetcher: fakeFetch([{ok: false, status: 401, body: {}}]).fetcher});
+  await assert.rejects(throwing.get('offerwall/combos'), e => e.status === 401, 'a throwing handler does not change the failure');
+});
+
 test('client: no or odd server address, odd paths, http errors and network failures are all refused with a status', async () => {
   const {fetcher, calls} = fakeFetch([{ok: false, status: 404, body: {error: 'no_combos'}}]);
   for (const serverUrl of ['', 'ftp://x.example.com', 'javascript:alert(1)', undefined]) {
@@ -323,6 +335,18 @@ test('handlers.load: the chip stays off unless the server said so; "always" surv
   assert.equal(plain, 0, 'a plain answer never asks');
   const {client: bare} = stubClient({'offerwall/combos': DOC(undefined)});
   assert.equal((await handlersFor(bare).load()).combos.display.chance, 'off');
+});
+
+test('handlers: an unknown test-member answer (null / error) counts as "no" this time and is asked again next time', async () => {
+  let asked = 0; const answers = [null, true];
+  const {client} = stubClient({'offerwall/combos': DOC({chance: 'chip', chance_popup: 'always'})});
+  const handlers = handlersFor(client, {askTestMember: async () => { asked += 1; return answers.shift(); }});
+  assert.equal((await handlers.load()).combos.display.chance_popup, 'on', 'unknown → treated as no');
+  assert.equal((await handlers.load()).combos.display.chance_popup, 'always', 'asked again, now a test member');
+  await handlers.load();
+  assert.equal(asked, 2, 'a real answer is kept');
+  const failing = handlersFor(client, {askTestMember: async () => { throw new Error('config down'); }});
+  assert.equal((await failing.load()).combos.display.chance_popup, 'on');
 });
 
 test('handlers.load: the list-reading switch is told on every answer; a 404 turns it off, a network failure leaves it', async () => {
