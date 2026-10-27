@@ -12,7 +12,11 @@ export type ComboBundle = { goal: number; missions: ComboMission[]; total: numbe
 /** Missions that reach `goal` on their own ("한 번에 끝내기"), mixed kinds. Several to choose from, any one is enough. */
 export type ComboSingles = { goal: number; missions: ComboMission[] };
 /** Server switches. chance: the floating chip in the Chance tab; home: the optional banner on Home. */
-export type ComboDisplay = { chance: 'chip' | 'off'; home: 'banner' | 'off' };
+export type ComboDisplay = {
+  chance: 'chip' | 'off'; home: 'banner' | 'off';
+  /** `chance_popup: 'off'` from the server turns the recommendation popup off; absent means on. */
+  popup?: 'off';
+};
 /** 「쉽게 모으기」: short, easy missions (follow, subscribe, install and open) with no goal; `total` is the sum of their points. */
 export type ComboEasy = { missions: ComboMission[]; total: number };
 export type TodayCombos = {
@@ -86,6 +90,8 @@ export function normalizeTodayCombos(raw: unknown): TodayCombos | null {
   const display: ComboDisplay = {
     chance: data.display?.chance === 'off' ? 'off' : 'chip',
     home: data.display?.home === 'banner' ? 'banner' : 'off',
+    // `chance_popup` is the server's spelling; `popup` is what normalizing keeps, so running this twice gives the same result
+    ...(data.display?.chance_popup === 'off' || data.display?.popup === 'off' ? { popup: 'off' as const } : {}),
   };
   const singles = cleanSingles(data.singles, goals);
   const easy = cleanEasy(data.easy);
@@ -151,6 +157,19 @@ export function msUntilKstMidnight(now: number = Date.now()): number {
 export function formatPoints(n: number): string {
   return `${Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}P`;
 }
+/**
+ * What the recommendation popup says, from the server's combos: how many easy missions and their sum, then the goal path.
+ * e.g. ["쉬운 미션 18개로 +5,965P", "1천 · 5천 · 1만P 길 추천"]. Always at least one line.
+ */
+export function comboPopupLines(combos: TodayCombos): string[] {
+  const goals = combos.bundles.map(b => formatGoal(b.goal));
+  const path = goals.map((g, i) => (i < goals.length - 1 ? g.replace(/P$/, '') : g)).join(' · ');
+  const lines: string[] = [];
+  if (combos.easy) lines.push(`쉬운 미션 ${combos.easy.missions.length}개로 +${formatPoints(combos.easy.total)}`);
+  if (path) lines.push(combos.easy ? `${path} 길 추천` : `${path} 길을 차례로 모아 보세요`);
+  return lines.length ? lines : [COMBO_NAME];
+}
+
 /** 1000 → 1천P, 5000 → 5천P, 10000 → 1만P, anything else → 1,500P */
 export function formatGoal(goal: number): string {
   if (goal >= 10000 && goal % 10000 === 0) return `${goal / 10000}만P`;

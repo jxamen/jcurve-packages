@@ -253,3 +253,14 @@ if (isCombosRoute(action)) { goTab('offerwall'); requestOpenCombos(); }   // 탭
 - `onDiagnostic` — 누를 때마다 무엇이 일어났는지(브리지 여부 · 목록 개수/오류/앞 5개 이름 · 시도한 키와 방법 · `open` 결과와 걸린 시간 · 복사 여부). 앱이 시험 회원일 때만 서버로 보낸다.
 - `combos.easy` — 「쉬운 것부터 가볍게」 탭, 위 서버 응답 절 참고.
 - **알려진 한계**: iOS 모듈은 `onOpenCampaignDetailPage` 가 5초 안에 안 오면 `false` 로 끝낸다. 상세는 웹 페이지라 느리면 열렸는데도 `false` 가 날 수 있다 — 그래서 5초 가까운 `false` 뒤에는 다른 키를 더 시도하지 않는다. 시간 자체를 늘리려면 네이티브 수정이 필요해 다음 빌드 몫이다. 서버 키만으로 SDK 가 상세를 여는지(목록 없이)는 SDK 바이너리 문자열로는 목록이 필수가 아닌 것으로 보이나 **실기기로 확인 전**이다. 대안: 임베드 뷰 `OfferwallView detailCampaignKey`(iOS) · `campaignKeys`(Android).
+
+## 0.3.4 — 찬스 탭 추천 팝업 (JS only, 0.3.0 빌드에 OTA 가능, iOS · 안드)
+
+0.3.1 위에서 만든 JS 변경이다(0.3.2 의 iOS 네이티브 변경과 0.3.3 의 임베드 상세는 **들어 있지 않다** — 임베드 상세는 SDK `pageType` 때문에 목록만 떠서 되돌렸다). `android/` · `ios/` · plugin · podspec 은 0.3.0 과 바이트 동일.
+
+- **무엇**: 찬스 탭에 **직접 들어오면** 오퍼월이 다 뜬 뒤(`OfferwallScreen` 이 `onLoaded` 를 받은 시점, 0.6초 대기) 오퍼월 위 가운데에 추천 팝업이 한 번 뜬다. 제목 「포인트 빨리 모으기」, 본문은 서버 `combos` 로 만든 한두 줄(예: 「쉬운 미션 20개로 +9,205P」 · 「1천 · 5천 · 1만P 길 추천」, `comboPopupLines`), 버튼 「닫기」 / 「추천 보기」. 「추천 보기」는 팝업을 닫고 「포인트 빨리 모으기」 바텀시트를 연다. 머리줄 칩은 팝업 아래로 가리지 않고(zIndex 30 > 팝업 22) 그대로 남는다. 어두운 배경을 누르면 닫힌다.
+- **하루 한 번**: 회원별 · 한국 날짜 기준 한 번(`jcurve.combos.popup:<회원>` 에 `{d: 날짜}` 저장, `storage` 를 주면 기기에 저장). 그날 **안내를 이미 연 경우**(칩 · 메인 팝업 · 푸시 어느 쪽이든)와 이번 방문에서 시트를 연 경우에는 띄우지 않는다.
+- **메인 팝업 · 푸시로 들어온 경우**: 앱이 탭을 옮긴 뒤 `requestOpenCombos()` 를 부르면(기존 combos 팝업 · 푸시 `offerwall/combos` 와 같은 길) 시트가 **바로 열리고**, 그날 추천 팝업도 이미 본 것으로 처리한다(오퍼월이 늦게 떠도, 시트를 닫은 뒤에도 안 뜸). 직접 탭을 누른 경우에는 `requestOpenCombos()` 를 부르지 않는다.
+- **서버 스위치**: `display.chance_popup: "off"` 면 팝업을 안 띄운다(없거나 `"on"` 이면 켜짐). 칩 · 시트에는 영향이 없다. `normalizeTodayCombos` 는 두 번 돌려도 같은 결과(`display.popup === 'off'` 도 읽음).
+- **신호**: `wallSignal.ts` — `notifyWallLoaded()` / `notifyWallGone()` / `onWallState(cb)` / `isWallLoaded()`. `OfferwallScreen` 이 보내고 `ComboEntry` 가 듣는다(두 화면이 한 틀 안에 나란히 있으므로). 홈 배너 · 데이터가 없는 항목 · 서버가 칩을 끈 경우에는 팝업이 없다.
+- 새 네이티브 모듈 · 뷰 · prop 없음. 시험: `test/combos-popup.test.cjs`(12개) — 시간 · 하루 한 번 · 회원별 · 닫기 · 추천 보기 · 서버 off · 시트를 이미 연 날 · 메인 팝업 경로 · 홈.

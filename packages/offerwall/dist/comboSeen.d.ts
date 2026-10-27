@@ -1,5 +1,7 @@
 import type { ComboStorage } from './comboDone';
 export declare const seenStorageKey: (scope: string | number | undefined) => string;
+/** The recommendation popup was shown today (once a day per member, whether or not it was acted on). */
+export declare const popupStorageKey: (scope: string | number | undefined) => string;
 /** True only for a value written on exactly this day. Anything else (another day, broken JSON) means "not seen". */
 export declare function parseSeen(value: string | null | undefined, date: string): boolean;
 export type SeenToday = {
@@ -7,10 +9,11 @@ export type SeenToday = {
     seen: boolean | null;
     markSeen(): void;
 };
-export declare function useSeenToday({ storage, scope, date }: {
+export declare function useSeenToday({ storage, scope, date, keyOf }: {
     storage?: ComboStorage;
     scope?: string | number;
-    date?: string;
+    date?: string; /** Which stored flag: default is "opened the guide today". */
+    keyOf?: (scope: string | number | undefined) => string;
 }): SeenToday;
 /** Test helper: forget what was seen in memory. */
 export declare function resetSeenMemory(): void;

@@ -92,3 +92,4 @@ export * from './campaigns';
 export * from './native';
 export * from './comboDone';
 export * from './comboSeen';
+export * from './wallSignal';

@@ -78,6 +78,8 @@ export type ComboTapDiagnostic = {
     /** milliseconds from the tap to the outcome */
     ms: number;
 };
+/** How long after the wall has loaded the recommendation popup waits before it appears. */
+export declare const COMBO_POPUP_DELAY_MS = 600;
 export type ComboEntryProps = {
     /** 'chance': chip over the wall (mount it beside the wall inside the same container). 'home': optional banner. */
     placement: 'chance' | 'home';

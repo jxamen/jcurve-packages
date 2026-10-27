@@ -10,6 +10,8 @@ const memory = new Map<string, string>();
 const subscribers = new Set<() => void>();
 
 export const seenStorageKey = (scope: string | number | undefined): string => `jcurve.combos.seen:${scope ?? ''}`;
+/** The recommendation popup was shown today (once a day per member, whether or not it was acted on). */
+export const popupStorageKey = (scope: string | number | undefined): string => `jcurve.combos.popup:${scope ?? ''}`;
 /** True only for a value written on exactly this day. Anything else (another day, broken JSON) means "not seen". */
 export function parseSeen(value: string | null | undefined, date: string): boolean {
   try {
@@ -23,16 +25,18 @@ export type SeenToday = {
   seen: boolean | null;
   markSeen(): void;
 };
-export function useSeenToday({ storage, scope, date }: { storage?: ComboStorage; scope?: string | number; date?: string }): SeenToday {
+export function useSeenToday({ storage, scope, date, keyOf = seenStorageKey }: {
+  storage?: ComboStorage; scope?: string | number; date?: string; /** Which stored flag: default is "opened the guide today". */ keyOf?: (scope: string | number | undefined) => string;
+}): SeenToday {
   const React = require('react') as typeof import('react');
   const day = date ?? kstDate();
   const key = `${scope ?? ''}|${day}`;
-  const [state, setState] = React.useState<{ key: string; seen: boolean | null }>({ key, seen: storage ? null : parseSeen(memory.get(seenStorageKey(scope)), day) });
+  const [state, setState] = React.useState<{ key: string; seen: boolean | null }>({ key, seen: storage ? null : parseSeen(memory.get(keyOf(scope)), day) });
   React.useEffect(() => {
     let live = true;
     const read = () => {
-      if (!storage) { setState({ key, seen: parseSeen(memory.get(seenStorageKey(scope)), day) }); return; }
-      Promise.resolve(storage.getItem(seenStorageKey(scope))).then(value => {
+      if (!storage) { setState({ key, seen: parseSeen(memory.get(keyOf(scope)), day) }); return; }
+      Promise.resolve(storage.getItem(keyOf(scope))).then(value => {
         if (live) setState(prev => ({ key, seen: parseSeen(value, day) || (prev.key === key && prev.seen === true) }));
       }).catch(() => { if (live) setState({ key, seen: false }); });
     };
@@ -42,13 +46,13 @@ export function useSeenToday({ storage, scope, date }: { storage?: ComboStorage;
   }, [key, storage]);
   const markSeen = () => {
     const value = JSON.stringify({ d: day });
-    memory.set(seenStorageKey(scope), value);
+    memory.set(keyOf(scope), value);
     setState({ key, seen: true });
-    try { Promise.resolve(storage?.setItem(seenStorageKey(scope), value)).catch(() => {}); } catch { /* storage is best effort */ }
+    try { Promise.resolve(storage?.setItem(keyOf(scope), value)).catch(() => {}); } catch { /* storage is best effort */ }
     // The other entry (chip <-> banner) reads again, after the write had its chance to land.
     for (const notify of [...subscribers]) { try { notify(); } catch { /* one bad subscriber must not stop the rest */ } }
   };
-  return { seen: state.key === key ? state.seen : (storage ? null : parseSeen(memory.get(seenStorageKey(scope)), day)), markSeen };
+  return { seen: state.key === key ? state.seen : (storage ? null : parseSeen(memory.get(keyOf(scope)), day)), markSeen };
 }
 
 /** Test helper: forget what was seen in memory. */

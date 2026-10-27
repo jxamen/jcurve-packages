@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.COMBO_SHEET_TOP = exports.COMBO_CHIP_RIGHT = exports.COMBO_CHIP_TOP = exports.COMBOS_POPUP_ACTION = exports.COMBOS_ROUTE = void 0;
+exports.COMBO_POPUP_DELAY_MS = exports.COMBO_SHEET_TOP = exports.COMBO_CHIP_RIGHT = exports.COMBO_CHIP_TOP = exports.COMBOS_POPUP_ACTION = exports.COMBOS_ROUTE = void 0;
 exports.isCombosRoute = isCombosRoute;
 exports.requestOpenCombos = requestOpenCombos;
 exports.listenForComboRequests = listenForComboRequests;
@@ -11,6 +11,7 @@ const combos_1 = require("./combos");
 const campaigns_1 = require("./campaigns");
 const comboDone_1 = require("./comboDone");
 const comboSeen_1 = require("./comboSeen");
+const wallSignal_1 = require("./wallSignal");
 const index_1 = require("./index");
 /** Route name for pushes (`data.go`) and links. Apps use in-app actions, not a URL scheme. */
 exports.COMBOS_ROUTE = 'offerwall/combos';
@@ -128,6 +129,39 @@ const short = (value, max = 80) => {
 };
 const SLOW_REFUSAL_MS = 4500;
 const isCampaignKey = (value) => !!value && /^\d{3,20}$/.test(value);
+/** How long after the wall has loaded the recommendation popup waits before it appears. */
+exports.COMBO_POPUP_DELAY_MS = 600;
+/**
+ * Recommendation popup in the middle of the wall, shown once a day after the Chance tab's wall has loaded. It sits under the chip
+ * (the chip stays visible and tappable), over a dimmed wall; tapping the dim area closes it. 「추천 보기」 opens the guide sheet.
+ */
+function ComboPopup({ combos, theme, onOpen, onClose }) {
+    const React = require('react');
+    const { View, Text, Pressable } = require('react-native');
+    const h = React.createElement;
+    const t = theme;
+    const lines = (0, combos_1.comboPopupLines)(combos);
+    const button = (label, onPress, primary, flex) => h(Pressable, {
+        key: label, accessibilityRole: 'button', accessibilityLabel: label, onPress,
+        style: ({ pressed }) => ({
+            flex, alignItems: 'center', justifyContent: 'center', paddingVertical: 13, borderRadius: t.radius.slot, opacity: pressed ? 0.8 : 1,
+            backgroundColor: primary ? t.accent : t.accentSoft,
+        }),
+    }, h(Text, { style: { fontSize: t.font.body, fontWeight: '900', color: primary ? t.text : t.accentText } }, label));
+    return h(View, {
+        key: 'popup', pointerEvents: 'box-none',
+        style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 22, elevation: 22, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
+    }, h(Pressable, {
+        accessibilityRole: 'button', accessibilityLabel: '팝업 닫기', onPress: onClose,
+        style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)' },
+    }), h(View, {
+        accessibilityViewIsModal: true,
+        style: { width: '100%', maxWidth: 340, borderRadius: t.radius.card, backgroundColor: t.card, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 18, ...t.shadow },
+    }, h(Text, { style: { fontSize: t.font.title, fontWeight: '900', color: t.text } }, combos_1.COMBO_NAME), lines.map((line, i) => h(Text, {
+        key: `line-${i}`,
+        style: { marginTop: i === 0 ? 10 : 4, fontSize: t.font.body, lineHeight: 24, fontWeight: i === 0 ? '800' : '600', color: i === 0 ? t.text : t.sub },
+    }, line)), h(View, { style: { flexDirection: 'row', gap: 10, marginTop: 20 } }, button('닫기', onClose, false, 1), button('추천 보기', onOpen, true, 1.4))));
+}
 /** Short message at the top ("신한 SOL페이" 를 찾아 주세요). Touches go through it. */
 function ComboToast({ text, top, theme }) {
     const React = require('react');
@@ -165,8 +199,39 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     // Blink until the guide was opened once today (by anyone: chip, banner, popup); then rest until the next Korean day.
     const seen = (0, comboSeen_1.useSeenToday)({ storage, scope: loadKey, date: state.combos?.date });
     const blink = (0, comboSeen_1.usePulse)(shown && !open && seen.seen === false);
-    React.useEffect(() => { if (open && state.combos)
-        seen.markSeen(); }, [open]);
+    // The recommendation popup: once a day per member, after the Chance tab's wall has loaded, unless the guide was already opened
+    // today (by the chip, a main popup, a push) or this very visit. Server `display.popup: 'off'` turns it off.
+    const popupSeen = (0, comboSeen_1.useSeenToday)({ storage, scope: loadKey, date: state.combos?.date, keyOf: comboSeen_1.popupStorageKey });
+    const [popup, setPopup] = React.useState(false);
+    const [wallReady, setWallReady] = React.useState(wallSignal_1.isWallLoaded);
+    const everOpened = React.useRef(false);
+    React.useEffect(() => (placement === 'chance' ? (0, wallSignal_1.onWallState)(setWallReady) : undefined), [placement]);
+    const popupDue = placement === 'chance' && shown && !!state.combos && state.combos.display.popup !== 'off'
+        && seen.seen === false && popupSeen.seen === false && !open && !popup && !everOpened.current;
+    const popupDueNow = React.useRef(false);
+    popupDueNow.current = popupDue;
+    React.useEffect(() => {
+        if (!popupDue || !wallReady)
+            return;
+        const timer = setTimeout(() => {
+            if (!popupDueNow.current)
+                return;
+            setPopup(true);
+            popupSeen.markSeen();
+        }, exports.COMBO_POPUP_DELAY_MS);
+        return () => clearTimeout(timer);
+    }, [popupDue, wallReady]);
+    // Opening the guide (chip, popup button, main popup, push) counts as seen today for the blink AND for the popup.
+    React.useEffect(() => {
+        if (!open)
+            return;
+        everOpened.current = true;
+        setPopup(false);
+        if (state.combos) {
+            seen.markSeen();
+            popupSeen.markSeen();
+        }
+    }, [open, !!state.combos]);
     React.useEffect(() => listening ? listenForComboRequests({ priority: placement === 'chance' ? 2 : 1, open: () => setOpen(true) }) : undefined, [listening, placement]);
     React.useEffect(() => () => { if (noticeTimer.current)
         clearTimeout(noticeTimer.current); }, []);
@@ -300,7 +365,7 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
         combos: state.combos, loading: state.status === 'loading', onClose: close, onPressMission: handleMission, usn, theme, variant,
         done: marks.done, onToggleDone: marks.toggle,
     });
-    if (!shown && !open && !notice)
+    if (!shown && !open && !notice && !popup)
         return null;
     if (placement === 'home') {
         return h(React.Fragment, null, shown && state.combos ? h(ComboBanner, { combos: state.combos, onPress: () => setOpen(true), theme, opacity: blink }) : null, open ? h(Modal, { visible: true, animationType: 'slide', onRequestClose: close }, h(SafeAreaView, { style: { flex: 1, backgroundColor: theme.bg } }, guide('page'), notice ? h(ComboToast, { text: notice, top: 8, theme }) : null)) : null);
@@ -308,5 +373,5 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     return h(React.Fragment, null, open ? h(Pressable, {
         key: 'backdrop', accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: close,
         style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20, elevation: 20, backgroundColor: 'rgba(0,0,0,0.3)' },
-    }) : null, open ? h(ComboSheet, { key: 'sheet', top: sheetTop, theme }, guide('sheet')) : null, shown ? h(ComboChip, { key: 'chip', open, theme, top: chipTop, right: chipRight, opacity: blink, onPress: () => setOpen(o => !o) }) : null, notice ? h(ComboToast, { key: 'notice', text: notice, top: sheetTop + 8, theme }) : null);
+    }) : null, open ? h(ComboSheet, { key: 'sheet', top: sheetTop, theme }, guide('sheet')) : null, popup && !open && state.combos ? h(ComboPopup, { combos: state.combos, theme, onOpen: () => { setPopup(false); setOpen(true); }, onClose: () => setPopup(false) }) : null, shown ? h(ComboChip, { key: 'chip', open, theme, top: chipTop, right: chipRight, opacity: blink, onPress: () => setOpen(o => !o) }) : null, notice ? h(ComboToast, { key: 'notice', text: notice, top: sheetTop + 8, theme }) : null);
 }

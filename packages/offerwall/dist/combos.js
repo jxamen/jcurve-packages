@@ -6,6 +6,7 @@ exports.kstDate = kstDate;
 exports.isTodayCombos = isTodayCombos;
 exports.msUntilKstMidnight = msUntilKstMidnight;
 exports.formatPoints = formatPoints;
+exports.comboPopupLines = comboPopupLines;
 exports.formatGoal = formatGoal;
 exports.comboThemeFromTokens = comboThemeFromTokens;
 exports.fetchTodayCombos = fetchTodayCombos;
@@ -83,6 +84,8 @@ function normalizeTodayCombos(raw) {
     const display = {
         chance: data.display?.chance === 'off' ? 'off' : 'chip',
         home: data.display?.home === 'banner' ? 'banner' : 'off',
+        // `chance_popup` is the server's spelling; `popup` is what normalizing keeps, so running this twice gives the same result
+        ...(data.display?.chance_popup === 'off' || data.display?.popup === 'off' ? { popup: 'off' } : {}),
     };
     const singles = cleanSingles(data.singles, goals);
     const easy = cleanEasy(data.easy);
@@ -150,6 +153,20 @@ function msUntilKstMidnight(now = Date.now()) {
 }
 function formatPoints(n) {
     return `${Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}P`;
+}
+/**
+ * What the recommendation popup says, from the server's combos: how many easy missions and their sum, then the goal path.
+ * e.g. ["쉬운 미션 18개로 +5,965P", "1천 · 5천 · 1만P 길 추천"]. Always at least one line.
+ */
+function comboPopupLines(combos) {
+    const goals = combos.bundles.map(b => formatGoal(b.goal));
+    const path = goals.map((g, i) => (i < goals.length - 1 ? g.replace(/P$/, '') : g)).join(' · ');
+    const lines = [];
+    if (combos.easy)
+        lines.push(`쉬운 미션 ${combos.easy.missions.length}개로 +${formatPoints(combos.easy.total)}`);
+    if (path)
+        lines.push(combos.easy ? `${path} 길 추천` : `${path} 길을 차례로 모아 보세요`);
+    return lines.length ? lines : [exports.COMBO_NAME];
 }
 /** 1000 → 1천P, 5000 → 5천P, 10000 → 1만P, anything else → 1,500P */
 function formatGoal(goal) {
