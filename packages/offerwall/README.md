@@ -143,3 +143,50 @@ OTA 발행 환경에 ADPOPCORN_* 가 없어 manifest `extra.jcurveOfferwall` 키
 상태 표시줄과 하단 탭의 safe area는 호스트 책임입니다. 호스트가 상단 inset을 적용하지 않을 때만 topInset을 전달합니다(기본 0, 이중 여백 방지).
 애드팝콘 SDK 화면과 그 내부 광고 표시는 수정하지 않습니다. 앱 자체의 ‹ / 찬스 / 광고 머리줄만 없습니다.
 네이티브/플러그인 변경 없음. 심사 중 런타임에는 시험판 포함 OTA 발행 금지.
+
+## 0.2.4 — 쉽게 1만P 모으기 (JS only, OTA 가능)
+
+목표(1천 · 5천 · 1만P)별로 묶은 오늘의 할 일 조합을 보여 주는 칩 · 배너 · 안내 페이지. 화면은 서버 값을 그리기만 하고 포인트 지급은 하지 않는다. 새 네이티브 의존성 · 권한 없음. 이름은 `COMBO_NAME` 한 곳에서만 바꾼다.
+
+```tsx
+import { ComboEntry, comboThemeFromTokens } from '@jcurve/offerwall';
+const theme = comboThemeFromTokens({ C, R, F, shadow });   // 앱의 src/ui/theme.ts 토큰 그대로(없으면 기본값 = 같은 계열)
+// 찬스 탭 — 오퍼월과 같은 크기의 한 틀 안에 나란히
+<View style={{ flex: 1 }}>
+  <OfferwallScreen usn={usn} onClose={...} onRetry={...} />
+  <ComboEntry placement="chance" url={`${base}/v1/${slug}/offerwall/combos`} headers={authHeaders} usn={usn} theme={theme} />
+</View>
+// 홈에 배너를 쓰려면 홈에도 한 번 (서버가 home: 'banner' 로 켤 때만 보인다)
+<ComboEntry placement="home" url={...} headers={...} usn={usn} theme={theme} />
+```
+
+- **찬스 탭**: 오퍼월 위에 작은 칩 하나만 얹는다(띠 · 감싸는 여백 없음, 칩 밖 터치는 오퍼월로 간다). 오퍼월 자체 머리줄(「리워드 충전소」 · 프로필 아이콘) 오른쪽 빈자리에 맞춰 `chipTop` 6 · `chipRight` 52 (iPhone 402pt · Galaxy A32 411dp 캡처에서 잰 값, 머리줄은 스크롤해도 고정). 칩을 누르면 칩 아래에서 시트가 올라오고, 칩을 다시 누르거나 「닫기」 · 바깥을 누르면 닫혀 오퍼월은 그대로다. 오퍼월은 RN 화면 안에 들어간 뷰(iOS `UIView` 자식 · Android `FrameLayout` 자식)라 그 위에 RN 뷰가 올라간다 — 올라가지 못하는 건 SDK 전체 화면 `openOfferwall()` 뿐이다.
+- **홈**: 배너 → 눌러서 전체 화면(Modal)으로 연다.
+- `url` 이 없으면 아무것도 그리지 않는다. 고정 예시(`TODAY_COMBOS_SAMPLE`)는 `sample` 을 켠 화면 작업에서만 나온다 — **릴리스에 `sample` 금지**.
+- 항목을 누르면 `onPressMission(mission, bundle)`. 없으면 `usn` 으로 오퍼월 전체를 연다(SDK 가 특정 캠페인을 직접 여는 호출을 주지 않는다) — 그 경우 「누르면 혜택 목록이 열려요. 같은 이름을 찾아 참여해 주세요.」 안내가 붙는다. 둘 다 없으면 눌러도 반응하지 않는다.
+
+**서버 응답** (`ok: false` 이거나 모양이 틀리면 숨긴다. 값은 모두 검증해서 쓴다)
+
+```json
+{ "ok": true, "combos": {
+  "date": "2026-10-27",
+  "display": { "chance": "chip", "home": "off" },
+  "bundles": [ { "goal": 1000, "missions": [
+    { "id": "c-101", "name": "간단한 설문 하나", "points": 450, "todo": "질문 5개에 답하기", "level": "easy", "minutes": 3 } ] } ] } }
+```
+
+- `date`(KST)가 **없거나** 오늘이 아니면 보여 주지 않는다. 앱을 자정 넘어 켜 둬도 어제 조합은 사라지고, 자정 5초 뒤에 새로 받는다. url · 헤더(회원)가 바뀌면 이전 회원 데이터는 즉시 버린다.
+- `display.chance`: `chip`(기본) / `off`, `display.home`: `banner` / `off`(기본). **켜고 끄기는 서버 값으로**. `chance` 가 `off` 여도 팝업 · 푸시로 들어오는 길은 살아 있다.
+- `level`: `easy`(쉬움) / `normal`(보통) / `hard`(조금 걸려요). 합계는 화면에서 항목 포인트를 더해 만들고, 합이 `goal` 에 못 미치는 묶음은 통째로 뺀다.
+- 묶음 최대 4개(1단계 · 2단계 · 3단계 길로 그린다), 묶음당 항목 최대 12개, 항목 포인트 1천만 이하, 이름 40자 · 할 일 80자.
+
+**팝업 · 푸시 · 링크로 들어오기** — 경로 이름은 `offerwall/combos` (`COMBOS_ROUTE`). 앱은 URL 스킴이 아니라 앱 안 이동 액션을 쓰므로 팝업 `action` / 푸시 `data.go` 를 받는 쪽에서 한 줄만 더한다.
+
+```ts
+import { isCombosRoute, requestOpenCombos } from '@jcurve/offerwall';
+if (isCombosRoute(action)) { goTab('offerwall'); requestOpenCombos(); }   // 탭 이동 코드는 앱마다 다르다
+```
+
+`requestOpenCombos()` 는 마운트된 `ComboEntry` 가 있으면 바로 열고(찬스 탭이 홈보다 먼저, 같은 순위면 나중에 마운트된 쪽), 아직 없으면 10초까지 기다렸다가 처음 마운트되는 쪽에서 연다. 오래된 요청이 나중에 갑자기 열리지는 않는다. 구버전 앱에는 이 코드가 없으므로 서버 팝업은 `chancePromo=1` 처럼 지원 앱만 받는 조건을 따로 걸어야 한다.
+
+**기준 가지 주의**: 0.2.3 이 두 갈래다 — `offerwall-v0.2.3` 태그(JS 찬스 퍼널, `OfferwallScreen` 없음)와 에그머니가 쓰는 `codex/chance-header-remove-1022`(`OfferwallScreen`, 퍼널 없음). 0.2.4 는 에그머니가 쓰는 쪽 위에서 만들었다. 퍼널 쪽은 합치지 않았다.

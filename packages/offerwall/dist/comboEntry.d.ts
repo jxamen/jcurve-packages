@@ -1,0 +1,69 @@
+/** Ways into 「쉽게 1만P 모으기」: Chance-tab chip, Home banner, and a route that popups / pushes / deep links can fire. */
+import type { ReactElement } from 'react';
+import type { ComboBundle, ComboMission, ComboTheme, TodayCombos } from './combos';
+/** Route name shared by server popups, pushes and links. Apps use in-app actions, not a URL scheme. */
+export declare const COMBOS_ROUTE = "offerwall/combos";
+/** Accepts 'offerwall/combos', '/offerwall/combos?from=push' and 'myapp://offerwall/combos'. */
+export declare function isCombosRoute(value: unknown): boolean;
+type Opener = {
+    priority: number;
+    open(): void;
+};
+/**
+ * Opens the guide from anywhere (popup button, push tap, link). If no entry is mounted yet, for example while the app
+ * switches tabs, the request waits up to 10 seconds for the first one that mounts. Returns true when an entry took it.
+ */
+export declare function requestOpenCombos(now?: number): boolean;
+/** Chance tab (2) wins over Home (1) so one request never opens two screens. */
+export declare function listenForComboRequests(opener: Opener, now?: number): () => void;
+/**
+ * Where the chip sits, in points from the top-right of the wall's container. Measured on two captures of the wall's own
+ * header row (iPhone 402pt wide, Galaxy A32 411dp wide): row ~48 high, profile icon centered ~24 down and its left edge
+ * ~44 from the right, so a 36-high chip 8 left of the icon is top 6 / right 52. The header stays fixed when the list scrolls.
+ */
+export declare const COMBO_CHIP_TOP = 6;
+export declare const COMBO_CHIP_RIGHT = 52;
+export declare const COMBO_SHEET_TOP = 52;
+export type ComboChipProps = {
+    onPress: () => void;
+    open?: boolean;
+    theme?: ComboTheme;
+    top?: number;
+    right?: number;
+};
+/**
+ * Small chip that floats over the wall's own header row, left of its profile icon. Only the chip is drawn: no band,
+ * no padding box, and the wrapper lets touches through everywhere else.
+ */
+export declare function ComboChip({ onPress, open, theme, top, right }: ComboChipProps): ReactElement;
+export type ComboBannerProps = {
+    combos: TodayCombos;
+    onPress: () => void;
+    theme?: ComboTheme;
+};
+/** Home banner: the name large, the goal numbers emphasized. */
+export declare function ComboBanner({ combos, onPress, theme }: ComboBannerProps): ReactElement;
+export type ComboEntryProps = {
+    /** 'chance': chip over the wall (mount it beside the wall inside the same container). 'home': optional banner. */
+    placement: 'chance' | 'home';
+    /** Combos API address. Without it nothing shows unless `sample` is true. */
+    url?: string;
+    headers?: Record<string, string>;
+    usn?: string | null;
+    theme?: ComboTheme;
+    /** Screen work only: shows fixed example rows. Never set this in a release. */
+    sample?: boolean;
+    /** Opens one item. Without it, `usn` opens the whole list (the SDK cannot jump to one item). */
+    onPressMission?: (mission: ComboMission, bundle: ComboBundle) => void;
+    chipTop?: number;
+    chipRight?: number;
+    sheetTop?: number;
+};
+/**
+ * Chance tab: put it next to the wall inside one container, `<View style={{flex:1}}><OfferwallScreen/><ComboEntry placement="chance"/></View>`.
+ * The chip floats over the wall's header row; tapping it raises the guide over the wall, tapping again (or 닫기) closes it
+ * and the wall stays as it was. Home: a banner that opens the guide as a full screen. The server picks what shows
+ * through `display`; the Chance tab keeps answering popup / push / link requests even when its chip is switched off.
+ */
+export declare function ComboEntry({ placement, url, headers, usn, theme, sample, onPressMission, chipTop, chipRight, sheetTop }: ComboEntryProps): ReactElement | null;
+export {};
