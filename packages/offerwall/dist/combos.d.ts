@@ -76,7 +76,11 @@ export type ComboPopupContent = {
     after: string;
     /** one line under it, e.g. 「쉬운 미션 18개 · 하나에 3분이면 끝」 */
     sub: string;
+    /** first-come notice (always the same sentence): campaigns close when their places run out */
+    notice: string;
 };
+/** 대표님 10/27 「선착순 안내도 추가」 — AdPopcorn campaigns have a limited number of places, so the popup says so. */
+export declare const COMBO_POPUP_NOTICE = "\uC120\uCC29\uC21C \u00B7 \uCEA0\uD398\uC778\uB9C8\uB2E4 \uC778\uC6D0\uC774 \uCC28\uBA74 \uB05D\uB098\uC694";
 /**
  * What the recommendation popup says, from the server's combos: the easy missions' sum as the big number (else the top goal), and
  * how many easy missions there are, with how long one takes when the server gave minutes (the middle value, so one odd mission does not decide it).

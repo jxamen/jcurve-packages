@@ -17,9 +17,13 @@ test('easy: kept in order, any points, total recomputed from the kept rows (the 
   assert.equal(out.easy.total, 300);
 });
 
-test('easy: at most 20 different missions; absent or unusable data means no easy at all', () => {
+test('easy: every different mission is kept (no cut at 15 or 20), up to a sanity limit of 300; absent or unusable data means no easy at all', () => {
   const many = Array.from({length: 30}, (_, i) => mission(`m${i}`, 100 + i));
-  assert.equal(combos({easy: easyOf(...many)}).easy.missions.length, 20);
+  assert.equal(combos({easy: easyOf(...many)}).easy.missions.length, 30);
+  assert.equal(combos({easy: easyOf(...many, ...many)}).easy.missions.length, 30, 'the same mission twice is one');
+  const huge = Array.from({length: 700}, (_, i) => mission(`n${i}`, 100));
+  assert.equal(combos({easy: easyOf(...huge)}).easy.missions.length, 300);
+  assert.equal(api.comboPopupContent(combos({easy: easyOf(...many)})).sub.startsWith('쉬운 미션 30개'), true, 'the popup says the same count');
   for (const bad of [undefined, null, 5, 'x', [], {}, {missions: 'x'}, {missions: []}, easyOf({id: 'x'}), easyOf(mission('z', -5))]) {
     assert.equal(combos({easy: bad}).easy, undefined, JSON.stringify(bad));
   }

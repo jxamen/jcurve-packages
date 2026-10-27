@@ -78,6 +78,22 @@ export type ComboTapDiagnostic = {
     /** milliseconds from the tap to the outcome */
     ms: number;
 };
+/**
+ * What the app saw when it opened a campaign's detail page, as a hint for the server's own sold-out check (대표님 10/27 22:11):
+ * `open_failed` = the SDK would not open it or gave no sign it did (`ms` = the wait; ~5000+ on iOS means no sign of opening),
+ * `closed_fast` = it opened and was closed again within COMBO_CLOSED_FAST_MS (`ms` = how long it stayed). `platform` is 'ios' | 'android'.
+ * Opening and closing quickly is also what a quick participation looks like, so this is a hint and nothing more.
+ */
+export type ComboDetailSignal = {
+    result: 'open_failed' | 'closed_fast';
+    campaignKey: string;
+    platform: string;
+    ms: number;
+};
+/** A detail page that closes within this long after opening (ms) counts as `closed_fast`. */
+export declare const COMBO_CLOSED_FAST_MS = 15000;
+/** After sending a detail signal, the combos are fetched again this long after (the server may answer with a `soldout` list). */
+export declare const COMBO_SIGNAL_REFRESH_MS = 3000;
 /** Fetching the combos again for `done` is skipped when the last fetch was this recent (ms). */
 export declare const COMBO_REFRESH_GAP_MS = 2500;
 /** How long after the wall has loaded the recommendation popup waits before it appears. */
@@ -107,11 +123,23 @@ export type ComboEntryProps = {
     reportCampaigns?: (list: CampaignInfo[]) => unknown;
     /** Called after every 하러 가기 tap with what happened (see ComboTapDiagnostic). Sending it is the app's business. */
     onDiagnostic?: (diagnostic: ComboTapDiagnostic) => unknown;
+    /**
+     * Called (for every member, once per result and campaign key per visit) when the SDK would not open a campaign's detail page
+     * (`open_failed`) or the page was closed again within 15 s (`closed_fast`): a sold-out campaign ends up here, but so can a slow load
+     * or a quick participation, so the app only reports and never hides the row itself. The server decides (the `soldout` list in the
+     * combos). Sending it is the app's business.
+     */
+    onDetailSignal?: (signal: ComboDetailSignal) => unknown;
     chipTop?: number;
     chipRight?: number;
     sheetTop?: number;
     /** Picture at the top of the recommendation popup (the app's coin art). Without it a coin is drawn from plain views. */
     popupArt?: import('react-native').ImageSourcePropType;
+    /**
+     * The app's own ad, drawn at the bottom of the recommendation popup under the 「추천 보기」 button (Eggmoney: its existing native ad card).
+     * Give it its own top margin; return null (and no spacing) when there is nothing to show.
+     */
+    popupAd?: () => ReactElement | null;
 };
 /**
  * Chance tab: put it next to the wall inside one container, `<View style={{flex:1}}><OfferwallScreen/><ComboEntry placement="chance"/></View>`.
@@ -123,5 +151,5 @@ export type ComboEntryProps = {
  * server's id when it is a key) and its detail page opens. Otherwise, or when nothing is found, the name is shown at the
  * top (and copied when possible) and the plain list is revealed: the Chance tab closes the guide, Home opens the list.
  */
-export declare function ComboEntry({ placement, url, headers, load, loadKey, usn, theme, sample, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, chipTop, chipRight, sheetTop, popupArt, }: ComboEntryProps): ReactElement | null;
+export declare function ComboEntry({ placement, url, headers, load, loadKey, usn, theme, sample, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, onDetailSignal, chipTop, chipRight, sheetTop, popupArt, popupAd, }: ComboEntryProps): ReactElement | null;
 export {};

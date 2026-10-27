@@ -49,6 +49,8 @@ const whole = (v: unknown, max: number = 100_000_000): number => {
   return typeof n === 'number' && Number.isSafeInteger(n) && n > 0 && n <= max ? n : 0;
 };
 const MAX_POINTS = 10_000_000;
+/** Sanity limit for the easy list (the server sends them all; this only stops a hostile body). */
+const MAX_EASY = 300;
 
 /** One mission row from the server, checked; null when it cannot be shown (no id, name or points). */
 function cleanMission(m: any): ComboMission | null {
@@ -73,6 +75,14 @@ function cleanMission(m: any): ComboMission | null {
 export function normalizeTodayCombos(raw: unknown): TodayCombos | null {
   const data = raw && typeof raw === 'object' ? (raw as Record<string, any>) : null;
   if (!data || !Array.isArray(data.bundles)) return null;
+  // 대표님 10/27 「참여 한도가 소진된 캠페인은 오늘 목록에서 빼기」: the server's `soldout` (campaign keys whose places ran out) leaves no row behind,
+  // unless this member was already paid for it today (that row stays as a done one).
+  const soldout = new Set(cleanKeys(data.soldout));
+  const paid = new Set(cleanKeys(data.done));
+  const gone = (m: ComboMission): boolean => {
+    const hits = (set: ReadonlySet<string>) => set.has(m.id) || (!!m.campaignKey && set.has(m.campaignKey));
+    return soldout.size > 0 && hits(soldout) && !hits(paid);
+  };
   const bundles: ComboBundle[] = [];
   const goals = new Set<number>();
   // Look through the first 40 entries and keep the first valid bundle per goal, at most 4 (the server may send alternatives).
@@ -85,12 +95,12 @@ export function normalizeTodayCombos(raw: unknown): TodayCombos | null {
     for (const m of item.missions.slice(0, 40)) {
       if (missions.length >= 12) break;
       const mission = cleanMission(m);
-      if (!mission || ids.has(mission.id)) continue;
+      if (!mission || ids.has(mission.id) || gone(mission)) continue;
       ids.add(mission.id);
       missions.push(mission);
     }
     const total = missions.reduce((sum, m) => sum + m.points, 0);
-    // A bundle titled by its goal must reach it; a short one would be a wrong promise on screen.
+    // A bundle titled by its goal must reach it; a short one would be a wrong promise on screen (also after sold-out rows left it).
     if (!missions.length || total < goal) continue;
     goals.add(goal);
     bundles.push({ goal, missions, total });
@@ -108,14 +118,14 @@ export function normalizeTodayCombos(raw: unknown): TodayCombos | null {
       return mode === 'off' || mode === 'always' ? { popup: mode as 'off' | 'always' } : {};
     })(),
   };
-  const singles = cleanSingles(data.singles, goals);
-  const easy = cleanEasy(data.easy);
-  const done = cleanDone(data.done);
+  const done = cleanKeys(data.done);
+  const singles = cleanSingles(data.singles, goals, gone);
+  const easy = cleanEasy(data.easy, gone);
   return { ...(date ? { date } : {}), display, bundles, ...(singles.length ? { singles } : {}), ...(easy ? { easy } : {}), ...(done.length ? { done } : {}) };
 }
 
-/** `done`: campaign keys (strings or numbers) earned today. Kept as short unique strings, at most 500. */
-function cleanDone(raw: unknown): string[] {
+/** `done` (earned today) and `soldout` (places ran out): campaign keys, strings or numbers. Kept as short unique strings, at most 500. */
+function cleanKeys(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   const out = new Set<string>();
   for (const item of raw.slice(0, 1000)) {
@@ -143,18 +153,19 @@ export function autoDoneIds(combos: TodayCombos | null | undefined): Set<string>
 }
 
 /**
- * `easy`: { missions: [...], total_points }. Any points count (a follow may give 100P). At most 20 different missions;
+ * `easy`: { missions: [...], total_points }. Any points count (a follow may give 100P). Every different mission the server sends is kept
+ * (대표님 10/27 「15개로 끊지 말고 전부」; only a sanity limit of 300 against a hostile body), so 「쉬운 미션 n개」 is the server's own count;
  * the total is recomputed from what is kept, the server's own number is never shown.
  */
-function cleanEasy(raw: unknown): ComboEasy | null {
+function cleanEasy(raw: unknown, gone: (m: ComboMission) => boolean): ComboEasy | null {
   const list = (raw as { missions?: unknown } | null)?.missions;
   if (!Array.isArray(list)) return null;
   const ids = new Set<string>();
   const missions: ComboMission[] = [];
-  for (const m of list.slice(0, 60)) {
-    if (missions.length >= 20) break;
+  for (const m of list.slice(0, MAX_EASY * 2)) {
+    if (missions.length >= MAX_EASY) break;
     const mission = cleanMission(m);
-    if (!mission || ids.has(mission.id)) continue;
+    if (!mission || ids.has(mission.id) || gone(mission)) continue;
     ids.add(mission.id);
     missions.push(mission);
   }
@@ -167,7 +178,7 @@ function cleanEasy(raw: unknown): ComboEasy | null {
  * goal (otherwise "한 번에 끝내기" would be a wrong promise), goals without a bundle step are dropped (nowhere to show them),
  * and each goal keeps at most 6 different missions.
  */
-function cleanSingles(raw: unknown, bundleGoals: ReadonlySet<number>): ComboSingles[] {
+function cleanSingles(raw: unknown, bundleGoals: ReadonlySet<number>, gone: (m: ComboMission) => boolean): ComboSingles[] {
   if (!Array.isArray(raw)) return [];
   const byGoal = new Map<number, ComboMission[]>();
   for (const entry of raw.slice(0, 60)) {
@@ -176,7 +187,7 @@ function cleanSingles(raw: unknown, bundleGoals: ReadonlySet<number>): ComboSing
     const list = byGoal.get(goal) ?? [];
     for (const m of entry.missions.slice(0, 12)) {
       const mission = cleanMission(m);
-      if (!mission || mission.points < goal || list.length >= 6 || list.some(x => x.id === mission.id)) continue;
+      if (!mission || gone(mission) || mission.points < goal || list.length >= 6 || list.some(x => x.id === mission.id)) continue;
       list.push(mission);
     }
     if (list.length) byGoal.set(goal, list);
@@ -206,7 +217,11 @@ export type ComboPopupContent = {
   before: string; amount: string; after: string;
   /** one line under it, e.g. 「쉬운 미션 18개 · 하나에 3분이면 끝」 */
   sub: string;
+  /** first-come notice (always the same sentence): campaigns close when their places run out */
+  notice: string;
 };
+/** 대표님 10/27 「선착순 안내도 추가」 — AdPopcorn campaigns have a limited number of places, so the popup says so. */
+export const COMBO_POPUP_NOTICE = '선착순 · 캠페인마다 인원이 차면 끝나요';
 /**
  * What the recommendation popup says, from the server's combos: the easy missions' sum as the big number (else the top goal), and
  * how many easy missions there are, with how long one takes when the server gave minutes (the middle value, so one odd mission does not decide it).
@@ -217,11 +232,11 @@ export function comboPopupContent(combos: TodayCombos): ComboPopupContent {
   if (easy) {
     const minutes = easy.missions.map(m => m.minutes ?? 0).filter(n => n > 0).sort((a, b) => a - b);
     const typical = minutes.length ? minutes[Math.floor((minutes.length - 1) / 2)] : 0;
-    return { before: '오늘 ', amount: `+${formatPoints(easy.total)}`, after: ' 모을 수 있어요', sub: `쉬운 미션 ${easy.missions.length}개${typical ? ` · 하나에 ${typical}분이면 끝` : ''}` };
+    return { before: '오늘 ', amount: `+${formatPoints(easy.total)}`, after: ' 모을 수 있어요', sub: `쉬운 미션 ${easy.missions.length}개${typical ? ` · 하나에 ${typical}분이면 끝` : ''}`, notice: COMBO_POPUP_NOTICE };
   }
   const goals = combos.bundles.map(b => formatGoal(b.goal));
   const path = goals.map((g, i) => (i < goals.length - 1 ? g.replace(/P$/, '') : g)).join(' · ');
-  return { before: '오늘 ', amount: top ? formatGoal(top) : '', after: '까지 모을 수 있어요', sub: path ? `${path} 길을 차례로 모아 보세요` : '' };
+  return { before: '오늘 ', amount: top ? formatGoal(top) : '', after: '까지 모을 수 있어요', sub: path ? `${path} 길을 차례로 모아 보세요` : '', notice: COMBO_POPUP_NOTICE };
 }
 
 /** 1000 → 1천P, 5000 → 5천P, 10000 → 1만P, anything else → 1,500P */

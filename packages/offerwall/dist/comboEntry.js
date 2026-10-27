@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.COMBO_POPUP_DELAY_MS = exports.COMBO_REFRESH_GAP_MS = exports.COMBO_SHEET_TOP = exports.COMBO_CHIP_RIGHT = exports.COMBO_CHIP_TOP = exports.COMBOS_POPUP_ACTION = exports.COMBOS_ROUTE = void 0;
+exports.COMBO_POPUP_DELAY_MS = exports.COMBO_REFRESH_GAP_MS = exports.COMBO_SIGNAL_REFRESH_MS = exports.COMBO_CLOSED_FAST_MS = exports.COMBO_SHEET_TOP = exports.COMBO_CHIP_RIGHT = exports.COMBO_CHIP_TOP = exports.COMBOS_POPUP_ACTION = exports.COMBOS_ROUTE = void 0;
 exports.isCombosRoute = isCombosRoute;
 exports.requestOpenCombos = requestOpenCombos;
 exports.listenForComboRequests = listenForComboRequests;
@@ -123,6 +123,10 @@ const withTimeout = (promise, ms, fallback) => {
     return Promise.race([promise, new Promise(resolve => { timer = setTimeout(() => resolve(fallback), ms); })]).finally(() => clearTimeout(timer));
 };
 const NOTICE_MS = 4500;
+/** A detail page that closes within this long after opening (ms) counts as `closed_fast`. */
+exports.COMBO_CLOSED_FAST_MS = 15000;
+/** After sending a detail signal, the combos are fetched again this long after (the server may answer with a `soldout` list). */
+exports.COMBO_SIGNAL_REFRESH_MS = 3000;
 const short = (value, max = 80) => {
     const e = value;
     const text = typeof value === 'string' ? value : e && (e.code || e.message) ? `${e.code ? String(e.code) + ': ' : ''}${String(e.message ?? '')}` : String(value);
@@ -136,12 +140,14 @@ const isCampaignKey = (value) => !!value && /^\d{3,20}$/.test(value);
 exports.COMBO_POPUP_DELAY_MS = 600;
 /**
  * Recommendation popup in the middle of the wall, shown once a day after the Chance tab's wall has loaded: a big picture on top,
- * the sum as a large headline (「오늘 +5,965P 모을 수 있어요」), one subtitle line, one wide button and a small 닫기 link. It scales in
- * over a dimmed wall and sits under the chip (the chip stays visible and tappable); tapping the dim area closes it.
+ * the sum as a large headline (「오늘 +5,965P 모을 수 있어요」), one subtitle line, a first-come notice, one wide button, and below it the
+ * app's own ad (`ad`, 대표님 10/27 「네이티브 배너 광고 넣어」). It closes with the ✕ at the top right (no text link) or by tapping the dimmed
+ * area. It scales in over a dimmed wall and sits under the chip (the chip stays visible and tappable). The card scrolls when it is
+ * taller than the wall (a native ad is tall).
  */
-function ComboPopup({ combos, theme, art, onOpen, onClose }) {
+function ComboPopup({ combos, theme, art, ad, onOpen, onClose }) {
     const React = require('react');
-    const { View, Text, Pressable, Image, Animated } = require('react-native');
+    const { View, Text, Pressable, Image, Animated, ScrollView, Dimensions } = require('react-native');
     const h = React.createElement;
     const t = theme;
     const content = (0, combos_1.comboPopupContent)(combos);
@@ -166,15 +172,24 @@ function ComboPopup({ combos, theme, art, onOpen, onClose }) {
         style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.55)' },
     }), h(Animated.View, {
         accessibilityViewIsModal: true,
-        style: { width: '100%', maxWidth: 320, borderRadius: 24, overflow: 'hidden', backgroundColor: t.card, opacity, transform: [{ scale }], ...t.shadow },
-    }, h(View, { accessible: false, style: { height: 132, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accentSoft } }, coin(40, 'coin-left', { position: 'absolute', left: 48, top: 66, opacity: 0.9 }), coin(40, 'coin-right', { position: 'absolute', right: 48, top: 22, opacity: 0.9 }), coin(96, 'coin-main'), sparkle('s1', 34, 26, 10, '45deg', t.accent), sparkle('s2', '76%', 78, 8, '45deg', t.accentText), sparkle('s3', 70, 100, 7, '45deg', t.accentText), sparkle('s4', '84%', 18, 12, '45deg', t.accent)), h(View, { style: { paddingHorizontal: 22, paddingTop: 20, paddingBottom: 14, alignItems: 'center' } }, 
+        style: { width: '100%', maxWidth: 320, maxHeight: Math.round(Dimensions.get('window').height * 0.86), borderRadius: 24, overflow: 'hidden', backgroundColor: t.card, opacity, transform: [{ scale }], ...t.shadow },
+    }, h(ScrollView, { bounces: false, showsVerticalScrollIndicator: false, style: { flexGrow: 0 } }, h(View, { accessible: false, style: { height: 132, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accentSoft } }, coin(40, 'coin-left', { position: 'absolute', left: 48, top: 66, opacity: 0.9 }), coin(40, 'coin-right', { position: 'absolute', right: 48, top: 22, opacity: 0.9 }), coin(96, 'coin-main'), sparkle('s1', 34, 26, 10, '45deg', t.accent), sparkle('s2', '76%', 78, 8, '45deg', t.accentText), sparkle('s3', 70, 100, 7, '45deg', t.accentText), sparkle('s4', '84%', 18, 12, '45deg', t.accent)), h(View, { style: { paddingHorizontal: 22, paddingTop: 20, paddingBottom: 20, alignItems: 'center' } }, 
     // Two lines on purpose (a break in the middle of 「있어요」 would look broken): 「오늘 +5,965P」 with the big number, then the rest.
-    h(Text, { accessibilityRole: 'header', style: { fontSize: 20, lineHeight: 30, fontWeight: '700', color: t.text, textAlign: 'center' } }, content.before, h(Text, { style: { fontSize: 34, lineHeight: 42, fontWeight: '900', color: t.point } }, content.amount), '\n', content.after.trim()), content.sub ? h(Text, { style: { marginTop: 6, fontSize: 14, lineHeight: 20, color: t.sub, textAlign: 'center' } }, content.sub) : null, h(Pressable, {
+    h(Text, { accessibilityRole: 'header', style: { fontSize: 20, lineHeight: 30, fontWeight: '700', color: t.text, textAlign: 'center' } }, content.before, h(Text, { style: { fontSize: 34, lineHeight: 42, fontWeight: '900', color: t.point } }, content.amount), '\n', content.after.trim()), content.sub ? h(Text, { style: { marginTop: 6, fontSize: 14, lineHeight: 20, color: t.sub, textAlign: 'center' } }, content.sub) : null, 
+    // Campaigns close when their places run out: said plainly, right under the number (a true statement, not a promise).
+    h(View, { style: { marginTop: 10, borderRadius: t.radius.chip, backgroundColor: t.accentSoft, paddingVertical: 6, paddingHorizontal: 12 } }, h(Text, { style: { fontSize: 13, lineHeight: 18, fontWeight: '700', color: t.accentText, textAlign: 'center' } }, content.notice)), h(Pressable, {
         accessibilityRole: 'button', accessibilityLabel: '추천 보기', onPress: onOpen,
         style: ({ pressed }) => ({
-            alignSelf: 'stretch', height: 52, marginTop: 20, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accent, opacity: pressed ? 0.85 : 1,
+            alignSelf: 'stretch', height: 52, marginTop: 18, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accent, opacity: pressed ? 0.85 : 1,
         }),
-    }, h(Text, { style: { fontSize: 17, fontWeight: '800', color: t.text } }, '추천 보기')), h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 8, style: { marginTop: 6, paddingVertical: 10, paddingHorizontal: 16 } }, h(Text, { style: { fontSize: 14, fontWeight: '600', color: t.sub } }, '닫기')))));
+    }, h(Text, { style: { fontSize: 17, fontWeight: '800', color: t.text } }, '추천 보기')), 
+    // The app's ad (its own spacing: it should keep clear of the button above and leave no gap when it is not filled)
+    ad ? ad() : null)), 
+    // ✕ stays put at the top right while the card scrolls
+    h(Pressable, {
+        accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 8,
+        style: { position: 'absolute', top: 10, right: 10, width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: t.line },
+    }, h(Text, { accessible: false, style: { fontSize: 16, lineHeight: 20, fontWeight: '700', color: t.text } }, '✕'))));
 }
 /** Short message at the top ("신한 SOL페이" 를 찾아 주세요). Touches go through it. */
 function ComboToast({ text, top, theme }) {
@@ -195,7 +210,7 @@ function ComboToast({ text, top, theme }) {
  * server's id when it is a key) and its detail page opens. Otherwise, or when nothing is found, the name is shown at the
  * top (and copied when possible) and the plain list is revealed: the Chance tab closes the guide, Home opens the list.
  */
-function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combos_1.DEFAULT_COMBO_THEME, sample = false, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, chipTop, chipRight, sheetTop = exports.COMBO_SHEET_TOP, popupArt, }) {
+function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combos_1.DEFAULT_COMBO_THEME, sample = false, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, onDetailSignal, chipTop, chipRight, sheetTop = exports.COMBO_SHEET_TOP, popupArt, popupAd, }) {
     const React = require('react');
     const { Modal, Pressable, SafeAreaView } = require('react-native');
     const h = React.createElement;
@@ -212,8 +227,11 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     const [notice, setNotice] = React.useState(null);
     const noticeTimer = React.useRef(null);
     const campaignCache = React.useRef(null);
-    const latest = React.useRef({ campaigns, copyText, reportCampaigns, usn, placement, onDiagnostic, refresh: state.refresh });
-    latest.current = { campaigns, copyText, reportCampaigns, usn, placement, onDiagnostic, refresh: state.refresh };
+    const latest = React.useRef({ campaigns, copyText, reportCampaigns, usn, placement, onDiagnostic, onDetailSignal, refresh: state.refresh });
+    latest.current = { campaigns, copyText, reportCampaigns, usn, placement, onDiagnostic, onDetailSignal, refresh: state.refresh };
+    const signalled = React.useRef(new Set());
+    const signalTimer = React.useRef(null);
+    const lastOpened = React.useRef(null); // the detail page the SDK opened last, until it closes
     // Fetch the combos again (quietly) when the sheet opens, when the app comes back to the front, and when the SDK's detail screen closes:
     // that is when what the member just did shows up in the server's `done` list. At most once per few seconds; the first load counts.
     const lastRefresh = React.useRef(Date.now());
@@ -226,6 +244,35 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
             latest.current.refresh();
         }
         catch { /* a failed refresh keeps what is on screen */ }
+    };
+    /**
+     * 대표님 10/27 (참여 한도 소진): the SDK shows its own 「참여 한도가 소진…」 message and tells the app nothing but "not opened" / "closed", so
+     * the app reports what it saw (result, key, platform, wait) and looks at the server's combos again a few seconds later, where a `soldout`
+     * list may now name the campaign. The app never hides the row on its own: a slow iOS load looks the same.
+     */
+    const signalDetail = (result, key, ms) => {
+        const once = `${result}:${key}`;
+        if (signalled.current.has(once))
+            return;
+        signalled.current.add(once);
+        let platform = 'android';
+        try {
+            platform = require('react-native').Platform.OS === 'ios' ? 'ios' : 'android';
+        }
+        catch { /* the default */ }
+        try {
+            void Promise.resolve(latest.current.onDetailSignal?.({ result, campaignKey: key, platform, ms })).catch(() => { });
+        }
+        catch { /* reporting is best effort */ }
+        if (signalTimer.current)
+            clearTimeout(signalTimer.current);
+        signalTimer.current = setTimeout(() => {
+            lastRefresh.current = Date.now();
+            try {
+                latest.current.refresh();
+            }
+            catch { /* a failed refresh keeps what is on screen */ }
+        }, exports.COMBO_SIGNAL_REFRESH_MS);
     };
     React.useEffect(() => { if (open)
         refreshNow(); }, [open]);
@@ -242,8 +289,18 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
         }
         catch { /* ignore */ } };
     }, []);
-    React.useEffect(() => (0, native_1.addOfferwallNativeListener)(event => { if (event && event.type === 'detailClosed')
-        refreshNow(); }), []);
+    React.useEffect(() => (0, native_1.addOfferwallNativeListener)(event => {
+        if (!event || event.type !== 'detailClosed')
+            return;
+        const opened = lastOpened.current;
+        lastOpened.current = null;
+        if (opened) {
+            const stayed = Date.now() - opened.at;
+            if (stayed <= exports.COMBO_CLOSED_FAST_MS)
+                signalDetail('closed_fast', opened.key, stayed);
+        }
+        refreshNow();
+    }), []);
     const mode = placement === 'chance' ? state.combos?.display.chance ?? 'chip' : state.combos?.display.home ?? 'off';
     const shown = placement === 'chance' ? mode === 'chip' && !!state.combos : mode === 'banner' && !!state.combos;
     const listening = placement === 'chance' || mode !== 'off';
@@ -287,8 +344,12 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
         }
     }, [open, !!state.combos]);
     React.useEffect(() => listening ? listenForComboRequests({ priority: placement === 'chance' ? 2 : 1, open: () => setOpen(true) }) : undefined, [listening, placement]);
-    React.useEffect(() => () => { if (noticeTimer.current)
-        clearTimeout(noticeTimer.current); }, []);
+    React.useEffect(() => () => {
+        if (noticeTimer.current)
+            clearTimeout(noticeTimer.current);
+        if (signalTimer.current)
+            clearTimeout(signalTimer.current);
+    }, []);
     const bridge = () => (latest.current.campaigns === undefined ? (0, campaigns_1.nativeCampaignApi)() : latest.current.campaigns);
     /** The SDK's current campaigns, read once per member (and again after an empty result). Keeps WHY it was empty. */
     const campaignList = () => {
@@ -357,6 +418,10 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
                 diag.openError = short(error);
             }
             diag.openMs = Date.now() - at;
+            if (diag.open === false)
+                signalDetail('open_failed', key, diag.openMs);
+            else if (diag.open === true)
+                lastOpened.current = { key, at: Date.now() };
             if (diag.open === false && diag.openMs >= SLOW_REFUSAL_MS)
                 unsure = true;
             return diag.open === true;
@@ -427,5 +492,5 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     return h(React.Fragment, null, open ? h(Pressable, {
         key: 'backdrop', accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: close,
         style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20, elevation: 20, backgroundColor: 'rgba(0,0,0,0.3)' },
-    }) : null, open ? h(ComboSheet, { key: 'sheet', top: sheetTop, theme }, guide('sheet')) : null, popup && !open && state.combos ? h(ComboPopup, { combos: state.combos, theme, art: popupArt, onOpen: () => { setPopup(false); setOpen(true); }, onClose: () => setPopup(false) }) : null, shown ? h(ComboChip, { key: 'chip', open, theme, top: chipTop, right: chipRight, opacity: blink, onPress: () => setOpen(o => !o) }) : null, notice ? h(ComboToast, { key: 'notice', text: notice, top: sheetTop + 8, theme }) : null);
+    }) : null, open ? h(ComboSheet, { key: 'sheet', top: sheetTop, theme }, guide('sheet')) : null, popup && !open && state.combos ? h(ComboPopup, { combos: state.combos, theme, art: popupArt, ad: popupAd, onOpen: () => { setPopup(false); setOpen(true); }, onClose: () => setPopup(false) }) : null, shown ? h(ComboChip, { key: 'chip', open, theme, top: chipTop, right: chipRight, opacity: blink, onPress: () => setOpen(o => !o) }) : null, notice ? h(ComboToast, { key: 'notice', text: notice, top: sheetTop + 8, theme }) : null);
 }

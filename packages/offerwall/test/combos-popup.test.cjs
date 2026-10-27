@@ -31,6 +31,7 @@ const fakeLongTimers = () => {
   };
 };
 const popupShown = tree => texts(tree).includes('추천 보기');
+const api_el = type => ({type, props: {}, children: []});
 
 // A Chance-tab entry whose data and stored flags have been read.
 const start = async (make, {data = dataOf(), storage = memory(), placement = 'chance', loadKey = 7, entry = {}} = {}) => {
@@ -55,7 +56,9 @@ test('popup: wall loaded -> after a short wait a recommendation popup shows with
     assert.ok(all.includes('포인트 빨리 모으기'));
     assert.equal(all.join('').includes('오늘 +600P\n모을 수 있어요'), true, 'big-number headline from the server sum');
     assert.ok(all.includes('쉬운 미션 3개'));
-    assert.ok(all.includes('닫기'));
+    assert.ok(all.includes('선착순 · 캠페인마다 인원이 차면 끝나요'), 'the first-come notice');
+    assert.equal(all.includes('닫기'), false, 'no 닫기 text any more');
+    assert.ok(all.includes('✕') && byLabel(tree, '닫기'), 'the ✕ closes (screen readers still hear 닫기)');
     assert.ok(byLabel(tree, '포인트 빨리 모으기'), 'the header chip is still there');
     assert.equal(hasSheet(tree), false);
   } finally { timers.restore(); api.notifyWallGone(); }
@@ -201,7 +204,7 @@ test('popup: Home never shows it, and neither does an entry without data', () =>
 }));
 
 test('popup content: the easy sum is the big number; the subtitle counts the missions and says how long one takes (middle of the given minutes)', () => {
-  assert.deepEqual(api.comboPopupContent(dataOf()), {before: '오늘 ', amount: '+600P', after: ' 모을 수 있어요', sub: '쉬운 미션 3개'});
+  assert.deepEqual(api.comboPopupContent(dataOf()), {before: '오늘 ', amount: '+600P', after: ' 모을 수 있어요', sub: '쉬운 미션 3개', notice: '선착순 · 캠페인마다 인원이 차면 끝나요'});
   const timed = (...mins) => api.normalizeTodayCombos({date: TODAY(), bundles: [bundle(1000)], easy: {missions: mins.map((m, i) => mission(`t${i}`, 100 + i, m ? {minutes: m} : {}))}});
   assert.equal(api.comboPopupContent(timed(3, 3, 5, 3)).sub, '쉬운 미션 4개 · 하나에 3분이면 끝');
   assert.equal(api.comboPopupContent(timed(5, 3, 10)).sub, '쉬운 미션 3개 · 하나에 5분이면 끝', 'the middle one, not the shortest');
@@ -211,7 +214,7 @@ test('popup content: the easy sum is the big number; the subtitle counts the mis
 
 test('popup content: without an easy list the top goal is the number and the path is the subtitle', () => {
   const noEasy = api.normalizeTodayCombos({date: TODAY(), bundles: [bundle(1000), bundle(5000), bundle(10000)]});
-  assert.deepEqual(api.comboPopupContent(noEasy), {before: '오늘 ', amount: '1만P', after: '까지 모을 수 있어요', sub: '1천 · 5천 · 1만P 길을 차례로 모아 보세요'});
+  assert.deepEqual(api.comboPopupContent(noEasy), {before: '오늘 ', amount: '1만P', after: '까지 모을 수 있어요', sub: '1천 · 5천 · 1만P 길을 차례로 모아 보세요', notice: api.COMBO_POPUP_NOTICE});
   const one = api.normalizeTodayCombos({date: TODAY(), bundles: [bundle(1000)]});
   assert.equal(api.comboPopupContent(one).amount, '1천P');
 });
@@ -322,7 +325,7 @@ const popupTree = async (make, entry = {}, rnSetup) => {
   } finally { timers.restore(); api.notifyWallGone(); }
 };
 
-test('popup design: a headline with the sum as a big number, one subtitle line, ONE wide button and a small 닫기 link, over a darker backdrop', () => withReact(async ({make}) => {
+test('popup design: a headline with the sum as a big number, one subtitle line, a first-come pill, ONE wide button, a ✕ at the top right (no 닫기 link), over a darker backdrop', () => withReact(async ({make}) => {
   const tree = await popupTree(make);
   const header = walk(tree).find(n => n.type === 'Text' && n.props.accessibilityRole === 'header');
   assert.ok(header, 'the headline is a header');
@@ -338,10 +341,13 @@ test('popup design: a headline with the sum as a big number, one subtitle line, 
   assert.equal(openStyle.height, 52);
   assert.equal(openStyle.backgroundColor, api.DEFAULT_COMBO_THEME.accent, 'accent colour');
   const close = byLabel(tree, '닫기');
-  const closeText = walk(close).find(n => n.type === 'Text');
-  assert.equal(closeText.props.style.fontSize, 14, 'a small text link');
-  assert.equal(closeText.props.style.fontWeight, '600');
-  assert.ok(walk(close).every(n => n.type !== 'View' || !n.props.style || n.props.style.backgroundColor === undefined), 'no button background');
+  assert.deepEqual(texts(close), ['✕']);
+  const closeStyle = close.props.style;
+  assert.deepEqual([closeStyle.position, closeStyle.top, closeStyle.right], ['absolute', 10, 10], 'top right of the card');
+  assert.ok(closeStyle.width >= 32 && closeStyle.height >= 32, 'a finger-sized target');
+  assert.equal(texts(tree).includes('닫기'), false, 'no 닫기 text link');
+  const pill = walk(tree).find(n => n.type === 'View' && texts(n).join('') === '선착순 · 캠페인마다 인원이 차면 끝나요' && n.props.style && n.props.style.backgroundColor === api.DEFAULT_COMBO_THEME.accentSoft);
+  assert.ok(pill, 'a pill under the subtitle');
   const scrim = byLabel(tree, '팝업 닫기');
   assert.equal(scrim.props.style.backgroundColor, 'rgba(0,0,0,0.55)', 'darker than before (0.4)');
 }));
@@ -371,4 +377,40 @@ test('popup design: without art a coin is drawn from plain views (a P); with the
   assert.ok(images.every(n => n.props.source === art));
   assert.deepEqual(images.map(n => n.props.style.width).sort((a, b) => b - a), [96, 40, 40], 'one big, two small');
   assert.equal(texts(withArt).includes('P'), false, 'no drawn coin when the art is given');
+}));
+
+test('popup ad: the app\'s ad is drawn under the 추천 보기 button, after the button and inside the scrolling card; none given = nothing there', () => withReact(async ({make, rn}) => {
+  rn.Image = 'Image';
+  const withAd = await popupTree(make, {popupAd: () => api_el('AppAd')});
+  const nodes = walk(withAd);
+  const button = nodes.find(n => n.type === 'Pressable' && n.props.accessibilityLabel === '추천 보기');
+  const ad = nodes.find(n => n.type === 'AppAd');
+  assert.ok(ad, 'the ad is in the popup');
+  assert.ok(nodes.indexOf(ad) > nodes.indexOf(button), 'under the button');
+  const scroller = nodes.find(n => n.type === 'ScrollView');
+  assert.ok(walk(scroller).includes(ad) && walk(scroller).includes(button), 'inside the scrolling content');
+  assert.equal(walk(scroller).some(n => n.props && n.props.accessibilityLabel === '닫기'), false, 'the ✕ is outside the scroller so it stays put');
+  const without = await popupTree(make);
+  assert.equal(walk(without).some(n => n.type === 'AppAd'), false);
+}));
+
+test('popup ad: an ad that renders nothing (null) leaves no extra element; the card is capped to the screen height so a tall ad scrolls', () => withReact(async ({make}) => {
+  const tree = await popupTree(make, {popupAd: () => null});
+  const card = walk(tree).find(n => n.type === 'Animated.View' && n.props.accessibilityViewIsModal === true);
+  assert.equal(card.props.style.maxHeight, Math.round(800 * 0.86), 'the harness screen is 800 high: 86 % of it');
+  const scroller = walk(card).find(n => n.type === 'ScrollView');
+  assert.equal(scroller.props.bounces, false);
+  assert.equal(scroller.props.showsVerticalScrollIndicator, false);
+}));
+
+test('popup ✕: tapping it closes the popup (and the dimmed area too); the sheet does not open', () => withReact(async ({make}) => {
+  const timers = fakeLongTimers();
+  try {
+    const {again} = await start(make);
+    api.notifyWallLoaded(); again(); timers.fire();
+    assert.equal(popupShown(again()), true);
+    byLabel(again(), '닫기').props.onPress();
+    assert.equal(popupShown(again()), false);
+    assert.equal(hasSheet(again()), false);
+  } finally { timers.restore(); api.notifyWallGone(); }
 }));
