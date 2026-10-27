@@ -6,7 +6,7 @@
  * Without `categories` the guide is the steps screen as before (see ComboGuideScreen).
  */
 import type { ReactElement } from 'react';
-import { COMBO_NAME, COMBO_PAGE_ROWS, COMBO_TAB_HIT_SLOP, COMBO_TAB_ROW_PROPS, COMBO_TRIAL_NOTE, DEFAULT_COMBO_THEME, afterFirstPaint, formatPoints, autoDoneIds } from './combos';
+import { COMBO_NAME, COMBO_PAGE_ROWS, COMBO_TAB_HIT_SLOP, COMBO_TAB_ROW_PROPS, COMBO_TRIAL_NOTE, DEFAULT_COMBO_THEME, afterFirstPaint, comboNoticeOf, formatPoints, autoDoneIds } from './combos';
 import type { ComboCategory, ComboCategoryItem, ComboGuideScreenProps, ComboMission } from './combos';
 
 /** Rows shown at first in a tab, and added by each 「더 보기」 (a tab can have a few hundred rows: games, and the server's midnight reset made 「쉬운 미션」 186). */
@@ -114,6 +114,9 @@ export function ComboCategoryScreen({
           h(Text, { style: { fontSize: 28, color: t.text } }, '‹')),
         h(Text, { style: { fontSize: 18, fontWeight: '700', color: t.text } }, COMBO_NAME))) : null,
     h(ScrollView, { contentContainerStyle: { paddingBottom: 32 }, keyboardShouldPersistTaps: 'handled' },
+      // the iPhone list while it is prepared (the server's `notice`): one calm line at the top
+      comboNoticeOf(combos) ? h(View, { style: { marginHorizontal: side, marginTop: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, backgroundColor: chipBg } },
+        h(Text, { style: { fontSize: 13, lineHeight: 18, color: t.sub } }, comboNoticeOf(combos))) : null,
       // many tabs: the row scrolls sideways
       cats.length > 1 ? h(ScrollView, { horizontal: true, showsHorizontalScrollIndicator: false, ...COMBO_TAB_ROW_PROPS, style: { flexGrow: 0 }, contentContainerStyle: { paddingHorizontal: side, paddingVertical: 4, gap: 8, alignItems: 'center' } },
         cats.map((c, i) => {

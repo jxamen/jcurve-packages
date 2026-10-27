@@ -386,7 +386,8 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     const popupGiven = React.useRef(false); // at most one popup per visit (entry mount), even when it is shown on every visit
     React.useEffect(() => (placement === 'chance' ? (0, wallSignal_1.onWallState)(setWallReady) : undefined), [placement]);
     const popupMode = state.combos?.display.popup; // 'off' | 'always' | undefined (once a day)
-    const popupDue = placement === 'chance' && shown && !!state.combos && popupMode !== 'off' && !open && !popup && !everOpened.current && !popupGiven.current
+    // (nothing to recommend while an iPhone list is being prepared with no rows: no popup, and the day's one popup is not used up)
+    const popupDue = placement === 'chance' && shown && (0, combos_1.hasComboRows)(state.combos) && popupMode !== 'off' && !open && !popup && !everOpened.current && !popupGiven.current
         && (popupMode === 'always' || (seen.seen === false && popupSeen.seen === false));
     const popupDueNow = React.useRef(false);
     popupDueNow.current = popupDue;
@@ -653,7 +654,7 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     if (!shown && !open && !notice && !popup && !trialsOpen && !tabPopup)
         return null;
     if (placement === 'home') {
-        return h(React.Fragment, null, shown && state.combos ? h(ComboBanner, { combos: state.combos, onPress: () => setOpen(true), theme, opacity: blink }) : null, open ? h(Modal, { visible: true, animationType: 'slide', onRequestClose: close }, h(SafeAreaView, { style: { flex: 1, backgroundColor: theme.bg } }, guide('page'), notice ? h(ComboToast, { text: notice, top: 8, theme }) : null, consentView)) : null, !open ? consentView : null);
+        return h(React.Fragment, null, shown && state.combos && (0, combos_1.hasComboRows)(state.combos) ? h(ComboBanner, { combos: state.combos, onPress: () => setOpen(true), theme, opacity: blink }) : null, open ? h(Modal, { visible: true, animationType: 'slide', onRequestClose: close }, h(SafeAreaView, { style: { flex: 1, backgroundColor: theme.bg } }, guide('page'), notice ? h(ComboToast, { text: notice, top: 8, theme }) : null, consentView)) : null, !open ? consentView : null);
     }
     return h(React.Fragment, null, open ? h(Pressable, {
         key: 'backdrop', accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: close,

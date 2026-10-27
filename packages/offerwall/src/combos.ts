@@ -50,6 +50,12 @@ export type TodayCombos = {
    * and how many missions that is. Absent = the popup is worded from `easy`, as before.
    */
   popup?: { points: number; count: number };
+  /**
+   * 0.3.16, the iPhone list (the server's `preparing` + `notice`, 앱보조5 10/28 01:01): while only a few iPhone campaigns are known the server says so — the chip stays,
+   * the guide shows the `notice` at its top, and a list with no rows shows nothing else. `bundles` can then be empty. Absent (Android) = a normal document.
+   */
+  preparing?: true;
+  notice?: string;
 };
 /** One row of a category: what to do (`line`, one line: for games the goal and its time limit) and what it costs (`cost`, a short phrase, none when it is free). */
 export type ComboCategoryItem = {
@@ -114,7 +120,11 @@ function cleanMission(m: any): ComboMission | null {
 /** Keeps only well-formed rows; totals are recomputed so the screen never shows a sum the rows do not add up to. */
 export function normalizeTodayCombos(raw: unknown): TodayCombos | null {
   const data = raw && typeof raw === 'object' ? (raw as Record<string, any>) : null;
-  if (!data || !Array.isArray(data.bundles)) return null;
+  if (!data) return null;
+  // 0.3.16: the iPhone list can be short or empty while it is prepared (the server's `preparing`, with a `notice`): such a document has no bundles of its own
+  // (a bundle needs rows that add up to its goal) but still has to keep the chip. So a missing / empty `bundles` is fine when the document has category rows or says it is preparing.
+  const preparing = data.preparing === true;
+  const bundleList: unknown[] = Array.isArray(data.bundles) ? data.bundles : [];
   // 대표님 10/27 「참여 한도가 소진된 캠페인은 오늘 목록에서 빼기」: the server's `soldout` (campaign keys whose places ran out) leaves no row behind,
   // unless this member was already paid for it today (that row stays as a done one).
   const soldout = new Set(cleanKeys(data.soldout));
@@ -126,7 +136,7 @@ export function normalizeTodayCombos(raw: unknown): TodayCombos | null {
   const bundles: ComboBundle[] = [];
   const goals = new Set<number>();
   // Look through the first 40 entries and keep the first valid bundle per goal, at most 4 (the server may send alternatives).
-  for (const item of data.bundles.slice(0, 40)) {
+  for (const item of bundleList.slice(0, 40) as any[]) {
     if (bundles.length >= 4) break;
     const goal = whole(item?.goal);
     if (!goal || goals.has(goal) || !Array.isArray(item.missions)) continue;
@@ -145,7 +155,8 @@ export function normalizeTodayCombos(raw: unknown): TodayCombos | null {
     goals.add(goal);
     bundles.push({ goal, missions, total });
   }
-  if (!bundles.length) return null;
+  const categories = cleanCategories(data.categories, soldout, paid);
+  if (!bundles.length && !categories.length && !preparing) return null;
   bundles.sort((a, b) => a.goal - b.goal);
   const date = typeof data.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(data.date) ? data.date : undefined;
   // Unknown or missing switches fall back to: chip in the Chance tab, nothing on Home.
@@ -164,11 +175,13 @@ export function normalizeTodayCombos(raw: unknown): TodayCombos | null {
   const trials = cleanTrials(data.trials, soldout, paid);
   const trialKeys = cleanKeys(data.trial_keys ?? data.trialKeys).map(k => k.toLowerCase());
   const trialConsent = cleanConsent(data.trial_consent ?? data.trialConsent);
-  const categories = cleanCategories(data.categories, soldout, paid);
   const popupPoints = whole(data.popup?.points, 100_000_000_000);
   const popupCount = whole(data.popup?.count, 100_000);
+  // the server's sentence for a list that is still being prepared (only used while `preparing`)
+  const notice = preparing ? text(data.notice, 80) : '';
   return {
     ...(date ? { date } : {}), display, bundles, ...(singles.length ? { singles } : {}), ...(easy ? { easy } : {}), ...(done.length ? { done } : {}),
+    ...(preparing ? { preparing: true as const } : {}), ...(notice ? { notice } : {}),
     ...(trials.length ? { trials } : {}), ...(trialKeys.length ? { trialKeys } : {}), ...(Object.keys(trialConsent).length ? { trialConsent } : {}),
     ...(categories.length ? { categories } : {}),
     ...(popupPoints ? { popup: { points: popupPoints, count: popupCount } } : {}),
@@ -264,6 +277,14 @@ export function afterFirstPaint(fn: () => void): () => void {
   if (typeof frame === 'function') frame(() => { frame(run); });
   else { const timer = setTimeout(run, 0); return () => { live = false; clearTimeout(timer); }; }
   return () => { live = false; };
+}
+/** Is there anything to list? An iPhone document that is still being prepared can have no rows at all (the chip stays, the guide shows only the notice). */
+export function hasComboRows(combos: TodayCombos | null | undefined): boolean {
+  return !!combos && (combos.bundles.length > 0 || !!combos.categories?.length || !!combos.easy?.missions.length || !!combos.trials?.length);
+}
+/** The server's 「준비 중」 sentence to show at the top of the guide ('' when the list is not being prepared). */
+export function comboNoticeOf(combos: TodayCombos | null | undefined): string {
+  return combos?.preparing && combos.notice ? combos.notice : '';
 }
 /** Every mission-shaped row of a document (steps, singles, easy, trials, categories), for the hand ticks and the paid-today marks. Built once per document. */
 export function missionRowsOf(combos: TodayCombos | null | undefined): ComboMission[] {
@@ -922,6 +943,9 @@ export function ComboStepsScreen({ combos, loading = false, onClose, onPressMiss
           h(Text, { style: { fontSize: 28, color: t.text } }, '‹')),
         h(Text, { style: { fontSize: 18, fontWeight: '700', color: t.text } }, COMBO_NAME))) : null,
     h(ScrollView, { contentContainerStyle: { paddingBottom: 32 }, keyboardShouldPersistTaps: 'handled' },
+      // the iPhone list while it is prepared (the server's `notice`): one calm line at the top
+      comboNoticeOf(combos) ? h(View, { style: { marginHorizontal: side, marginTop: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, backgroundColor: chipBg } },
+        h(Text, { style: { fontSize: 13, lineHeight: 18, color: t.sub } }, comboNoticeOf(combos))) : null,
       tabCount > 1 ? h(ScrollView, { horizontal: true, showsHorizontalScrollIndicator: false, ...COMBO_TAB_ROW_PROPS, style: { flexGrow: 0 }, contentContainerStyle: { paddingHorizontal: side, paddingVertical: 4, gap: 8, alignItems: 'center' } },
         [...(easy ? [null] : []), ...bundles, ...(trials.length ? ['trials' as const] : [])].map((b, i) => {
           const on = i === index;
@@ -959,7 +983,8 @@ export function ComboStepsScreen({ combos, loading = false, onClose, onPressMiss
         singleRows.map((mission, i) => missionRow(
           mission, i, isDoneId(mission.id) ? 0 : ++nextSingleNo,
           { goal: bundle.goal, missions: [mission], total: mission.points }))) : null,
-      !bundle && !onTrials ? h(Text, { style: { marginTop: 48, fontSize: 15, lineHeight: 22, textAlign: 'center', color: t.sub } },
+      // nothing to list: the server's own sentence (shown above) says why when the list is being prepared, so no second message then
+      !bundle && !onTrials && !comboNoticeOf(combos) ? h(Text, { style: { marginTop: 48, fontSize: 15, lineHeight: 22, textAlign: 'center', color: t.sub } },
         loading ? '불러오고 있어요' : '지금은 준비하고 있어요.\n잠시 뒤에 다시 확인해 주세요.') : null,
       bundle ? h(Text, { style: { paddingHorizontal: side, paddingTop: 18, fontSize: 12, lineHeight: 18, color: t.sub } }, '합계는 표시된 항목을 모두 마쳤을 때 기준이에요. 오늘 하루 기준이고 내일은 새로 바뀌어요. 항목마다 참여 조건이 달라서, 눌러서 안내를 꼭 확인해 주세요.') : null,
       notice ? h(Text, { style: { paddingHorizontal: side, paddingTop: 10, fontSize: 14, fontWeight: '700', color: '#E5484D' } }, notice) : null));

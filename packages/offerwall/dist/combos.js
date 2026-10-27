@@ -4,6 +4,8 @@ exports.COMBO_TAB_ROW_PROPS = exports.COMBO_TAB_HIT_SLOP = exports.COMBO_LIST_HI
 exports.normalizeTodayCombos = normalizeTodayCombos;
 exports.categoryMissions = categoryMissions;
 exports.afterFirstPaint = afterFirstPaint;
+exports.hasComboRows = hasComboRows;
+exports.comboNoticeOf = comboNoticeOf;
 exports.missionRowsOf = missionRowsOf;
 exports.trialTerms = trialTerms;
 exports.formatWon = formatWon;
@@ -71,8 +73,12 @@ function cleanMission(m) {
 /** Keeps only well-formed rows; totals are recomputed so the screen never shows a sum the rows do not add up to. */
 function normalizeTodayCombos(raw) {
     const data = raw && typeof raw === 'object' ? raw : null;
-    if (!data || !Array.isArray(data.bundles))
+    if (!data)
         return null;
+    // 0.3.16: the iPhone list can be short or empty while it is prepared (the server's `preparing`, with a `notice`): such a document has no bundles of its own
+    // (a bundle needs rows that add up to its goal) but still has to keep the chip. So a missing / empty `bundles` is fine when the document has category rows or says it is preparing.
+    const preparing = data.preparing === true;
+    const bundleList = Array.isArray(data.bundles) ? data.bundles : [];
     // 대표님 10/27 「참여 한도가 소진된 캠페인은 오늘 목록에서 빼기」: the server's `soldout` (campaign keys whose places ran out) leaves no row behind,
     // unless this member was already paid for it today (that row stays as a done one).
     const soldout = new Set(cleanKeys(data.soldout));
@@ -84,7 +90,7 @@ function normalizeTodayCombos(raw) {
     const bundles = [];
     const goals = new Set();
     // Look through the first 40 entries and keep the first valid bundle per goal, at most 4 (the server may send alternatives).
-    for (const item of data.bundles.slice(0, 40)) {
+    for (const item of bundleList.slice(0, 40)) {
         if (bundles.length >= 4)
             break;
         const goal = whole(item?.goal);
@@ -108,7 +114,8 @@ function normalizeTodayCombos(raw) {
         goals.add(goal);
         bundles.push({ goal, missions, total });
     }
-    if (!bundles.length)
+    const categories = cleanCategories(data.categories, soldout, paid);
+    if (!bundles.length && !categories.length && !preparing)
         return null;
     bundles.sort((a, b) => a.goal - b.goal);
     const date = typeof data.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(data.date) ? data.date : undefined;
@@ -128,11 +135,13 @@ function normalizeTodayCombos(raw) {
     const trials = cleanTrials(data.trials, soldout, paid);
     const trialKeys = cleanKeys(data.trial_keys ?? data.trialKeys).map(k => k.toLowerCase());
     const trialConsent = cleanConsent(data.trial_consent ?? data.trialConsent);
-    const categories = cleanCategories(data.categories, soldout, paid);
     const popupPoints = whole(data.popup?.points, 100000000000);
     const popupCount = whole(data.popup?.count, 100000);
+    // the server's sentence for a list that is still being prepared (only used while `preparing`)
+    const notice = preparing ? text(data.notice, 80) : '';
     return {
         ...(date ? { date } : {}), display, bundles, ...(singles.length ? { singles } : {}), ...(easy ? { easy } : {}), ...(done.length ? { done } : {}),
+        ...(preparing ? { preparing: true } : {}), ...(notice ? { notice } : {}),
         ...(trials.length ? { trials } : {}), ...(trialKeys.length ? { trialKeys } : {}), ...(Object.keys(trialConsent).length ? { trialConsent } : {}),
         ...(categories.length ? { categories } : {}),
         ...(popupPoints ? { popup: { points: popupPoints, count: popupCount } } : {}),
@@ -241,6 +250,14 @@ function afterFirstPaint(fn) {
         return () => { live = false; clearTimeout(timer); };
     }
     return () => { live = false; };
+}
+/** Is there anything to list? An iPhone document that is still being prepared can have no rows at all (the chip stays, the guide shows only the notice). */
+function hasComboRows(combos) {
+    return !!combos && (combos.bundles.length > 0 || !!combos.categories?.length || !!combos.easy?.missions.length || !!combos.trials?.length);
+}
+/** The server's 「준비 중」 sentence to show at the top of the guide ('' when the list is not being prepared). */
+function comboNoticeOf(combos) {
+    return combos?.preparing && combos.notice ? combos.notice : '';
 }
 /** Every mission-shaped row of a document (steps, singles, easy, trials, categories), for the hand ticks and the paid-today marks. Built once per document. */
 function missionRowsOf(combos) {
@@ -858,7 +875,9 @@ function ComboStepsScreen({ combos, loading = false, onClose, onPressMission, us
     const closeText = (label) => h(Text, { style: { fontSize: 14, fontWeight: '600', color: t.sub } }, label);
     return h(View, { style: { flex: 1, backgroundColor: t.bg, paddingTop: Math.max(0, topInset) } }, showHeader ? (variant === 'sheet'
         ? h(View, { style: { height: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: side } }, h(Text, { style: { fontSize: 18, fontWeight: '700', color: t.text } }, exports.COMBO_NAME), h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 12, style: { paddingVertical: 8, paddingLeft: 8 } }, closeText('닫기')))
-        : h(View, { style: { height: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8 } }, h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 12, style: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' } }, h(Text, { style: { fontSize: 28, color: t.text } }, '‹')), h(Text, { style: { fontSize: 18, fontWeight: '700', color: t.text } }, exports.COMBO_NAME))) : null, h(ScrollView, { contentContainerStyle: { paddingBottom: 32 }, keyboardShouldPersistTaps: 'handled' }, tabCount > 1 ? h(ScrollView, { horizontal: true, showsHorizontalScrollIndicator: false, ...exports.COMBO_TAB_ROW_PROPS, style: { flexGrow: 0 }, contentContainerStyle: { paddingHorizontal: side, paddingVertical: 4, gap: 8, alignItems: 'center' } }, [...(easy ? [null] : []), ...bundles, ...(trials.length ? ['trials'] : [])].map((b, i) => {
+        : h(View, { style: { height: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8 } }, h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 12, style: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' } }, h(Text, { style: { fontSize: 28, color: t.text } }, '‹')), h(Text, { style: { fontSize: 18, fontWeight: '700', color: t.text } }, exports.COMBO_NAME))) : null, h(ScrollView, { contentContainerStyle: { paddingBottom: 32 }, keyboardShouldPersistTaps: 'handled' }, 
+    // the iPhone list while it is prepared (the server's `notice`): one calm line at the top
+    comboNoticeOf(combos) ? h(View, { style: { marginHorizontal: side, marginTop: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, backgroundColor: chipBg } }, h(Text, { style: { fontSize: 13, lineHeight: 18, color: t.sub } }, comboNoticeOf(combos))) : null, tabCount > 1 ? h(ScrollView, { horizontal: true, showsHorizontalScrollIndicator: false, ...exports.COMBO_TAB_ROW_PROPS, style: { flexGrow: 0 }, contentContainerStyle: { paddingHorizontal: side, paddingVertical: 4, gap: 8, alignItems: 'center' } }, [...(easy ? [null] : []), ...bundles, ...(trials.length ? ['trials'] : [])].map((b, i) => {
         const on = i === index;
         const isEasyTab = b === null;
         const isTrialTab = b === 'trials';
@@ -876,5 +895,7 @@ function ComboStepsScreen({ combos, loading = false, onClose, onPressMission, us
     // the sum as one line: what is left (or what finishing everything gives)
     bundle ? h(View, { style: { flexDirection: 'row', alignItems: 'baseline', paddingHorizontal: side, paddingTop: 14, paddingBottom: 6, gap: 6 } }, h(Text, { style: { fontSize: 13, color: t.sub } }, allDone ? '모두 마쳤어요' : anyDone ? '남은 합계' : onEasy ? '다 하면' : '합계'), allDone ? null : h(Text, { style: { fontSize: 16, fontWeight: '800', color: t.point } }, onEasy ? `+${formatPoints(remaining)}` : formatPoints(remaining))) : null, actionable && !onPressMission && hint && bundle ? h(Text, { style: { paddingHorizontal: side, paddingBottom: 6, fontSize: 12, lineHeight: 18, color: t.sub } }, hint) : null, bundle ? h(View, { key: String(bundle.goal) }, rows.slice(0, limit).map((mission, i) => missionRow(mission, i, isDoneId(mission.id) ? 0 : ++nextNo, bundle)), moreButton(rows.length - limit)) : null, 
     // 「한 번에 끝내기」: a second list under the step's, one mission is enough to reach the goal. Hidden when the server sent none.
-    bundle && singleRows.length ? h(View, { key: `singles-${bundle.goal}`, style: { marginTop: 22 } }, h(View, { style: { paddingHorizontal: side, paddingBottom: 6 } }, h(Text, { accessibilityRole: 'header', style: { fontSize: 16, fontWeight: '700', color: t.text } }, '한 번에 끝내기'), h(Text, { style: { marginTop: 2, fontSize: 13, color: t.sub } }, `아래 중 하나만 해도 ${formatPoints(bundle.goal)}를 채워요`)), singleRows.map((mission, i) => missionRow(mission, i, isDoneId(mission.id) ? 0 : ++nextSingleNo, { goal: bundle.goal, missions: [mission], total: mission.points }))) : null, !bundle && !onTrials ? h(Text, { style: { marginTop: 48, fontSize: 15, lineHeight: 22, textAlign: 'center', color: t.sub } }, loading ? '불러오고 있어요' : '지금은 준비하고 있어요.\n잠시 뒤에 다시 확인해 주세요.') : null, bundle ? h(Text, { style: { paddingHorizontal: side, paddingTop: 18, fontSize: 12, lineHeight: 18, color: t.sub } }, '합계는 표시된 항목을 모두 마쳤을 때 기준이에요. 오늘 하루 기준이고 내일은 새로 바뀌어요. 항목마다 참여 조건이 달라서, 눌러서 안내를 꼭 확인해 주세요.') : null, notice ? h(Text, { style: { paddingHorizontal: side, paddingTop: 10, fontSize: 14, fontWeight: '700', color: '#E5484D' } }, notice) : null));
+    bundle && singleRows.length ? h(View, { key: `singles-${bundle.goal}`, style: { marginTop: 22 } }, h(View, { style: { paddingHorizontal: side, paddingBottom: 6 } }, h(Text, { accessibilityRole: 'header', style: { fontSize: 16, fontWeight: '700', color: t.text } }, '한 번에 끝내기'), h(Text, { style: { marginTop: 2, fontSize: 13, color: t.sub } }, `아래 중 하나만 해도 ${formatPoints(bundle.goal)}를 채워요`)), singleRows.map((mission, i) => missionRow(mission, i, isDoneId(mission.id) ? 0 : ++nextSingleNo, { goal: bundle.goal, missions: [mission], total: mission.points }))) : null, 
+    // nothing to list: the server's own sentence (shown above) says why when the list is being prepared, so no second message then
+    !bundle && !onTrials && !comboNoticeOf(combos) ? h(Text, { style: { marginTop: 48, fontSize: 15, lineHeight: 22, textAlign: 'center', color: t.sub } }, loading ? '불러오고 있어요' : '지금은 준비하고 있어요.\n잠시 뒤에 다시 확인해 주세요.') : null, bundle ? h(Text, { style: { paddingHorizontal: side, paddingTop: 18, fontSize: 12, lineHeight: 18, color: t.sub } }, '합계는 표시된 항목을 모두 마쳤을 때 기준이에요. 오늘 하루 기준이고 내일은 새로 바뀌어요. 항목마다 참여 조건이 달라서, 눌러서 안내를 꼭 확인해 주세요.') : null, notice ? h(Text, { style: { paddingHorizontal: side, paddingTop: 10, fontSize: 14, fontWeight: '700', color: '#E5484D' } }, notice) : null));
 }

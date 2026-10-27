@@ -383,3 +383,12 @@ if (isCombosRoute(action)) { goTab('offerwall'); requestOpenCombos(); }   // 탭
 - **시트 열림 시간 재기**: `ComboEntry` 의 새 `onSheetShown(info)` — 시트를 연 렌더부터 첫 화면이 그려진 뒤 2프레임까지의 **ms** 와 `{ tabs, rows(첫 탭의 첫 쪽), total(서로 다른 캠페인 수) }` 를 시트를 열 때마다 한 번 알려 준다. **패키지는 아무 데도 보내지 않는다**; 앱이 로그로 남겨 실기기(안드 `adb logcat` · iOS 콘솔)에서 읽는다(예 `console.log('[combos] sheet shown', JSON.stringify(info))`). 던져도 시트는 그대로.
 - 측정(10/28, 777캠페인 합성 응답 246KB · V8 기준, 이 PC 에 Hermes 실행기가 없어 Hermes 값은 아님): `JSON.parse` 0.3ms · 정규화(`parseCombosBody`) 0.4~0.7ms · 렌더마다 도는 계산 0.1ms 미만. Hermes(인터프리터)는 이런 반복문에서 보통 10~30배 느려 아이폰 수십 ms 이하로 예상하지만 **추정**이다 — 실제 숫자는 위 `onSheetShown` 로그로 확인한다.
 - 팝업 숫자 6자리(+157,090P)는 **이미 한 줄**: `popupHeadlineSizes` 가 폭(276)에 맞춰 숫자 글자를 34 → 28pt 로 줄인다(최소 0.6배 = 20pt, +999,999P 도 한 줄).
+
+## 0.3.16 — 아이폰 목록 「준비 중」 응답(iOS 키만 · `preparing` · `notice`)에서도 칩이 사라지지 않게 (JS only)
+
+앱보조5 10/28 01:01. `x-ota-platform: ios` 면 서버가 iOS 키가 있는 캠페인만 내려 주고(처음엔 5개), 응답에 `preparing`(boolean, iOS 키 30개 미만이면 true)과 `notice`(문장, 예 「아이폰 목록을 준비 중이에요」)가 붙는다. 안드는 그대로(`preparing` false · `notice` null). 네이티브 diff 0.
+- **0.3.15 까지의 문제**: `bundles`(목표별 묶음 — 줄들이 목표 포인트를 채워야 성립)가 비어 있고 `categories` 만 있는 응답, 또는 줄이 하나도 없는 응답을 「잘못된 응답」으로 버려서 칩 · 시트가 통째로 안 보였다(5개짜리 iOS 목록에는 묶음이 안 만들어진다).
+- **이제**: `bundles` 가 없거나 비어도 `categories` 에 줄이 있으면 정상 문서이고, `preparing: true` 면 줄이 하나도 없어도 정상 문서다(칩 유지). 둘 다 아니면 예전처럼 버린다(`preparing` 이 문자열 `'true'` 등이면 무시). `TodayCombos` 에 `preparing?: true` · `notice?: string`(**`preparing` 일 때만**, 줄바꿈 정리 · 80자까지)이 생겼다. 안드 응답(`preparing` 없음)은 달라지는 게 없다.
+- **시트 맨 위에 `notice` 한 줄**(두 화면 모두 — 항목별 탭 화면 · 옛 단계 화면): 회색 알약 칸에 서버 문장. 줄이 하나도 없으면 그 문장만 보이고 「지금은 준비하고 있어요」 두 번째 문구는 안 나온다(`comboNoticeOf(combos)`).
+- **줄이 없으면 부르지 않는다**(`hasComboRows(combos)`): 추천 팝업은 뜨지 않고(그날의 한 번 기회도 쓰지 않는다), 홈 배너도 안 나온다. 칩은 항상 보인다.
+- 어제 문서(0.3.14 의 `stale`)도 `preparing` · `notice` 를 그대로 가진다.

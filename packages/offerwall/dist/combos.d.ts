@@ -69,6 +69,12 @@ export type TodayCombos = {
         points: number;
         count: number;
     };
+    /**
+     * 0.3.16, the iPhone list (the server's `preparing` + `notice`, 앱보조5 10/28 01:01): while only a few iPhone campaigns are known the server says so — the chip stays,
+     * the guide shows the `notice` at its top, and a list with no rows shows nothing else. `bundles` can then be empty. Absent (Android) = a normal document.
+     */
+    preparing?: true;
+    notice?: string;
 };
 /** One row of a category: what to do (`line`, one line: for games the goal and its time limit) and what it costs (`cost`, a short phrase, none when it is free). */
 export type ComboCategoryItem = {
@@ -123,6 +129,10 @@ export declare function categoryMissions(combos: TodayCombos | null | undefined)
  * timer where there are no frames. Returns the cleanup. Used to time how long a sheet took to open.
  */
 export declare function afterFirstPaint(fn: () => void): () => void;
+/** Is there anything to list? An iPhone document that is still being prepared can have no rows at all (the chip stays, the guide shows only the notice). */
+export declare function hasComboRows(combos: TodayCombos | null | undefined): boolean;
+/** The server's 「준비 중」 sentence to show at the top of the guide ('' when the list is not being prepared). */
+export declare function comboNoticeOf(combos: TodayCombos | null | undefined): string;
 /** Every mission-shaped row of a document (steps, singles, easy, trials, categories), for the hand ticks and the paid-today marks. Built once per document. */
 export declare function missionRowsOf(combos: TodayCombos | null | undefined): ComboMission[];
 /** The terms of a free-trial campaign for the consent popup: from the `trials` list, else from a category row that carries them. Empty when unknown. */
