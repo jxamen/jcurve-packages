@@ -11,7 +11,7 @@ function withReact(run, opts = {}) {
   const rn = {
     Platform: {OS: 'android'},
     NativeModules: {RNAdPopcornRewardModule: {}, ...(opts.nativeModules || {})},
-    UIManager: {getViewManagerConfig: () => ({})},
+    UIManager: {getViewManagerConfig: () => opts.viewConfig || ({})},
     requireNativeComponent: () => 'NativeWall',
     BackHandler: {addEventListener: () => ({remove() {}})},
     Dimensions: {get: () => ({width: 400, height: 800})},

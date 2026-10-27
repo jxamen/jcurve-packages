@@ -9,6 +9,7 @@
 #import <React/RCTEventEmitter.h>
 #import <UIKit/UIKit.h>
 #import <AdPopcornOfferwall/AdPopcornOfferwall.h>
+#import "JCurveOfferwallWebTap.h"
 #import <AdPopcornOfferwall/AdPopcornCustomReward.h>
 #import <AdPopcornOfferwall/AdPopcornCustomRewardCPM.h>
 #import <AdPopcornOfferwall/AdPopcornRewardCustomNativeAd.h>
@@ -95,6 +96,8 @@ static void JCAfter(NSTimeInterval seconds, dispatch_block_t block) {
 @property (nonatomic, strong) JCOnce *cpmOnce;
 @property (nonatomic, strong) JCOnce *nativeOnce;
 @property (nonatomic, weak) id previousDelegate;
+/// YES while JS has a listener on this emitter (0.4.0, the web tap posts only then).
+@property (nonatomic, assign) BOOL hasListeners;
 @end
 
 @implementation JCurveOfferwallModule
@@ -104,7 +107,9 @@ RCT_EXPORT_MODULE(JCurveOfferwallModule)
 + (BOOL)requiresMainQueueSetup { return YES; }
 /// Every exported method runs on the main thread: the SDK wants view controllers and UIKit there.
 - (dispatch_queue_t)methodQueue { return dispatch_get_main_queue(); }
-- (NSArray<NSString *> *)supportedEvents { return @[@"JCurveOfferwallEvent"]; }
+- (NSArray<NSString *> *)supportedEvents { return @[@"JCurveOfferwallEvent", @"JCurveOfferwallTap"]; }
+- (void)startObserving { self.hasListeners = YES; }
+- (void)stopObserving { self.hasListeners = NO; }
 
 - (void)emitType:(NSString *)type body:(NSDictionary *)body {
   NSMutableDictionary *map = [(body ?: @{}) mutableCopy];
@@ -299,17 +304,38 @@ RCT_EXPORT_METHOD(setClipboard:(NSString *)text resolver:(RCTPromiseResolveBlock
   resolve(@YES);
 }
 
+/// 0.4.0: switches the web tap (src/webTap.ts) on or off. `options`: { enabled, script, handler, hostPattern }. Resolves YES when the setting was taken;
+/// rejects E_FAILED when it is switched on with a script, handler name or host pattern that is missing or not acceptable.
+RCT_EXPORT_METHOD(setWebTap:(NSDictionary *)options resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+  BOOL enabled = [options[@"enabled"] boolValue];
+  NSString *script = [options[@"script"] isKindOfClass:[NSString class]] ? options[@"script"] : nil;
+  NSString *handler = [options[@"handler"] isKindOfClass:[NSString class]] ? options[@"handler"] : nil;
+  NSString *hostPattern = [options[@"hostPattern"] isKindOfClass:[NSString class]] ? options[@"hostPattern"] : nil;
+  JCurveOfferwallWebTap *tap = [JCurveOfferwallWebTap shared];
+  __weak JCurveOfferwallModule *weakSelf = self;
+  tap.onMessage = ^(NSString *json) {
+    JCurveOfferwallModule *strongSelf = weakSelf;
+    if (!strongSelf || !strongSelf.hasListeners) return;
+    @try { [strongSelf sendEventWithName:@"JCurveOfferwallTap" body:json]; } @catch (NSException *exception) { }
+  };
+  if (![tap configureEnabled:enabled script:script handler:handler hostPattern:hostPattern]) {
+    reject(@"E_FAILED", @"the web tap script, handler name or host pattern is not acceptable", nil);
+    return;
+  }
+  resolve(@YES);
+}
+
 /// What this build can do, so JS can tell a missing feature from a failure.
 RCT_EXPORT_METHOD(getCapabilities:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
   resolve(@{
     @"platform": @"ios",
     @"sdk": @"5.2.3",
-    @"bridge": @1,
+    @"bridge": @2,
     @"methods": @[
       @"openCampaignDetail", @"tryParticipateCampaign", @"loadCustomCampaigns", @"clickCustomCampaign", @"destroyCustomCampaigns",
       @"loadCustomNativeAds", @"impressionCustomNativeAd", @"clickCustomNativeAd",
       @"loadCustomCpm", @"impressionCustomCpm", @"clickCustomCpm", @"getEarnableTotalRewardInfo", @"getBridgeTotalRewardInfo",
-      @"openOfferwallWithFilter", @"closeOfferwall", @"setClipboard", @"viewDetailCampaignKey"
+      @"openOfferwallWithFilter", @"closeOfferwall", @"setClipboard", @"viewDetailCampaignKey", @"setWebTap", @"detailOpened"
     ],
   });
 }
@@ -317,7 +343,7 @@ RCT_EXPORT_METHOD(getCapabilities:(RCTPromiseResolveBlock)resolve rejecter:(RCTP
 #pragma mark - SDK delegate callbacks
 
 // AdPopcornOfferwallDelegate. Callbacks we do not use are passed on to the wrapper module while we hold the delegate.
-- (void)onOpenCampaignDetailPage { [self.detailOnce resolveValue:@YES]; }
+- (void)onOpenCampaignDetailPage { [self.detailOnce resolveValue:@YES]; [self emitType:@"detailOpened" body:nil]; }
 - (void)onCloseCampaignDetailPage { [self emitType:@"detailClosed" body:nil]; }
 
 - (void)onParticipateResult:(BOOL)result resultCode:(NSInteger)resultCode resultMessage:(NSString *)resultMessage landingURL:(NSString *)landingURL {

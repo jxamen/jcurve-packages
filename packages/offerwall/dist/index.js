@@ -272,7 +272,7 @@ function useOfferwallClosed(callback) {
 }
 let embeddedView;
 /** SDK ViewType list. Mount only after initializeOfferwall succeeds; unmount on exit/logout. */
-function OfferwallView({ usn, style, onLoaded, onError, campaignKeys, detailCampaignKey }) {
+function OfferwallView({ usn, style, onLoaded, onError, campaignKeys, detailCampaignKey, onDetailOpened, onDetailClosed }) {
     const React = require('react');
     const [readyUsn, setReadyUsn] = React.useState(null);
     const error = React.useRef(onError);
@@ -305,6 +305,17 @@ function OfferwallView({ usn, style, onLoaded, onError, campaignKeys, detailCamp
         return null;
     // A view prop the installed binary does not know would be an error there, so the new ones go only when the bridge is present.
     const extra = (0, native_1.hasNativeBridge)() ? { ...(campaignKeys?.length ? { campaignKeys } : {}), ...(detailCampaignKey ? { detailCampaignKey } : {}) } : {};
+    // The 0.4.0 event props go only to a view that says it has them (its native prop list) — a 0.3.0 binary has the module but not these view events.
+    if ((0, native_1.hasNativeBridge)() && (onDetailOpened || onDetailClosed)) {
+        try {
+            const nativeProps = require('react-native').UIManager.getViewManagerConfig('JCurveOfferwallView')?.NativeProps ?? {};
+            if (onDetailOpened && 'onDetailOpened' in nativeProps)
+                extra.onDetailOpened = onDetailOpened;
+            if (onDetailClosed && 'onDetailClosed' in nativeProps)
+                extra.onDetailClosed = onDetailClosed;
+        }
+        catch { /* an older binary: the props are simply not passed */ }
+    }
     return React.createElement(embeddedView, { usn, style: [{ flex: 1 }, style], onLoaded, ...extra });
 }
 var OfferwallScreen_1 = require("./OfferwallScreen");
@@ -316,6 +327,7 @@ __exportStar(require("./comboTrials"), exports);
 __exportStar(require("./comboCategories"), exports);
 __exportStar(require("./campaigns"), exports);
 __exportStar(require("./native"), exports);
+__exportStar(require("./webTap"), exports);
 __exportStar(require("./comboDone"), exports);
 __exportStar(require("./comboSeen"), exports);
 __exportStar(require("./wallSignal"), exports);

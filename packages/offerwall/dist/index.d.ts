@@ -79,11 +79,15 @@ export type OfferwallViewProps = {
     onError?: (result: OfferwallResult) => void;
     /** 0.3.0 builds only (ignored on older binaries): list just these campaigns. Android SDK setFilterCampaignKeyList. */
     campaignKeys?: string[];
-    /** 0.3.0 builds only (ignored on older binaries): open this campaign's detail inside the list. iOS SDK detailPageCampaignKey. */
+    /** 0.3.0 builds only (ignored on older binaries): open this campaign's detail inside the list. iOS SDK detailPageCampaignKey. With 0.4.0 the view shows the detail itself (pageType 5). */
     detailCampaignKey?: string;
+    /** 0.4.0 iOS builds only (the view must list `onDetailOpened` among its native props; older binaries never get the prop): the SDK opened the detail page inside the view. */
+    onDetailOpened?: () => void;
+    /** 0.4.0 iOS builds only: the detail page inside the view was closed (the member went back to the list). */
+    onDetailClosed?: () => void;
 };
 /** SDK ViewType list. Mount only after initializeOfferwall succeeds; unmount on exit/logout. */
-export declare function OfferwallView({ usn, style, onLoaded, onError, campaignKeys, detailCampaignKey }: OfferwallViewProps): import('react').ReactElement | null;
+export declare function OfferwallView({ usn, style, onLoaded, onError, campaignKeys, detailCampaignKey, onDetailOpened, onDetailClosed }: OfferwallViewProps): import('react').ReactElement | null;
 export { OfferwallScreen, OFFERWALL_SCREEN_MARK } from './OfferwallScreen';
 export type { OfferwallScreenProps } from './OfferwallScreen';
 export * from './combos';
@@ -92,6 +96,7 @@ export * from './comboTrials';
 export * from './comboCategories';
 export * from './campaigns';
 export * from './native';
+export * from './webTap';
 export * from './comboDone';
 export * from './comboSeen';
 export * from './wallSignal';

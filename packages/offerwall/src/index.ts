@@ -214,12 +214,16 @@ export type OfferwallViewProps = {
   onError?: (result: OfferwallResult) => void;
   /** 0.3.0 builds only (ignored on older binaries): list just these campaigns. Android SDK setFilterCampaignKeyList. */
   campaignKeys?: string[];
-  /** 0.3.0 builds only (ignored on older binaries): open this campaign's detail inside the list. iOS SDK detailPageCampaignKey. */
+  /** 0.3.0 builds only (ignored on older binaries): open this campaign's detail inside the list. iOS SDK detailPageCampaignKey. With 0.4.0 the view shows the detail itself (pageType 5). */
   detailCampaignKey?: string;
+  /** 0.4.0 iOS builds only (the view must list `onDetailOpened` among its native props; older binaries never get the prop): the SDK opened the detail page inside the view. */
+  onDetailOpened?: () => void;
+  /** 0.4.0 iOS builds only: the detail page inside the view was closed (the member went back to the list). */
+  onDetailClosed?: () => void;
 };
 let embeddedView: import('react').ComponentType<any> | undefined;
 /** SDK ViewType list. Mount only after initializeOfferwall succeeds; unmount on exit/logout. */
-export function OfferwallView({ usn, style, onLoaded, onError, campaignKeys, detailCampaignKey }: OfferwallViewProps): import('react').ReactElement | null {
+export function OfferwallView({ usn, style, onLoaded, onError, campaignKeys, detailCampaignKey, onDetailOpened, onDetailClosed }: OfferwallViewProps): import('react').ReactElement | null {
   const React = require('react') as typeof import('react');
   const [readyUsn, setReadyUsn] = React.useState<string | null>(null);
   const error = React.useRef(onError);
@@ -243,7 +247,15 @@ export function OfferwallView({ usn, style, onLoaded, onError, campaignKeys, det
   }, [usn]);
   if (readyUsn !== usn || !embeddedView) return null;
   // A view prop the installed binary does not know would be an error there, so the new ones go only when the bridge is present.
-  const extra = hasNativeBridge() ? { ...(campaignKeys?.length ? { campaignKeys } : {}), ...(detailCampaignKey ? { detailCampaignKey } : {}) } : {};
+  const extra: Record<string, unknown> = hasNativeBridge() ? { ...(campaignKeys?.length ? { campaignKeys } : {}), ...(detailCampaignKey ? { detailCampaignKey } : {}) } : {};
+  // The 0.4.0 event props go only to a view that says it has them (its native prop list) — a 0.3.0 binary has the module but not these view events.
+  if (hasNativeBridge() && (onDetailOpened || onDetailClosed)) {
+    try {
+      const nativeProps = (require('react-native').UIManager.getViewManagerConfig('JCurveOfferwallView') as { NativeProps?: Record<string, unknown> } | null)?.NativeProps ?? {};
+      if (onDetailOpened && 'onDetailOpened' in nativeProps) extra.onDetailOpened = onDetailOpened;
+      if (onDetailClosed && 'onDetailClosed' in nativeProps) extra.onDetailClosed = onDetailClosed;
+    } catch { /* an older binary: the props are simply not passed */ }
+  }
   return React.createElement(embeddedView, { usn, style: [{ flex: 1 }, style], onLoaded, ...extra });
 }
 
@@ -255,6 +267,7 @@ export * from './comboTrials';
 export * from './comboCategories';
 export * from './campaigns';
 export * from './native';
+export * from './webTap';
 export * from './comboDone';
 export * from './comboSeen';
 export * from './wallSignal';

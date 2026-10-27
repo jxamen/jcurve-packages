@@ -14,7 +14,7 @@ export type NativeCpmCampaign = { id: string; title?: string; description?: stri
 export type ParticipateResult = { success: boolean; code: number; message: string; landingUrl: string } | null;
 export type TotalRewardInfo = { queryResult: boolean; totalCount: number; totalReward: string; bridgePlacementId?: string } | null;
 export type OfferwallNativeCapabilities = { platform: 'android' | 'ios'; sdk: string; bridge: number; methods: string[] };
-/** Events the bridge emits: detailClosed, customNativeClickSuccess | customNativeFailed | customNativeCompleted, customCpmClickSuccess | customCpmClickFailed | customCpmCompleted. */
+/** Events the bridge emits: detailOpened (0.4.0) | detailClosed, customNativeClickSuccess | customNativeFailed | customNativeCompleted, customCpmClickSuccess | customCpmClickFailed | customCpmCompleted. */
 export type OfferwallNativeEvent = { type: string; [key: string]: unknown };
 
 type Bridge = Record<string, any>;
@@ -76,6 +76,10 @@ export const useFlagShowWhenLocked = (enabled: boolean): Promise<boolean> => cal
 /** Puts text on the clipboard without a separate clipboard module. */
 export const setClipboard = (text: string): Promise<boolean> => call('setClipboard', text);
 
+/** 0.4.0, iOS only (Android rejects E_UNSUPPORTED): what the native web tap needs — see webTap.ts. `enabled: false` removes the script for web views created from now on. */
+export type NativeWebTapOptions = { enabled: boolean; script?: string; handler?: string; hostPattern?: string };
+export const setWebTap = (options: NativeWebTapOptions): Promise<boolean> => call('setWebTap', options);
+
 /** Bridge events. Uses NativeEventEmitter, which iOS needs to count listeners. Returns an unsubscribe function. */
 export function addOfferwallNativeListener(listener: (event: OfferwallNativeEvent) => void): () => void {
   try {
@@ -87,10 +91,21 @@ export function addOfferwallNativeListener(listener: (event: OfferwallNativeEven
   } catch { return () => {}; }
 }
 
+/** 0.4.0, iOS: what the web tap posts (a JSON string or an object; webTap.ts checks it). Returns an unsubscribe function. */
+export function addTapListener(listener: (raw: unknown) => void): () => void {
+  try {
+    const { NativeEventEmitter } = require('react-native') as typeof import('react-native');
+    const mod = bridge();
+    if (!mod) return () => {};
+    const subscription = new NativeEventEmitter(mod as any).addListener('JCurveOfferwallTap', listener);
+    return () => subscription.remove();
+  } catch { return () => {}; }
+}
+
 /** Every method this file wraps, for the capability check in tests and docs. */
 export const OFFERWALL_NATIVE_METHODS = [
   'openCampaignDetail', 'tryParticipateCampaign', 'loadCustomCampaigns', 'clickCustomCampaign', 'destroyCustomCampaigns',
   'loadCustomNativeAds', 'impressionCustomNativeAd', 'clickCustomNativeAd', 'completeCustomNativeAd',
   'loadCustomCpm', 'impressionCustomCpm', 'clickCustomCpm', 'getEarnableTotalRewardInfo', 'getBridgeTotalRewardInfo',
-  'openOfferwallWithFilter', 'closeOfferwall', 'setUserAgreement', 'useFlagShowWhenLocked', 'setClipboard',
+  'openOfferwallWithFilter', 'closeOfferwall', 'setUserAgreement', 'useFlagShowWhenLocked', 'setClipboard', 'setWebTap',
 ] as const;

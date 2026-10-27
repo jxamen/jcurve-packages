@@ -9,6 +9,9 @@
 /// Optional: open this campaign's detail inside the list view (SDK detailPageCampaignKey). Unset = the list, as before.
 @property (nonatomic, copy) NSString *detailCampaignKey;
 @property (nonatomic, copy) RCTDirectEventBlock onLoaded;
+/// 0.4.0: the SDK opened / closed the detail page inside this view (AdPopcornOfferwallViewTypeDelegate).
+@property (nonatomic, copy) RCTDirectEventBlock onDetailOpened;
+@property (nonatomic, copy) RCTDirectEventBlock onDetailClosed;
 @property (nonatomic, weak) RCTBridge *bridge;
 @property (nonatomic, strong) AdPopcornOfferwallViewController *offerwall;
 @property (nonatomic, assign) CGSize lastSize;
@@ -44,7 +47,9 @@
     id delegate = [self.bridge moduleForName:@"RNAdPopcornRewardModule"];
     [AdPopcornOfferwall shared].delegate = delegate;
     AdPopcornOfferwallViewController *vc = [AdPopcornOfferwallViewController new];
-    vc.pageType = 0; // SDK list page (same value used by the SDK's list presenter).
+    // 0 = the SDK list page (the value its list presenter uses). 5 = a campaign's detail page (what the SDK's own openCampaignDetailViewController uses with
+    // detailPageCampaignKey); with pageType 0 a detail key is ignored and only the list shows.
+    vc.pageType = self.detailCampaignKey.length > 0 ? 5 : 0;
     [vc setViewMode:YES];
     [vc setViewModeWidthSize:size.width];
     [vc setViewModeHeightSize:size.height];
@@ -69,6 +74,8 @@
   [self.offerwall setViewModeImpression];
   if (self.onLoaded) self.onLoaded(@{});
 }
+- (void)OnOpenedDetailPage { if (self.onDetailOpened) self.onDetailOpened(@{}); }
+- (void)OnClosedDetailPage { if (self.onDetailClosed) self.onDetailClosed(@{}); }
 - (void)detach {
   AdPopcornOfferwallViewController *vc = self.offerwall;
   if (!vc) return;
@@ -97,4 +104,6 @@ RCT_EXPORT_MODULE(JCurveOfferwallView)
 RCT_EXPORT_VIEW_PROPERTY(usn, NSString)
 RCT_EXPORT_VIEW_PROPERTY(detailCampaignKey, NSString)
 RCT_EXPORT_VIEW_PROPERTY(onLoaded, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onDetailOpened, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onDetailClosed, RCTDirectEventBlock)
 @end

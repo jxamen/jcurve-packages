@@ -10,6 +10,7 @@ Pod::Spec.new do |s|
   s.source = { :git => 'https://github.com/jxamen/jcurve-packages.git' }
   s.platform = :ios, '15.1'
   s.source_files = 'ios/**/*.{h,m,mm}'
+  s.frameworks = 'WebKit'
   s.dependency 'React-Core'
   s.dependency 'AdPopcornOfferwall', '5.2.3'
 end

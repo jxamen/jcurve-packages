@@ -1,8 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.OFFERWALL_NATIVE_METHODS = exports.setClipboard = exports.useFlagShowWhenLocked = exports.setUserAgreement = exports.closeOfferwall = exports.openOfferwallWithFilter = exports.getBridgeTotalRewardInfo = exports.getEarnableTotalRewardInfo = exports.clickCustomCpm = exports.impressionCustomCpm = exports.loadCustomCpm = exports.completeCustomNativeAd = exports.clickCustomNativeAd = exports.impressionCustomNativeAd = exports.loadCustomNativeAds = exports.destroyCustomCampaigns = exports.clickCustomCampaign = exports.loadCustomCampaigns = exports.tryParticipateCampaign = exports.openCampaignDetail = exports.getOfferwallNativeCapabilities = void 0;
+exports.OFFERWALL_NATIVE_METHODS = exports.setWebTap = exports.setClipboard = exports.useFlagShowWhenLocked = exports.setUserAgreement = exports.closeOfferwall = exports.openOfferwallWithFilter = exports.getBridgeTotalRewardInfo = exports.getEarnableTotalRewardInfo = exports.clickCustomCpm = exports.impressionCustomCpm = exports.loadCustomCpm = exports.completeCustomNativeAd = exports.clickCustomNativeAd = exports.impressionCustomNativeAd = exports.loadCustomNativeAds = exports.destroyCustomCampaigns = exports.clickCustomCampaign = exports.loadCustomCampaigns = exports.tryParticipateCampaign = exports.openCampaignDetail = exports.getOfferwallNativeCapabilities = void 0;
 exports.hasNativeBridge = hasNativeBridge;
 exports.addOfferwallNativeListener = addOfferwallNativeListener;
+exports.addTapListener = addTapListener;
 function bridge() {
     try {
         const { NativeModules } = require('react-native');
@@ -83,6 +84,8 @@ exports.useFlagShowWhenLocked = useFlagShowWhenLocked;
 /** Puts text on the clipboard without a separate clipboard module. */
 const setClipboard = (text) => call('setClipboard', text);
 exports.setClipboard = setClipboard;
+const setWebTap = (options) => call('setWebTap', options);
+exports.setWebTap = setWebTap;
 /** Bridge events. Uses NativeEventEmitter, which iOS needs to count listeners. Returns an unsubscribe function. */
 function addOfferwallNativeListener(listener) {
     try {
@@ -97,10 +100,24 @@ function addOfferwallNativeListener(listener) {
         return () => { };
     }
 }
+/** 0.4.0, iOS: what the web tap posts (a JSON string or an object; webTap.ts checks it). Returns an unsubscribe function. */
+function addTapListener(listener) {
+    try {
+        const { NativeEventEmitter } = require('react-native');
+        const mod = bridge();
+        if (!mod)
+            return () => { };
+        const subscription = new NativeEventEmitter(mod).addListener('JCurveOfferwallTap', listener);
+        return () => subscription.remove();
+    }
+    catch {
+        return () => { };
+    }
+}
 /** Every method this file wraps, for the capability check in tests and docs. */
 exports.OFFERWALL_NATIVE_METHODS = [
     'openCampaignDetail', 'tryParticipateCampaign', 'loadCustomCampaigns', 'clickCustomCampaign', 'destroyCustomCampaigns',
     'loadCustomNativeAds', 'impressionCustomNativeAd', 'clickCustomNativeAd', 'completeCustomNativeAd',
     'loadCustomCpm', 'impressionCustomCpm', 'clickCustomCpm', 'getEarnableTotalRewardInfo', 'getBridgeTotalRewardInfo',
-    'openOfferwallWithFilter', 'closeOfferwall', 'setUserAgreement', 'useFlagShowWhenLocked', 'setClipboard',
+    'openOfferwallWithFilter', 'closeOfferwall', 'setUserAgreement', 'useFlagShowWhenLocked', 'setClipboard', 'setWebTap',
 ];

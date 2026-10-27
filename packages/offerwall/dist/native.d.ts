@@ -51,7 +51,7 @@ export type OfferwallNativeCapabilities = {
     bridge: number;
     methods: string[];
 };
-/** Events the bridge emits: detailClosed, customNativeClickSuccess | customNativeFailed | customNativeCompleted, customCpmClickSuccess | customCpmClickFailed | customCpmCompleted. */
+/** Events the bridge emits: detailOpened (0.4.0) | detailClosed, customNativeClickSuccess | customNativeFailed | customNativeCompleted, customCpmClickSuccess | customCpmClickFailed | customCpmCompleted. */
 export type OfferwallNativeEvent = {
     type: string;
     [key: string]: unknown;
@@ -88,7 +88,17 @@ export declare const setUserAgreement: (agreed: boolean) => Promise<boolean>;
 export declare const useFlagShowWhenLocked: (enabled: boolean) => Promise<boolean>;
 /** Puts text on the clipboard without a separate clipboard module. */
 export declare const setClipboard: (text: string) => Promise<boolean>;
+/** 0.4.0, iOS only (Android rejects E_UNSUPPORTED): what the native web tap needs — see webTap.ts. `enabled: false` removes the script for web views created from now on. */
+export type NativeWebTapOptions = {
+    enabled: boolean;
+    script?: string;
+    handler?: string;
+    hostPattern?: string;
+};
+export declare const setWebTap: (options: NativeWebTapOptions) => Promise<boolean>;
 /** Bridge events. Uses NativeEventEmitter, which iOS needs to count listeners. Returns an unsubscribe function. */
 export declare function addOfferwallNativeListener(listener: (event: OfferwallNativeEvent) => void): () => void;
+/** 0.4.0, iOS: what the web tap posts (a JSON string or an object; webTap.ts checks it). Returns an unsubscribe function. */
+export declare function addTapListener(listener: (raw: unknown) => void): () => void;
 /** Every method this file wraps, for the capability check in tests and docs. */
-export declare const OFFERWALL_NATIVE_METHODS: readonly ["openCampaignDetail", "tryParticipateCampaign", "loadCustomCampaigns", "clickCustomCampaign", "destroyCustomCampaigns", "loadCustomNativeAds", "impressionCustomNativeAd", "clickCustomNativeAd", "completeCustomNativeAd", "loadCustomCpm", "impressionCustomCpm", "clickCustomCpm", "getEarnableTotalRewardInfo", "getBridgeTotalRewardInfo", "openOfferwallWithFilter", "closeOfferwall", "setUserAgreement", "useFlagShowWhenLocked", "setClipboard"];
+export declare const OFFERWALL_NATIVE_METHODS: readonly ["openCampaignDetail", "tryParticipateCampaign", "loadCustomCampaigns", "clickCustomCampaign", "destroyCustomCampaigns", "loadCustomNativeAds", "impressionCustomNativeAd", "clickCustomNativeAd", "completeCustomNativeAd", "loadCustomCpm", "impressionCustomCpm", "clickCustomCpm", "getEarnableTotalRewardInfo", "getBridgeTotalRewardInfo", "openOfferwallWithFilter", "closeOfferwall", "setUserAgreement", "useFlagShowWhenLocked", "setClipboard", "setWebTap"];

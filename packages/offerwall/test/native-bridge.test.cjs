@@ -24,6 +24,7 @@ const WRAPPERS = [
   ['setUserAgreement', 'setUserAgreement', [true]],
   ['useFlagShowWhenLocked', 'useFlagShowWhenLocked', [false]],
   ['setClipboard', 'setClipboard', ['복사']],
+  ['setWebTap', 'setWebTap', [{enabled: false}]],
 ];
 
 test('every wrapper is listed and exported', () => {
@@ -83,7 +84,7 @@ test('events: listens through NativeEventEmitter (iOS counts listeners there) an
 });
 
 // ---- the embedded list view gets the new props only when the bridge exists ----
-const renderView = async (nativeModules, props) => {
+const renderView = async (nativeModules, props, viewConfig) => {
   let element;
   await withReact(async ({host}) => {
     api.configureOfferwall({appKey: 'k', hashKey: 'h'});
@@ -91,7 +92,7 @@ const renderView = async (nativeModules, props) => {
     const mount = () => host.render(() => api.OfferwallView({usn, ...props}));
     mount(); host.flush(); await tick();
     element = mount();
-  }, {nativeModules});
+  }, {nativeModules, viewConfig});
   return element;
 };
 
@@ -108,6 +109,24 @@ test('OfferwallView: new view props only go to binaries that have the bridge', a
   const empty = await renderView({JCurveOfferwallModule: {}}, {campaignKeys: [], detailCampaignKey: ''});
   assert.equal('campaignKeys' in empty.props || 'detailCampaignKey' in empty.props, false);
   assert.ok(walk(old).length >= 1);
+});
+
+test('OfferwallView (0.4.0): the detail event props go only to a view whose native props list them', async () => {
+  const handlers = {onDetailOpened() {}, onDetailClosed() {}, detailCampaignKey: '352216486'};
+  // a 0.3.0 binary: the module is there but its view has no detail events — the props are not passed (they could break an older view)
+  const v030 = await renderView({JCurveOfferwallModule: {}}, handlers, {NativeProps: {usn: 'String', detailCampaignKey: 'String', onLoaded: 'bool'}});
+  assert.equal('onDetailOpened' in v030.props || 'onDetailClosed' in v030.props, false);
+  assert.equal(v030.props.detailCampaignKey, '352216486');
+  // a 0.4.0 binary
+  const v040 = await renderView({JCurveOfferwallModule: {}}, handlers, {NativeProps: {usn: 'String', onDetailOpened: 'bool', onDetailClosed: 'bool'}});
+  assert.equal(v040.props.onDetailOpened, handlers.onDetailOpened);
+  assert.equal(v040.props.onDetailClosed, handlers.onDetailClosed);
+  // a binary with no module at all (0.2.x) never gets them, whatever its view says
+  const v02 = await renderView({}, handlers, {NativeProps: {onDetailOpened: 'bool', onDetailClosed: 'bool'}});
+  assert.equal('onDetailOpened' in v02.props || 'detailCampaignKey' in v02.props, false);
+  // nothing asked, nothing passed
+  const none = await renderView({JCurveOfferwallModule: {}}, {}, {NativeProps: {onDetailOpened: 'bool', onDetailClosed: 'bool'}});
+  assert.equal('onDetailOpened' in none.props, false);
 });
 
 test('no native lookup runs at import time (safe to ship by OTA to older binaries)', () => {
