@@ -1,4 +1,6 @@
 export * from './funnel';
+export * from './combos';
+export * from './comboEntry';
 import type { ChanceFunnel, OfferwallAttempt } from './funnel';
 /** Native SDK is required lazily: importing this package works before keys/SDK exist. */
 export type OfferwallResult = { ok: true } | { ok: false; reason: 'not_ready' | 'invalid_usn' | 'sdk_error'; message: string };

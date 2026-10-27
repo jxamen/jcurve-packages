@@ -143,3 +143,43 @@ Configure `configureOfferwallFunnel((event, p) => existingApi.post('funnel', {de
 Each screen calls `useChanceFunnel()` and passes its result as `OfferwallView funnel`. Screen visibility emits `chance_tab_open` once; screen exit emits `offerwall_close` once, including the Android hardware back path. Existing SDK close callbacks emit sdk_close and share the same once-only guard. Each SDK view invocation emits one terminal `offerwall_open`: Android `loaded`, iOS `attached`, or `not_ready` / `invalid_usn` / `sdk_error` / `timeout` / `cancelled`. A retry is a new invocation. `attached` is not campaign load confirmation. An unready screen without a SDK invocation produces no open event. A process kill cannot guarantee close delivery.
 
 `p` = status:tester:visibility (max 40). tester: test/user/unknown; visibility: all/android/ios/both/list/off/unknown (`all` means `*`). App identity and OS use existing funnel columns. No new native dependency, permission, SDK callback or member payload. Sender failure never changes UI. SDK 1.0.0 exposes close/completion/reward totals, but no JS item-click/start callback: **SDK 미제공**; completion is never counted as a click.
+
+## 0.2.4 — 오늘의 포인트 조합 (JS only, OTA 가능)
+
+목표(1천 · 5천 · 1만P)별로 묶은 오늘의 할 일 조합을 보여 주는 카드 · 배너 · 안내 페이지. 화면은 서버 값을 그리기만 하고 포인트 지급은 하지 않는다. 새 네이티브 의존성 · 권한 없음.
+
+```tsx
+import { TodayComboEntry } from '@jcurve/offerwall';
+// 찬스 탭, 목록(OfferwallView) 위에 한 번
+<TodayComboEntry placement="chance" url={`${base}/v1/${slug}/offerwall/combos`} headers={authHeaders} usn={usn} accentColor={brand} />
+// 홈에 배너를 쓰려면 홈에도 한 번 (서버가 home: 'banner' 로 켤 때만 보인다)
+<TodayComboEntry placement="home" url={...} headers={...} usn={usn} />
+```
+
+- `url` 이 없으면 아무것도 그리지 않는다. 고정 예시(`TODAY_COMBOS_SAMPLE`)는 `sample` 을 켠 화면 작업에서만 나온다 — **릴리스에 `sample` 금지**.
+- 안내 페이지는 `Modal` 로 지금 화면 위에 덮인다. 어느 탭에서 불러도 된다.
+- 항목을 누르면 `onPressMission(mission, bundle)`. 없으면 `usn` 으로 오퍼월 전체를 연다(SDK 가 특정 캠페인을 직접 여는 호출을 주지 않는다). 둘 다 없으면 눌러도 반응하지 않는다.
+
+**서버 응답** (`ok: false` 이거나 모양이 틀리면 숨긴다. 값은 모두 검증해서 쓴다)
+
+```json
+{ "ok": true, "combos": {
+  "date": "2026-10-27",
+  "display": { "chance": "card", "home": "off" },
+  "bundles": [ { "goal": 1000, "missions": [
+    { "id": "c-101", "name": "간단한 설문 하나", "points": 450, "todo": "질문 5개에 답하기", "level": "easy", "minutes": 3 } ] } ] } }
+```
+
+- `date`(KST, 없으면 항상 오늘로 본다)가 오늘이 아니면 보여 주지 않는다. 자정을 넘겨 앱을 켜 둬도 어제 조합은 사라진다.
+- `display.chance`: `card`(기본) / `banner` / `off`, `display.home`: `banner` / `off`(기본). **켜고 끄기는 서버 값으로**. `chance` 가 `off` 여도 팝업 · 푸시로 들어오는 길은 살아 있다.
+- `level`: `easy`(쉬움) / `normal`(보통) / `hard`(조금 걸려요). 합계는 화면에서 항목 포인트를 더해 만들고, 합이 `goal` 에 못 미치는 묶음은 통째로 뺀다.
+- 묶음 최대 6개, 묶음당 항목 최대 12개, 이름 40자 · 할 일 80자.
+
+**팝업 · 푸시 · 링크로 들어오기** — 경로 이름은 `offerwall/combos` (`COMBOS_ROUTE`). 앱은 URL 스킴이 아니라 앱 안 이동 액션을 쓰므로 팝업 `action` / 푸시 `data.go` 를 받는 쪽에서 한 줄만 더한다.
+
+```ts
+import { isCombosRoute, requestOpenCombos } from '@jcurve/offerwall';
+if (isCombosRoute(action)) { goTab('offerwall'); requestOpenCombos(); }   // 탭 이동 코드는 앱마다 다르다
+```
+
+`requestOpenCombos()` 는 마운트된 `TodayComboEntry` 가 있으면 바로 열고(찬스 탭이 홈보다 먼저), 아직 없으면 10초까지 기다렸다가 처음 마운트되는 쪽에서 연다. 오래된 요청이 나중에 갑자기 열리지는 않는다. 구버전 앱에는 이 코드가 없으므로 서버 팝업은 `chancePromo=1` 처럼 지원 앱만 받는 조건을 따로 걸어야 한다.
