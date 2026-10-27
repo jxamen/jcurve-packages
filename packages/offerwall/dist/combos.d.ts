@@ -86,6 +86,21 @@ export declare const COMBO_POPUP_NOTICE = "\uC120\uCC29\uC21C \u00B7 \uCEA0\uD39
  * how many easy missions there are, with how long one takes when the server gave minutes (the middle value, so one odd mission does not decide it).
  */
 export declare function comboPopupContent(combos: TodayCombos): ComboPopupContent;
+/** Width the popup's headline has to fit in: a 320 card minus 22 + 22 padding. */
+export declare const COMBO_POPUP_HEADLINE_WIDTH = 276;
+/**
+ * 대표님 10/27 22:27 「두 줄을 한 줄로」: the popup headline 「오늘 +5,597P 모을 수 있어요」 is one line, the number big. When the words and
+ * the number do not fit the card at full size (words 18 · number 34), both shrink by the same factor (at least 0.6) so a long number
+ * (6 digits) still fits. The line height is the same for the words and the number and a bit more than the number's size, so the top of the
+ * big digits is never cut off (a nested text taller than its parent's line height is clipped on iOS).
+ * Widths are estimated per character (Hangul 1 em, digits and letters 0.62, comma / period / space 0.3), the text itself also carries
+ * `adjustsFontSizeToFit` as a net.
+ */
+export declare function popupHeadlineSizes(content: Pick<ComboPopupContent, 'before' | 'amount' | 'after'>, width?: number): {
+    words: number;
+    amount: number;
+    line: number;
+};
 /** 1000 → 1천P, 5000 → 5천P, 10000 → 1만P, anything else → 1,500P */
 export declare function formatGoal(goal: number): string;
 /**

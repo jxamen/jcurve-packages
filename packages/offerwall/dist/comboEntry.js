@@ -155,6 +155,7 @@ function ComboPopup({ combos, theme, art, ad, onOpen, onClose }) {
     const h = React.createElement;
     const t = theme;
     const content = (0, combos_1.comboPopupContent)(combos);
+    const headline = (0, combos_1.popupHeadlineSizes)(content);
     const grow = React.useRef(null);
     if (!grow.current)
         grow.current = new Animated.Value(0);
@@ -181,16 +182,22 @@ function ComboPopup({ combos, theme, art, ad, onOpen, onClose }) {
     }), h(Animated.View, {
         accessibilityViewIsModal: true,
         style: { width: '100%', maxWidth: 320, maxHeight: room > 0 ? Math.max(POPUP_MIN_HEIGHT, room - POPUP_TOP - POPUP_EDGE) : Math.round(Dimensions.get('window').height * 0.86), borderRadius: 24, overflow: 'hidden', backgroundColor: t.card, opacity, transform: [{ scale }], ...t.shadow },
-    }, h(ScrollView, { bounces: false, showsVerticalScrollIndicator: false, style: { flexGrow: 0 } }, h(View, { accessible: false, style: { height: 132, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accentSoft } }, coin(40, 'coin-left', { position: 'absolute', left: 48, top: 66, opacity: 0.9 }), coin(40, 'coin-right', { position: 'absolute', right: 48, top: 22, opacity: 0.9 }), coin(96, 'coin-main'), sparkle('s1', 34, 26, 10, '45deg', t.accent), sparkle('s2', '76%', 78, 8, '45deg', t.accentText), sparkle('s3', 70, 100, 7, '45deg', t.accentText), sparkle('s4', '84%', 18, 12, '45deg', t.accent)), h(View, { style: { paddingHorizontal: 22, paddingTop: 20, paddingBottom: 20, alignItems: 'center' } }, 
-    // Two lines on purpose (a break in the middle of 「있어요」 would look broken): 「오늘 +5,965P」 with the big number, then the rest.
-    h(Text, { accessibilityRole: 'header', style: { fontSize: 20, lineHeight: 30, fontWeight: '700', color: t.text, textAlign: 'center' } }, content.before, h(Text, { style: { fontSize: 34, lineHeight: 42, fontWeight: '900', color: t.point } }, content.amount), '\n', content.after.trim()), content.sub ? h(Text, { style: { marginTop: 6, fontSize: 14, lineHeight: 20, color: t.sub, textAlign: 'center' } }, content.sub) : null, 
+    }, h(ScrollView, { bounces: false, showsVerticalScrollIndicator: false, style: { flexGrow: 0 } }, 
+    // 대표님 10/27 22:27 「동전 칸 높이를 반으로」: 66 high (was 132), the coins half their size
+    h(View, { accessible: false, style: { height: 66, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accentSoft } }, coin(20, 'coin-left', { position: 'absolute', left: 48, top: 34, opacity: 0.9 }), coin(20, 'coin-right', { position: 'absolute', right: 52, top: 10, opacity: 0.9 }), coin(48, 'coin-main'), sparkle('s1', 34, 13, 6, '45deg', t.accent), sparkle('s2', '74%', 40, 5, '45deg', t.accentText), sparkle('s3', 70, 50, 4, '45deg', t.accentText), sparkle('s4', '82%', 9, 7, '45deg', t.accent)), h(View, { style: { paddingHorizontal: 22, paddingTop: 20, paddingBottom: 20, alignItems: 'center' } }, 
+    // One line (대표님 10/27 22:27): 「오늘 +5,965P 모을 수 있어요」 with the big number; sizes shrink together when it would not fit, and the
+    // words and the number share one line height so the top of the digits is not cut off.
+    h(Text, {
+        accessibilityRole: 'header', numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: 0.6,
+        style: { fontSize: headline.words, lineHeight: headline.line, fontWeight: '700', color: t.text, textAlign: 'center' },
+    }, content.before, h(Text, { style: { fontSize: headline.amount, lineHeight: headline.line, fontWeight: '900', color: t.point } }, content.amount), content.after), content.sub ? h(Text, { style: { marginTop: 6, fontSize: 14, lineHeight: 20, color: t.sub, textAlign: 'center' } }, content.sub) : null, 
     // Campaigns close when their places run out: said plainly, right under the number (a true statement, not a promise).
-    h(View, { style: { marginTop: 10, borderRadius: t.radius.chip, backgroundColor: t.accentSoft, paddingVertical: 6, paddingHorizontal: 12 } }, h(Text, { style: { fontSize: 13, lineHeight: 18, fontWeight: '700', color: t.accentText, textAlign: 'center' } }, content.notice)), h(Pressable, {
+    h(View, { style: { marginTop: 10, borderRadius: t.radius.chip, backgroundColor: t.accentSoft, paddingVertical: 3, paddingHorizontal: 12 } }, h(Text, { style: { fontSize: 12, lineHeight: 16, fontWeight: '700', color: t.accentText, textAlign: 'center' } }, content.notice)), h(Pressable, {
         accessibilityRole: 'button', accessibilityLabel: '추천 보기', onPress: onOpen,
         style: ({ pressed }) => ({
-            alignSelf: 'stretch', height: 52, marginTop: 18, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accent, opacity: pressed ? 0.85 : 1,
+            alignSelf: 'stretch', height: 36, marginTop: 14, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accent, opacity: pressed ? 0.85 : 1,
         }),
-    }, h(Text, { style: { fontSize: 17, fontWeight: '800', color: t.text } }, '추천 보기')), 
+    }, h(Text, { style: { fontSize: 15, fontWeight: '800', color: t.text } }, '추천 보기')), 
     // The app's ad (its own spacing: it should keep clear of the button above and leave no gap when it is not filled)
     ad ? ad() : null)), 
     // ✕ stays put at the top right while the card scrolls

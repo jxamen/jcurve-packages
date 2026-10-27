@@ -54,7 +54,7 @@ test('popup: wall loaded -> after a short wait a recommendation popup shows with
     assert.equal(popupShown(tree), true);
     const all = texts(tree);
     assert.ok(all.includes('포인트 빨리 모으기'));
-    assert.equal(all.join('').includes('오늘 +600P\n모을 수 있어요'), true, 'big-number headline from the server sum');
+    assert.equal(all.join('').includes('오늘 +600P 모을 수 있어요'), true, 'big-number headline from the server sum, on one line');
     assert.ok(all.includes('쉬운 미션 3개'));
     assert.ok(all.includes('선착순 · 캠페인마다 인원이 차면 끝나요'), 'the first-come notice');
     assert.equal(all.includes('닫기'), false, 'no 닫기 text any more');
@@ -325,20 +325,25 @@ const popupTree = async (make, entry = {}, rnSetup) => {
   } finally { timers.restore(); api.notifyWallGone(); }
 };
 
-test('popup design: a headline with the sum as a big number, one subtitle line, a first-come pill, ONE wide button, a ✕ at the top right (no 닫기 link), over a darker backdrop', () => withReact(async ({make}) => {
+test('popup design: a ONE-line headline with the sum as a big number, one subtitle line, a thin first-come pill, ONE smaller wide button, a ✕ at the top right (no 닫기 link), over a darker backdrop', () => withReact(async ({make}) => {
   const tree = await popupTree(make);
   const header = walk(tree).find(n => n.type === 'Text' && n.props.accessibilityRole === 'header');
   assert.ok(header, 'the headline is a header');
-  assert.equal(texts(header).join(''), '오늘 +600P\n모을 수 있어요', 'two lines on purpose: the number, then the rest');
+  assert.equal(texts(header).join(''), '오늘 +600P 모을 수 있어요', 'one line: 오늘 + the number + the rest');
+  assert.equal(header.props.numberOfLines, 1);
+  assert.equal(header.props.adjustsFontSizeToFit, true, 'shrinks as a net when a number is long');
   const amount = walk(header).find(n => n.type === 'Text' && n.children[0] === '+600P');
   assert.ok(amount.props.style.fontSize >= 30, 'the number is big');
   assert.ok(amount.props.style.fontSize > header.props.style.fontSize * 1.5, 'much bigger than the words around it');
-  assert.equal(header.props.style.fontSize, 20);
+  assert.equal(header.props.style.fontSize, 18);
+  assert.equal(amount.props.style.lineHeight, header.props.style.lineHeight, 'the words and the number share one line height (the top of the digits is not cut)');
+  assert.ok(amount.props.style.lineHeight >= amount.props.style.fontSize * 1.2, 'a line taller than the big number');
   assert.ok(texts(tree).includes('쉬운 미션 3개'), 'one subtitle line');
   const open = byLabel(tree, '추천 보기');
   const openStyle = open.props.style({pressed: false});
   assert.equal(openStyle.alignSelf, 'stretch', 'wide button');
-  assert.equal(openStyle.height, 52);
+  assert.equal(openStyle.height, 36, 'about two thirds of the old 52');
+  assert.equal(walk(open).find(n => n.type === 'Text').props.style.fontSize, 15);
   assert.equal(openStyle.backgroundColor, api.DEFAULT_COMBO_THEME.accent, 'accent colour');
   const close = byLabel(tree, '닫기');
   assert.deepEqual(texts(close), ['✕']);
@@ -348,6 +353,7 @@ test('popup design: a headline with the sum as a big number, one subtitle line, 
   assert.equal(texts(tree).includes('닫기'), false, 'no 닫기 text link');
   const pill = walk(tree).find(n => n.type === 'View' && texts(n).join('') === '선착순 · 캠페인마다 인원이 차면 끝나요' && n.props.style && n.props.style.backgroundColor === api.DEFAULT_COMBO_THEME.accentSoft);
   assert.ok(pill, 'a pill under the subtitle');
+  assert.equal(pill.props.style.paddingVertical, 3, 'thinner than before (6)');
   const scrim = byLabel(tree, '팝업 닫기');
   assert.equal(scrim.props.style.backgroundColor, 'rgba(0,0,0,0.55)', 'darker than before (0.4)');
 }));
@@ -360,7 +366,7 @@ test('popup design: it scales in (an animated card with scale + opacity), and th
   assert.ok('opacity' in card.props.style);
   assert.equal(card.props.style.borderRadius, 24);
   assert.equal(card.props.style.maxWidth, 320);
-  const picture = walk(card).find(n => n.type === 'View' && n.props.style && n.props.style.height === 132);
+  const picture = walk(card).find(n => n.type === 'View' && n.props.style && n.props.style.height === 66);
   assert.ok(picture, 'picture block on top of the text');
   assert.equal(picture.props.style.backgroundColor, api.DEFAULT_COMBO_THEME.accentSoft);
 }));
@@ -375,7 +381,7 @@ test('popup design: without art a coin is drawn from plain views (a P); with the
   const images = walk(withArt).filter(n => n.type === 'Image');
   assert.equal(images.length, 3);
   assert.ok(images.every(n => n.props.source === art));
-  assert.deepEqual(images.map(n => n.props.style.width).sort((a, b) => b - a), [96, 40, 40], 'one big, two small');
+  assert.deepEqual(images.map(n => n.props.style.width).sort((a, b) => b - a), [48, 20, 20], 'one big, two small (half the old sizes)');
   assert.equal(texts(withArt).includes('P'), false, 'no drawn coin when the art is given');
 }));
 
@@ -435,3 +441,17 @@ test('popup card height: the card is as tall as the space it floats in (measured
     assert.equal(cardOf(again()).props.style.maxHeight, 260, 'a zero size is ignored');
   } finally { timers.restore(); api.notifyWallGone(); }
 }));
+
+test('popup headline sizes: full size when it fits; words and number shrink together (never below 0.6) for a long number; one line height for both', () => {
+  const sizes = n => api.popupHeadlineSizes({before: '오늘 ', amount: n, after: ' 모을 수 있어요'});
+  assert.deepEqual(sizes('+5,597P'), {words: 16, amount: 31, line: 39}, 'a typical 4-digit sum still fits one line on the 276 wide card, a little smaller');
+  assert.deepEqual(sizes('+600P'), {words: 18, amount: 34, line: 43}, 'a short number keeps the full size');
+  const six = sizes('+15,597P');
+  assert.ok(six.amount < sizes('+5,597P').amount && six.words < sizes('+5,597P').words, 'a longer number shrinks both');
+  assert.equal(six.line, Math.round(six.amount * 1.25));
+  const huge = sizes('+1,234,567P');
+  assert.ok(huge.amount >= 20 && huge.words >= 11, 'never below 0.6 of the full size');
+  const noEasy = api.popupHeadlineSizes({before: '오늘 ', amount: '1만P', after: '까지 모을 수 있어요'});
+  assert.deepEqual([noEasy.words, noEasy.amount], [18, 34], 'the top-goal wording fits at full size');
+  assert.equal(api.COMBO_POPUP_HEADLINE_WIDTH, 276);
+});

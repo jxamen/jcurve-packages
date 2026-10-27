@@ -239,6 +239,25 @@ export function comboPopupContent(combos: TodayCombos): ComboPopupContent {
   return { before: '오늘 ', amount: top ? formatGoal(top) : '', after: '까지 모을 수 있어요', sub: path ? `${path} 길을 차례로 모아 보세요` : '', notice: COMBO_POPUP_NOTICE };
 }
 
+/** Width the popup's headline has to fit in: a 320 card minus 22 + 22 padding. */
+export const COMBO_POPUP_HEADLINE_WIDTH = 276;
+/**
+ * 대표님 10/27 22:27 「두 줄을 한 줄로」: the popup headline 「오늘 +5,597P 모을 수 있어요」 is one line, the number big. When the words and
+ * the number do not fit the card at full size (words 18 · number 34), both shrink by the same factor (at least 0.6) so a long number
+ * (6 digits) still fits. The line height is the same for the words and the number and a bit more than the number's size, so the top of the
+ * big digits is never cut off (a nested text taller than its parent's line height is clipped on iOS).
+ * Widths are estimated per character (Hangul 1 em, digits and letters 0.62, comma / period / space 0.3), the text itself also carries
+ * `adjustsFontSizeToFit` as a net.
+ */
+export function popupHeadlineSizes(content: Pick<ComboPopupContent, 'before' | 'amount' | 'after'>, width: number = COMBO_POPUP_HEADLINE_WIDTH): { words: number; amount: number; line: number } {
+  const em = (s: string): number => [...s].reduce((sum, ch) => sum + (/[\uAC00-\uD7A3]/.test(ch) ? 1 : /[ ,.]/.test(ch) ? 0.3 : 0.62), 0);
+  const fullWords = 18, fullAmount = 34;
+  const natural = em(content.before + content.after) * fullWords + em(content.amount) * fullAmount;
+  const scale = natural > width ? Math.max(0.6, width / natural) : 1;
+  const amount = Math.round(fullAmount * scale);
+  return { words: Math.round(fullWords * scale), amount, line: Math.round(amount * 1.25) };
+}
+
 /** 1000 → 1천P, 5000 → 5천P, 10000 → 1만P, anything else → 1,500P */
 export function formatGoal(goal: number): string {
   if (goal >= 10000 && goal % 10000 === 0) return `${goal / 10000}만P`;
