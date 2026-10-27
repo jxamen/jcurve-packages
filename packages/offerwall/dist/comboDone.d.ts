@@ -4,18 +4,24 @@ export type ComboStorage = {
     setItem(key: string, value: string): Promise<unknown>;
 };
 export declare const doneStorageKey: (scope: string | number | undefined) => string;
-/** Ids stored for exactly this day; another day, broken JSON or the wrong shape mean "nothing done". */
-export declare function parseDone(value: string | null | undefined, date: string): string[];
+/** Most keys kept per member; the oldest ticks drop out first. */
+export declare const MAX_DONE_KEYS = 1000;
+/**
+ * Keys stored for a member. Reads the field `ids` (written by this and by earlier versions) or `keys`; the day written in `d` is not
+ * a limit any more. Broken JSON or the wrong shape mean "nothing done".
+ */
+export declare function parseDone(value: string | null | undefined): string[];
+/** Test helper: forget the in-memory ticks. */
+export declare function resetDoneMemory(): void;
 export type DoneMissions = {
     done: ReadonlySet<string>;
-    toggle(id: string): void;
+    toggle(key: string): void;
 };
 /**
- * `scope` = member (a different member on the same phone has their own marks); `date` = the combos' day, so a new day
- * starts empty. Without `storage` the marks only live until the app is closed.
+ * `scope` = member (a different member on the same phone has their own ticks). Written as `{ d, ids }` so an older version
+ * of this package can still read it after a rollback.
  */
-export declare function useDoneMissions({ storage, scope, date }: {
+export declare function useDoneMissions({ storage, scope }: {
     storage?: ComboStorage;
     scope?: string | number;
-    date?: string;
 }): DoneMissions;

@@ -78,6 +78,8 @@ export type ComboTapDiagnostic = {
     /** milliseconds from the tap to the outcome */
     ms: number;
 };
+/** Fetching the combos again for `done` is skipped when the last fetch was this recent (ms). */
+export declare const COMBO_REFRESH_GAP_MS = 2500;
 /** How long after the wall has loaded the recommendation popup waits before it appears. */
 export declare const COMBO_POPUP_DELAY_MS = 600;
 export type ComboEntryProps = {

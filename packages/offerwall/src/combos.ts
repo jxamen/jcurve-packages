@@ -32,6 +32,8 @@ export type TodayCombos = {
   singles?: ComboSingles[];
   /** absent when the server sent none: the 「쉽게 모으기」 tab is then hidden */
   easy?: ComboEasy;
+  /** Campaign keys this member was already paid for today (the server's `done`). Rows with such a key are shown as done on their own. */
+  done?: string[];
 };
 /** Name of the tab that lists only easy missions, before the 1천 → 5천 → 1만P steps. */
 export const COMBO_EASY_NAME = '쉽게 모으기';
@@ -108,7 +110,36 @@ export function normalizeTodayCombos(raw: unknown): TodayCombos | null {
   };
   const singles = cleanSingles(data.singles, goals);
   const easy = cleanEasy(data.easy);
-  return { ...(date ? { date } : {}), display, bundles, ...(singles.length ? { singles } : {}), ...(easy ? { easy } : {}) };
+  const done = cleanDone(data.done);
+  return { ...(date ? { date } : {}), display, bundles, ...(singles.length ? { singles } : {}), ...(easy ? { easy } : {}), ...(done.length ? { done } : {}) };
+}
+
+/** `done`: campaign keys (strings or numbers) earned today. Kept as short unique strings, at most 500. */
+function cleanDone(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out = new Set<string>();
+  for (const item of raw.slice(0, 1000)) {
+    if (out.size >= 500) break;
+    const raw = typeof item === 'number' ? String(item) : item;
+    if (typeof raw !== 'string' || raw.length > 64) continue; // too long to be a campaign key: skipped, not cut
+    const key = text(raw, 64);
+    if (key) out.add(key);
+  }
+  return [...out];
+}
+
+/**
+ * Ids of the missions the server says were already paid today: a mission counts when its `campaignKey` (or, when the server
+ * made the id the key, its `id`) is in `combos.done`. The guide shows these rows as done on its own (down the list, out of the
+ * remaining sum, numbers counted again); ticking by hand stays for the rest.
+ */
+export function autoDoneIds(combos: TodayCombos | null | undefined): Set<string> {
+  const ids = new Set<string>();
+  if (!combos?.done?.length) return ids;
+  const paid = new Set(combos.done);
+  const rows = [...combos.bundles.flatMap(b => b.missions), ...(combos.singles ?? []).flatMap(s => s.missions), ...(combos.easy?.missions ?? [])];
+  for (const m of rows) if ((m.campaignKey && paid.has(m.campaignKey)) || paid.has(m.id)) ids.add(m.id);
+  return ids;
 }
 
 /**
@@ -322,7 +353,7 @@ export const TODAY_COMBOS_SAMPLE: TodayCombos = {
   },
 };
 
-export type TodayCombosState = { status: 'loading' | 'ready' | 'empty'; combos: TodayCombos | null; reload(): void };
+export type TodayCombosState = { status: 'loading' | 'ready' | 'empty'; combos: TodayCombos | null; reload(): void; /** quiet refetch, keeps the current rows */ refresh(): void };
 /**
  * Loads today's combos. Without `url` nothing is shown unless `sample` is true (screen work only),
  * so users never see example rows as if they were real.
@@ -355,7 +386,10 @@ export function useTodayCombos({ url, headers, load, loadKey, sample = false }: 
       ? loadTodayCombos({ load: () => latestLoad.current!() })
       : fetchTodayCombos({ url: url!, headers: JSON.parse(headersKey) });
     request.then(result => {
-      if (live) setState({ key, ...(result.ok ? { status: 'ready' as const, combos: result.combos } : { status: 'empty' as const, combos: null }) });
+      if (!live) return;
+      // A failed refresh keeps what is on screen (a flaky network must not empty the sheet); a first load that fails shows nothing.
+      setState(prev => (result.ok ? { key, status: 'ready' as const, combos: result.combos }
+        : prev.key === key && prev.combos ? { ...prev, status: 'ready' as const } : { key, status: 'empty' as const, combos: null }));
     });
     return () => { live = false; };
   }, [key, tick]);
@@ -365,10 +399,12 @@ export function useTodayCombos({ url, headers, load, loadKey, sample = false }: 
     return () => clearTimeout(timer);
   }, [enabled, tick]);
   const reload = () => { setState(prev => ({ ...prev, status: 'loading' })); setTick(n => n + 1); };
+  /** Fetches again without showing a loading state; the rows already on screen stay until the new answer arrives. */
+  const refresh = () => { setTick(n => n + 1); };
   const current = state.key === key ? state : { key, ...start() };
   // Re-checked on every render, so a render after midnight never shows yesterday's rows.
   const fresh = current.combos && (current.combos === TODAY_COMBOS_SAMPLE || isTodayCombos(current.combos)) ? current.combos : null;
-  return { status: fresh ? current.status : current.status === 'loading' ? 'loading' : 'empty', combos: fresh, reload };
+  return { status: fresh ? current.status : current.status === 'loading' ? 'loading' : 'empty', combos: fresh, reload, refresh };
 }
 
 export const COMBO_LIST_HINT = '누르면 혜택 목록이 열려요. 같은 이름을 찾아 참여해 주세요.';
@@ -439,6 +475,9 @@ export function ComboGuideScreen({ combos, loading = false, onClose, onPressMiss
   const onEasy = !!easy && index === 0;
   const stepIndex = index - (easy ? 1 : 0);
   const bundle: ComboBundle | undefined = onEasy && easy ? { goal: 0, missions: easy.missions, total: easy.total } : bundles[stepIndex];
+  // Rows the server says were paid today are done on their own (their check is filled and not tappable); hand ticks work for the rest.
+  const autoDone = autoDoneIds(combos);
+  const isDoneId = (id: string) => done.has(id) || autoDone.has(id);
   const actionable = !!onPressMission || !!usn;
   const press = (mission: ComboMission, from: ComboBundle) => {
     if (onPressMission) { onPressMission(mission, from); return; }
@@ -446,18 +485,18 @@ export function ComboGuideScreen({ combos, loading = false, onClose, onPressMiss
     const result = openOfferwall({ usn });
     setNotice(result.ok ? '' : result.message);
   };
-  const todo = bundle ? bundle.missions.filter(m => !done.has(m.id)) : [];
-  const rows = bundle ? [...todo, ...bundle.missions.filter(m => done.has(m.id))] : [];
+  const todo = bundle ? bundle.missions.filter(m => !isDoneId(m.id)) : [];
+  const rows = bundle ? [...todo, ...bundle.missions.filter(m => isDoneId(m.id))] : [];
   const remaining = todo.reduce((sum, m) => sum + m.points, 0);
   const allDone = !!bundle && todo.length === 0;
   const anyDone = !!bundle && todo.length < bundle.missions.length;
   // 「한 번에 끝내기」: missions that reach this step's goal on their own (hidden when the server sent none for it).
   const singles = bundle && !onEasy ? (combos?.singles?.find(s => s.goal === bundle.goal)?.missions ?? []) : [];
-  const singleRows = [...singles.filter(m => !done.has(m.id)), ...singles.filter(m => done.has(m.id))];
+  const singleRows = [...singles.filter(m => !isDoneId(m.id)), ...singles.filter(m => isDoneId(m.id))];
   const side = 20;
   /** One mission row, the same look in the list and in the 「한 번에 끝내기」 list. `no` counts the ones not done yet (screen readers only). */
   const missionRow = (mission: ComboMission, index: number, no: number, forPress: ComboBundle): ReactElement => {
-    const isDone = done.has(mission.id);
+    const isDone = isDoneId(mission.id);
     return h(Pressable, {
       key: mission.id,
       accessibilityRole: 'button',
@@ -478,8 +517,8 @@ export function ComboGuideScreen({ combos, loading = false, onClose, onPressMiss
         mission.todo ? h(Text, { numberOfLines: 1, ellipsizeMode: 'tail', style: { marginTop: 1, fontSize: 13, lineHeight: 18, color: t.sub } }, mission.todo) : null),
       h(Text, { style: { marginLeft: 8, fontSize: 15, fontWeight: '800', color: t.point } }, `+${formatPoints(mission.points)}`),
       onToggleDone ? h(Pressable, {
-        accessibilityRole: 'checkbox', accessibilityState: { checked: isDone }, accessibilityLabel: `${mission.name} 완료 표시`,
-        onPress: () => onToggleDone(mission.id), hitSlop: 10,
+        accessibilityRole: 'checkbox', accessibilityState: { checked: isDone, disabled: autoDone.has(mission.id) }, accessibilityLabel: `${mission.name} 완료 표시`,
+        disabled: autoDone.has(mission.id), onPress: () => onToggleDone(mission.id), hitSlop: 10,
         style: {
           marginLeft: 10, width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center',
           backgroundColor: isDone ? t.accentText : 'transparent', borderWidth: isDone ? 0 : 1.5, borderColor: '#D1D6DB',
@@ -516,14 +555,14 @@ export function ComboGuideScreen({ combos, loading = false, onClose, onPressMiss
         allDone ? null : h(Text, { style: { fontSize: 16, fontWeight: '800', color: t.point } }, onEasy ? `+${formatPoints(remaining)}` : formatPoints(remaining))) : null,
       actionable && !onPressMission && hint && bundle ? h(Text, { style: { paddingHorizontal: side, paddingBottom: 6, fontSize: 12, lineHeight: 18, color: t.sub } }, hint) : null,
       bundle ? h(View, { key: String(bundle.goal) },
-        rows.map((mission, i) => missionRow(mission, i, done.has(mission.id) ? 0 : ++nextNo, bundle))) : null,
+        rows.map((mission, i) => missionRow(mission, i, isDoneId(mission.id) ? 0 : ++nextNo, bundle))) : null,
       // 「한 번에 끝내기」: a second list under the step's, one mission is enough to reach the goal. Hidden when the server sent none.
       bundle && singleRows.length ? h(View, { key: `singles-${bundle.goal}`, style: { marginTop: 22 } },
         h(View, { style: { paddingHorizontal: side, paddingBottom: 6 } },
           h(Text, { accessibilityRole: 'header', style: { fontSize: 16, fontWeight: '700', color: t.text } }, '한 번에 끝내기'),
           h(Text, { style: { marginTop: 2, fontSize: 13, color: t.sub } }, `아래 중 하나만 해도 ${formatPoints(bundle.goal)}를 채워요`)),
         singleRows.map((mission, i) => missionRow(
-          mission, i, done.has(mission.id) ? 0 : ++nextSingleNo,
+          mission, i, isDoneId(mission.id) ? 0 : ++nextSingleNo,
           { goal: bundle.goal, missions: [mission], total: mission.points }))) : null,
       !bundle ? h(Text, { style: { marginTop: 48, fontSize: 15, lineHeight: 22, textAlign: 'center', color: t.sub } },
         loading ? '불러오고 있어요' : '지금은 준비하고 있어요.\n잠시 뒤에 다시 확인해 주세요.') : null,

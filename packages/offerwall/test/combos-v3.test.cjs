@@ -64,41 +64,51 @@ test('native detection: a module without the methods, or one that throws on look
   });
 });
 
-test('done marks: parse only this day, keep per member, persist as {d, ids}', () => withReact(async ({make}) => {
+test('done marks: not bound to a day any more; kept per member and per key; written as {d, ids} (an older version can still read it)', () => withReact(async ({make}) => {
+  api.resetDoneMemory();
   const day = '2026-10-27';
-  assert.deepEqual(api.parseDone(JSON.stringify({d: day, ids: ['a', 'b', 3, '']}), day), ['a', 'b']);
-  assert.deepEqual(api.parseDone(JSON.stringify({d: '2026-10-26', ids: ['a']}), day), []);
-  for (const bad of [null, undefined, '', 'x', '{}', '[]', JSON.stringify({d: day, ids: 'a'})]) assert.deepEqual(api.parseDone(bad, day), []);
+  assert.deepEqual(api.parseDone(JSON.stringify({d: day, ids: ['a', 'b', 3, '', 'a']})), ['a', 'b'], 'strings only, once each');
+  assert.deepEqual(api.parseDone(JSON.stringify({d: '2026-10-20', ids: ['a']})), ['a'], 'yesterday\'s (or older) ticks still count');
+  assert.deepEqual(api.parseDone(JSON.stringify({keys: ['k1', 'k2']})), ['k1', 'k2'], 'a `keys` list is read too');
+  assert.equal(api.parseDone(JSON.stringify({ids: Array.from({length: 1500}, (_, i) => `k${i}`)})).length, 1000, 'the newest 1000 are kept');
+  for (const bad of [null, undefined, '', 'x', '{}', '[]', JSON.stringify({d: day, ids: 'a'})]) assert.deepEqual(api.parseDone(bad), []);
   assert.equal(api.doneStorageKey(5), 'jcurve.combos.done:5');
 
   const store = new Map();
   const storage = {getItem: async k => store.get(k) ?? null, setItem: async (k, v) => { store.set(k, v); }};
   const view = make();
-  const read = (scope, date = day) => view.render(() => api.useDoneMissions({storage, scope, date}));
+  const read = scope => view.render(() => api.useDoneMissions({storage, scope}));
   assert.equal(read(1).done.size, 0);
   view.flush(); await tick();
   read(1).toggle('a');
   assert.deepEqual([...read(1).done], ['a']);
   await tick();
-  assert.deepEqual(JSON.parse(store.get('jcurve.combos.done:1')), {d: day, ids: ['a']});
+  const written = JSON.parse(store.get('jcurve.combos.done:1'));
+  assert.deepEqual(written.ids, ['a']);
+  assert.match(written.d, /^\d{4}-\d{2}-\d{2}$/, 'the day is still written (rollback-safe) but never limits');
   read(1).toggle('b'); read(1).toggle('a'); // untick a
   assert.deepEqual([...read(1).done], ['b']);
   // another member on the same phone starts empty and writes its own key
   assert.equal(read(2).done.size, 0);
   assert.equal(store.get('jcurve.combos.done:2'), undefined);
-  // next day: nothing is done any more, even though yesterday's value is still stored
-  assert.equal(read(1, '2026-10-28').done.size, 0);
-  // a fresh view (app restart) loads what was saved for that member and day
+  // a fresh view (app restart, any later day) loads what was saved for that member
   const restarted = make();
-  restarted.render(() => api.useDoneMissions({storage, scope: 1, date: day})); restarted.flush(); await tick();
-  assert.deepEqual([...restarted.render(() => api.useDoneMissions({storage, scope: 1, date: day})).done], ['b']);
+  restarted.render(() => api.useDoneMissions({storage, scope: 1})); restarted.flush(); await tick();
+  assert.deepEqual([...restarted.render(() => api.useDoneMissions({storage, scope: 1})).done], ['b']);
+  // an old value written by an earlier version for another day is read as well
+  store.set('jcurve.combos.done:3', JSON.stringify({d: '2026-10-01', ids: ['old']}));
+  const older = make();
+  older.render(() => api.useDoneMissions({storage, scope: 3})); older.flush(); await tick();
+  assert.deepEqual([...older.render(() => api.useDoneMissions({storage, scope: 3})).done], ['old']);
 }));
 
-test('done marks: without storage they live in memory; a failing store never throws', () => withReact(async ({make}) => {
+test('done marks: without storage they live in memory (also across a new instance); a failing store never throws', () => withReact(async ({make}) => {
+  api.resetDoneMemory();
   const view = make();
   const read = storage => view.render(() => api.useDoneMissions({storage, scope: 1, date: '2026-10-27'}));
   read().toggle('x');
   assert.deepEqual([...read().done], ['x']);
+  assert.deepEqual([...make().render(() => api.useDoneMissions({scope: 1})).done], ['x'], 'a new instance (tab entered again) sees it');
   const broken = {getItem: async () => { throw new Error('io'); }, setItem: () => { throw new Error('io'); }};
   const other = make();
   other.render(() => api.useDoneMissions({storage: broken, scope: 1, date: '2026-10-27'})); other.flush(); await tick();

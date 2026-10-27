@@ -48,12 +48,20 @@ export type TodayCombos = {
     singles?: ComboSingles[];
     /** absent when the server sent none: the 「쉽게 모으기」 tab is then hidden */
     easy?: ComboEasy;
+    /** Campaign keys this member was already paid for today (the server's `done`). Rows with such a key are shown as done on their own. */
+    done?: string[];
 };
 /** Name of the tab that lists only easy missions, before the 1천 → 5천 → 1만P steps. */
 export declare const COMBO_EASY_NAME = "\uC27D\uAC8C \uBAA8\uC73C\uAE30";
 export declare const COMBO_LEVEL_LABEL: Record<ComboLevel, string>;
 /** Keeps only well-formed rows; totals are recomputed so the screen never shows a sum the rows do not add up to. */
 export declare function normalizeTodayCombos(raw: unknown): TodayCombos | null;
+/**
+ * Ids of the missions the server says were already paid today: a mission counts when its `campaignKey` (or, when the server
+ * made the id the key, its `id`) is in `combos.done`. The guide shows these rows as done on its own (down the list, out of the
+ * remaining sum, numbers counted again); ticking by hand stays for the rest.
+ */
+export declare function autoDoneIds(combos: TodayCombos | null | undefined): Set<string>;
 /** Calendar date in Korea (the daily reset), YYYY-MM-DD. */
 export declare function kstDate(now?: number): string;
 /** Yesterday's combos must not be shown as today's, so a body without a date counts as stale too. */
@@ -162,7 +170,8 @@ export declare const TODAY_COMBOS_SAMPLE: TodayCombos;
 export type TodayCombosState = {
     status: 'loading' | 'ready' | 'empty';
     combos: TodayCombos | null;
-    reload(): void;
+    reload(): void; /** quiet refetch, keeps the current rows */
+    refresh(): void;
 };
 /**
  * Loads today's combos. Without `url` nothing is shown unless `sample` is true (screen work only),

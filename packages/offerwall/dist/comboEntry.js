@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.COMBO_POPUP_DELAY_MS = exports.COMBO_SHEET_TOP = exports.COMBO_CHIP_RIGHT = exports.COMBO_CHIP_TOP = exports.COMBOS_POPUP_ACTION = exports.COMBOS_ROUTE = void 0;
+exports.COMBO_POPUP_DELAY_MS = exports.COMBO_REFRESH_GAP_MS = exports.COMBO_SHEET_TOP = exports.COMBO_CHIP_RIGHT = exports.COMBO_CHIP_TOP = exports.COMBOS_POPUP_ACTION = exports.COMBOS_ROUTE = void 0;
 exports.isCombosRoute = isCombosRoute;
 exports.requestOpenCombos = requestOpenCombos;
 exports.listenForComboRequests = listenForComboRequests;
@@ -10,6 +10,7 @@ exports.ComboEntry = ComboEntry;
 const combos_1 = require("./combos");
 const campaigns_1 = require("./campaigns");
 const comboDone_1 = require("./comboDone");
+const native_1 = require("./native");
 const comboSeen_1 = require("./comboSeen");
 const wallSignal_1 = require("./wallSignal");
 const index_1 = require("./index");
@@ -128,6 +129,8 @@ const short = (value, max = 80) => {
     return text.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, max);
 };
 const SLOW_REFUSAL_MS = 4500;
+/** Fetching the combos again for `done` is skipped when the last fetch was this recent (ms). */
+exports.COMBO_REFRESH_GAP_MS = 2500;
 const isCampaignKey = (value) => !!value && /^\d{3,20}$/.test(value);
 /** How long after the wall has loaded the recommendation popup waits before it appears. */
 exports.COMBO_POPUP_DELAY_MS = 600;
@@ -198,12 +201,49 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     const h = React.createElement;
     const state = (0, combos_1.useTodayCombos)({ url, headers, load, loadKey, sample });
     const [open, setOpen] = React.useState(false);
-    const marks = (0, comboDone_1.useDoneMissions)({ storage, scope: loadKey, date: state.combos?.date });
+    // Hand ticks are kept per member and per campaign key (the server's key when it gave one, else the row id), with no daily reset.
+    const marks = (0, comboDone_1.useDoneMissions)({ storage, scope: loadKey });
+    const missionRows = state.combos
+        ? [...state.combos.bundles.flatMap(b => b.missions), ...(state.combos.singles ?? []).flatMap(s => s.missions), ...(state.combos.easy?.missions ?? [])]
+        : [];
+    const markKey = (m) => m.campaignKey || m.id;
+    const doneIds = new Set(missionRows.filter(m => marks.done.has(markKey(m))).map(m => m.id));
+    const toggleDone = (id) => { const m = missionRows.find(x => x.id === id); marks.toggle(m ? markKey(m) : id); };
     const [notice, setNotice] = React.useState(null);
     const noticeTimer = React.useRef(null);
     const campaignCache = React.useRef(null);
-    const latest = React.useRef({ campaigns, copyText, reportCampaigns, usn, placement, onDiagnostic });
-    latest.current = { campaigns, copyText, reportCampaigns, usn, placement, onDiagnostic };
+    const latest = React.useRef({ campaigns, copyText, reportCampaigns, usn, placement, onDiagnostic, refresh: state.refresh });
+    latest.current = { campaigns, copyText, reportCampaigns, usn, placement, onDiagnostic, refresh: state.refresh };
+    // Fetch the combos again (quietly) when the sheet opens, when the app comes back to the front, and when the SDK's detail screen closes:
+    // that is when what the member just did shows up in the server's `done` list. At most once per few seconds; the first load counts.
+    const lastRefresh = React.useRef(Date.now());
+    const refreshNow = () => {
+        const now = Date.now();
+        if (now - lastRefresh.current < exports.COMBO_REFRESH_GAP_MS)
+            return;
+        lastRefresh.current = now;
+        try {
+            latest.current.refresh();
+        }
+        catch { /* a failed refresh keeps what is on screen */ }
+    };
+    React.useEffect(() => { if (open)
+        refreshNow(); }, [open]);
+    React.useEffect(() => {
+        let subscription;
+        try {
+            const { AppState } = require('react-native');
+            subscription = AppState?.addEventListener?.('change', (next) => { if (next === 'active')
+                refreshNow(); });
+        }
+        catch { /* no AppState: the sheet-open refresh still works */ }
+        return () => { try {
+            subscription?.remove();
+        }
+        catch { /* ignore */ } };
+    }, []);
+    React.useEffect(() => (0, native_1.addOfferwallNativeListener)(event => { if (event && event.type === 'detailClosed')
+        refreshNow(); }), []);
     const mode = placement === 'chance' ? state.combos?.display.chance ?? 'chip' : state.combos?.display.home ?? 'off';
     const shown = placement === 'chance' ? mode === 'chip' && !!state.combos : mode === 'banner' && !!state.combos;
     const listening = placement === 'chance' || mode !== 'off';
@@ -377,7 +417,7 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     const close = () => setOpen(false);
     const guide = (variant) => h(combos_1.ComboGuideScreen, {
         combos: state.combos, loading: state.status === 'loading', onClose: close, onPressMission: handleMission, usn, theme, variant,
-        done: marks.done, onToggleDone: marks.toggle,
+        done: doneIds, onToggleDone: toggleDone,
     });
     if (!shown && !open && !notice && !popup)
         return null;
