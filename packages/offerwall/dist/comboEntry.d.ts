@@ -74,6 +74,11 @@ export type ComboTapDiagnostic = {
     open: boolean | 'error' | 'skipped';
     openError?: string;
     openMs?: number;
+    /** which way the detail was opened: inside the Chance tab's wall (the chip stays on top) or the SDK's full-screen detail */
+    via?: 'embedded' | 'native';
+    /** the embedded detail was asked for: did the wall report it loaded in time, and how long it took */
+    embedded?: 'loaded' | 'failed';
+    embeddedMs?: number;
     copied?: boolean;
     /** milliseconds from the tap to the outcome */
     ms: number;

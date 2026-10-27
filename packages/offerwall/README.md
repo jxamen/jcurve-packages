@@ -261,3 +261,14 @@ if (isCombosRoute(action)) { goTab('offerwall'); requestOpenCombos(); }   // 탭
 - JS 쪽 `onDiagnostic` 의 `openMs` 로 걸린 시간을 볼 수 있다. 4.5초 넘는 `false` 뒤에는 다른 키를 더 시도하지 않는 규칙(0.3.1)은 그대로다.
 - 컴파일 · 실기기 확인 **전**의 소스(이 PC 에는 Xcode 가 없다 — 맥북16 빌드에서 처음 컴파일된다).
 - 하지 않은 것(검토 결과): 웹 오퍼월 목록 조회용 파라미터(`getParameter`)를 JS 로 꺼내는 것. Android 는 `ApRewardWebOfferWallLayout.getParameter()`(웹 뷰가 살아 있을 때만), iOS 는 공개 헤더에 없고 웹뷰의 JS 메시지 안에서만 답하는 값이라 비공개 API 없이는 못 꺼내며, 광고 ID 를 앱 JS 로 옮기게 되어 하지 않기로 했다.
+
+## 0.3.3 — 상세 화면에서도 칩 유지: 찬스 탭 임베드 오퍼월이 상세를 직접 보여 줌 (JS only, iOS)
+
+0.3.2 의 iOS 네이티브 변경(`ios/JCurveOfferwallModule.m`, 열림 확인 12초)은 그대로 들어 있지만 **이 0.3.3 JS 는 그것에 기대지 않는다** — 0.3.0 빌드(TestFlight 1.1.6 build 13)에서도 그대로 동작하고 OTA 로 얹을 수 있다. 새 네이티브 모듈 · 뷰 · prop 없음(이미 0.3.0 에 있는 `JCurveOfferwallView` 의 `detailCampaignKey` 만 쓴다).
+
+- **왜**: SDK 의 전체 화면 상세(`openCampaignDetail`)는 네이티브 화면이라 그 위에 RN 칩을 올릴 수 없다. 대표님이 「상세 화면에 가도 유지」를 원하셨다.
+- **어떻게**(iOS 만): 하러 가기를 누르면 `ComboEntry` 가 `openEmbeddedDetail(key)` 로 찬스 탭의 `OfferwallScreen`(임베드 오퍼월)에 그 캠페인 상세를 요청한다. 화면은 임베드 뷰를 `detailCampaignKey` 와 함께 새로 올리고(SDK 속성 `detailPageCampaignKey`), 뷰가 `onLoaded` 를 알리면 `true`. 안내 시트는 닫히고 칩은 위에 그대로 남는다. 칩을 누르면 시트가 다시 열리고, 닫으면 상세로 돌아온다.
+- **안전장치**: 10초(`EMBEDDED_DETAIL_TIMEOUT_MS`) 안에 안 뜨거나 오류면 임베드 오퍼월을 일반 목록으로 되돌리고, 같은 키를 지금처럼 SDK 전체 화면 상세로 연다(안내 시트는 열려 있음). 앞 요청이 로딩 중일 때 누른 두 번째 탭은 무시한다. 새 요청은 이전 요청을 대신한다.
+- **안 하는 곳**: 안드로이드(SDK 임베드 뷰에 상세 열기가 없고 목록 필터 `setFilterCampaignKeyList` 뿐), 홈 배너(아래에 오퍼월이 없음), 브리지가 없는 옛 바이너리 → 모두 이전 동작(SDK 전체 화면 상세 또는 폴백)이다. 임베드 오퍼월이 마운트되어 있지 않으면 `openEmbeddedDetail` 은 곧바로 `false`.
+- **진단**(`ComboTapDiagnostic`): `via`('embedded' | 'native'), `embedded`('loaded' | 'failed', 임베드를 요청했을 때만), `embeddedMs`.
+- **실기기에서 확인할 것**: 임베드 상세 화면의 머리줄 모양(칩 `chipTop` 6 · `chipRight` 52 가 겹치는지), 상세에서 목록으로 돌아가는 방법(웹 상세의 닫기 · 뒤로가 동작하는지 — SDK 의 `OnClosedDetailPage` 는 아직 JS 로 이어져 있지 않다).

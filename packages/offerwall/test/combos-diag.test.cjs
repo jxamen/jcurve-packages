@@ -117,7 +117,7 @@ test('diag tap: carries no member, device or advertising id, and a failing or re
   const bridge = {list: async () => [], open: async () => true};
   const {tap} = await startWith(make, {campaignKey: '111'}, 'abc123def456', {campaigns: bridge, onDiagnostic: d => diags.push(d)});
   await tap();
-  const allowed = new Set(['t', 'mission', 'name', 'bridge', 'listCount', 'listError', 'listSample', 'how', 'key', 'attempts', 'open', 'openError', 'openMs', 'copied', 'ms']);
+  const allowed = new Set(['t', 'mission', 'name', 'bridge', 'listCount', 'listError', 'listSample', 'how', 'key', 'attempts', 'open', 'openError', 'openMs', 'copied', 'ms', 'via', 'embedded', 'embeddedMs']);
   assert.deepEqual(Object.keys(diags[0]).filter(k => !allowed.has(k)), []);
   assert.equal(JSON.stringify(diags[0]).includes('a'.repeat(64)), false, 'the wall usn is not in it');
   for (const onDiagnostic of [() => { throw new Error('x'); }, async () => { throw new Error('y'); }]) {

@@ -7,6 +7,7 @@ import type { CampaignApi, CampaignInfo } from './campaigns';
 import { useDoneMissions } from './comboDone';
 import type { ComboStorage } from './comboDone';
 import { usePulse, useSeenToday } from './comboSeen';
+import { embeddedDetailAvailable, openEmbeddedDetail } from './embeddedDetail';
 import { openOfferwall } from './index';
 
 /** Route name for pushes (`data.go`) and links. Apps use in-app actions, not a URL scheme. */
@@ -155,6 +156,11 @@ export type ComboTapDiagnostic = {
   open: boolean | 'error' | 'skipped';
   openError?: string;
   openMs?: number;
+  /** which way the detail was opened: inside the Chance tab's wall (the chip stays on top) or the SDK's full-screen detail */
+  via?: 'embedded' | 'native';
+  /** the embedded detail was asked for: did the wall report it loaded in time, and how long it took */
+  embedded?: 'loaded' | 'failed';
+  embeddedMs?: number;
   copied?: boolean;
   /** milliseconds from the tap to the outcome */
   ms: number;
@@ -230,6 +236,7 @@ export function ComboEntry({
   const marks = useDoneMissions({ storage, scope: loadKey, date: state.combos?.date });
   const [notice, setNotice] = React.useState<string | null>(null);
   const noticeTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const embeddedBusy = React.useRef(false);
   const campaignCache = React.useRef<{ key: string; promise: Promise<ListResult> } | null>(null);
   const latest = React.useRef({ campaigns, copyText, reportCampaigns, usn, placement, onDiagnostic });
   latest.current = { campaigns, copyText, reportCampaigns, usn, placement, onDiagnostic };
@@ -278,19 +285,31 @@ export function ComboEntry({
    */
   const handleMission = async (mission: ComboMission, bundle: ComboBundle) => {
     if (onPressMission) { onPressMission(mission, bundle); return; }
+    if (embeddedBusy.current) return; // the wall is still loading the last detail: a second tap would only replace it
     const started = Date.now();
     const api = bridge();
     const diag: ComboTapDiagnostic = { t: 'tap', mission: mission.id, name: mission.name, bridge: !!api, listCount: 0, how: 'none', attempts: 0, open: 'skipped', ms: 0 };
     const tried = new Set<string>();
     let unsure = false;
     /**
-     * Gives one key to the SDK. true = it took it (the guide stays open for the next campaign).
+     * Gives one key to the SDK. true = it took it. In the Chance tab the wall below shows the detail itself (iOS) so the chip stays on top
+     * and the sheet closes; if that does not load in time, the SDK's full-screen detail is used for the same key (the guide stays open).
      * A "no" that took about as long as the native timeout may be a page that is still loading, so no second page is opened after it.
      */
     const attempt = async (key: string, how: ComboTapDiagnostic['how']): Promise<boolean> => {
       if (!api || unsure || tried.has(key)) return false;
       tried.add(key);
       diag.how = how; diag.key = key; diag.attempts = tried.size; delete diag.openError;
+      if (latest.current.placement === 'chance' && embeddedDetailAvailable()) {
+        const from = Date.now();
+        let shown = false;
+        embeddedBusy.current = true;
+        try { shown = await openEmbeddedDetail(key); } catch { shown = false; } finally { embeddedBusy.current = false; }
+        diag.embedded = shown ? 'loaded' : 'failed';
+        diag.embeddedMs = Date.now() - from;
+        if (shown) { diag.via = 'embedded'; diag.open = true; diag.openMs = diag.embeddedMs; setOpen(false); return true; }
+      }
+      diag.via = 'native';
       const at = Date.now();
       try { diag.open = (await api.open(key)) ? true : false; } catch (error) { diag.open = 'error'; diag.openError = short(error); }
       diag.openMs = Date.now() - at;
