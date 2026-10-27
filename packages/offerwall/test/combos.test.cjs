@@ -166,68 +166,8 @@ test('theme: the app token family maps onto the look, missing keys fall back', (
   assert.deepEqual(api.comboThemeFromTokens({}), api.DEFAULT_COMBO_THEME);
 });
 
-// ---- UI: render with a tiny React, check the produced tree ----
-function withReact(run) {
-  const original = Module._load;
-  const opened = [];
-  class Value { constructor(v) { this.v = v; } interpolate() { return 0; } }
-  const rn = {
-    Platform: {OS: 'android'},
-    NativeModules: {RNAdPopcornRewardModule: {}},
-    UIManager: {getViewManagerConfig: () => ({})},
-    requireNativeComponent: () => 'NativeWall',
-    BackHandler: {addEventListener: () => ({remove() {}})},
-    Dimensions: {get: () => ({width: 400, height: 800})},
-    Animated: {Value, timing: () => ({start() {}}), View: 'Animated.View'},
-    View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView', Modal: 'Modal', SafeAreaView: 'SafeAreaView',
-  };
-  const native = {setUserId() {}, setStyle() {}, openOfferwall: () => opened.push('wall'), addListener: () => ({remove() {}})};
-  let current;
-  const react = {
-    Fragment: 'Fragment',
-    createElement: (type, props, ...children) => ({type, props: props || {}, children: children.flat(Infinity)}),
-    useRef: v => { const i = current.cursor++; return current.slots[i] ??= {current: v}; },
-    useState: init => {
-      const h = current, i = h.cursor++;
-      if (!(i in h.slots)) h.slots[i] = typeof init === 'function' ? init() : init;
-      return [h.slots[i], v => { h.slots[i] = typeof v === 'function' ? v(h.slots[i]) : v; }];
-    },
-    useEffect: (cb, deps) => {
-      const h = current, i = h.cursor++, prev = h.slots[i];
-      if (!prev || !deps || deps.some((d, j) => d !== prev.deps[j])) { prev?.cleanup?.(); h.slots[i] = {deps, cleanup: undefined, run: cb}; h.pending.push(h.slots[i]); }
-    },
-  };
-  Module._load = function (id, ...rest) {
-    if (id === 'react') return react;
-    if (id === 'react-native') return rn;
-    if (id === 'react-native-adpopcorn-reward') return {default: native};
-    return original.call(this, id, ...rest);
-  };
-  const made = [];
-  const make = () => {
-    const h = {
-      slots: [], cursor: 0, pending: [],
-      render(fn) { current = this; this.cursor = 0; return expand(fn()); },
-      flush() { for (const e of this.pending.splice(0)) e.cleanup = e.run(); },
-    };
-    made.push(h);
-    return h;
-  };
-  // Unmount everything so one test's listeners never answer the next test's requests.
-  const dispose = () => { for (const h of made) for (const s of h.slots) if (typeof s?.cleanup === 'function') s.cleanup(); };
-  return Promise.resolve(run({host: make(), make, opened, rn})).finally(() => { dispose(); Module._load = original; });
-}
-const texts = node => node == null || typeof node === 'boolean' ? [] : typeof node === 'string' ? [node] : [...(node.children || [])].flatMap(texts);
-const walk = (node, out = []) => { if (node && typeof node === 'object') { out.push(node); (node.children || []).forEach(c => walk(c, out)); } return out; };
-// Resolve function components inside the same render pass so their hooks keep a stable order.
-function expand(node) {
-  if (!node || typeof node !== 'object') return node;
-  if (typeof node.type === 'function') return expand(node.type({...node.props, children: node.children[0]}));
-  return {...node, children: (node.children || []).map(expand)};
-}
-const byLabel = (tree, label, startsWith = false) => walk(tree).find(n => n.type === 'Pressable' && typeof n.props.accessibilityLabel === 'string'
-  && (startsWith ? n.props.accessibilityLabel.startsWith(label) : n.props.accessibilityLabel === label));
-const hasType = (tree, type) => walk(tree).some(n => n.type === type);
+// ---- UI: render with a tiny React, check the produced tree (shared stand-ins live in harness.cjs) ----
+const {withReact, texts, walk, byLabel, hasType, tick, findSheet, hasSheet} = require('./harness.cjs');
 
 const THREE = () => api.normalizeTodayCombos(raw({bundles: [
   {goal: 1000, missions: [mission('a', 600, {minutes: 2}), mission('b', 450, {level: 'hard'})]},
@@ -386,32 +326,32 @@ test('entry (Chance tab): chip over the header row, sheet rises over the wall, c
   assert.deepEqual([chipBox.props.style.position, chipBox.props.style.top, chipBox.props.style.right], ['absolute', 6, 52]);
   assert.equal('backgroundColor' in chipBox.props.style || 'padding' in chipBox.props.style, false, 'no band or padding around the chip');
   assert.ok(texts(tree).includes('포인트 빨리 모으기') && texts(tree).includes('›'));
-  assert.equal(hasType(tree, 'Modal') || hasType(tree, 'Animated.View'), false);
+  assert.equal(hasType(tree, 'Modal') || hasSheet(tree), false);
   assert.equal(walk(tree).some(n => n.props?.accessibilityLabel?.startsWith('오늘의 포인트 조합')), false, 'no card above the wall');
   assert.deepEqual([mount({chipTop: 20, chipRight: 70})].map(t => walk(t).find(n => n.props.pointerEvents === 'box-none').props.style).map(s => [s.top, s.right])[0], [20, 70]);
   chance.flush();
 
   assert.equal(api.requestOpenCombos(), true); // popup / push / link
   tree = mount();
-  assert.ok(hasType(tree, 'Animated.View'), 'sheet is in the tree, over the wall');
+  assert.ok(hasSheet(tree), 'sheet is in the tree, over the wall');
   assert.equal(hasType(tree, 'Modal'), false);
-  assert.equal(walk(tree).find(n => n.type === 'Animated.View').props.style.top, 52);
+  assert.equal(findSheet(tree).props.style.top, 52);
   assert.ok(texts(tree).includes('1,000P 모으기') && texts(tree).includes('✕') && texts(tree).includes('닫기'));
   const chip = byLabel(tree, '포인트 빨리 모으기');
   assert.equal(chip.props.accessibilityState.expanded, true);
   chip.props.onPress(); // tapping the chip again closes
   tree = mount();
-  assert.equal(hasType(tree, 'Animated.View'), false);
+  assert.equal(hasSheet(tree), false);
   assert.ok(texts(tree).includes('›'));
 
   byLabel(tree, '포인트 빨리 모으기').props.onPress(); // open by the chip itself
   tree = mount();
-  assert.ok(hasType(tree, 'Animated.View'));
+  assert.ok(hasSheet(tree));
   const closers = walk(tree).filter(n => n.type === 'Pressable' && n.props.accessibilityLabel === '닫기'); // backdrop and the 닫기 button
   assert.equal(closers.length, 2);
   closers[0].props.onPress();
   tree = mount();
-  assert.equal(hasType(tree, 'Animated.View'), false);
+  assert.equal(hasSheet(tree), false);
 }));
 
 test('entry (Chance tab): server off hides the chip but popups still open the sheet; nothing without data', () => withReact(async ({make}) => {
@@ -426,7 +366,7 @@ test('entry (Chance tab): server off hides the chip but popups still open the sh
     assert.equal(tree, null, 'nothing visible while off');
     assert.equal(api.requestOpenCombos(), true);
     tree = mount();
-    assert.ok(hasType(tree, 'Animated.View'));
+    assert.ok(hasSheet(tree));
     assert.equal(walk(tree).some(n => n.props?.pointerEvents === 'box-none'), false, 'no chip while off');
     const home = make();
     assert.equal(home.render(() => api.ComboEntry({placement: 'home', url: 'u'})), null);
@@ -461,6 +401,6 @@ test('entry: a popup request while only Home is mounted opens Home; the Chance t
   walk(mountHome()).find(n => n.type === 'Modal').props.onRequestClose();
   mountChance(); chance.flush();
   assert.equal(api.requestOpenCombos(), true);
-  assert.equal(hasType(mountChance(), 'Animated.View'), true);
+  assert.equal(hasSheet(mountChance()), true);
   assert.equal(hasType(mountHome(), 'Modal'), false);
 }));

@@ -33,20 +33,22 @@ export type ComboChipProps = {
     open?: boolean;
     theme?: ComboTheme;
     top?: number;
-    right?: number;
+    right?: number; /** Animated opacity for the blink (see usePulse). */
+    opacity?: import('react-native').Animated.Value;
 };
 /**
  * Small chip that floats over the wall's own header row, left of its profile icon. Only the chip is drawn: no band,
  * no padding box, and the wrapper lets touches through everywhere else.
  */
-export declare function ComboChip({ onPress, open, theme, top, right }: ComboChipProps): ReactElement;
+export declare function ComboChip({ onPress, open, theme, top, right, opacity }: ComboChipProps): ReactElement;
 export type ComboBannerProps = {
     combos: TodayCombos;
     onPress: () => void;
-    theme?: ComboTheme;
+    theme?: ComboTheme; /** Animated opacity for the blink (see usePulse). */
+    opacity?: import('react-native').Animated.Value;
 };
 /** Home banner: the name large, the goal numbers emphasized. */
-export declare function ComboBanner({ combos, onPress, theme }: ComboBannerProps): ReactElement;
+export declare function ComboBanner({ combos, onPress, theme, opacity }: ComboBannerProps): ReactElement;
 export type ComboEntryProps = {
     /** 'chance': chip over the wall (mount it beside the wall inside the same container). 'home': optional banner. */
     placement: 'chance' | 'home';

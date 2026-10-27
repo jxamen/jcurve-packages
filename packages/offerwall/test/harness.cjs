@@ -4,7 +4,10 @@ const Module = require('node:module');
 function withReact(run, opts = {}) {
   const original = Module._load;
   const opened = [];
-  class Value { constructor(v) { this.v = v; } interpolate() { return 0; } }
+  class Value { constructor(v) { this.v = v; } interpolate() { return 0; } setValue(v) { this.v = v; } }
+  // Records the blink: each Animated.loop(...).start() / .stop(), and the timing steps inside it.
+  const anim = {loops: 0, stops: 0, running: 0, steps: []};
+  const reduce = {enabled: opts.reduceMotion === true, listeners: []};
   const rn = {
     Platform: {OS: 'android'},
     NativeModules: {RNAdPopcornRewardModule: {}, ...(opts.nativeModules || {})},
@@ -12,7 +15,22 @@ function withReact(run, opts = {}) {
     requireNativeComponent: () => 'NativeWall',
     BackHandler: {addEventListener: () => ({remove() {}})},
     Dimensions: {get: () => ({width: 400, height: 800})},
-    Animated: {Value, timing: () => ({start() {}}), View: 'Animated.View'},
+    Animated: {
+      Value,
+      timing: (value, config) => ({start() {}, stop() {}, value, config}),
+      sequence: steps => ({start() {}, stop() {}, steps}),
+      loop: inner => ({
+        start() { anim.loops++; anim.running++; anim.steps = (inner.steps || []).map(s => s.config); },
+        stop() { anim.stops++; anim.running--; },
+      }),
+      View: 'Animated.View',
+    },
+    Easing: {inOut: f => f, ease: 'ease', sin: 'sin'},
+    AccessibilityInfo: {
+      isReduceMotionEnabled: async () => reduce.enabled,
+      addEventListener: (name, cb) => { reduce.listeners.push(cb); return {remove() { reduce.listeners = reduce.listeners.filter(l => l !== cb); }}; },
+    },
+    __anim: anim, __reduce: reduce,
     View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView', Modal: 'Modal', SafeAreaView: 'SafeAreaView',
     __subs: [], __removed: 0,
   };
@@ -65,5 +83,8 @@ const byLabel = (tree, label, startsWith = false) => walk(tree).find(n => n.type
   && (startsWith ? n.props.accessibilityLabel.startsWith(label) : n.props.accessibilityLabel === label));
 const hasType = (tree, type) => walk(tree).some(n => n.type === type);
 const tick = (ms = 5) => new Promise(r => setTimeout(r, ms));
+// The guide sheet is the Animated.View pinned to the bottom (the blinking chip's wrapper is an Animated.View too).
+const findSheet = tree => walk(tree).find(n => n.type === 'Animated.View' && n.props.style && n.props.style.bottom === 0);
+const hasSheet = tree => !!findSheet(tree);
 
-module.exports = {withReact, texts, walk, expand, byLabel, hasType, tick};
+module.exports = {withReact, texts, walk, expand, byLabel, hasType, tick, findSheet, hasSheet};

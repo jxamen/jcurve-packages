@@ -10,6 +10,7 @@ exports.ComboEntry = ComboEntry;
 const combos_1 = require("./combos");
 const campaigns_1 = require("./campaigns");
 const comboDone_1 = require("./comboDone");
+const comboSeen_1 = require("./comboSeen");
 const index_1 = require("./index");
 /** Route name for pushes (`data.go`) and links. Apps use in-app actions, not a URL scheme. */
 exports.COMBOS_ROUTE = 'offerwall/combos';
@@ -64,27 +65,28 @@ exports.COMBO_SHEET_TOP = 52;
  * Small chip that floats over the wall's own header row, left of its profile icon. Only the chip is drawn: no band,
  * no padding box, and the wrapper lets touches through everywhere else.
  */
-function ComboChip({ onPress, open = false, theme = combos_1.DEFAULT_COMBO_THEME, top = exports.COMBO_CHIP_TOP, right = exports.COMBO_CHIP_RIGHT }) {
+function ComboChip({ onPress, open = false, theme = combos_1.DEFAULT_COMBO_THEME, top = exports.COMBO_CHIP_TOP, right = exports.COMBO_CHIP_RIGHT, opacity }) {
     const React = require('react');
-    const { View, Text, Pressable } = require('react-native');
+    const { View, Text, Pressable, Animated } = require('react-native');
     const h = React.createElement;
     const t = theme;
-    return h(View, { pointerEvents: 'box-none', style: { position: 'absolute', top, right, zIndex: 30, elevation: 30 } }, h(Pressable, {
+    const pressable = h(Pressable, {
         accessibilityRole: 'button', accessibilityLabel: combos_1.COMBO_NAME, accessibilityState: { expanded: open }, onPress, hitSlop: 6,
         style: ({ pressed }) => ({
             height: 36, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, borderRadius: t.radius.chip,
             backgroundColor: t.accent, opacity: pressed ? 0.8 : 1, ...t.shadow,
         }),
-    }, h(Text, { style: { fontSize: t.font.small, fontWeight: '900', color: t.text } }, combos_1.COMBO_NAME), h(Text, { accessible: false, style: { fontSize: t.font.small, fontWeight: '900', color: t.accentText } }, open ? '✕' : '›')));
+    }, h(Text, { style: { fontSize: t.font.small, fontWeight: '900', color: t.text } }, combos_1.COMBO_NAME), h(Text, { accessible: false, style: { fontSize: t.font.small, fontWeight: '900', color: t.accentText } }, open ? '✕' : '›'));
+    return h(View, { pointerEvents: 'box-none', style: { position: 'absolute', top, right, zIndex: 30, elevation: 30 } }, opacity ? h(Animated.View, { style: { opacity } }, pressable) : pressable);
 }
 /** Home banner: the name large, the goal numbers emphasized. */
-function ComboBanner({ combos, onPress, theme = combos_1.DEFAULT_COMBO_THEME }) {
+function ComboBanner({ combos, onPress, theme = combos_1.DEFAULT_COMBO_THEME, opacity }) {
     const React = require('react');
-    const { View, Text, Pressable } = require('react-native');
+    const { View, Text, Pressable, Animated } = require('react-native');
     const h = React.createElement;
     const t = theme;
     const goals = combos.bundles.map(b => (0, combos_1.formatGoal)(b.goal));
-    return h(Pressable, {
+    const pressable = h(Pressable, {
         accessibilityRole: 'button',
         accessibilityLabel: `${combos_1.COMBO_NAME}, ${goals.join(', ')} 목표별로 보기`,
         onPress,
@@ -95,6 +97,7 @@ function ComboBanner({ combos, onPress, theme = combos_1.DEFAULT_COMBO_THEME }) 
     }, h(View, { style: { flex: 1, minWidth: 0, paddingRight: 8 } }, h(Text, { numberOfLines: 1, style: { fontSize: t.font.head, fontWeight: '900', color: t.text } }, combos_1.COMBO_NAME), 
     // Two short lines, so Korean words never break in the middle on a narrow phone.
     h(Text, { numberOfLines: 1, style: { marginTop: 4, fontSize: t.font.body, lineHeight: 22, color: t.sub } }, goals.flatMap((goal, i) => [i ? ' · ' : '', h(Text, { key: goal, style: { fontWeight: '900', color: t.point } }, goal)])), h(Text, { numberOfLines: 1, style: { fontSize: t.font.small, lineHeight: 22, color: t.sub } }, '목표별 추천 조합이 있어요')), h(View, { style: { borderRadius: t.radius.chip, paddingVertical: 8, paddingHorizontal: 14, backgroundColor: t.accent } }, h(Text, { style: { fontSize: t.font.small, fontWeight: '900', color: t.text } }, '보기 ›')));
+    return opacity ? h(Animated.View, { style: { opacity } }, pressable) : pressable;
 }
 /** Panel that rises from the bottom over the wall. It starts below the chip row so the chip stays visible and clickable. */
 function ComboSheet({ top, theme, children }) {
@@ -152,6 +155,11 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     const mode = placement === 'chance' ? state.combos?.display.chance ?? 'chip' : state.combos?.display.home ?? 'off';
     const shown = placement === 'chance' ? mode === 'chip' && !!state.combos : mode === 'banner' && !!state.combos;
     const listening = placement === 'chance' || mode !== 'off';
+    // Blink until the guide was opened once today (by anyone: chip, banner, popup); then rest until the next Korean day.
+    const seen = (0, comboSeen_1.useSeenToday)({ storage, scope: loadKey, date: state.combos?.date });
+    const blink = (0, comboSeen_1.usePulse)(shown && !open && seen.seen === false);
+    React.useEffect(() => { if (open && state.combos)
+        seen.markSeen(); }, [open]);
     React.useEffect(() => listening ? listenForComboRequests({ priority: placement === 'chance' ? 2 : 1, open: () => setOpen(true) }) : undefined, [listening, placement]);
     React.useEffect(() => () => { if (noticeTimer.current)
         clearTimeout(noticeTimer.current); }, []);
@@ -236,10 +244,10 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     if (!shown && !open && !notice)
         return null;
     if (placement === 'home') {
-        return h(React.Fragment, null, shown && state.combos ? h(ComboBanner, { combos: state.combos, onPress: () => setOpen(true), theme }) : null, open ? h(Modal, { visible: true, animationType: 'slide', onRequestClose: close }, h(SafeAreaView, { style: { flex: 1, backgroundColor: theme.bg } }, guide('page'), notice ? h(ComboToast, { text: notice, top: 8, theme }) : null)) : null);
+        return h(React.Fragment, null, shown && state.combos ? h(ComboBanner, { combos: state.combos, onPress: () => setOpen(true), theme, opacity: blink }) : null, open ? h(Modal, { visible: true, animationType: 'slide', onRequestClose: close }, h(SafeAreaView, { style: { flex: 1, backgroundColor: theme.bg } }, guide('page'), notice ? h(ComboToast, { text: notice, top: 8, theme }) : null)) : null);
     }
     return h(React.Fragment, null, open ? h(Pressable, {
         key: 'backdrop', accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: close,
         style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20, elevation: 20, backgroundColor: 'rgba(0,0,0,0.3)' },
-    }) : null, open ? h(ComboSheet, { key: 'sheet', top: sheetTop, theme }, guide('sheet')) : null, shown ? h(ComboChip, { key: 'chip', open, theme, top: chipTop, right: chipRight, onPress: () => setOpen(o => !o) }) : null, notice ? h(ComboToast, { key: 'notice', text: notice, top: sheetTop + 8, theme }) : null);
+    }) : null, open ? h(ComboSheet, { key: 'sheet', top: sheetTop, theme }, guide('sheet')) : null, shown ? h(ComboChip, { key: 'chip', open, theme, top: chipTop, right: chipRight, opacity: blink, onPress: () => setOpen(o => !o) }) : null, notice ? h(ComboToast, { key: 'notice', text: notice, top: sheetTop + 8, theme }) : null);
 }

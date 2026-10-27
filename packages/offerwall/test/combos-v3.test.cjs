@@ -1,6 +1,6 @@
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
-const {withReact, texts, walk, byLabel, hasType, tick} = require('./harness.cjs');
+const {withReact, texts, walk, byLabel, hasType, tick, hasSheet} = require('./harness.cjs');
 const api = require('../dist');
 
 const TODAY = () => api.kstDate();
@@ -170,7 +170,7 @@ test('tap: the key is found by name in the SDK list and that campaign opens; no 
   tapRow(tree); await tick(10);
   assert.deepEqual(calls, ['352216486']);
   const after = again();
-  assert.equal(hasType(after, 'Animated.View'), true, 'guide is still open for the next campaign');
+  assert.equal(hasSheet(after), true, 'guide is still open for the next campaign');
   assert.equal(texts(after).some(t => t.includes('찾아 주세요')), false);
 }));
 
@@ -193,7 +193,7 @@ test('tap: nothing found or the SDK refuses -> name toast, copied when possible,
   const after = again();
   assert.deepEqual(copied, ['신한 SOL페이 앱']);
   assert.ok(texts(after).includes('"신한 SOL페이 앱" 를 찾아 주세요 · 이름을 복사했어요'));
-  assert.equal(hasType(after, 'Animated.View'), false, 'the wall below is revealed');
+  assert.equal(hasSheet(after), false, 'the wall below is revealed');
   const toast = walk(after).find(n => n.props?.pointerEvents === 'none');
   assert.equal(toast.props.style.top, 60, 'sits under the chip row');
 }));
