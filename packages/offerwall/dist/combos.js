@@ -115,14 +115,18 @@ function normalizeTodayCombos(raw) {
         bundles.push({ goal, missions, total });
     }
     const categories = cleanCategories(data.categories, soldout, paid);
-    if (!bundles.length && !categories.length && !preparing)
-        return null;
+    const listTap = data.display?.list_tap === 'on';
+    // 0.4.0: a document may carry only the list-reading switch (the chip is off and there are no rows to show) — kept, with the chip off, so no empty chip ever shows
+    if (!bundles.length && !categories.length && !preparing) {
+        return listTap ? { display: { chance: 'off', home: 'off', listTap: 'on' }, bundles: [] } : null;
+    }
     bundles.sort((a, b) => a.goal - b.goal);
     const date = typeof data.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(data.date) ? data.date : undefined;
     // Unknown or missing switches fall back to: chip in the Chance tab, nothing on Home.
     const display = {
         chance: data.display?.chance === 'off' ? 'off' : 'chip',
         home: data.display?.home === 'banner' ? 'banner' : 'off',
+        ...(listTap ? { listTap: 'on' } : {}),
         // `chance_popup` is the server's spelling; `popup` is what normalizing keeps, so running this twice gives the same result
         ...(() => {
             const mode = data.display?.chance_popup ?? data.display?.popup;

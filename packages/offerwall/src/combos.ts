@@ -23,6 +23,11 @@ export type ComboDisplay = {
    * (test accounts: no once-a-day limit, the "guide already opened today" mark is ignored). Absent or 'on' = once a day.
    */
   popup?: 'off' | 'always';
+  /**
+   * 0.4.0, iPhone only: `list_tap: "on"` from the server means the app may read the campaign list out of AdPopcorn's own offerwall page and send it to the server
+   * (see `startWebTap`). Absent = off. It is a switch of its own: a document may carry it with the chip switched off and no rows at all.
+   */
+  listTap?: 'on';
 };
 /** 「쉽게 모으기」: short, easy missions (follow, subscribe, install and open) with no goal; `total` is the sum of their points. */
 export type ComboEasy = { missions: ComboMission[]; total: number };
@@ -156,13 +161,18 @@ export function normalizeTodayCombos(raw: unknown): TodayCombos | null {
     bundles.push({ goal, missions, total });
   }
   const categories = cleanCategories(data.categories, soldout, paid);
-  if (!bundles.length && !categories.length && !preparing) return null;
+  const listTap = data.display?.list_tap === 'on';
+  // 0.4.0: a document may carry only the list-reading switch (the chip is off and there are no rows to show) — kept, with the chip off, so no empty chip ever shows
+  if (!bundles.length && !categories.length && !preparing) {
+    return listTap ? { display: { chance: 'off', home: 'off', listTap: 'on' }, bundles: [] } : null;
+  }
   bundles.sort((a, b) => a.goal - b.goal);
   const date = typeof data.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(data.date) ? data.date : undefined;
   // Unknown or missing switches fall back to: chip in the Chance tab, nothing on Home.
   const display: ComboDisplay = {
     chance: data.display?.chance === 'off' ? 'off' : 'chip',
     home: data.display?.home === 'banner' ? 'banner' : 'off',
+    ...(listTap ? { listTap: 'on' as const } : {}),
     // `chance_popup` is the server's spelling; `popup` is what normalizing keeps, so running this twice gives the same result
     ...(() => {
       const mode = data.display?.chance_popup ?? data.display?.popup;

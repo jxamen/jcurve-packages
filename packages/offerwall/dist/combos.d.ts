@@ -34,6 +34,11 @@ export type ComboDisplay = {
      * (test accounts: no once-a-day limit, the "guide already opened today" mark is ignored). Absent or 'on' = once a day.
      */
     popup?: 'off' | 'always';
+    /**
+     * 0.4.0, iPhone only: `list_tap: "on"` from the server means the app may read the campaign list out of AdPopcorn's own offerwall page and send it to the server
+     * (see `startWebTap`). Absent = off. It is a switch of its own: a document may carry it with the chip switched off and no rows at all.
+     */
+    listTap?: 'on';
 };
 /** 「쉽게 모으기」: short, easy missions (follow, subscribe, install and open) with no goal; `total` is the sum of their points. */
 export type ComboEasy = {

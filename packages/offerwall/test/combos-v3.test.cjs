@@ -208,12 +208,20 @@ test('tap: nothing found or the SDK refuses -> name toast, copied when possible,
   assert.equal(toast.props.style.top, 60, 'sits under the chip row');
 }));
 
-test('tap: without a bridge (old binary) there is no copy and the message does not claim one', () => withReact(async ({make}) => {
+test('tap: without a bridge (old binary) there is no copy, no copy is tried, and the member is told to remember the name', () => withReact(async ({make}) => {
   const {tree, again} = await startChance(make, {});
   tapRow(tree); await tick(10);
   const after = again();
-  assert.ok(texts(after).includes('"신한 SOL페이 앱" 를 찾아 주세요'));
+  assert.ok(texts(after).includes('"신한 SOL페이 앱" 를 찾아 주세요 · 이름을 기억해 두세요'));
   assert.equal(texts(after).some(t => t.includes('복사')), false);
+}));
+
+test('tap: a copy that is there but fails keeps the plain message (the name hint is only for "nothing to copy with")', () => withReact(async ({make}) => {
+  let tried = 0;
+  const {tree, again} = await startChance(make, {copyText: () => { tried += 1; return false; }});
+  tapRow(tree); await tick(10);
+  assert.equal(tried, 1);
+  assert.ok(texts(again()).includes('"신한 SOL페이 앱" 를 찾아 주세요'));
 }));
 
 test('tap: a copy that fails or says false is not reported as copied; a throwing bridge falls back too', () => withReact(async ({make}) => {

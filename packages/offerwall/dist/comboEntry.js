@@ -617,8 +617,9 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
                 copied = false;
             }
         }
-        finish({ copied });
-        say(`"${mission.name}" 를 찾아 주세요${copied ? ' · 이름을 복사했어요' : ''}`);
+        // 0.4.0: with nothing to copy with (a binary without the module, no `copyText`) no copy is tried, and the member is told to remember the name instead
+        finish(copy ? { copied } : {});
+        say(`"${mission.name}" 를 찾아 주세요${copy ? (copied ? ' · 이름을 복사했어요' : '') : ' · 이름을 기억해 두세요'}`);
         if (latest.current.placement === 'chance')
             setOpen(false); // the wall is right below
         else if (latest.current.usn) {

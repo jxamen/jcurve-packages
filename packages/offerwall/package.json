@@ -1,7 +1,7 @@
 {
   "name": "@jcurve/offerwall",
-  "version": "0.4.0-alpha.1",
-  "description": "AdPopcorn 서버 보상 오퍼월 · Expo 설정 · 회원 별칭",
+  "version": "0.4.0",
+  "description": "AdPopcorn 서버 보상 오퍼월 · Expo 설정 · 회원 별칭 · 포인트 빨리 모으기(화면 전부)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -23,7 +23,10 @@
     "react-native": ">=0.74",
     "expo-constants": "*",
     "expo": "*",
-    "react-native-adpopcorn-reward": "1.0.0"
+    "react-native-adpopcorn-reward": "1.0.0",
+    "react-native-google-mobile-ads": "*",
+    "expo-notifications": "*",
+    "@react-native-async-storage/async-storage": "*"
   },
   "peerDependenciesMeta": {
     "react-native": {
@@ -36,6 +39,15 @@
       "optional": true
     },
     "react-native-adpopcorn-reward": {
+      "optional": true
+    },
+    "react-native-google-mobile-ads": {
+      "optional": true
+    },
+    "expo-notifications": {
+      "optional": true
+    },
+    "@react-native-async-storage/async-storage": {
       "optional": true
     }
   },

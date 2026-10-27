@@ -392,3 +392,81 @@ if (isCombosRoute(action)) { goTab('offerwall'); requestOpenCombos(); }   // 탭
 - **시트 맨 위에 `notice` 한 줄**(두 화면 모두 — 항목별 탭 화면 · 옛 단계 화면): 회색 알약 칸에 서버 문장. 줄이 하나도 없으면 그 문장만 보이고 「지금은 준비하고 있어요」 두 번째 문구는 안 나온다(`comboNoticeOf(combos)`).
 - **줄이 없으면 부르지 않는다**(`hasComboRows(combos)`): 추천 팝업은 뜨지 않고(그날의 한 번 기회도 쓰지 않는다), 홈 배너도 안 나온다. 칩은 항상 보인다.
 - 어제 문서(0.3.14 의 `stale`)도 `preparing` · `notice` 를 그대로 가진다.
+
+## 0.4.0 — 포인트 빨리 모으기 화면 전부 패키지 안으로 · iPhone 목록 읽기 · 상세 열림/닫힘 이벤트 (새 빌드 + 옛 빌드 OTA, tgz 하나)
+
+**한 판으로 두 곳에 쓴다.** (A) 지금 운영 중인 바이너리(대부분 0.2.2/0.2.3 네이티브: 뷰 `JCurveOfferwallView` 하나뿐, `JCurveOfferwallModule` 없음)에는 **JS 만 OTA** 로 나간다. (B) 새 스토어 빌드에는 같은 tgz 의 네이티브가 컴파일되어 들어간다. JS 가 모듈과 `getOfferwallNativeCapabilities().methods` 를 스스로 확인해서, 없는 기능은 그 기능만 꺼진다(모듈 안 찾기는 `NativeModules` 속성 조회뿐 — `require` 없음, import 순간 실행되는 호출 없음, throw 없음).
+
+### 앱이 하는 일 — 키 · 주소 · 광고 단위 · 색/이름뿐
+
+```tsx
+import { OfferwallCombos, OfferwallScreen } from '@jcurve/offerwall';
+
+<View style={{ flex: 1 }}>
+  <OfferwallScreen /* 기존 그대로 */ />
+  <OfferwallCombos
+    placement="chance"               // 'chance' = 오퍼월 위 칩 · 'home' = 홈 배너
+    usn={usn}                        // GET offerwall/adpopcorn/usn 이 준 64자
+    memberId={member?.id}            // 없으면 아무것도 안 그리고 아무것도 요청하지 않는다
+    serverUrl={API_BASE}             // 앱 서버 주소 (offerwall/… 앞까지)
+    getAuthHeaders={() => ({ 'X-App-Token': TOKEN, Authorization: 'Bearer ' + session.token, ...ota })}
+    tokens={{ C, R, F, shadow }}     // 앱의 색 · 둥글기 · 글자 크기 (comboThemeFromTokens 와 같다)
+    theme={{ /* 낱개로 덮을 값 */ }}
+    popupArt={require('./coin.png')} // 추천 팝업 위 그림 (없으면 동전을 그린다)
+    adUnit={{ ios: '…', android: '…' }}  // 추천 팝업 아래 네이티브 광고. 없으면 광고도 자리도 없다
+    popupAd={remoteAdOn}             // 앱의 끔 스위치 (기본 true)
+    isTestMember={async () => …}     // 시험 회원 판정 (없으면 아무도 아님)
+    syncPushToken={syncPushToken}    // 무료체험 알림 허용 뒤 푸시 토큰을 앱 서버에 다시 올리는 앱 함수
+  />
+</View>
+```
+
+앱 코드에 남는 것: 위 값들과 알림을 눌렀을 때의 화면 이동(`comboPushTarget(data)` 가 `'combos' | 'trials' | null` 을 주고, 열기는 기존 `requestOpenCombos()` / `requestOpenTrials(campaignKey)`). **앱에서 사라지는 것**: `EggCombos`류 글루 전부 — 요청(`offerwall/combos` · `campaigns` · `combos/diag` · `trials` · `trials/consent` · `trials/{key}/cancelled`), 시험 회원 분기, 「항상」 팝업 막기(`hasAlwaysPopup`/`dropAlwaysPopup`), 요청 본문(`campaignsBody` · `diagBody` · `detailSignalBody`), 푸시 길(`isTrialsRoute` · `pushCampaignKey` · `comboPushTarget`), 알림 권한 묻기(`ensureTrialNotify`), 팝업 네이티브 광고(`OfferwallPopupAd`), iPhone 목록 읽기와 올리기. 화면을 직접 짜는 앱은 같은 함수들(`createOfferwallClient` · `createComboHandlers` · 위 본문 함수)을 따로 쓸 수 있다.
+
+**서버 약속(앱보조5, 10/28 02:13 서버 반영)**
+- `GET offerwall/combos` 의 `display`: `chance`(`chip`|`off`) · `home`(`banner`|`off`) · `chance_popup`(`off`|`always`|없음) · `list_tap`(`"on"` 일 때만 켜짐, **없거나 다른 값 = 꺼짐**). 칩과 따로 움직인다 — iOS 에서 칩이 꺼져도 `{chance:"off", home:"off", chance_popup:"off", list_tap:"on"}` 로 내려온다. 켜져 있는데 목록이 없으면 빈 문서(`bundles []` · `categories []` · `preparing true`)가 200 으로 온다. 꺼져 있고 목록도 없으면 404 `no_combos`.
+- **서버가 말해야 켜진다**: 응답이 없거나 실패하면 아무것도 안 보이고, `display.chance` 가 없는 응답은 칩을 **끈 채**로 둔다(`guardedBody`). 캠페인 키가 앱마다 · OS 마다 달라 서버가 앱별 · OS별로 켜 준다.
+- `POST offerwall/campaigns`: `campaigns[{campaignKey ≤128, name ≤255, reward 정수, info? ≤1500, icon? https ≤300}]`, 한 번에 600개 · 분당 20회. 시험 회원은 바로 쓰이고 일반 회원(iOS)은 서로 다른 회원 2명 이상이 같은 키를 올려야 화면에 쓰인다. 긴 값은 서버가 잘라 저장한다(422 없음).
+- 시험 회원만 보내는 것: SDK 목록(`campaigns`), 하러 가기 진단(`combos/diag` 의 `t:'tap'`). 전체 회원이 보내는 것: 상세 신호(`combos/diag` 의 네 칸 result · campaignKey · platform · ms), iPhone 목록 읽기를 서버가 켜 준 회원의 목록.
+
+### iPhone 목록 읽기 (웹 탭) — 서버 스위치 `display.list_tap`, 기본 꺼짐
+
+iOS 의 애드팝콘 오퍼월 목록(「전체 미션」)은 SDK 안의 웹 화면이고 JS 가 읽을 수 있는 API 가 없다. 서버가 켠 회원의 iPhone 에서만(`display.list_tap:"on"`, iOS, 0.4.0 네이티브 모듈이 있을 때만) 네이티브가 그 웹 화면에 **읽기 전용 스크립트**를 넣는다. 서버가 `list_tap` 을 안 주면 `setWebTap` 은 **한 번도 호출되지 않고** 웹뷰 가로채기(`-[WKWebView initWithFrame:configuration:]` 교체)는 설치되지 않는다 — 심사 빌드는 이 상태로 나간다(`startWebTap` 이 처음 `enabled:true` 로 불릴 때 처음 한 번만 설치).
+- **읽는 것(화이트리스트)**: 캠페인 키 · 이름 · 보상(정수) · 설명 한 줄 · 아이콘(https) · 상세의 참여 안내 글. 모양 확인용 `shape` 메시지는 **키 이름만**(값 없음) — 앱은 `[combos] tap shape` 로 로그만 남긴다.
+- **절대 안 읽는 것**: 캠페인 `Auth` 토큰 · `getParameter`(앱 키 · 회원 · 광고 ID 가 든다) · `EventBody`/`EventParam` · usn · ifa · 쿠키 · 헤더. 스크립트가 버리고, 네이티브가 한 번, JS `parseTapMessage` 가 한 번 더 걸러낸다. 호스트가 `*.offerwall.adpopcorn.com` 이 아닌 페이지에서는 스크립트가 아무것도 설치하지 않고, 네이티브 핸들러도 메인 프레임 · 같은 호스트의 것만 받는다.
+- **올리기는 드물게**: 목록은 오퍼월을 열 때마다 오지만 앱은 10분 간격으로 최대 한 번, **같은 날 같은 목록이면 다시 올리지 않고**(회원별 기록을 기기에 남김) 상세 글은 다음 목록 올리기에 얹어 보낸다. 실패하면 나중에 다시(세 번까지). 스위치가 꺼지거나 404 가 오면 스크립트를 끈다(새로 만들어지는 웹뷰부터 적용).
+- **약관 확인 전**이다. 애드팝콘 문의 초안(`adpopcorn-api-inquiry-draft-1028.txt`)의 5번 질문이 이 점이고, 켤지는 승인 · 답변 뒤 대표님이 정한다. 그때까지 서버는 모든 앱에서 끈다.
+
+### 0.2.x 바이너리에서 켜지는 / 꺼지는 기능
+
+바이너리 세대: **0.2.x** = 지금 운영 대부분(뷰만, 모듈 없음) · **0.3.0** = 에그머니 1.1.6 TF(모듈 · `detailCampaignKey` 있음) · **0.4.0** = 이번 새 빌드. 표의 「JS」는 이 tgz 의 JS 를 OTA 로 얹은 것.
+
+| 기능 | 0.2.x 바이너리 (JS OTA) | 0.3.0 바이너리 (JS OTA) | 0.4.0 새 빌드 |
+|---|---|---|---|
+| 칩 · 안내 시트(항목별 탭 · 쉽게 모으기 · 한 번에 끝내기 · 합계) | **켜짐** | 켜짐 | 켜짐 |
+| 찬스 탭 추천 팝업 · 「항상」(시험 회원) · 앱 광고 자리 | **켜짐** | 켜짐 | 켜짐 |
+| 무료체험 동의 · 「무료체험」 탭 · 「무료체험 확인」 목록 · 푸시로 열기 | **켜짐** | 켜짐 | 켜짐 |
+| 무료체험 알림 권한 묻기(`ensureTrialNotify`) | 켜짐(`expo-notifications` 가 앱에 있을 때) | 켜짐 | 켜짐 |
+| 자정 · 어제 문서 · 40개씩 더 보기 · 준비 중(`preparing`) 응답 | **켜짐** | 켜짐 | 켜짐 |
+| 하러 가기 → 상세 바로 열기 / SDK 목록에서 이름 찾기 | **꺼짐**(모듈 없음) → 이름을 보여 주고 찬스 탭 목록을 펼침 | 켜짐 | 켜짐 |
+| 이름 복사 | **꺼짐** → 복사 시도 없이 「이름을 기억해 두세요」 | 켜짐 | 켜짐 |
+| 상세 닫힘 신호(`closed_fast`) · 열림 실패 신호(`open_failed`) | **꺼짐** | 켜짐 | 켜짐 |
+| 시험 회원의 SDK 목록 올리기 · 하러 가기 진단 | 꺼짐(목록 읽기 불가) · 진단은 `bridge:false` 로 올라감 | 켜짐 | 켜짐 |
+| 임베드 `<OfferwallView detailCampaignKey>` 의 캠페인 상세(iOS, `pageType 5`) · 상세 열림/닫힘 뷰 이벤트 | 꺼짐(뷰에 prop 안 넘김) | iOS 는 상세가 아니라 목록이 뜸(0.3.0 은 `pageType 0` 이라 키를 무시) | **켜짐** |
+| iPhone 목록 읽기(웹 탭) · 올리기 | **꺼짐**(`setWebTap` 없음 → `{ok:false}`) | 꺼짐 | 서버 `list_tap:"on"` 일 때만 |
+| 안드 SDK 목록 읽기 | 꺼짐 | 켜짐 | 켜짐 |
+
+- 모듈이 없을 때 새 뷰 prop(`campaignKeys` · `detailCampaignKey` · `onDetailOpened` · `onDetailClosed`)은 **네이티브 뷰에 넘기지 않는다**(0.2.x 뷰가 모르는 prop 은 오류가 된다). 뷰는 `usn` · `onLoaded` 만 받는 옛 모양 그대로다.
+- 위의 「꺼짐」은 그 기능의 버튼 · 칩 · 탭이 보이고 아무 일 없는 상태가 아니라, 그 기능 대신 쓰는 폴백이 도는 것이다(하러 가기는 이름 안내 + 목록 펼침).
+
+### 0.2.3 → 0.4.0 변경 목록 (앱이 알아야 하는 것)
+
+- **그대로인 것(바이트 동일)**: `app.plugin.js` · `react-native.config.js`. 새 권한 · `Info.plist` 키 · `AndroidManifest` 항목 · 앱 플러그인 옵션 **없음**. Android 쪽 gradle 의존성 추가 없음.
+- **바뀐 것**: `JCurveOfferwall.podspec` — `s.frameworks = 'WebKit'` 한 줄.
+- **네이티브 추가(새 빌드에서만 컴파일, OTA 에는 실리지 않는다)**
+  - 0.3.0: Android `JCurveOfferwallModule.java`(+`JCurveOfferwallPackage` 등록 · `JCurveOfferwallViewManager` 에 `campaignKeys`) · iOS `JCurveOfferwallModule.m`(상세 열기 · 커스텀 목록 · 참여 시도 · 클립보드 · 이벤트 등, 위 0.3.0 표) · iOS 뷰 `detailCampaignKey`.
+  - 0.4.0: iOS `JCurveOfferwallWebTap.h/.m`(웹뷰 스크립트 주입, 서버 스위치가 켜질 때만 설치) · `JCurveOfferwallModule.m`(`setWebTap` · `JCurveOfferwallTap` 이벤트 · `detailOpened` 이벤트 · capabilities 에 `bridge:2`) · `JCurveOfferwallViewManager.m`(`detailCampaignKey` 가 있으면 `pageType = 5`, `onDetailOpened`/`onDetailClosed`). Android 는 0.3.0 에서 바뀐 것 없음(`closeOfferwall` · `setWebTap` 은 Android 에 없고 JS `call()` 이 `E_UNSUPPORTED` 로 끝낸다).
+- **JS 추가**: `OfferwallCombos` · `createComboHandlers` · `createOfferwallClient` · `campaignsBody`/`diagBody`/`detailSignalBody`/`hasAlwaysPopup`/`dropAlwaysPopup`/`listTapSwitch`/`guardedBody` · `comboPushTarget`/`isTrialsRoute`/`pushCampaignKey` · `ensureTrialNotify`/`defaultTrialNotifyDeps`/`notifyState` · `OfferwallPopupAd`/`popupAdAvailable`/`popupAdUnit` · `startWebTap`/`parseTapMessage`/`WEB_TAP_*` · `createTapUploader`. `TodayCombos.display.listTap` 신설.
+- **동작이 바뀐 것**: (1) 복사할 수단이 없으면 복사를 시도하지 않고 「…찾아 주세요 · 이름을 기억해 두세요」(이전엔 「…찾아 주세요」만). (2) `display` 에 `list_tap:"on"` 만 있는 문서도 받는다(칩은 끈 채). (3) `OfferwallCombos` 로 쓰면 `display.chance` 가 없는 응답은 칩을 켜지 않는다(`ComboEntry` 를 직접 쓰는 옛 방식은 예전 기본값 `chip` 그대로).
+- **선택 peer(없어도 import 가 깨지지 않는다)**: `react-native-google-mobile-ads`(팝업 광고) · `expo-notifications`(알림 권한) · `@react-native-async-storage/async-storage`(체크 · 오늘 봤음 표시 저장).
+- **확인 상태**: 단위 테스트 273개(손으로 만든 React 대역 위) 통과, `tsc` 통과. **네이티브(ObjC · Java)는 아직 컴파일해 본 적이 없다** — 첫 컴파일은 맥북16 빌드 잡(에그머니 iOS)이고, 웹 탭 스크립트는 Node `vm` 의 가짜 페이지에서만 돌려 봤다. 실기기 · 시뮬레이터 확인 전이다.
