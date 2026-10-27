@@ -336,7 +336,7 @@ test('entry (Chance tab): chip over the header row, sheet rises over the wall, c
   assert.ok(hasSheet(tree), 'sheet is in the tree, over the wall');
   assert.equal(hasType(tree, 'Modal'), false);
   assert.equal(findSheet(tree).props.style.top, 52);
-  assert.ok(texts(tree).includes('1,000P 모으기') && texts(tree).includes('✕') && texts(tree).includes('닫기'));
+  assert.ok(texts(tree).includes('쉽게 모으기') && texts(tree).includes('✕') && texts(tree).includes('닫기'), 'the sample has an easy list: it opens first');
   const chip = byLabel(tree, '포인트 빨리 모으기');
   assert.equal(chip.props.accessibilityState.expanded, true);
   chip.props.onPress(); // tapping the chip again closes

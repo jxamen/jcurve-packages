@@ -28,12 +28,22 @@ export type ComboDisplay = {
     chance: 'chip' | 'off';
     home: 'banner' | 'off';
 };
+/** 「쉽게 모으기」: short, easy missions (follow, subscribe, install and open) with no goal; `total` is the sum of their points. */
+export type ComboEasy = {
+    missions: ComboMission[];
+    total: number;
+};
 export type TodayCombos = {
     date?: string;
     display: ComboDisplay;
-    bundles: ComboBundle[]; /** absent when the server sent none: the 「한 번에 끝내기」 box is then hidden */
+    bundles: ComboBundle[];
+    /** absent when the server sent none: the 「한 번에 끝내기」 box is then hidden */
     singles?: ComboSingles[];
+    /** absent when the server sent none: the 「쉽게 모으기」 tab is then hidden */
+    easy?: ComboEasy;
 };
+/** Name of the tab that lists only easy missions, before the 1천 → 5천 → 1만P steps. */
+export declare const COMBO_EASY_NAME = "\uC27D\uAC8C \uBAA8\uC73C\uAE30";
 export declare const COMBO_LEVEL_LABEL: Record<ComboLevel, string>;
 /** Keeps only well-formed rows; totals are recomputed so the screen never shows a sum the rows do not add up to. */
 export declare function normalizeTodayCombos(raw: unknown): TodayCombos | null;

@@ -130,6 +130,45 @@ const withTimeout = <T,>(promise: Promise<T>, ms: number, fallback: T): Promise<
 };
 const NOTICE_MS = 4500;
 
+/**
+ * What happened on one 하러 가기 tap, step by step, so a failure can be located without guessing: was there a bridge, did the
+ * SDK list arrive (how many, or which error), which key was tried and how it was found, did the SDK take it. Public campaign data
+ * only: no member, device or advertising id. The host decides whether and where to send it (`onDiagnostic`).
+ */
+export type ComboTapDiagnostic = {
+  t: 'tap';
+  /** the server's mission id (a campaign key when the server knows it, else a short hash) */
+  mission: string;
+  name: string;
+  bridge: boolean;
+  /** how many campaigns the SDK list returned (0 when it failed or was not asked) */
+  listCount: number;
+  listError?: string;
+  /** first names of the SDK list, to see why a name did not match */
+  listSample?: string[];
+  /** where the key we tried came from: the server (`campaignKey` / a numeric id), a name match, the row id found in the list, or none */
+  how: 'server_key' | 'name' | 'id_in_list' | 'none';
+  key?: string;
+  /** keys tried in all (the last one is described by `key` / `open`) */
+  attempts: number;
+  /** true: the SDK took the key. false: it refused or gave no answer in time. 'error': the call threw. 'skipped': nothing to try */
+  open: boolean | 'error' | 'skipped';
+  openError?: string;
+  openMs?: number;
+  copied?: boolean;
+  /** milliseconds from the tap to the outcome */
+  ms: number;
+};
+const short = (value: unknown, max = 80): string => {
+  const e = value as { code?: unknown; message?: unknown } | null;
+  const text = typeof value === 'string' ? value : e && (e.code || e.message) ? `${e.code ? String(e.code) + ': ' : ''}${String(e.message ?? '')}` : String(value);
+  return text.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, max);
+};
+/** Server key shapes: a real campaign key is a long number (the 12-hex hash ids are not keys). */
+type ListResult = { list: CampaignInfo[]; error?: string };
+const SLOW_REFUSAL_MS = 4500;
+const isCampaignKey = (value: string | undefined): value is string => !!value && /^\d{3,20}$/.test(value);
+
 /** Short message at the top ("신한 SOL페이" 를 찾아 주세요). Touches go through it. */
 function ComboToast({ text, top, theme }: { text: string; top: number; theme: ComboTheme }): ReactElement {
   const React = require('react') as typeof import('react');
@@ -163,6 +202,8 @@ export type ComboEntryProps = {
   campaigns?: CampaignApi | null;
   /** Gets the campaign list (key, name, reward) once it was read, e.g. to send it to the server for test members. */
   reportCampaigns?: (list: CampaignInfo[]) => unknown;
+  /** Called after every 하러 가기 tap with what happened (see ComboTapDiagnostic). Sending it is the app's business. */
+  onDiagnostic?: (diagnostic: ComboTapDiagnostic) => unknown;
   chipTop?: number;
   chipRight?: number;
   sheetTop?: number;
@@ -179,7 +220,7 @@ export type ComboEntryProps = {
  */
 export function ComboEntry({
   placement, url, headers, load, loadKey, usn, theme = DEFAULT_COMBO_THEME, sample = false, onPressMission, storage, copyText, campaigns,
-  reportCampaigns, chipTop, chipRight, sheetTop = COMBO_SHEET_TOP,
+  reportCampaigns, onDiagnostic, chipTop, chipRight, sheetTop = COMBO_SHEET_TOP,
 }: ComboEntryProps): ReactElement | null {
   const React = require('react') as typeof import('react');
   const { Modal, Pressable, SafeAreaView } = require('react-native') as typeof import('react-native');
@@ -189,9 +230,9 @@ export function ComboEntry({
   const marks = useDoneMissions({ storage, scope: loadKey, date: state.combos?.date });
   const [notice, setNotice] = React.useState<string | null>(null);
   const noticeTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const campaignCache = React.useRef<{ key: string; promise: Promise<CampaignInfo[]> } | null>(null);
-  const latest = React.useRef({ campaigns, copyText, reportCampaigns, usn, placement });
-  latest.current = { campaigns, copyText, reportCampaigns, usn, placement };
+  const campaignCache = React.useRef<{ key: string; promise: Promise<ListResult> } | null>(null);
+  const latest = React.useRef({ campaigns, copyText, reportCampaigns, usn, placement, onDiagnostic });
+  latest.current = { campaigns, copyText, reportCampaigns, usn, placement, onDiagnostic };
   const mode = placement === 'chance' ? state.combos?.display.chance ?? 'chip' : state.combos?.display.home ?? 'off';
   const shown = placement === 'chance' ? mode === 'chip' && !!state.combos : mode === 'banner' && !!state.combos;
   const listening = placement === 'chance' || mode !== 'off';
@@ -205,21 +246,24 @@ export function ComboEntry({
   React.useEffect(() => () => { if (noticeTimer.current) clearTimeout(noticeTimer.current); }, []);
 
   const bridge = (): CampaignApi | null => (latest.current.campaigns === undefined ? nativeCampaignApi() : latest.current.campaigns);
-  /** The SDK's current campaigns, read once per member (and again after an empty result). */
-  const campaignList = (): Promise<CampaignInfo[]> => {
+  /** The SDK's current campaigns, read once per member (and again after an empty result). Keeps WHY it was empty. */
+  const campaignList = (): Promise<ListResult> => {
     const key = String(loadKey ?? '');
     if (campaignCache.current?.key === key) return campaignCache.current.promise;
     const api = bridge();
-    if (!api) return Promise.resolve([]);
-    const promise: Promise<CampaignInfo[]> = withTimeout(api.list().catch(() => [] as CampaignInfo[]), 4000, [] as CampaignInfo[]).then(list => {
-      if (!list.length && campaignCache.current?.promise === promise) campaignCache.current = null;
-      else if (list.length) { try { latest.current.reportCampaigns?.(list); } catch { /* reporting is best effort */ } }
-      return list;
+    if (!api) return Promise.resolve({ list: [] });
+    const promise: Promise<ListResult> = withTimeout(
+      api.list().then((list): ListResult => ({ list }), (error): ListResult => ({ list: [], error: short(error) })),
+      4000, { list: [], error: 'timeout' } as ListResult,
+    ).then(result => {
+      if (!result.list.length && campaignCache.current?.promise === promise) campaignCache.current = null; // ask again next time
+      else if (result.list.length) { try { latest.current.reportCampaigns?.(result.list); } catch { /* reporting is best effort */ } }
+      return result;
     });
     campaignCache.current = { key, promise };
     return promise;
   };
-  // Warm the list when the guide opens, so the first tap does not wait.
+  // Warm the list when the guide opens, so a tap that needs it does not wait.
   React.useEffect(() => { if (open && bridge()) void campaignList(); }, [open]);
 
   const say = (text: string) => {
@@ -227,25 +271,56 @@ export function ComboEntry({
     setNotice(text);
     noticeTimer.current = setTimeout(() => setNotice(null), NOTICE_MS);
   };
+  /**
+   * Order, as asked by 대표님 (「해당 미션 페이지로 무조건 바로」): 1) the server's key (`campaignKey`, or a numeric mission id) goes
+   * straight to the SDK without waiting for any list, 2) the same name in the SDK's list, 3) the row id when it is in the list,
+   * 4) the fallback (name at the top, copied, plain list). Every tap reports what happened through `onDiagnostic`.
+   */
   const handleMission = async (mission: ComboMission, bundle: ComboBundle) => {
     if (onPressMission) { onPressMission(mission, bundle); return; }
+    const started = Date.now();
     const api = bridge();
+    const diag: ComboTapDiagnostic = { t: 'tap', mission: mission.id, name: mission.name, bridge: !!api, listCount: 0, how: 'none', attempts: 0, open: 'skipped', ms: 0 };
+    const tried = new Set<string>();
+    let unsure = false;
+    /**
+     * Gives one key to the SDK. true = it took it (the guide stays open for the next campaign).
+     * A "no" that took about as long as the native timeout may be a page that is still loading, so no second page is opened after it.
+     */
+    const attempt = async (key: string, how: ComboTapDiagnostic['how']): Promise<boolean> => {
+      if (!api || unsure || tried.has(key)) return false;
+      tried.add(key);
+      diag.how = how; diag.key = key; diag.attempts = tried.size; delete diag.openError;
+      const at = Date.now();
+      try { diag.open = (await api.open(key)) ? true : false; } catch (error) { diag.open = 'error'; diag.openError = short(error); }
+      diag.openMs = Date.now() - at;
+      if (diag.open === false && diag.openMs >= SLOW_REFUSAL_MS) unsure = true;
+      return diag.open === true;
+    };
+    const finish = (extra: Partial<ComboTapDiagnostic> = {}) => {
+      Object.assign(diag, extra, { ms: Date.now() - started });
+      try { void Promise.resolve(latest.current.onDiagnostic?.({ ...diag })).catch(() => {}); } catch { /* diagnostics never break the tap */ }
+    };
     if (api) {
-      const list = await withTimeout(campaignList(), 2500, [] as CampaignInfo[]);
-      const keys = new Set(list.map(c => c.campaignKey));
-      const candidates = [
-        findCampaignKey(list, mission.name),
-        keys.has(mission.id) ? mission.id : null,
-        mission.campaignKey ?? null,
-        !list.length && /^\d{3,20}$/.test(mission.id) ? mission.id : null, // list unavailable: a numeric server id may still be the key
-      ].filter((key, i, all): key is string => !!key && all.indexOf(key) === i);
-      for (const key of candidates) {
-        try { if (await api.open(key)) return; } catch { /* try the next, then the fallback */ }
+      // 1) the server's key: no list needed
+      for (const key of [mission.campaignKey, isCampaignKey(mission.id) ? mission.id : undefined]) {
+        if (key && await attempt(key, 'server_key')) { finish(); return; }
       }
+      // 2) names / ids from the SDK's own list (it is only a part of the offerwall, so a miss is normal)
+      const { list, error } = await withTimeout(campaignList(), 2500, { list: [], error: 'timeout' } as ListResult);
+      diag.listCount = list.length;
+      if (error) diag.listError = error;
+      if (list.length) diag.listSample = list.slice(0, 5).map(c => c.name.slice(0, 40));
+      const keys = new Set(list.map(c => c.campaignKey));
+      const byName = findCampaignKey(list, mission.name);
+      if (byName && await attempt(byName, 'name')) { finish(); return; }
+      if (keys.has(mission.id) && await attempt(mission.id, 'id_in_list')) { finish(); return; }
     }
+    // 3) fallback
     const copy = latest.current.copyText ?? nativeCopyText();
     let copied = false;
     if (copy) { try { copied = (await copy(mission.name)) !== false; } catch { copied = false; } }
+    finish({ copied });
     say(`"${mission.name}" 를 찾아 주세요${copied ? ' · 이름을 복사했어요' : ''}`);
     if (latest.current.placement === 'chance') setOpen(false); // the wall is right below
     else if (latest.current.usn) { const wall = latest.current.usn; setTimeout(() => { openOfferwall({ usn: wall }); }, 700); }

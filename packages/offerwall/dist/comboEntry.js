@@ -121,6 +121,13 @@ const withTimeout = (promise, ms, fallback) => {
     return Promise.race([promise, new Promise(resolve => { timer = setTimeout(() => resolve(fallback), ms); })]).finally(() => clearTimeout(timer));
 };
 const NOTICE_MS = 4500;
+const short = (value, max = 80) => {
+    const e = value;
+    const text = typeof value === 'string' ? value : e && (e.code || e.message) ? `${e.code ? String(e.code) + ': ' : ''}${String(e.message ?? '')}` : String(value);
+    return text.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, max);
+};
+const SLOW_REFUSAL_MS = 4500;
+const isCampaignKey = (value) => !!value && /^\d{3,20}$/.test(value);
 /** Short message at the top ("신한 SOL페이" 를 찾아 주세요). Touches go through it. */
 function ComboToast({ text, top, theme }) {
     const React = require('react');
@@ -140,7 +147,7 @@ function ComboToast({ text, top, theme }) {
  * server's id when it is a key) and its detail page opens. Otherwise, or when nothing is found, the name is shown at the
  * top (and copied when possible) and the plain list is revealed: the Chance tab closes the guide, Home opens the list.
  */
-function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combos_1.DEFAULT_COMBO_THEME, sample = false, onPressMission, storage, copyText, campaigns, reportCampaigns, chipTop, chipRight, sheetTop = exports.COMBO_SHEET_TOP, }) {
+function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combos_1.DEFAULT_COMBO_THEME, sample = false, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, chipTop, chipRight, sheetTop = exports.COMBO_SHEET_TOP, }) {
     const React = require('react');
     const { Modal, Pressable, SafeAreaView } = require('react-native');
     const h = React.createElement;
@@ -150,8 +157,8 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     const [notice, setNotice] = React.useState(null);
     const noticeTimer = React.useRef(null);
     const campaignCache = React.useRef(null);
-    const latest = React.useRef({ campaigns, copyText, reportCampaigns, usn, placement });
-    latest.current = { campaigns, copyText, reportCampaigns, usn, placement };
+    const latest = React.useRef({ campaigns, copyText, reportCampaigns, usn, placement, onDiagnostic });
+    latest.current = { campaigns, copyText, reportCampaigns, usn, placement, onDiagnostic };
     const mode = placement === 'chance' ? state.combos?.display.chance ?? 'chip' : state.combos?.display.home ?? 'off';
     const shown = placement === 'chance' ? mode === 'chip' && !!state.combos : mode === 'banner' && !!state.combos;
     const listening = placement === 'chance' || mode !== 'off';
@@ -164,29 +171,29 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     React.useEffect(() => () => { if (noticeTimer.current)
         clearTimeout(noticeTimer.current); }, []);
     const bridge = () => (latest.current.campaigns === undefined ? (0, campaigns_1.nativeCampaignApi)() : latest.current.campaigns);
-    /** The SDK's current campaigns, read once per member (and again after an empty result). */
+    /** The SDK's current campaigns, read once per member (and again after an empty result). Keeps WHY it was empty. */
     const campaignList = () => {
         const key = String(loadKey ?? '');
         if (campaignCache.current?.key === key)
             return campaignCache.current.promise;
         const api = bridge();
         if (!api)
-            return Promise.resolve([]);
-        const promise = withTimeout(api.list().catch(() => []), 4000, []).then(list => {
-            if (!list.length && campaignCache.current?.promise === promise)
-                campaignCache.current = null;
-            else if (list.length) {
+            return Promise.resolve({ list: [] });
+        const promise = withTimeout(api.list().then((list) => ({ list }), (error) => ({ list: [], error: short(error) })), 4000, { list: [], error: 'timeout' }).then(result => {
+            if (!result.list.length && campaignCache.current?.promise === promise)
+                campaignCache.current = null; // ask again next time
+            else if (result.list.length) {
                 try {
-                    latest.current.reportCampaigns?.(list);
+                    latest.current.reportCampaigns?.(result.list);
                 }
                 catch { /* reporting is best effort */ }
             }
-            return list;
+            return result;
         });
         campaignCache.current = { key, promise };
         return promise;
     };
-    // Warm the list when the guide opens, so the first tap does not wait.
+    // Warm the list when the guide opens, so a tap that needs it does not wait.
     React.useEffect(() => { if (open && bridge())
         void campaignList(); }, [open]);
     const say = (text) => {
@@ -195,29 +202,80 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
         setNotice(text);
         noticeTimer.current = setTimeout(() => setNotice(null), NOTICE_MS);
     };
+    /**
+     * Order, as asked by 대표님 (「해당 미션 페이지로 무조건 바로」): 1) the server's key (`campaignKey`, or a numeric mission id) goes
+     * straight to the SDK without waiting for any list, 2) the same name in the SDK's list, 3) the row id when it is in the list,
+     * 4) the fallback (name at the top, copied, plain list). Every tap reports what happened through `onDiagnostic`.
+     */
     const handleMission = async (mission, bundle) => {
         if (onPressMission) {
             onPressMission(mission, bundle);
             return;
         }
+        const started = Date.now();
         const api = bridge();
+        const diag = { t: 'tap', mission: mission.id, name: mission.name, bridge: !!api, listCount: 0, how: 'none', attempts: 0, open: 'skipped', ms: 0 };
+        const tried = new Set();
+        let unsure = false;
+        /**
+         * Gives one key to the SDK. true = it took it (the guide stays open for the next campaign).
+         * A "no" that took about as long as the native timeout may be a page that is still loading, so no second page is opened after it.
+         */
+        const attempt = async (key, how) => {
+            if (!api || unsure || tried.has(key))
+                return false;
+            tried.add(key);
+            diag.how = how;
+            diag.key = key;
+            diag.attempts = tried.size;
+            delete diag.openError;
+            const at = Date.now();
+            try {
+                diag.open = (await api.open(key)) ? true : false;
+            }
+            catch (error) {
+                diag.open = 'error';
+                diag.openError = short(error);
+            }
+            diag.openMs = Date.now() - at;
+            if (diag.open === false && diag.openMs >= SLOW_REFUSAL_MS)
+                unsure = true;
+            return diag.open === true;
+        };
+        const finish = (extra = {}) => {
+            Object.assign(diag, extra, { ms: Date.now() - started });
+            try {
+                void Promise.resolve(latest.current.onDiagnostic?.({ ...diag })).catch(() => { });
+            }
+            catch { /* diagnostics never break the tap */ }
+        };
         if (api) {
-            const list = await withTimeout(campaignList(), 2500, []);
-            const keys = new Set(list.map(c => c.campaignKey));
-            const candidates = [
-                (0, campaigns_1.findCampaignKey)(list, mission.name),
-                keys.has(mission.id) ? mission.id : null,
-                mission.campaignKey ?? null,
-                !list.length && /^\d{3,20}$/.test(mission.id) ? mission.id : null, // list unavailable: a numeric server id may still be the key
-            ].filter((key, i, all) => !!key && all.indexOf(key) === i);
-            for (const key of candidates) {
-                try {
-                    if (await api.open(key))
-                        return;
+            // 1) the server's key: no list needed
+            for (const key of [mission.campaignKey, isCampaignKey(mission.id) ? mission.id : undefined]) {
+                if (key && await attempt(key, 'server_key')) {
+                    finish();
+                    return;
                 }
-                catch { /* try the next, then the fallback */ }
+            }
+            // 2) names / ids from the SDK's own list (it is only a part of the offerwall, so a miss is normal)
+            const { list, error } = await withTimeout(campaignList(), 2500, { list: [], error: 'timeout' });
+            diag.listCount = list.length;
+            if (error)
+                diag.listError = error;
+            if (list.length)
+                diag.listSample = list.slice(0, 5).map(c => c.name.slice(0, 40));
+            const keys = new Set(list.map(c => c.campaignKey));
+            const byName = (0, campaigns_1.findCampaignKey)(list, mission.name);
+            if (byName && await attempt(byName, 'name')) {
+                finish();
+                return;
+            }
+            if (keys.has(mission.id) && await attempt(mission.id, 'id_in_list')) {
+                finish();
+                return;
             }
         }
+        // 3) fallback
         const copy = latest.current.copyText ?? (0, campaigns_1.nativeCopyText)();
         let copied = false;
         if (copy) {
@@ -228,6 +286,7 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
                 copied = false;
             }
         }
+        finish({ copied });
         say(`"${mission.name}" 를 찾아 주세요${copied ? ' · 이름을 복사했어요' : ''}`);
         if (latest.current.placement === 'chance')
             setOpen(false); // the wall is right below

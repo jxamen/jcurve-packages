@@ -49,6 +49,35 @@ export type ComboBannerProps = {
 };
 /** Home banner: the name large, the goal numbers emphasized. */
 export declare function ComboBanner({ combos, onPress, theme, opacity }: ComboBannerProps): ReactElement;
+/**
+ * What happened on one 하러 가기 tap, step by step, so a failure can be located without guessing: was there a bridge, did the
+ * SDK list arrive (how many, or which error), which key was tried and how it was found, did the SDK take it. Public campaign data
+ * only: no member, device or advertising id. The host decides whether and where to send it (`onDiagnostic`).
+ */
+export type ComboTapDiagnostic = {
+    t: 'tap';
+    /** the server's mission id (a campaign key when the server knows it, else a short hash) */
+    mission: string;
+    name: string;
+    bridge: boolean;
+    /** how many campaigns the SDK list returned (0 when it failed or was not asked) */
+    listCount: number;
+    listError?: string;
+    /** first names of the SDK list, to see why a name did not match */
+    listSample?: string[];
+    /** where the key we tried came from: the server (`campaignKey` / a numeric id), a name match, the row id found in the list, or none */
+    how: 'server_key' | 'name' | 'id_in_list' | 'none';
+    key?: string;
+    /** keys tried in all (the last one is described by `key` / `open`) */
+    attempts: number;
+    /** true: the SDK took the key. false: it refused or gave no answer in time. 'error': the call threw. 'skipped': nothing to try */
+    open: boolean | 'error' | 'skipped';
+    openError?: string;
+    openMs?: number;
+    copied?: boolean;
+    /** milliseconds from the tap to the outcome */
+    ms: number;
+};
 export type ComboEntryProps = {
     /** 'chance': chip over the wall (mount it beside the wall inside the same container). 'home': optional banner. */
     placement: 'chance' | 'home';
@@ -72,6 +101,8 @@ export type ComboEntryProps = {
     campaigns?: CampaignApi | null;
     /** Gets the campaign list (key, name, reward) once it was read, e.g. to send it to the server for test members. */
     reportCampaigns?: (list: CampaignInfo[]) => unknown;
+    /** Called after every 하러 가기 tap with what happened (see ComboTapDiagnostic). Sending it is the app's business. */
+    onDiagnostic?: (diagnostic: ComboTapDiagnostic) => unknown;
     chipTop?: number;
     chipRight?: number;
     sheetTop?: number;
@@ -86,5 +117,5 @@ export type ComboEntryProps = {
  * server's id when it is a key) and its detail page opens. Otherwise, or when nothing is found, the name is shown at the
  * top (and copied when possible) and the plain list is revealed: the Chance tab closes the guide, Home opens the list.
  */
-export declare function ComboEntry({ placement, url, headers, load, loadKey, usn, theme, sample, onPressMission, storage, copyText, campaigns, reportCampaigns, chipTop, chipRight, sheetTop, }: ComboEntryProps): ReactElement | null;
+export declare function ComboEntry({ placement, url, headers, load, loadKey, usn, theme, sample, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, chipTop, chipRight, sheetTop, }: ComboEntryProps): ReactElement | null;
 export {};
