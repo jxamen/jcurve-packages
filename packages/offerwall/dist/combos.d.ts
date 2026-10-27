@@ -18,6 +18,11 @@ export type ComboBundle = {
     missions: ComboMission[];
     total: number;
 };
+/** Missions that reach `goal` on their own ("한 번에 끝내기"), mixed kinds. Several to choose from, any one is enough. */
+export type ComboSingles = {
+    goal: number;
+    missions: ComboMission[];
+};
 /** Server switches. chance: the floating chip in the Chance tab; home: the optional banner on Home. */
 export type ComboDisplay = {
     chance: 'chip' | 'off';
@@ -26,7 +31,8 @@ export type ComboDisplay = {
 export type TodayCombos = {
     date?: string;
     display: ComboDisplay;
-    bundles: ComboBundle[];
+    bundles: ComboBundle[]; /** absent when the server sent none: the 「한 번에 끝내기」 box is then hidden */
+    singles?: ComboSingles[];
 };
 export declare const COMBO_LEVEL_LABEL: Record<ComboLevel, string>;
 /** Keeps only well-formed rows; totals are recomputed so the screen never shows a sum the rows do not add up to. */
