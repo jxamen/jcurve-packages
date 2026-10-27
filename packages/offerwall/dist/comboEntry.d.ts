@@ -1,6 +1,8 @@
 /** Ways into 「쉽게 1만P 모으기」: Chance-tab chip, Home banner, and a route that popups / pushes / deep links can fire. */
 import type { ReactElement } from 'react';
 import type { ComboBundle, ComboMission, ComboTheme, TodayCombos } from './combos';
+import type { CampaignApi, CampaignInfo } from './campaigns';
+import type { ComboStorage } from './comboDone';
 /** Route name for pushes (`data.go`) and links. Apps use in-app actions, not a URL scheme. */
 export declare const COMBOS_ROUTE = "offerwall/combos";
 /** Server popups store their action in a 10-character column, so the popup action is this short form. */
@@ -58,8 +60,16 @@ export type ComboEntryProps = {
     theme?: ComboTheme;
     /** Screen work only: shows fixed example rows. Never set this in a release. */
     sample?: boolean;
-    /** Opens one item. Without it, `usn` opens the whole list (the SDK cannot jump to one item). */
+    /** Takes over a mission tap completely. Without it the entry opens the campaign itself (see below). */
     onPressMission?: (mission: ComboMission, bundle: ComboBundle) => void;
+    /** AsyncStorage-shaped store for the "done" marks (kept per member and per Korean day). Without it they last until the app closes. */
+    storage?: ComboStorage;
+    /** Copies the campaign name when a tap falls back to the list. Default: the 0.3.0 native bridge when this binary has it, else no copy. */
+    copyText?: (text: string) => unknown;
+    /** The native campaign bridge. Default: found automatically (null on binaries without it). Pass `null` to switch direct opening off. */
+    campaigns?: CampaignApi | null;
+    /** Gets the campaign list (key, name, reward) once it was read, e.g. to send it to the server for test members. */
+    reportCampaigns?: (list: CampaignInfo[]) => unknown;
     chipTop?: number;
     chipRight?: number;
     sheetTop?: number;
@@ -69,6 +79,10 @@ export type ComboEntryProps = {
  * The chip floats over the wall's header row; tapping it raises the guide over the wall, tapping again (or 닫기) closes it
  * and the wall stays as it was. Home: a banner that opens the guide as a full screen. The server picks what shows
  * through `display`; the Chance tab keeps answering popup / push / link requests even when its chip is switched off.
+ *
+ * Tapping 하러 가기 on a row: with the native bridge the campaign's key is looked up (same name in the SDK's list, or the
+ * server's id when it is a key) and its detail page opens. Otherwise, or when nothing is found, the name is shown at the
+ * top (and copied when possible) and the plain list is revealed: the Chance tab closes the guide, Home opens the list.
  */
-export declare function ComboEntry({ placement, url, headers, load, loadKey, usn, theme, sample, onPressMission, chipTop, chipRight, sheetTop }: ComboEntryProps): ReactElement | null;
+export declare function ComboEntry({ placement, url, headers, load, loadKey, usn, theme, sample, onPressMission, storage, copyText, campaigns, reportCampaigns, chipTop, chipRight, sheetTop, }: ComboEntryProps): ReactElement | null;
 export {};

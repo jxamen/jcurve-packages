@@ -84,3 +84,5 @@ export { OfferwallScreen, OFFERWALL_SCREEN_MARK } from './OfferwallScreen';
 export type { OfferwallScreenProps } from './OfferwallScreen';
 export * from './combos';
 export * from './comboEntry';
+export * from './campaigns';
+export * from './comboDone';

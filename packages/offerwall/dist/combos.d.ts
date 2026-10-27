@@ -3,6 +3,7 @@ import type { ReactElement } from 'react';
 /** The one place the feature's name lives (chip, Home banner, guide title, labels, popup text). */
 export declare const COMBO_NAME = "\uC27D\uAC8C 1\uB9CCP \uBAA8\uC73C\uAE30";
 export type ComboLevel = 'easy' | 'normal' | 'hard';
+/** One mission row = one real campaign. `campaignKey` is optional: when the server knows it, the app opens that campaign directly. */
 export type ComboMission = {
     id: string;
     name: string;
@@ -10,6 +11,7 @@ export type ComboMission = {
     todo: string;
     level: ComboLevel;
     minutes?: number;
+    campaignKey?: string;
 };
 export type ComboBundle = {
     goal: number;
@@ -113,7 +115,10 @@ export declare function loadTodayCombos({ load, timeoutMs, now }: {
     timeoutMs?: number;
     now?: number;
 }): Promise<FetchCombosResult>;
-/** Fixed data for building the screen before the API exists. Only `sample: true` ever shows it. */
+/**
+ * Fixed data for building the screen before the API exists, in the shape of a real server response (one row = one
+ * campaign, same id in several bundles when the same campaign fits). Only `sample: true` ever shows it.
+ */
 export declare const TODAY_COMBOS_SAMPLE: TodayCombos;
 export type TodayCombosState = {
     status: 'loading' | 'ready' | 'empty';
@@ -153,7 +158,11 @@ export type ComboGuideScreenProps = {
     variant?: 'page' | 'sheet';
     /** Shown above the rows when a tap only opens the whole list. Pass '' to hide. */
     hint?: string;
+    /** Mission ids the user ticked as done. Done rows sink to the bottom, dim, and leave the remaining sum. */
+    done?: ReadonlySet<string>;
+    /** Called when the round mark in front of a row is tapped. Without it the marks are not interactive. */
+    onToggleDone?: (id: string) => void;
 };
 /** The guide page: a 1단계 · 2단계 · 3단계 path (1천P → 5천P → 1만P), one bundle shown at a time. */
-export declare function ComboGuideScreen({ combos, loading, onClose, onPressMission, usn, theme, showHeader, topInset, variant, hint }: ComboGuideScreenProps): ReactElement;
+export declare function ComboGuideScreen({ combos, loading, onClose, onPressMission, usn, theme, showHeader, topInset, variant, hint, done, onToggleDone }: ComboGuideScreenProps): ReactElement;
 export {};

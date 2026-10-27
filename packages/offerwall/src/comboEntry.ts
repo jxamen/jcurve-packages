@@ -2,6 +2,11 @@
 import type { ReactElement } from 'react';
 import { COMBO_NAME, ComboGuideScreen, DEFAULT_COMBO_THEME, formatGoal, useTodayCombos } from './combos';
 import type { ComboBundle, ComboMission, ComboTheme, TodayCombos } from './combos';
+import { findCampaignKey, nativeCampaignApi, nativeCopyText } from './campaigns';
+import type { CampaignApi, CampaignInfo } from './campaigns';
+import { useDoneMissions } from './comboDone';
+import type { ComboStorage } from './comboDone';
+import { openOfferwall } from './index';
 
 /** Route name for pushes (`data.go`) and links. Apps use in-app actions, not a URL scheme. */
 export const COMBOS_ROUTE = 'offerwall/combos';
@@ -114,6 +119,22 @@ function ComboSheet({ top, theme, children }: { top: number; theme: ComboTheme; 
   }, children);
 }
 
+const withTimeout = <T,>(promise: Promise<T>, ms: number, fallback: T): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([promise, new Promise<T>(resolve => { timer = setTimeout(() => resolve(fallback), ms); })]).finally(() => clearTimeout(timer));
+};
+const NOTICE_MS = 4500;
+
+/** Short message at the top ("신한 SOL페이" 를 찾아 주세요). Touches go through it. */
+function ComboToast({ text, top, theme }: { text: string; top: number; theme: ComboTheme }): ReactElement {
+  const React = require('react') as typeof import('react');
+  const { View, Text } = require('react-native') as typeof import('react-native');
+  return React.createElement(View, {
+    pointerEvents: 'none',
+    style: { position: 'absolute', left: 16, right: 16, top, zIndex: 40, elevation: 40, borderRadius: theme.radius.slot, paddingVertical: 12, paddingHorizontal: 16, backgroundColor: theme.text },
+  }, React.createElement(Text, { style: { fontSize: theme.font.small, lineHeight: 22, fontWeight: '800', color: '#FFFFFF' } }, text));
+}
+
 export type ComboEntryProps = {
   /** 'chance': chip over the wall (mount it beside the wall inside the same container). 'home': optional banner. */
   placement: 'chance' | 'home';
@@ -127,8 +148,16 @@ export type ComboEntryProps = {
   theme?: ComboTheme;
   /** Screen work only: shows fixed example rows. Never set this in a release. */
   sample?: boolean;
-  /** Opens one item. Without it, `usn` opens the whole list (the SDK cannot jump to one item). */
+  /** Takes over a mission tap completely. Without it the entry opens the campaign itself (see below). */
   onPressMission?: (mission: ComboMission, bundle: ComboBundle) => void;
+  /** AsyncStorage-shaped store for the "done" marks (kept per member and per Korean day). Without it they last until the app closes. */
+  storage?: ComboStorage;
+  /** Copies the campaign name when a tap falls back to the list. Default: the 0.3.0 native bridge when this binary has it, else no copy. */
+  copyText?: (text: string) => unknown;
+  /** The native campaign bridge. Default: found automatically (null on binaries without it). Pass `null` to switch direct opening off. */
+  campaigns?: CampaignApi | null;
+  /** Gets the campaign list (key, name, reward) once it was read, e.g. to send it to the server for test members. */
+  reportCampaigns?: (list: CampaignInfo[]) => unknown;
   chipTop?: number;
   chipRight?: number;
   sheetTop?: number;
@@ -138,29 +167,93 @@ export type ComboEntryProps = {
  * The chip floats over the wall's header row; tapping it raises the guide over the wall, tapping again (or 닫기) closes it
  * and the wall stays as it was. Home: a banner that opens the guide as a full screen. The server picks what shows
  * through `display`; the Chance tab keeps answering popup / push / link requests even when its chip is switched off.
+ *
+ * Tapping 하러 가기 on a row: with the native bridge the campaign's key is looked up (same name in the SDK's list, or the
+ * server's id when it is a key) and its detail page opens. Otherwise, or when nothing is found, the name is shown at the
+ * top (and copied when possible) and the plain list is revealed: the Chance tab closes the guide, Home opens the list.
  */
-export function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = DEFAULT_COMBO_THEME, sample = false, onPressMission, chipTop, chipRight, sheetTop = COMBO_SHEET_TOP }: ComboEntryProps): ReactElement | null {
+export function ComboEntry({
+  placement, url, headers, load, loadKey, usn, theme = DEFAULT_COMBO_THEME, sample = false, onPressMission, storage, copyText, campaigns,
+  reportCampaigns, chipTop, chipRight, sheetTop = COMBO_SHEET_TOP,
+}: ComboEntryProps): ReactElement | null {
   const React = require('react') as typeof import('react');
   const { Modal, Pressable, SafeAreaView } = require('react-native') as typeof import('react-native');
   const h = React.createElement;
   const state = useTodayCombos({ url, headers, load, loadKey, sample });
   const [open, setOpen] = React.useState(false);
+  const marks = useDoneMissions({ storage, scope: loadKey, date: state.combos?.date });
+  const [notice, setNotice] = React.useState<string | null>(null);
+  const noticeTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const campaignCache = React.useRef<{ key: string; promise: Promise<CampaignInfo[]> } | null>(null);
+  const latest = React.useRef({ campaigns, copyText, reportCampaigns, usn, placement });
+  latest.current = { campaigns, copyText, reportCampaigns, usn, placement };
   const mode = placement === 'chance' ? state.combos?.display.chance ?? 'chip' : state.combos?.display.home ?? 'off';
   const shown = placement === 'chance' ? mode === 'chip' && !!state.combos : mode === 'banner' && !!state.combos;
   const listening = placement === 'chance' || mode !== 'off';
   React.useEffect(
     () => listening ? listenForComboRequests({ priority: placement === 'chance' ? 2 : 1, open: () => setOpen(true) }) : undefined,
     [listening, placement]);
+  React.useEffect(() => () => { if (noticeTimer.current) clearTimeout(noticeTimer.current); }, []);
+
+  const bridge = (): CampaignApi | null => (latest.current.campaigns === undefined ? nativeCampaignApi() : latest.current.campaigns);
+  /** The SDK's current campaigns, read once per member (and again after an empty result). */
+  const campaignList = (): Promise<CampaignInfo[]> => {
+    const key = String(loadKey ?? '');
+    if (campaignCache.current?.key === key) return campaignCache.current.promise;
+    const api = bridge();
+    if (!api) return Promise.resolve([]);
+    const promise: Promise<CampaignInfo[]> = withTimeout(api.list().catch(() => [] as CampaignInfo[]), 4000, [] as CampaignInfo[]).then(list => {
+      if (!list.length && campaignCache.current?.promise === promise) campaignCache.current = null;
+      else if (list.length) { try { latest.current.reportCampaigns?.(list); } catch { /* reporting is best effort */ } }
+      return list;
+    });
+    campaignCache.current = { key, promise };
+    return promise;
+  };
+  // Warm the list when the guide opens, so the first tap does not wait.
+  React.useEffect(() => { if (open && bridge()) void campaignList(); }, [open]);
+
+  const say = (text: string) => {
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    setNotice(text);
+    noticeTimer.current = setTimeout(() => setNotice(null), NOTICE_MS);
+  };
+  const handleMission = async (mission: ComboMission, bundle: ComboBundle) => {
+    if (onPressMission) { onPressMission(mission, bundle); return; }
+    const api = bridge();
+    if (api) {
+      const list = await withTimeout(campaignList(), 2500, [] as CampaignInfo[]);
+      const keys = new Set(list.map(c => c.campaignKey));
+      const candidates = [
+        findCampaignKey(list, mission.name),
+        keys.has(mission.id) ? mission.id : null,
+        mission.campaignKey ?? null,
+        !list.length && /^\d{3,20}$/.test(mission.id) ? mission.id : null, // list unavailable: a numeric server id may still be the key
+      ].filter((key, i, all): key is string => !!key && all.indexOf(key) === i);
+      for (const key of candidates) {
+        try { if (await api.open(key)) return; } catch { /* try the next, then the fallback */ }
+      }
+    }
+    const copy = latest.current.copyText ?? nativeCopyText();
+    let copied = false;
+    if (copy) { try { copied = (await copy(mission.name)) !== false; } catch { copied = false; } }
+    say(`"${mission.name}" 를 찾아 주세요${copied ? ' · 이름을 복사했어요' : ''}`);
+    if (latest.current.placement === 'chance') setOpen(false); // the wall is right below
+    else if (latest.current.usn) { const wall = latest.current.usn; setTimeout(() => { openOfferwall({ usn: wall }); }, 700); }
+  };
+
   const close = () => setOpen(false);
   const guide = (variant: 'page' | 'sheet') => h(ComboGuideScreen, {
-    combos: state.combos, loading: state.status === 'loading', onClose: close, onPressMission, usn, theme, variant,
+    combos: state.combos, loading: state.status === 'loading', onClose: close, onPressMission: handleMission, usn, theme, variant,
+    done: marks.done, onToggleDone: marks.toggle,
   });
-  if (!shown && !open) return null;
+  if (!shown && !open && !notice) return null;
   if (placement === 'home') {
     return h(React.Fragment, null,
       shown && state.combos ? h(ComboBanner, { combos: state.combos, onPress: () => setOpen(true), theme }) : null,
       open ? h(Modal, { visible: true, animationType: 'slide', onRequestClose: close },
-        h(SafeAreaView, { style: { flex: 1, backgroundColor: theme.bg } }, guide('page'))) : null);
+        h(SafeAreaView, { style: { flex: 1, backgroundColor: theme.bg } }, guide('page'),
+          notice ? h(ComboToast, { text: notice, top: 8, theme }) : null)) : null);
   }
   return h(React.Fragment, null,
     open ? h(Pressable, {
@@ -168,5 +261,6 @@ export function ComboEntry({ placement, url, headers, load, loadKey, usn, theme 
       style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20, elevation: 20, backgroundColor: 'rgba(0,0,0,0.3)' },
     }) : null,
     open ? h(ComboSheet, { key: 'sheet', top: sheetTop, theme }, guide('sheet')) : null,
-    shown ? h(ComboChip, { key: 'chip', open, theme, top: chipTop, right: chipRight, onPress: () => setOpen(o => !o) }) : null);
+    shown ? h(ComboChip, { key: 'chip', open, theme, top: chipTop, right: chipRight, onPress: () => setOpen(o => !o) }) : null,
+    notice ? h(ComboToast, { key: 'notice', text: notice, top: sheetTop + 8, theme }) : null);
 }

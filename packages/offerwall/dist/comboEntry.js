@@ -8,6 +8,9 @@ exports.ComboChip = ComboChip;
 exports.ComboBanner = ComboBanner;
 exports.ComboEntry = ComboEntry;
 const combos_1 = require("./combos");
+const campaigns_1 = require("./campaigns");
+const comboDone_1 = require("./comboDone");
+const index_1 = require("./index");
 /** Route name for pushes (`data.go`) and links. Apps use in-app actions, not a URL scheme. */
 exports.COMBOS_ROUTE = 'offerwall/combos';
 /** Server popups store their action in a 10-character column, so the popup action is this short form. */
@@ -108,33 +111,133 @@ function ComboSheet({ top, theme, children }) {
         },
     }, children);
 }
+const withTimeout = (promise, ms, fallback) => {
+    let timer;
+    return Promise.race([promise, new Promise(resolve => { timer = setTimeout(() => resolve(fallback), ms); })]).finally(() => clearTimeout(timer));
+};
+const NOTICE_MS = 4500;
+/** Short message at the top ("신한 SOL페이" 를 찾아 주세요). Touches go through it. */
+function ComboToast({ text, top, theme }) {
+    const React = require('react');
+    const { View, Text } = require('react-native');
+    return React.createElement(View, {
+        pointerEvents: 'none',
+        style: { position: 'absolute', left: 16, right: 16, top, zIndex: 40, elevation: 40, borderRadius: theme.radius.slot, paddingVertical: 12, paddingHorizontal: 16, backgroundColor: theme.text },
+    }, React.createElement(Text, { style: { fontSize: theme.font.small, lineHeight: 22, fontWeight: '800', color: '#FFFFFF' } }, text));
+}
 /**
  * Chance tab: put it next to the wall inside one container, `<View style={{flex:1}}><OfferwallScreen/><ComboEntry placement="chance"/></View>`.
  * The chip floats over the wall's header row; tapping it raises the guide over the wall, tapping again (or 닫기) closes it
  * and the wall stays as it was. Home: a banner that opens the guide as a full screen. The server picks what shows
  * through `display`; the Chance tab keeps answering popup / push / link requests even when its chip is switched off.
+ *
+ * Tapping 하러 가기 on a row: with the native bridge the campaign's key is looked up (same name in the SDK's list, or the
+ * server's id when it is a key) and its detail page opens. Otherwise, or when nothing is found, the name is shown at the
+ * top (and copied when possible) and the plain list is revealed: the Chance tab closes the guide, Home opens the list.
  */
-function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combos_1.DEFAULT_COMBO_THEME, sample = false, onPressMission, chipTop, chipRight, sheetTop = exports.COMBO_SHEET_TOP }) {
+function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combos_1.DEFAULT_COMBO_THEME, sample = false, onPressMission, storage, copyText, campaigns, reportCampaigns, chipTop, chipRight, sheetTop = exports.COMBO_SHEET_TOP, }) {
     const React = require('react');
     const { Modal, Pressable, SafeAreaView } = require('react-native');
     const h = React.createElement;
     const state = (0, combos_1.useTodayCombos)({ url, headers, load, loadKey, sample });
     const [open, setOpen] = React.useState(false);
+    const marks = (0, comboDone_1.useDoneMissions)({ storage, scope: loadKey, date: state.combos?.date });
+    const [notice, setNotice] = React.useState(null);
+    const noticeTimer = React.useRef(null);
+    const campaignCache = React.useRef(null);
+    const latest = React.useRef({ campaigns, copyText, reportCampaigns, usn, placement });
+    latest.current = { campaigns, copyText, reportCampaigns, usn, placement };
     const mode = placement === 'chance' ? state.combos?.display.chance ?? 'chip' : state.combos?.display.home ?? 'off';
     const shown = placement === 'chance' ? mode === 'chip' && !!state.combos : mode === 'banner' && !!state.combos;
     const listening = placement === 'chance' || mode !== 'off';
     React.useEffect(() => listening ? listenForComboRequests({ priority: placement === 'chance' ? 2 : 1, open: () => setOpen(true) }) : undefined, [listening, placement]);
+    React.useEffect(() => () => { if (noticeTimer.current)
+        clearTimeout(noticeTimer.current); }, []);
+    const bridge = () => (latest.current.campaigns === undefined ? (0, campaigns_1.nativeCampaignApi)() : latest.current.campaigns);
+    /** The SDK's current campaigns, read once per member (and again after an empty result). */
+    const campaignList = () => {
+        const key = String(loadKey ?? '');
+        if (campaignCache.current?.key === key)
+            return campaignCache.current.promise;
+        const api = bridge();
+        if (!api)
+            return Promise.resolve([]);
+        const promise = withTimeout(api.list().catch(() => []), 4000, []).then(list => {
+            if (!list.length && campaignCache.current?.promise === promise)
+                campaignCache.current = null;
+            else if (list.length) {
+                try {
+                    latest.current.reportCampaigns?.(list);
+                }
+                catch { /* reporting is best effort */ }
+            }
+            return list;
+        });
+        campaignCache.current = { key, promise };
+        return promise;
+    };
+    // Warm the list when the guide opens, so the first tap does not wait.
+    React.useEffect(() => { if (open && bridge())
+        void campaignList(); }, [open]);
+    const say = (text) => {
+        if (noticeTimer.current)
+            clearTimeout(noticeTimer.current);
+        setNotice(text);
+        noticeTimer.current = setTimeout(() => setNotice(null), NOTICE_MS);
+    };
+    const handleMission = async (mission, bundle) => {
+        if (onPressMission) {
+            onPressMission(mission, bundle);
+            return;
+        }
+        const api = bridge();
+        if (api) {
+            const list = await withTimeout(campaignList(), 2500, []);
+            const keys = new Set(list.map(c => c.campaignKey));
+            const candidates = [
+                (0, campaigns_1.findCampaignKey)(list, mission.name),
+                keys.has(mission.id) ? mission.id : null,
+                mission.campaignKey ?? null,
+                !list.length && /^\d{3,20}$/.test(mission.id) ? mission.id : null, // list unavailable: a numeric server id may still be the key
+            ].filter((key, i, all) => !!key && all.indexOf(key) === i);
+            for (const key of candidates) {
+                try {
+                    if (await api.open(key))
+                        return;
+                }
+                catch { /* try the next, then the fallback */ }
+            }
+        }
+        const copy = latest.current.copyText ?? (0, campaigns_1.nativeCopyText)();
+        let copied = false;
+        if (copy) {
+            try {
+                copied = (await copy(mission.name)) !== false;
+            }
+            catch {
+                copied = false;
+            }
+        }
+        say(`"${mission.name}" 를 찾아 주세요${copied ? ' · 이름을 복사했어요' : ''}`);
+        if (latest.current.placement === 'chance')
+            setOpen(false); // the wall is right below
+        else if (latest.current.usn) {
+            const wall = latest.current.usn;
+            setTimeout(() => { (0, index_1.openOfferwall)({ usn: wall }); }, 700);
+        }
+    };
     const close = () => setOpen(false);
     const guide = (variant) => h(combos_1.ComboGuideScreen, {
-        combos: state.combos, loading: state.status === 'loading', onClose: close, onPressMission, usn, theme, variant,
+        combos: state.combos, loading: state.status === 'loading', onClose: close, onPressMission: handleMission, usn, theme, variant,
+        done: marks.done, onToggleDone: marks.toggle,
     });
-    if (!shown && !open)
+    if (!shown && !open && !notice)
         return null;
     if (placement === 'home') {
-        return h(React.Fragment, null, shown && state.combos ? h(ComboBanner, { combos: state.combos, onPress: () => setOpen(true), theme }) : null, open ? h(Modal, { visible: true, animationType: 'slide', onRequestClose: close }, h(SafeAreaView, { style: { flex: 1, backgroundColor: theme.bg } }, guide('page'))) : null);
+        return h(React.Fragment, null, shown && state.combos ? h(ComboBanner, { combos: state.combos, onPress: () => setOpen(true), theme }) : null, open ? h(Modal, { visible: true, animationType: 'slide', onRequestClose: close }, h(SafeAreaView, { style: { flex: 1, backgroundColor: theme.bg } }, guide('page'), notice ? h(ComboToast, { text: notice, top: 8, theme }) : null)) : null);
     }
     return h(React.Fragment, null, open ? h(Pressable, {
         key: 'backdrop', accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: close,
         style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20, elevation: 20, backgroundColor: 'rgba(0,0,0,0.3)' },
-    }) : null, open ? h(ComboSheet, { key: 'sheet', top: sheetTop, theme }, guide('sheet')) : null, shown ? h(ComboChip, { key: 'chip', open, theme, top: chipTop, right: chipRight, onPress: () => setOpen(o => !o) }) : null);
+    }) : null, open ? h(ComboSheet, { key: 'sheet', top: sheetTop, theme }, guide('sheet')) : null, shown ? h(ComboChip, { key: 'chip', open, theme, top: chipTop, right: chipRight, onPress: () => setOpen(o => !o) }) : null, notice ? h(ComboToast, { key: 'notice', text: notice, top: sheetTop + 8, theme }) : null);
 }
