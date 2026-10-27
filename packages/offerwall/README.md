@@ -154,11 +154,13 @@ const theme = comboThemeFromTokens({ C, R, F, shadow });   // 앱의 src/ui/them
 // 찬스 탭 — 오퍼월과 같은 크기의 한 틀 안에 나란히
 <View style={{ flex: 1 }}>
   <OfferwallScreen usn={usn} onClose={...} onRetry={...} />
-  <ComboEntry placement="chance" url={`${base}/v1/${slug}/offerwall/combos`} headers={authHeaders} usn={usn} theme={theme} />
+  <ComboEntry placement="chance" load={() => api.get('offerwall/combos')} loadKey={memberId} usn={usn} theme={theme} />
 </View>
 // 홈에 배너를 쓰려면 홈에도 한 번 (서버가 home: 'banner' 로 켤 때만 보인다)
-<ComboEntry placement="home" url={...} headers={...} usn={usn} theme={theme} />
+<ComboEntry placement="home" load={() => api.get('offerwall/combos')} loadKey={memberId} usn={usn} theme={theme} />
 ```
+
+- 데이터는 `load`(앱이 자기 API 함수로 요청해 파싱된 JSON 을 돌려줌 — 인증 · 기기 · OTA 헤더 · 401 처리를 앱이 그대로 쓴다) 또는 `url` + `headers` 로 받는다. `loadKey`(회원 번호 · 토큰)가 바뀌면 이전 회원 데이터를 즉시 버린다. `load` 함수 모양만 바뀌어서는 다시 받지 않는다.
 
 - **찬스 탭**: 오퍼월 위에 작은 칩 하나만 얹는다(띠 · 감싸는 여백 없음, 칩 밖 터치는 오퍼월로 간다). 오퍼월 자체 머리줄(「리워드 충전소」 · 프로필 아이콘) 오른쪽 빈자리에 맞춰 `chipTop` 6 · `chipRight` 52 (iPhone 402pt · Galaxy A32 411dp 캡처에서 잰 값, 머리줄은 스크롤해도 고정). 칩을 누르면 칩 아래에서 시트가 올라오고, 칩을 다시 누르거나 「닫기」 · 바깥을 누르면 닫혀 오퍼월은 그대로다. 오퍼월은 RN 화면 안에 들어간 뷰(iOS `UIView` 자식 · Android `FrameLayout` 자식)라 그 위에 RN 뷰가 올라간다 — 올라가지 못하는 건 SDK 전체 화면 `openOfferwall()` 뿐이다.
 - **홈**: 배너 → 눌러서 전체 화면(Modal)으로 연다.

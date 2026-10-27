@@ -138,11 +138,27 @@ export async function fetchTodayCombos({ url, headers = {}, timeoutMs = 8000, no
   try {
     const response = await (fetcher ?? (fetch as unknown as Fetcher))(url, { headers, signal: controller?.signal, cache: 'no-store' });
     if (!response.ok) return { ok: false, reason: 'bad_response' };
-    const body = await response.json();
-    if (!body || typeof body !== 'object' || body.ok === false) return { ok: false, reason: 'bad_response' };
-    const combos = normalizeTodayCombos(body.combos ?? body.data ?? body);
-    if (!combos) return { ok: false, reason: 'bad_response' };
-    return isTodayCombos(combos, now) ? { ok: true, combos } : { ok: false, reason: 'stale' };
+    return parseCombosBody(await response.json(), now);
+  } catch { return { ok: false, reason: 'network' }; }
+  finally { clearTimeout(timer); }
+}
+/** A response body (`{ok, combos}`, `{ok, data}` or the combos themselves) → checked combos for today. */
+export function parseCombosBody(body: unknown, now?: number): FetchCombosResult {
+  const data = body && typeof body === 'object' ? (body as Record<string, any>) : null;
+  if (!data || data.ok === false) return { ok: false, reason: 'bad_response' };
+  const combos = normalizeTodayCombos(data.combos ?? data.data ?? data);
+  if (!combos) return { ok: false, reason: 'bad_response' };
+  return isTodayCombos(combos, now) ? { ok: true, combos } : { ok: false, reason: 'stale' };
+}
+/**
+ * Same as `fetchTodayCombos` but the app does the request with its own API function (auth, device and OTA headers,
+ * 401 handling stay the app's). `load` resolves to the parsed JSON body; a throw counts as a network failure.
+ */
+export async function loadTodayCombos({ load, timeoutMs = 8000, now }: { load: () => Promise<unknown>; timeoutMs?: number; now?: number }): Promise<FetchCombosResult> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const body = await Promise.race([load(), new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), timeoutMs); })]);
+    return parseCombosBody(body, now);
   } catch { return { ok: false, reason: 'network' }; }
   finally { clearTimeout(timer); }
 }
@@ -180,27 +196,41 @@ export type TodayCombosState = { status: 'loading' | 'ready' | 'empty'; combos: 
  * Data is tied to the url + headers it was fetched with: a new member or address starts empty instead of showing
  * the previous one's rows. After Korean midnight yesterday's rows are dropped and today's are fetched again.
  */
-export function useTodayCombos({ url, headers, sample = false }: { url?: string; headers?: Record<string, string>; sample?: boolean }): TodayCombosState {
+export type CombosSource = {
+  /** Either `url` (+ `headers`) or `load`: the app's own request function, resolving to the parsed JSON body. */
+  url?: string;
+  headers?: Record<string, string>;
+  load?: () => Promise<unknown>;
+  /** Anything that identifies who/what `load` asks for (member id, token); a change drops the previous rows at once. */
+  loadKey?: string | number;
+};
+export function useTodayCombos({ url, headers, load, loadKey, sample = false }: CombosSource & { sample?: boolean }): TodayCombosState {
   const React = require('react') as typeof import('react');
   const headersKey = JSON.stringify(headers ?? {});
-  const key = `${url ?? ''}|${headersKey}|${sample ? 1 : 0}`;
+  const enabled = !!url || !!load;
+  const key = `${url ?? ''}|${headersKey}|${load ? 'load:' + String(loadKey ?? '') : ''}|${sample ? 1 : 0}`;
+  const latestLoad = React.useRef(load);
+  latestLoad.current = load;
   const start = (): { status: TodayCombosState['status']; combos: TodayCombos | null } =>
-    sample && !url ? { status: 'ready', combos: TODAY_COMBOS_SAMPLE } : { status: url ? 'loading' : 'empty', combos: null };
+    sample && !enabled ? { status: 'ready', combos: TODAY_COMBOS_SAMPLE } : { status: enabled ? 'loading' : 'empty', combos: null };
   const [state, setState] = React.useState<{ key: string; status: TodayCombosState['status']; combos: TodayCombos | null }>(() => ({ key, ...start() }));
   const [tick, setTick] = React.useState(0);
   React.useEffect(() => {
-    if (!url) return;
+    if (!enabled) return;
     let live = true;
-    fetchTodayCombos({ url, headers: JSON.parse(headersKey) }).then(result => {
+    const request = latestLoad.current
+      ? loadTodayCombos({ load: () => latestLoad.current!() })
+      : fetchTodayCombos({ url: url!, headers: JSON.parse(headersKey) });
+    request.then(result => {
       if (live) setState({ key, ...(result.ok ? { status: 'ready' as const, combos: result.combos } : { status: 'empty' as const, combos: null }) });
     });
     return () => { live = false; };
   }, [key, tick]);
   React.useEffect(() => {
-    if (!url) return;
+    if (!enabled) return;
     const timer = setTimeout(() => setTick(n => n + 1), msUntilKstMidnight() + 5000);
     return () => clearTimeout(timer);
-  }, [url, tick]);
+  }, [enabled, tick]);
   const reload = () => { setState(prev => ({ ...prev, status: 'loading' })); setTick(n => n + 1); };
   const current = state.key === key ? state : { key, ...start() };
   // Re-checked on every render, so a render after midnight never shows yesterday's rows.

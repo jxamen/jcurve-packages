@@ -46,9 +46,12 @@ export declare function ComboBanner({ combos, onPress, theme }: ComboBannerProps
 export type ComboEntryProps = {
     /** 'chance': chip over the wall (mount it beside the wall inside the same container). 'home': optional banner. */
     placement: 'chance' | 'home';
-    /** Combos API address. Without it nothing shows unless `sample` is true. */
+    /** Where the combos come from: `url` (+ `headers`), or `load` = the app's own API call returning the parsed JSON body. */
     url?: string;
     headers?: Record<string, string>;
+    load?: () => Promise<unknown>;
+    /** Identifies who `load` asks for (member id / token). When it changes the previous member's rows are dropped at once. */
+    loadKey?: string | number;
     usn?: string | null;
     theme?: ComboTheme;
     /** Screen work only: shows fixed example rows. Never set this in a release. */
@@ -65,5 +68,5 @@ export type ComboEntryProps = {
  * and the wall stays as it was. Home: a banner that opens the guide as a full screen. The server picks what shows
  * through `display`; the Chance tab keeps answering popup / push / link requests even when its chip is switched off.
  */
-export declare function ComboEntry({ placement, url, headers, usn, theme, sample, onPressMission, chipTop, chipRight, sheetTop }: ComboEntryProps): ReactElement | null;
+export declare function ComboEntry({ placement, url, headers, load, loadKey, usn, theme, sample, onPressMission, chipTop, chipRight, sheetTop }: ComboEntryProps): ReactElement | null;
 export {};

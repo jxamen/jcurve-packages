@@ -96,6 +96,18 @@ test('fetch: unwraps combos / data / bare bodies and rejects failures, stale day
   assert.deepEqual(seen, ['https://x/c', {'X-App-Token': 't'}, 'no-store']);
 });
 
+test('load: the app\'s own request function is used; throws, timeouts, bad and stale bodies are failures', async () => {
+  const good = raw();
+  assert.equal(api.parseCombosBody(good, NOON_KST).ok, true);
+  assert.deepEqual(api.parseCombosBody(null), {ok: false, reason: 'bad_response'});
+  assert.deepEqual(api.parseCombosBody({ok: false}), {ok: false, reason: 'bad_response'});
+  assert.deepEqual(api.parseCombosBody(raw({date: '2026-10-26'}), NOON_KST), {ok: false, reason: 'stale'});
+  assert.equal((await api.loadTodayCombos({load: async () => ({ok: true, combos: good}), now: NOON_KST})).ok, true);
+  assert.deepEqual(await api.loadTodayCombos({load: async () => { throw new Error('401'); }}), {ok: false, reason: 'network'});
+  assert.deepEqual(await api.loadTodayCombos({load: () => new Promise(() => {}), timeoutMs: 20}), {ok: false, reason: 'network'});
+  assert.deepEqual(await api.loadTodayCombos({load: async () => ({ok: true}), now: NOON_KST}), {ok: false, reason: 'bad_response'});
+});
+
 test('open requests: wait for the first listener, expire after 10s, Chance tab beats Home, one screen only', () => {
   const log = [];
   assert.equal(api.requestOpenCombos(1000), false);
@@ -325,6 +337,33 @@ test('hook: a new url or member never shows the previous rows, and midnight re-f
     live.render(() => api.useTodayCombos(props)); live.flush();
     assert.ok(calls > before, 'fetched again after the timer fired');
   } finally { global.fetch = realFetch; global.setTimeout = realTimeout; }
+}));
+
+test('hook (load): uses the latest load function; a different loadKey drops the previous member at once', () => withReact(async ({make}) => {
+  const today = api.kstDate();
+  const calls = [];
+  const loaderFor = who => async () => { calls.push(who); return {ok: true, combos: raw({date: today})}; };
+  const live = make();
+  const read = (who, key) => live.render(() => api.useTodayCombos({load: loaderFor(who), loadKey: key}));
+  assert.equal(read('m1', 1).status, 'loading');
+  live.flush();
+  await new Promise(r => setTimeout(r, 5));
+  assert.equal(read('m1', 1).status, 'ready');
+  assert.deepEqual(calls, ['m1']);
+  const next = read('m2', 2); // another member signs in on the same mounted tab
+  assert.deepEqual([next.status, next.combos], ['loading', null]);
+  live.flush();
+  await new Promise(r => setTimeout(r, 5));
+  assert.deepEqual(calls, ['m1', 'm2']);
+  assert.equal(read('m2', 2).status, 'ready');
+  const rerender = read('m3-same-key', 2); // a new function identity alone does not refetch
+  live.flush();
+  assert.equal(rerender.status, 'ready');
+  assert.deepEqual(calls, ['m1', 'm2']);
+  const failing = make();
+  failing.render(() => api.useTodayCombos({load: async () => { throw new Error('x'); }, loadKey: 1})); failing.flush();
+  await new Promise(r => setTimeout(r, 5));
+  assert.equal(failing.render(() => api.useTodayCombos({load: async () => { throw new Error('x'); }, loadKey: 1})).status, 'empty');
 }));
 
 test('entry (Chance tab): chip over the header row, sheet rises over the wall, chip toggles, no Modal, no card', () => withReact(({make}) => {

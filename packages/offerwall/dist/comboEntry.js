@@ -112,11 +112,11 @@ function ComboSheet({ top, theme, children }) {
  * and the wall stays as it was. Home: a banner that opens the guide as a full screen. The server picks what shows
  * through `display`; the Chance tab keeps answering popup / push / link requests even when its chip is switched off.
  */
-function ComboEntry({ placement, url, headers, usn, theme = combos_1.DEFAULT_COMBO_THEME, sample = false, onPressMission, chipTop, chipRight, sheetTop = exports.COMBO_SHEET_TOP }) {
+function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combos_1.DEFAULT_COMBO_THEME, sample = false, onPressMission, chipTop, chipRight, sheetTop = exports.COMBO_SHEET_TOP }) {
     const React = require('react');
     const { Modal, Pressable, SafeAreaView } = require('react-native');
     const h = React.createElement;
-    const state = (0, combos_1.useTodayCombos)({ url, headers, sample });
+    const state = (0, combos_1.useTodayCombos)({ url, headers, load, loadKey, sample });
     const [open, setOpen] = React.useState(false);
     const mode = placement === 'chance' ? state.combos?.display.chance ?? 'chip' : state.combos?.display.home ?? 'off';
     const shown = placement === 'chance' ? mode === 'chip' && !!state.combos : mode === 'banner' && !!state.combos;

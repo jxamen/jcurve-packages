@@ -102,6 +102,17 @@ export declare function fetchTodayCombos({ url, headers, timeoutMs, now, fetcher
     now?: number;
     fetcher?: Fetcher;
 }): Promise<FetchCombosResult>;
+/** A response body (`{ok, combos}`, `{ok, data}` or the combos themselves) → checked combos for today. */
+export declare function parseCombosBody(body: unknown, now?: number): FetchCombosResult;
+/**
+ * Same as `fetchTodayCombos` but the app does the request with its own API function (auth, device and OTA headers,
+ * 401 handling stay the app's). `load` resolves to the parsed JSON body; a throw counts as a network failure.
+ */
+export declare function loadTodayCombos({ load, timeoutMs, now }: {
+    load: () => Promise<unknown>;
+    timeoutMs?: number;
+    now?: number;
+}): Promise<FetchCombosResult>;
 /** Fixed data for building the screen before the API exists. Only `sample: true` ever shows it. */
 export declare const TODAY_COMBOS_SAMPLE: TodayCombos;
 export type TodayCombosState = {
@@ -115,9 +126,15 @@ export type TodayCombosState = {
  * Data is tied to the url + headers it was fetched with: a new member or address starts empty instead of showing
  * the previous one's rows. After Korean midnight yesterday's rows are dropped and today's are fetched again.
  */
-export declare function useTodayCombos({ url, headers, sample }: {
+export type CombosSource = {
+    /** Either `url` (+ `headers`) or `load`: the app's own request function, resolving to the parsed JSON body. */
     url?: string;
     headers?: Record<string, string>;
+    load?: () => Promise<unknown>;
+    /** Anything that identifies who/what `load` asks for (member id, token); a change drops the previous rows at once. */
+    loadKey?: string | number;
+};
+export declare function useTodayCombos({ url, headers, load, loadKey, sample }: CombosSource & {
     sample?: boolean;
 }): TodayCombosState;
 export declare const COMBO_LIST_HINT = "\uB204\uB974\uBA74 \uD61C\uD0DD \uBAA9\uB85D\uC774 \uC5F4\uB824\uC694. \uAC19\uC740 \uC774\uB984\uC744 \uCC3E\uC544 \uCC38\uC5EC\uD574 \uC8FC\uC138\uC694.";
