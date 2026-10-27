@@ -7,6 +7,8 @@ import type { ReactElement } from 'react';
 import { ComboMissionIcon, DEFAULT_COMBO_THEME, formatWon, type ComboTheme } from './combos';
 
 export const COMBO_TRIALS_NAME = '무료체험 확인';
+/** What a row says once the member marked it cancelled. */
+export const COMBO_CANCELLED_TEXT = '해지 완료 ✓ · 알림을 그만 보낼게요';
 export const COMBO_TRIAL_STATUSES = ['체험 중', '지금 해지 가능', '결제 시작됨'] as const;
 export type MyTrialStatus = (typeof COMBO_TRIAL_STATUSES)[number];
 
@@ -124,35 +126,44 @@ export function listenForTrialRequests(opener: TrialsOpener, now: number = Date.
 /** 대표님 10/27 22:51 wording. The body is broken by hand so no word is cut in the middle. */
 export const COMBO_CONSENT_TITLE = '무료체험, 안심하고 참여하세요';
 export const COMBO_CONSENT_BODY = '체험이 끝나기 전에\n해지할 때를 알림으로 알려 드려요.\n해지하면 돈이 나가지 않아요.';
-export const COMBO_CONSENT_AGREE = '안내 받고 참여하기';
-export const COMBO_CONSENT_DECLINE = '안내 없이 참여하기';
-/** Shown for a moment after 「안내 받고 참여하기」, just before the campaign's detail page opens. */
+/** 대표님 10/27 23:14: what the soft box says (the popup is about the whole tab, not one campaign). */
+export const COMBO_CONSENT_TAB_LINE = '여기 있는 체험은 끝나면 자동 결제돼요.\n끝나기 전에 해지 알림을 보내 드려요.';
+/** The strong button (대표님 10/27 23:15 「해지 알림 켜고 참여하기」) and the other one. */
+export const COMBO_CONSENT_AGREE = '해지 알림 켜고 참여하기';
+export const COMBO_CONSENT_DECLINE = '괜찮아요';
+/** Shown for a moment after the strong button, once the phone's notifications are seen to. */
 export const COMBO_CONSENT_TOAST = '해지 알림을 맞춰 뒀어요';
-export type ConsentAnswer = 'agree' | 'decline' | 'cancel';
+/** Instead, when the phone's notifications stayed off (대표님 10/27 23:11): the member is told they will not get the notices. */
+export const COMBO_CONSENT_TOAST_OFF = '알림이 꺼져 있어 안내를 못 받아요';
+/**
+ * What the app found out about the phone's notifications after the strong button: 'on' = they are on (asked, or turned on in the settings), 'off' = they stayed off,
+ * 'none' = this build cannot ask. The app does the asking (permission window, the settings page, the push token): see `onTrialNotify`.
+ */
+export type TrialNotifyResult = 'on' | 'off' | 'none';
+export type ConsentAnswer = 'agree' | 'decline';
 
 /**
- * Asked before a free-trial campaign's detail page opens. 「안내 받고 참여하기」 and 「안내 없이 참여하기」 both go on to the campaign (the caller
- * records the answer); tapping the dimmed area or going back answers nothing ('cancel': the campaign does not open and the question comes again
- * next time). `line` is the campaign's terms, e.g. 「7일 무료 · 이후 월 29,900원」.
+ * Asked when the member walks into the 무료체험 tab (대표님 10/27 23:14), not when they tap a row: one question for the whole tab. The strong button
+ * (`COMBO_CONSENT_AGREE`) turns the cancel notices on — the app sees to the phone's notifications, the choice is kept on the device, and from then on tapping a
+ * row saves that campaign's consent by itself and opens it. 「괜찮아요」 (and the dimmed area, and going back) means not again today. The button for the member's own
+ * list does not ask.
  */
-export function TrialConsentPopup({ name, line, theme = DEFAULT_COMBO_THEME, onAnswer }: { name: string; line?: string; theme?: ComboTheme; onAnswer: (answer: ConsentAnswer) => void }): ReactElement {
+export function TrialConsentPopup({ theme = DEFAULT_COMBO_THEME, onAnswer }: { theme?: ComboTheme; onAnswer: (answer: ConsentAnswer) => void }): ReactElement {
   const React = require('react') as typeof import('react');
   const { View, Text, Pressable, BackHandler } = require('react-native') as typeof import('react-native');
   const h = React.createElement;
   const t = theme;
   React.useEffect(() => {
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { onAnswer('cancel'); return true; });
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { onAnswer('decline'); return true; });
     return () => subscription.remove();
   }, [onAnswer]);
   return h(View, { key: 'consent', style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 40, elevation: 40, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 } },
-    h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '팝업 닫기', onPress: () => onAnswer('cancel'), style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.55)' } }),
+    h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '팝업 닫기', onPress: () => onAnswer('decline'), style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.55)' } }),
     h(View, { accessibilityViewIsModal: true, style: { width: '100%', maxWidth: 320, borderRadius: 20, backgroundColor: t.card, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18, ...t.shadow } },
       h(Text, { accessibilityRole: 'header', style: { fontSize: 17, lineHeight: 24, fontWeight: '800', color: t.text, textAlign: 'center' } }, COMBO_CONSENT_TITLE),
       h(Text, { style: { marginTop: 10, fontSize: 13, lineHeight: 19, color: t.sub, textAlign: 'center' } }, COMBO_CONSENT_BODY),
-      // the campaign and its terms, in one soft box: 「집핏」 / 「7일 무료 · 이후 월 29,900원」
-      name ? h(View, { style: { marginTop: 12, alignSelf: 'stretch', borderRadius: 12, backgroundColor: t.accentSoft, paddingVertical: 9, paddingHorizontal: 12, alignItems: 'center' } },
-        h(Text, { numberOfLines: 1, style: { fontSize: 14, lineHeight: 20, fontWeight: '800', color: t.accentText, textAlign: 'center' } }, name),
-        line ? h(Text, { numberOfLines: 1, style: { marginTop: 1, fontSize: 13, lineHeight: 18, fontWeight: '700', color: t.text, textAlign: 'center' } }, line) : null) : null,
+      h(View, { style: { marginTop: 12, alignSelf: 'stretch', borderRadius: 12, backgroundColor: t.accentSoft, paddingVertical: 9, paddingHorizontal: 12, alignItems: 'center' } },
+        h(Text, { style: { fontSize: 13, lineHeight: 19, fontWeight: '800', color: t.accentText, textAlign: 'center' } }, COMBO_CONSENT_TAB_LINE)),
       h(Pressable, {
         accessibilityRole: 'button', accessibilityLabel: COMBO_CONSENT_AGREE, onPress: () => onAnswer('agree'),
         style: ({ pressed }: { pressed: boolean }): import('react-native').ViewStyle => ({ marginTop: 18, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accent, opacity: pressed ? 0.85 : 1 }),
@@ -162,6 +173,38 @@ export function TrialConsentPopup({ name, line, theme = DEFAULT_COMBO_THEME, onA
         style: ({ pressed }: { pressed: boolean }): import('react-native').ViewStyle => ({ marginTop: 8, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: t.chipBg ?? '#F2F4F6', opacity: pressed ? 0.85 : 1 }),
       }, h(Text, { style: { fontSize: 15, fontWeight: '700', color: t.sub } }, COMBO_CONSENT_DECLINE))));
 }
+
+// ---- what the member chose in that popup, kept on the device ----------------------------------------------------------
+
+import type { ComboStorage } from './comboDone';
+const noticeMemory = new Map<string, string>();
+/** 「해지 알림 켜고 참여하기」 was pressed once: kept per member on the device, no daily reset. */
+export const trialNoticeKey = (scope: string | number | undefined): string => `jcurve.combos.trialNotice:${scope ?? ''}`;
+/** 「괜찮아요」: kept for the Korean day only (read through `useSeenToday`), the popup comes again the next day. */
+export const trialNoticeDeclineKey = (scope: string | number | undefined): string => `jcurve.combos.trialNoticeNo:${scope ?? ''}`;
+const parseAgreed = (value: string | null | undefined): boolean => { try { const v = JSON.parse(value ?? 'null'); return !!v && v.agreed === true; } catch { return false; } };
+/** `agreed` is null until the stored value was read (the popup waits meanwhile), then true or false. */
+export function useTrialNoticeAgreed({ storage, scope }: { storage?: ComboStorage; scope?: string | number }): { agreed: boolean | null; setAgreed(): void } {
+  const React = require('react') as typeof import('react');
+  const key = trialNoticeKey(scope);
+  const [state, setState] = React.useState<{ key: string; agreed: boolean | null }>({ key, agreed: storage ? null : parseAgreed(noticeMemory.get(key)) });
+  React.useEffect(() => {
+    if (!storage) { setState({ key, agreed: parseAgreed(noticeMemory.get(key)) }); return undefined; }
+    let live = true;
+    Promise.resolve(storage.getItem(key)).then(value => { if (live) setState(prev => ({ key, agreed: parseAgreed(value) || (prev.key === key && prev.agreed === true) })); })
+      .catch(() => { if (live) setState({ key, agreed: false }); });
+    return () => { live = false; };
+  }, [key, storage]);
+  const setAgreed = () => {
+    const value = JSON.stringify({ agreed: true });
+    noticeMemory.set(key, value);
+    setState({ key, agreed: true });
+    try { Promise.resolve(storage?.setItem(key, value)).catch(() => {}); } catch { /* storage is best effort */ }
+  };
+  return { agreed: state.key === key ? state.agreed : (storage ? null : parseAgreed(noticeMemory.get(key))), setAgreed };
+}
+/** Test helper: forget the choice in memory. */
+export function resetTrialNoticeMemory(): void { noticeMemory.clear(); }
 
 // ---- the member's own list ------------------------------------------------------------------------------------------
 
@@ -176,7 +219,7 @@ export type ComboTrialsScreenProps = {
   onClose: () => void;
   /** a row was tapped: open that campaign's detail page */
   onOpen: (trial: MyTrial) => void;
-  /** 「했어요」 (true) or 「아직」 (false) was tapped on a row */
+  /** 「해지했어요」 was tapped on a row (always `true`: the notices stop) */
   onCancelled: (trial: MyTrial, cancelled: boolean) => void;
   onRetry?: () => void;
 };
@@ -226,15 +269,13 @@ export function ComboTrialsScreen({ items, loading = false, failed = false, them
             badge ? h(View, { style: { marginLeft: 8, borderRadius: 999, paddingVertical: 2, paddingHorizontal: 8, backgroundColor: badge.bg } },
               h(Text, { style: { fontSize: 11.5, lineHeight: 16, fontWeight: '800', color: badge.fg } }, trial.status)) : null),
           line ? h(Text, { numberOfLines: 1, ellipsizeMode: 'tail', style: { marginTop: 2, fontSize: 12.5, lineHeight: 18, color: t.sub } }, line) : null)),
+      // 대표님 10/27 23:16: one button 「해지했어요」, there from the start (also before the cancel time, which the notices begin at); pressing it says 「해지 완료 ✓ · 알림을 그만 보낼게요」
       trial.cancelled === true
-        ? h(Text, { style: { marginTop: 10, fontSize: 13, fontWeight: '800', color: t.accentText } }, '해지 완료 ✓')
-        : asksCancelled(trial)
-          ? h(View, { style: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 8 } },
-            h(Text, { style: { flex: 1, fontSize: 13, fontWeight: '700', color: t.text } }, trial.cancelled === false ? '해지했나요? (아직이라고 하셨어요)' : '해지했나요?'),
-            pill('했어요', () => onCancelled(trial, true), true), pill('아직', () => onCancelled(trial, false)))
-          : trial.status === '체험 중' && trial.cancelFrom
-            ? h(Text, { style: { marginTop: 8, fontSize: 12.5, color: t.sub } }, `${monthDay(trial.cancelFrom)}부터 해지할 수 있어요`)
-            : null);
+        ? h(Text, { style: { marginTop: 10, fontSize: 13, fontWeight: '800', color: t.accentText } }, COMBO_CANCELLED_TEXT)
+        : h(View, { style: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 8 } },
+          h(Text, { style: { flex: 1, fontSize: 12.5, color: asksCancelled(trial) ? t.text : t.sub, fontWeight: asksCancelled(trial) ? '700' : '400' } },
+            asksCancelled(trial) ? '해지했나요?' : trial.cancelFrom ? `${monthDay(trial.cancelFrom)}부터 해지할 수 있어요` : ''),
+          pill('해지했어요', () => onCancelled(trial, true), true)));
   };
   return h(View, { style: { flex: 1, backgroundColor: t.bg } },
     h(View, { style: { height: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: side } },

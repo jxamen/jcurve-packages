@@ -32,7 +32,7 @@ export function categoryRemaining(category: ComboCategory, isDone: (campaignKey:
 const PILL = { bg: '#FFEBDD', fg: '#C2410C' };
 
 export function ComboCategoryScreen({
-  combos, loading = false, onClose, onPressMission, usn, theme = DEFAULT_COMBO_THEME, showHeader = true, topInset = 0, variant = 'page', done = NO_DONE, onToggleDone,
+  combos, loading = false, onClose, onPressMission, usn, theme = DEFAULT_COMBO_THEME, showHeader = true, topInset = 0, variant = 'page', done = NO_DONE, onToggleDone, onTrialTab,
 }: ComboGuideScreenProps): ReactElement {
   const React = require('react') as typeof import('react');
   const { View, Text, Pressable, ScrollView, BackHandler } = require('react-native') as typeof import('react-native');
@@ -67,6 +67,7 @@ export function ComboCategoryScreen({
   const visible = rows.slice(0, limit);
   const sum = cat ? categoryRemaining(cat, isDoneId) : null;
   const isTrialTab = !!cat && cat.key === COMBO_TRIAL_CATEGORY;
+  React.useEffect(() => { if (isTrialTab) onTrialTab?.(); }, [isTrialTab]);
   let nextNo = 0;
   const row = (item: ComboCategoryItem, i: number): ReactElement => {
     const mission = categoryItemMission(item);

@@ -165,30 +165,3 @@ test('category screen: a long tab shows 40 rows and 「더 보기」 adds 40 mor
 
 // ---- the entry: a trial row asks first, saying what the trial costs ----
 const NATIVE = {nativeModules: {JCurveOfferwallModule: {}}};
-test('entry: a trial in the 무료체험 tab asks for the cancel-notice consent first, with its terms from the row (7일 무료 · 이후 월 29,900원); then it opens', () => withReact(async ({make}) => {
-  const host = make();
-  const opened = []; const sent = [];
-  const combos = norm({trial_keys: ['1781115240']});
-  const bridge = {list: async () => [], open: async key => { opened.push(key); return true; }};
-  const mount = () => host.render(() => api.ComboEntry({
-    placement: 'chance', load: async () => ({ok: true, combos}), loadKey: 1, usn: 'a'.repeat(64), campaigns: bridge,
-    onTrialConsent: (k, a) => { sent.push([k, a]); },
-  }));
-  mount(); host.flush(); await tick(); mount(); host.flush();
-  assert.equal(api.requestOpenCombos(), true);
-  host.flush(); mount();
-  byLabel(mount(), '무료체험').props.onPress();
-  host.flush();
-  const tree = mount();
-  byLabel(tree, '2번 집핏', true).props.onPress();
-  await tick(20);
-  host.flush();
-  const asked = texts(mount());
-  assert.ok(asked.includes('무료체험, 안심하고 참여하세요'));
-  assert.ok(asked.includes('7일 무료 · 이후 월 29,900원'), 'the terms, from the row of the category');
-  assert.deepEqual(opened, []);
-  byLabel(mount(), '안내 받고 참여하기').props.onPress();
-  await tick(api.COMBO_CONSENT_TOAST_MS + 100);
-  assert.deepEqual(sent, [['1781115240', true]]);
-  assert.deepEqual(opened, ['1781115240']);
-}, NATIVE));

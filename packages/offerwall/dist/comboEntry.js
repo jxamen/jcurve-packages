@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.COMBO_POPUP_DELAY_MS = exports.COMBO_REFRESH_GAP_MS = exports.COMBO_SIGNAL_REFRESH_MS = exports.COMBO_CONSENT_TOAST_MS = exports.COMBO_CLOSED_FAST_MS = exports.COMBO_SHEET_TOP = exports.COMBO_CHIP_RIGHT = exports.COMBO_CHIP_PAIR_HEIGHT = exports.COMBO_CHIP_GAP = exports.COMBO_TITLE_GAP = exports.COMBO_TITLE_END = exports.COMBO_CHIP_TOP = exports.COMBOS_POPUP_ACTION = exports.COMBOS_ROUTE = void 0;
+exports.COMBO_POPUP_DELAY_MS = exports.COMBO_REFRESH_GAP_MS = exports.COMBO_SIGNAL_REFRESH_MS = exports.COMBO_CLOSED_FAST_MS = exports.COMBO_SHEET_TOP = exports.COMBO_CHIP_RIGHT = exports.COMBO_CHIP_PAIR_HEIGHT = exports.COMBO_CHIP_GAP = exports.COMBO_TITLE_GAP = exports.COMBO_TITLE_END = exports.COMBO_CHIP_TOP = exports.COMBOS_POPUP_ACTION = exports.COMBOS_ROUTE = void 0;
 exports.isCombosRoute = isCombosRoute;
 exports.requestOpenCombos = requestOpenCombos;
 exports.listenForComboRequests = listenForComboRequests;
@@ -176,8 +176,6 @@ const withTimeout = (promise, ms, fallback) => {
 const NOTICE_MS = 4500;
 /** A detail page that closes within this long after opening (ms) counts as `closed_fast`. */
 exports.COMBO_CLOSED_FAST_MS = 15000;
-/** How long the 「해지 알림을 맞춰 뒀어요」 toast shows before the campaign's detail page opens (ms). */
-exports.COMBO_CONSENT_TOAST_MS = 700;
 /** After sending a detail signal, the combos are fetched again this long after (the server may answer with a `soldout` list). */
 exports.COMBO_SIGNAL_REFRESH_MS = 3000;
 const short = (value, max = 80) => {
@@ -278,7 +276,7 @@ function ComboToast({ text, top, theme }) {
  * server's id when it is a key) and its detail page opens. Otherwise, or when nothing is found, the name is shown at the
  * top (and copied when possible) and the plain list is revealed: the Chance tab closes the guide, Home opens the list.
  */
-function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combos_1.DEFAULT_COMBO_THEME, sample = false, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, onDetailSignal, onTrialConsent, loadTrials, onTrialCancelled, chipTop, chipRight, sheetTop = exports.COMBO_SHEET_TOP, popupArt, popupAd, }) {
+function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combos_1.DEFAULT_COMBO_THEME, sample = false, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, onDetailSignal, onTrialConsent, onTrialNotify, loadTrials, onTrialCancelled, chipTop, chipRight, sheetTop = exports.COMBO_SHEET_TOP, popupArt, popupAd, }) {
     const React = require('react');
     const { Modal, Pressable, SafeAreaView, Dimensions } = require('react-native');
     const h = React.createElement;
@@ -295,8 +293,8 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     const [notice, setNotice] = React.useState(null);
     const noticeTimer = React.useRef(null);
     const campaignCache = React.useRef(null);
-    const latest = React.useRef({ campaigns, copyText, reportCampaigns, usn, placement, onDiagnostic, onDetailSignal, onTrialConsent, loadTrials, onTrialCancelled, combos: state.combos, refresh: state.refresh });
-    latest.current = { campaigns, copyText, reportCampaigns, usn, placement, onDiagnostic, onDetailSignal, onTrialConsent, loadTrials, onTrialCancelled, combos: state.combos, refresh: state.refresh };
+    const latest = React.useRef({ campaigns, copyText, reportCampaigns, usn, placement, onDiagnostic, onDetailSignal, onTrialConsent, onTrialNotify, loadTrials, onTrialCancelled, combos: state.combos, refresh: state.refresh });
+    latest.current = { campaigns, copyText, reportCampaigns, usn, placement, onDiagnostic, onDetailSignal, onTrialConsent, onTrialNotify, loadTrials, onTrialCancelled, combos: state.combos, refresh: state.refresh };
     const signalled = React.useRef(new Set());
     const signalTimer = React.useRef(null);
     const lastOpened = React.useRef(null); // the detail page the SDK opened last, until it closes
@@ -457,10 +455,34 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
      */
     // ---- free trials: the cancel-notice question before a trial's detail page, and the member's own list ----
     const answered = React.useRef(new Map()); // this visit's answers (lower-case key), until the server's `trial_consent` has them
-    const [consent, setConsent] = React.useState(null);
-    const consentResolve = React.useRef(null);
-    const askConsent = (name, line) => new Promise(resolve => { consentResolve.current = resolve; setConsent({ name, line }); });
-    const answerConsent = (answer) => { const resolve = consentResolve.current; consentResolve.current = null; setConsent(null); resolve?.(answer); };
+    // The cancel-notice question is asked once, when the member walks into the 무료체험 tab (대표님 10/27 23:14) — not on each row. 「해지 알림 켜고 참여하기」 is kept on the
+    // device; after it a tap on a trial row saves that campaign's consent by itself and opens it. 「괜찮아요」 = not again today.
+    const noticeAgreed = (0, comboTrials_1.useTrialNoticeAgreed)({ storage, scope: loadKey });
+    const noticeDeclined = (0, comboSeen_1.useSeenToday)({ storage, scope: loadKey, date: state.combos?.date, keyOf: comboTrials_1.trialNoticeDeclineKey });
+    const [tabPopup, setTabPopup] = React.useState(false);
+    const trialGate = React.useRef({ ask: false, agreed: false });
+    trialGate.current = { ask: !!onTrialConsent && noticeAgreed.agreed === false && noticeDeclined.seen === false, agreed: noticeAgreed.agreed === true };
+    const onTrialTab = () => { if (trialGate.current.ask)
+        setTabPopup(true); };
+    const answerTabPopup = async (answer) => {
+        setTabPopup(false);
+        if (answer !== 'agree') {
+            noticeDeclined.markSeen();
+            return;
+        }
+        // first make sure the phone can show the notices (the app asks for the permission / opens the settings / registers the push token), then keep the choice
+        let notify = 'on';
+        if (latest.current.onTrialNotify) {
+            try {
+                notify = await latest.current.onTrialNotify();
+            }
+            catch {
+                notify = 'none';
+            }
+        }
+        noticeAgreed.setAgreed();
+        say(notify === 'on' ? comboTrials_1.COMBO_CONSENT_TOAST : comboTrials_1.COMBO_CONSENT_TOAST_OFF);
+    };
     const [trialsOpen, setTrialsOpen] = React.useState(false);
     const [trialsFocus, setTrialsFocus] = React.useState(undefined);
     const [mine, setMine] = React.useState({ items: null, loading: false, failed: false });
@@ -500,24 +522,16 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
             onPressMission(mission, bundle);
             return;
         }
-        // A free-trial campaign asks once, before its detail page opens: 「해지 안내를 받으시겠어요?」. Either answer goes on to the campaign;
-        // dismissing the question without answering does not open it (and it is asked again next time).
-        if (!opts.skipConsent && latest.current.onTrialConsent) {
+        // After 「해지 알림 켜고 참여하기」 (kept on the device) a free-trial campaign's consent is saved by itself, with no question, and the detail page opens at once.
+        // Without that choice nothing is asked or saved here: the question belongs to the tab.
+        if (!opts.skipConsent && latest.current.onTrialConsent && trialGate.current.agreed) {
             const trialKey = [mission.campaignKey, isCampaignKey(mission.id) ? mission.id : undefined].find(k => (0, combos_1.needsTrialConsent)(latest.current.combos, k, answered.current));
             if (trialKey) {
-                const answer = await askConsent(mission.name, (0, combos_1.trialTerms)(latest.current.combos, trialKey));
-                if (answer === 'cancel')
-                    return;
-                answered.current.set(trialKey.toLowerCase(), answer === 'agree');
+                answered.current.set(trialKey.toLowerCase(), true);
                 try {
-                    void Promise.resolve(latest.current.onTrialConsent?.(trialKey, answer === 'agree')).catch(() => { });
+                    void Promise.resolve(latest.current.onTrialConsent?.(trialKey, true)).catch(() => { });
                 }
-                catch { /* the answer is kept for this visit anyway */ }
-                // 「안내 받고 참여하기」: a short toast before the detail page opens (대표님 10/27 22:51)
-                if (answer === 'agree') {
-                    say(comboTrials_1.COMBO_CONSENT_TOAST);
-                    await new Promise(resolve => { setTimeout(resolve, exports.COMBO_CONSENT_TOAST_MS); });
-                }
+                catch { /* the choice is kept for this visit anyway */ }
             }
         }
         const started = Date.now();
@@ -611,6 +625,7 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     const guide = (variant) => h(combos_1.ComboGuideScreen, {
         combos: state.combos, loading: state.status === 'loading', onClose: close, onPressMission: handleMission, usn, theme, variant,
         done: doneIds, onToggleDone: toggleDone,
+        onTrialTab,
         onPressTrial: (trial) => {
             const row = (0, combos_1.trialMissions)(state.combos).find(m => m.id === trial.campaignKey);
             if (row)
@@ -620,8 +635,8 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     // 「무료체험 확인」 is there when the app can load the list and the server turned free trials on (it sent trials or trial keys)
     const trialsChip = shown && trialsAvailable && !!state.combos && !!(state.combos.trials?.length || state.combos.trialKeys?.length);
     const chipFit = trialsChip ? comboChipFit(Dimensions.get('window').width, chipRight ?? exports.COMBO_CHIP_RIGHT) : null;
-    const consentView = consent ? h(comboTrials_1.TrialConsentPopup, { key: 'consent', name: consent.name, line: consent.line, theme, onAnswer: answerConsent }) : null;
-    if (!shown && !open && !notice && !popup && !trialsOpen && !consent)
+    const consentView = tabPopup ? h(comboTrials_1.TrialConsentPopup, { key: 'consent', theme, onAnswer: (answer) => { void answerTabPopup(answer); } }) : null;
+    if (!shown && !open && !notice && !popup && !trialsOpen && !tabPopup)
         return null;
     if (placement === 'home') {
         return h(React.Fragment, null, shown && state.combos ? h(ComboBanner, { combos: state.combos, onPress: () => setOpen(true), theme, opacity: blink }) : null, open ? h(Modal, { visible: true, animationType: 'slide', onRequestClose: close }, h(SafeAreaView, { style: { flex: 1, backgroundColor: theme.bg } }, guide('page'), notice ? h(ComboToast, { text: notice, top: 8, theme }) : null, consentView)) : null, !open ? consentView : null);

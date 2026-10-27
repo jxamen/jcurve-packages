@@ -313,6 +313,8 @@ export type ComboGuideScreenProps = {
     onToggleDone?: (id: string) => void;
     /** A row of the 「무료체험」 tab was tapped (the app asks for the cancel-notice consent, then opens the campaign). Without it `onPressMission` gets the row as a mission. */
     onPressTrial?: (trial: ComboTrial) => void;
+    /** The member walked into the 무료체험 tab (called each time the tab is entered). The entry asks the cancel-notice question there. */
+    onTrialTab?: () => void;
 };
 /**
  * 대표님 10/27 23:09 「탭이 눌릴 때도 안 눌릴 때도 있음」: a tab is pressed on a bigger area (the finger rarely lands exactly on a 34 high chip), and the sideways row
@@ -349,5 +351,5 @@ export declare function ComboGuideScreen(props: ComboGuideScreenProps): ReactEle
  * The steps screen, laid out like the shopping tab: white, a thin title row, small flat tabs (쉽게 모으기 · 1천 · 5천 · 1만P), a
  * one-line total, and a plain list: number, name + what to do, +points, a small check. The whole row is the button.
  */
-export declare function ComboStepsScreen({ combos, loading, onClose, onPressMission, usn, theme, showHeader, topInset, variant, hint, done, onToggleDone, onPressTrial }: ComboGuideScreenProps): ReactElement;
+export declare function ComboStepsScreen({ combos, loading, onClose, onPressMission, usn, theme, showHeader, topInset, variant, hint, done, onToggleDone, onPressTrial, onTrialTab }: ComboGuideScreenProps): ReactElement;
 export {};

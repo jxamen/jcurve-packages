@@ -72,20 +72,19 @@ test('open request: with an entry mounted it opens (with the campaign to highlig
   off4();
 });
 
-test('consent popup: the question, the campaign name, two answers; the dimmed area and going back answer nothing', () => withReact(({host}) => {
+test('consent popup: the title, the body, the line for the tab and two answers; the dimmed area and going back are 「괜찮아요」', () => withReact(({host}) => {
   const answers = [];
-  const tree = host.render(() => api.TrialConsentPopup({name: '집핏', line: '7일 무료 · 이후 월 29,900원', onAnswer: a => answers.push(a)}));
+  const tree = host.render(() => api.TrialConsentPopup({onAnswer: a => answers.push(a)}));
   const all = texts(tree);
-  assert.ok(all.includes(api.COMBO_CONSENT_TITLE));
+  assert.ok(all.includes('무료체험, 안심하고 참여하세요'));
   assert.equal(api.COMBO_CONSENT_TITLE, '무료체험, 안심하고 참여하세요');
   assert.equal(api.COMBO_CONSENT_BODY.replace(/\n/g, ' '), '체험이 끝나기 전에 해지할 때를 알림으로 알려 드려요. 해지하면 돈이 나가지 않아요.', 'the wording, broken by hand only');
-  assert.ok(all.includes('집핏'));
-  assert.ok(all.includes('안내 받고 참여하기') && all.includes('안내 없이 참여하기'));
-  assert.ok(all.includes('7일 무료 · 이후 월 29,900원'), 'the campaign\'s terms');
-  byLabel(tree, '안내 받고 참여하기').props.onPress();
-  byLabel(tree, '안내 없이 참여하기').props.onPress();
+  assert.equal(api.COMBO_CONSENT_TAB_LINE.replace(/\n/g, ' '), '여기 있는 체험은 끝나면 자동 결제돼요. 끝나기 전에 해지 알림을 보내 드려요.');
+  assert.ok(all.includes('해지 알림 켜고 참여하기') && all.includes('괜찮아요'));
+  byLabel(tree, '해지 알림 켜고 참여하기').props.onPress();
+  byLabel(tree, '괜찮아요').props.onPress();
   byLabel(tree, '팝업 닫기').props.onPress();
-  assert.deepEqual(answers, ['agree', 'decline', 'cancel']);
+  assert.deepEqual(answers, ['agree', 'decline', 'decline']);
   const card = walk(tree).find(n => n.props && n.props.accessibilityViewIsModal === true);
   assert.ok(card, 'a modal card for screen readers');
 }));
@@ -98,7 +97,7 @@ const items = () => api.parseMyTrials(body([
   serverRow({campaignKey: '4', name: '왓챠', status: '지금 해지 가능', cancelled: false}),
 ]));
 
-test('my list screen: a row per trial — name, date line, status; 해지했나요? only once the time has come; 해지 완료 when marked', () => withReact(({host}) => {
+test('my list screen: a row per trial — name, date line, status; a 해지했어요 button on every row not yet cancelled (also before the cancel time); 해지 완료 · 알림을 그만 보낼게요 when marked', () => withReact(({host}) => {
   const tree = host.render(() => api.ComboTrialsScreen(screenProps({items: items()})));
   const all = texts(tree);
   assert.ok(all.includes('무료체험 확인'), 'the title');
@@ -106,22 +105,22 @@ test('my list screen: a row per trial — name, date line, status; 해지했나�
   assert.ok(all.includes('10/27 참여 · 11/3 결제 예정 · 월 29,900원'));
   assert.ok(all.includes('체험 중') && all.includes('지금 해지 가능') && all.includes('결제 시작됨'));
   assert.ok(all.includes('10/30부터 해지할 수 있어요'), 'before the time: when it can be cancelled');
-  assert.equal(all.filter(s => s === '해지했나요?').length, 1, 'only the 보리챗 row asks plainly');
-  assert.equal(all.filter(s => s === '해지했나요? (아직이라고 하셨어요)').length, 1, 'the 왓챠 row asks again');
-  assert.equal(all.filter(s => s === '해지 완료 ✓').length, 1, 'the 밀리의서재 row is done');
-  assert.equal(all.filter(s => s === '했어요').length, 2);
-  assert.equal(all.filter(s => s === '아직').length, 2);
+  assert.equal(all.filter(s => s === '해지했나요?').length, 2, 'the rows whose cancel time has come ask plainly (보리챗, 왓챠)');
+  assert.equal(all.filter(s => s === '해지 완료 ✓ · 알림을 그만 보낼게요').length, 1, 'the 밀리의서재 row is done');
+  assert.equal(api.COMBO_CANCELLED_TEXT, '해지 완료 ✓ · 알림을 그만 보낼게요');
+  assert.equal(all.filter(s => s === '해지했어요').length, 3, '집핏 (체험 중, still before the time), 보리챗, 왓챠: a button each; the done row has none');
+  assert.equal(all.some(s => s === '아직' || s === '했어요'), false, 'no 아직 any more');
   assert.equal(all.some(s => s.includes('아직 참여한 무료체험이 없어요')), false);
 }));
 
-test('my list screen: 했어요 / 아직 report the row and the answer; a row tap opens the campaign', () => withReact(({host}) => {
+test('my list screen: 해지했어요 reports the row (always true); a row tap opens the campaign', () => withReact(({host}) => {
   const got = []; const opened = [];
   const list = items();
   const tree = host.render(() => api.ComboTrialsScreen(screenProps({items: list, onCancelled: (t, v) => got.push([t.campaignKey, v]), onOpen: t => opened.push(t.campaignKey)})));
-  const yes = walk(tree).filter(n => n.type === 'Pressable' && n.props.accessibilityLabel === '했어요');
-  const no = walk(tree).filter(n => n.type === 'Pressable' && n.props.accessibilityLabel === '아직');
-  yes[0].props.onPress(); no[0].props.onPress(); yes[1].props.onPress();
-  assert.deepEqual(got, [['2', true], ['2', false], ['4', true]]);
+  const buttons = walk(tree).filter(n => n.type === 'Pressable' && n.props.accessibilityLabel === '해지했어요');
+  assert.equal(buttons.length, 3);
+  buttons.forEach(b => b.props.onPress());
+  assert.deepEqual(got, [['1781115240', true], ['2', true], ['4', true]]);
   walk(tree).find(n => n.type === 'Pressable' && n.props.accessibilityLabel.startsWith('집핏')).props.onPress();
   assert.deepEqual(opened, ['1781115240']);
 }));

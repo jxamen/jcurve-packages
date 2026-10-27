@@ -18,4 +18,4 @@ export declare function categoryRemaining(category: ComboCategory, isDone: (camp
     total: number;
     paid: number;
 } | null;
-export declare function ComboCategoryScreen({ combos, loading, onClose, onPressMission, usn, theme, showHeader, topInset, variant, done, onToggleDone, }: ComboGuideScreenProps): ReactElement;
+export declare function ComboCategoryScreen({ combos, loading, onClose, onPressMission, usn, theme, showHeader, topInset, variant, done, onToggleDone, onTrialTab, }: ComboGuideScreenProps): ReactElement;

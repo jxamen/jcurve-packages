@@ -688,6 +688,8 @@ export type ComboGuideScreenProps = {
   onToggleDone?: (id: string) => void;
   /** A row of the 「무료체험」 tab was tapped (the app asks for the cancel-notice consent, then opens the campaign). Without it `onPressMission` gets the row as a mission. */
   onPressTrial?: (trial: ComboTrial) => void;
+  /** The member walked into the 무료체험 tab (called each time the tab is entered). The entry asks the cancel-notice question there. */
+  onTrialTab?: () => void;
 };
 const NO_DONE: ReadonlySet<string> = new Set();
 /**
@@ -735,7 +737,7 @@ export function ComboGuideScreen(props: ComboGuideScreenProps): ReactElement {
  * The steps screen, laid out like the shopping tab: white, a thin title row, small flat tabs (쉽게 모으기 · 1천 · 5천 · 1만P), a
  * one-line total, and a plain list: number, name + what to do, +points, a small check. The whole row is the button.
  */
-export function ComboStepsScreen({ combos, loading = false, onClose, onPressMission, usn, theme = DEFAULT_COMBO_THEME, showHeader = true, topInset = 0, variant = 'page', hint = COMBO_LIST_HINT, done = NO_DONE, onToggleDone, onPressTrial }: ComboGuideScreenProps): ReactElement {
+export function ComboStepsScreen({ combos, loading = false, onClose, onPressMission, usn, theme = DEFAULT_COMBO_THEME, showHeader = true, topInset = 0, variant = 'page', hint = COMBO_LIST_HINT, done = NO_DONE, onToggleDone, onPressTrial, onTrialTab }: ComboGuideScreenProps): ReactElement {
   const React = require('react') as typeof import('react');
   const { View, Text, Pressable, ScrollView, BackHandler } = require('react-native') as typeof import('react-native');
   const h = React.createElement;
@@ -759,6 +761,7 @@ export function ComboStepsScreen({ combos, loading = false, onClose, onPressMiss
   const index = Math.min(found < 0 ? 0 : found, Math.max(0, tabCount - 1));
   const onTrials = trials.length > 0 && index === tabCount - 1;
   const onEasy = !onTrials && !!easy && index === 0;
+  React.useEffect(() => { if (onTrials) onTrialTab?.(); }, [onTrials]);
   const stepIndex = index - (easy ? 1 : 0);
   const bundle: ComboBundle | undefined = onTrials ? undefined : onEasy && easy ? { goal: 0, missions: easy.missions, total: easy.total } : bundles[stepIndex];
   // Rows the server says were paid today are done on their own (their check is filled and not tappable); hand ticks work for the rest.

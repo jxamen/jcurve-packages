@@ -1,6 +1,7 @@
 /** Ways into 「포인트 빨리 모으기」: Chance-tab chip, Home banner, and a route that popups / pushes / deep links can fire. */
 import type { ReactElement } from 'react';
 import type { ComboBundle, ComboMission, ComboTheme, TodayCombos } from './combos';
+import type { TrialNotifyResult } from './comboTrials';
 import type { CampaignApi, CampaignInfo } from './campaigns';
 import type { ComboStorage } from './comboDone';
 /** Route name for pushes (`data.go`) and links. Apps use in-app actions, not a URL scheme. */
@@ -131,8 +132,6 @@ export type ComboDetailSignal = {
 };
 /** A detail page that closes within this long after opening (ms) counts as `closed_fast`. */
 export declare const COMBO_CLOSED_FAST_MS = 15000;
-/** How long the 「해지 알림을 맞춰 뒀어요」 toast shows before the campaign's detail page opens (ms). */
-export declare const COMBO_CONSENT_TOAST_MS = 700;
 /** After sending a detail signal, the combos are fetched again this long after (the server may answer with a `soldout` list). */
 export declare const COMBO_SIGNAL_REFRESH_MS = 3000;
 /** Fetching the combos again for `done` is skipped when the last fetch was this recent (ms). */
@@ -176,6 +175,12 @@ export type ComboEntryProps = {
      * question is not asked and a trial campaign opens like any other.
      */
     onTrialConsent?: (campaignKey: string, agree: boolean) => unknown;
+    /**
+     * Called after 「안내 받고 참여하기」, before the answer is saved: the app makes sure the phone can show the cancel notices (asks for the notification permission,
+     * sends the member to the system settings when it was refused and checks again when they come back, registers the push token) and says how it went.
+     * The consent and the campaign go on whatever it answers; only the toast differs. Without it nothing is asked.
+     */
+    onTrialNotify?: () => Promise<TrialNotifyResult>;
     /** The member's own free-trial list (`GET offerwall/trials`, the whole body): gives the 「무료체험 확인」 button and its list. Without it neither exists. */
     loadTrials?: () => Promise<unknown>;
     /** 「했어요」 / 「아직」 on a trial row (`POST offerwall/trials/{key}/cancelled`). */
@@ -201,5 +206,5 @@ export type ComboEntryProps = {
  * server's id when it is a key) and its detail page opens. Otherwise, or when nothing is found, the name is shown at the
  * top (and copied when possible) and the plain list is revealed: the Chance tab closes the guide, Home opens the list.
  */
-export declare function ComboEntry({ placement, url, headers, load, loadKey, usn, theme, sample, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, onDetailSignal, onTrialConsent, loadTrials, onTrialCancelled, chipTop, chipRight, sheetTop, popupArt, popupAd, }: ComboEntryProps): ReactElement | null;
+export declare function ComboEntry({ placement, url, headers, load, loadKey, usn, theme, sample, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, onDetailSignal, onTrialConsent, onTrialNotify, loadTrials, onTrialCancelled, chipTop, chipRight, sheetTop, popupArt, popupAd, }: ComboEntryProps): ReactElement | null;
 export {};

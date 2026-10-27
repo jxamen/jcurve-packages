@@ -32,87 +32,6 @@ const start = async ({make, rn}, {combos = combosOf(), extra = {}, opened = []} 
   };
 };
 const NATIVE = {nativeModules: {JCurveOfferwallModule: {}}};
-
-test('consent: a trial campaign asks first (the question, both answers go on to the campaign), the answer is sent once; the others open at once', () => withReact(async ctx => {
-  const opened = []; const sent = [];
-  const s = await start(ctx, {opened, extra: {onTrialConsent: (key, agree) => { sent.push([key, agree]); }}});
-  s.openSheet();
-  await s.tapFirst();
-  assert.deepEqual(opened, [], 'nothing opens before the answer');
-  assert.ok(texts(s.again()).includes(api.COMBO_CONSENT_TITLE));
-  byLabel(s.again(), '안내 받고 참여하기').props.onPress();
-  await tick(20);
-  assert.deepEqual(opened, [], 'the toast first: the campaign opens after a moment');
-  assert.ok(texts(s.again()).includes('해지 알림을 맞춰 뒀어요'), 'the toast');
-  await tick(api.COMBO_CONSENT_TOAST_MS + 100);
-  assert.deepEqual(sent, [[KEY, true]]);
-  assert.deepEqual(opened, [KEY], 'then the campaign opens');
-  assert.equal(texts(s.again()).includes(api.COMBO_CONSENT_TITLE), false, 'the question is gone');
-  // asked once: the same campaign again goes straight in
-  await s.tapFirst();
-  assert.deepEqual(opened, [KEY, KEY]);
-  assert.equal(sent.length, 1);
-  // a campaign that is not a trial never asks
-  const tree = s.again();
-  byLabel(tree, '2번 ', true).props.onPress();
-  await tick(20);
-  assert.deepEqual(opened, [KEY, KEY, '777']);
-  assert.equal(sent.length, 1);
-}, NATIVE));
-
-test('consent: 안내 없이 참여하기 is sent as "no" and the campaign opens; dismissing answers nothing and does not open it (asked again next time)', () => withReact(async ctx => {
-  const opened = []; const sent = [];
-  const s = await start(ctx, {opened, extra: {onTrialConsent: (key, agree) => { sent.push([key, agree]); }}});
-  s.openSheet();
-  await s.tapFirst();
-  byLabel(s.again(), '팝업 닫기').props.onPress();
-  await tick(20);
-  assert.deepEqual([opened, sent], [[], []], 'dismissed: no answer, no campaign');
-  await s.tapFirst();
-  assert.ok(texts(s.again()).includes('안내 받고 참여하기'), 'asked again');
-  byLabel(s.again(), '안내 없이 참여하기').props.onPress();
-  await tick(20);
-  assert.equal(texts(s.again()).includes('해지 알림을 맞춰 뒀어요'), false, 'no toast for 안내 없이');
-  assert.deepEqual(sent, [[KEY, false]]);
-  assert.deepEqual(opened, [KEY]);
-}, NATIVE));
-
-test('consent: not asked when the server already has the answer, when the app gives no onTrialConsent, or when the sending fails (the campaign still opens)', () => withReact(async ctx => {
-  const opened = []; const sent = [];
-  const known = await start(ctx, {opened, combos: combosOf({trial_consent: {[KEY]: false}}), extra: {onTrialConsent: (k, a) => { sent.push([k, a]); }}});
-  known.openSheet(); await known.tapFirst();
-  assert.deepEqual(opened, [KEY]);
-  assert.deepEqual(sent, []);
-  const plain = [];
-  const without = await start(ctx, {opened: plain});
-  without.openSheet(); await without.tapFirst();
-  assert.deepEqual(plain, [KEY], 'no prop: a trial opens like any other');
-  const failing = [];
-  for (const onTrialConsent of [() => { throw new Error('x'); }, async () => { throw new Error('y'); }]) {
-    const s = await start(ctx, {opened: failing, extra: {onTrialConsent}});
-    s.openSheet(); await s.tapFirst();
-    byLabel(s.again(), '안내 받고 참여하기').props.onPress();
-    await tick(api.COMBO_CONSENT_TOAST_MS + 100);
-  }
-  assert.deepEqual(failing, [KEY, KEY]);
-}, NATIVE));
-
-test('trial tab: a tap on a row of the 「무료체험」 tab asks, then opens that campaign', () => withReact(async ctx => {
-  const opened = []; const sent = [];
-  const combos = combosOf({trials: [trialRow('1781115240', {name: '집핏'})], trial_keys: ['1781115240']});
-  const s = await start(ctx, {opened, combos, extra: {onTrialConsent: (key, agree) => { sent.push([key, agree]); }}});
-  s.openSheet();
-  byLabel(s.again(), '무료체험').props.onPress();
-  byLabel(s.again(), '1번 집핏', true).props.onPress();
-  await tick(20);
-  assert.deepEqual(opened, []);
-  assert.ok(texts(s.again()).includes('7일 무료 · 이후 월 29,900원'), 'the popup says the campaign\'s terms');
-  byLabel(s.again(), '안내 받고 참여하기').props.onPress();
-  await tick(api.COMBO_CONSENT_TOAST_MS + 100);
-  assert.deepEqual(sent, [['1781115240', true]]);
-  assert.deepEqual(opened, ['1781115240']);
-}, NATIVE));
-
 const loaded = rows => async () => ({ok: true, trials: rows, now: '2026-10-27T22:40:00+09:00'});
 
 test('「무료체험 확인」: the button is there only when the app can load the list and the server turned trials on; it opens the member\'s list', () => withReact(async ctx => {
@@ -134,7 +53,7 @@ test('「무료체험 확인」: the button is there only when the app can load 
   assert.ok(all.includes('해지했나요?'));
 }, NATIVE));
 
-test('「무료체험 확인」: 했어요 shows 해지 완료 at once and is sent; a failed send loads the list again; 아직 is sent as false', () => withReact(async ctx => {
+test('「무료체험 확인」: 해지했어요 shows 해지 완료 · 알림을 그만 보낼게요 at once and is sent; a failed send loads the list again', () => withReact(async ctx => {
   const sent = []; let loads = 0; let failNext = false;
   const loadTrials = async () => { loads += 1; return {ok: true, trials: [serverRow(), serverRow({campaignKey: '2', name: '보리챗'})]}; };
   const onTrialCancelled = (key, value) => { sent.push([key, value]); if (failNext) return Promise.reject(new Error('down')); };
@@ -142,16 +61,17 @@ test('「무료체험 확인」: 했어요 shows 해지 완료 at once and is se
   byLabel(s.again(), '무료체험 확인').props.onPress();
   await s.settle();
   assert.equal(loads, 1);
-  const yes = walk(s.again()).filter(n => n.type === 'Pressable' && n.props.accessibilityLabel === '했어요');
-  yes[0].props.onPress();
+  const buttons = () => walk(s.again()).filter(n => n.type === 'Pressable' && n.props.accessibilityLabel === '해지했어요');
+  assert.equal(buttons().length, 2, 'a button on each row');
+  buttons()[0].props.onPress();
   const after = texts(s.again());
-  assert.equal(after.filter(x => x === '해지 완료 ✓').length, 1, 'shown at once');
+  assert.equal(after.filter(x => x === '해지 완료 ✓ · 알림을 그만 보낼게요').length, 1, 'shown at once');
   assert.deepEqual(sent, [['1781115240', true]]);
-  const no = walk(s.again()).filter(n => n.type === 'Pressable' && n.props.accessibilityLabel === '아직');
+  assert.equal(buttons().length, 1, 'the done row has no button any more');
   failNext = true;
-  no[0].props.onPress();
+  buttons()[0].props.onPress();
   await s.settle();
-  assert.deepEqual(sent[1], ['2', false]);
+  assert.deepEqual(sent[1], ['2', true]);
   assert.equal(loads, 2, 'a failed send: the list is loaded again');
 }, NATIVE));
 

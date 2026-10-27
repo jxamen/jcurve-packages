@@ -665,7 +665,7 @@ function ComboGuideScreen(props) {
  * The steps screen, laid out like the shopping tab: white, a thin title row, small flat tabs (쉽게 모으기 · 1천 · 5천 · 1만P), a
  * one-line total, and a plain list: number, name + what to do, +points, a small check. The whole row is the button.
  */
-function ComboStepsScreen({ combos, loading = false, onClose, onPressMission, usn, theme = exports.DEFAULT_COMBO_THEME, showHeader = true, topInset = 0, variant = 'page', hint = exports.COMBO_LIST_HINT, done = NO_DONE, onToggleDone, onPressTrial }) {
+function ComboStepsScreen({ combos, loading = false, onClose, onPressMission, usn, theme = exports.DEFAULT_COMBO_THEME, showHeader = true, topInset = 0, variant = 'page', hint = exports.COMBO_LIST_HINT, done = NO_DONE, onToggleDone, onPressTrial, onTrialTab }) {
     const React = require('react');
     const { View, Text, Pressable, ScrollView, BackHandler } = require('react-native');
     const h = React.createElement;
@@ -689,6 +689,8 @@ function ComboStepsScreen({ combos, loading = false, onClose, onPressMission, us
     const index = Math.min(found < 0 ? 0 : found, Math.max(0, tabCount - 1));
     const onTrials = trials.length > 0 && index === tabCount - 1;
     const onEasy = !onTrials && !!easy && index === 0;
+    React.useEffect(() => { if (onTrials)
+        onTrialTab?.(); }, [onTrials]);
     const stepIndex = index - (easy ? 1 : 0);
     const bundle = onTrials ? undefined : onEasy && easy ? { goal: 0, missions: easy.missions, total: easy.total } : bundles[stepIndex];
     // Rows the server says were paid today are done on their own (their check is filled and not tappable); hand ticks work for the rest.
