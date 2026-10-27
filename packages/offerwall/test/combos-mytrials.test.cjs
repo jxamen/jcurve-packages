@@ -74,14 +74,16 @@ test('open request: with an entry mounted it opens (with the campaign to highlig
 
 test('consent popup: the question, the campaign name, two answers; the dimmed area and going back answer nothing', () => withReact(({host}) => {
   const answers = [];
-  const tree = host.render(() => api.TrialConsentPopup({name: '집핏', onAnswer: a => answers.push(a)}));
+  const tree = host.render(() => api.TrialConsentPopup({name: '집핏', line: '7일 무료 · 이후 월 29,900원', onAnswer: a => answers.push(a)}));
   const all = texts(tree);
   assert.ok(all.includes(api.COMBO_CONSENT_TITLE));
-  assert.equal(api.COMBO_CONSENT_TITLE.replace('\n', ' '), '무료체험이 끝나기 전에 해지 안내를 받으시겠어요?', 'the sentence, broken only by hand after 전에');
+  assert.equal(api.COMBO_CONSENT_TITLE, '무료체험, 안심하고 참여하세요');
+  assert.equal(api.COMBO_CONSENT_BODY.replace(/\n/g, ' '), '체험이 끝나기 전에 해지할 때를 알림으로 알려 드려요. 해지하면 돈이 나가지 않아요.', 'the wording, broken by hand only');
   assert.ok(all.includes('집핏'));
-  assert.ok(all.includes('안내 받기') && all.includes('괜찮아요'));
-  byLabel(tree, '안내 받기').props.onPress();
-  byLabel(tree, '괜찮아요').props.onPress();
+  assert.ok(all.includes('안내 받고 참여하기') && all.includes('안내 없이 참여하기'));
+  assert.ok(all.includes('7일 무료 · 이후 월 29,900원'), 'the campaign\'s terms');
+  byLabel(tree, '안내 받고 참여하기').props.onPress();
+  byLabel(tree, '안내 없이 참여하기').props.onPress();
   byLabel(tree, '팝업 닫기').props.onPress();
   assert.deepEqual(answers, ['agree', 'decline', 'cancel']);
   const card = walk(tree).find(n => n.props && n.props.accessibilityViewIsModal === true);

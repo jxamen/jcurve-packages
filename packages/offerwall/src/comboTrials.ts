@@ -121,16 +121,21 @@ export function listenForTrialRequests(opener: TrialsOpener, now: number = Date.
 
 // ---- the consent popup -----------------------------------------------------------------------------------------------
 
-/** Broken by hand after 「전에」 so no word is cut in the middle (the sentence is 「무료체험이 끝나기 전에 해지 안내를 받으시겠어요?」). */
-export const COMBO_CONSENT_TITLE = '무료체험이 끝나기 전에\n해지 안내를 받으시겠어요?';
-export const COMBO_CONSENT_BODY = '해지하지 않으면 자동으로 결제될 수 있어요.\n안내를 받으면 해지할 때 알려 드려요.';
+/** 대표님 10/27 22:51 wording. The body is broken by hand so no word is cut in the middle. */
+export const COMBO_CONSENT_TITLE = '무료체험, 안심하고 참여하세요';
+export const COMBO_CONSENT_BODY = '체험이 끝나기 전에\n해지할 때를 알림으로 알려 드려요.\n해지하면 돈이 나가지 않아요.';
+export const COMBO_CONSENT_AGREE = '안내 받고 참여하기';
+export const COMBO_CONSENT_DECLINE = '안내 없이 참여하기';
+/** Shown for a moment after 「안내 받고 참여하기」, just before the campaign's detail page opens. */
+export const COMBO_CONSENT_TOAST = '해지 알림을 맞춰 뒀어요';
 export type ConsentAnswer = 'agree' | 'decline' | 'cancel';
 
 /**
- * Asked before a free-trial campaign's detail page opens. 「안내 받기」 and 「괜찮아요」 both go on to the campaign (the caller records the
- * answer); tapping the dimmed area or going back answers nothing ('cancel': the campaign does not open and the question comes again next time).
+ * Asked before a free-trial campaign's detail page opens. 「안내 받고 참여하기」 and 「안내 없이 참여하기」 both go on to the campaign (the caller
+ * records the answer); tapping the dimmed area or going back answers nothing ('cancel': the campaign does not open and the question comes again
+ * next time). `line` is the campaign's terms, e.g. 「7일 무료 · 이후 월 29,900원」.
  */
-export function TrialConsentPopup({ name, theme = DEFAULT_COMBO_THEME, onAnswer }: { name: string; theme?: ComboTheme; onAnswer: (answer: ConsentAnswer) => void }): ReactElement {
+export function TrialConsentPopup({ name, line, theme = DEFAULT_COMBO_THEME, onAnswer }: { name: string; line?: string; theme?: ComboTheme; onAnswer: (answer: ConsentAnswer) => void }): ReactElement {
   const React = require('react') as typeof import('react');
   const { View, Text, Pressable, BackHandler } = require('react-native') as typeof import('react-native');
   const h = React.createElement;
@@ -143,16 +148,19 @@ export function TrialConsentPopup({ name, theme = DEFAULT_COMBO_THEME, onAnswer 
     h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '팝업 닫기', onPress: () => onAnswer('cancel'), style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.55)' } }),
     h(View, { accessibilityViewIsModal: true, style: { width: '100%', maxWidth: 320, borderRadius: 20, backgroundColor: t.card, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18, ...t.shadow } },
       h(Text, { accessibilityRole: 'header', style: { fontSize: 17, lineHeight: 24, fontWeight: '800', color: t.text, textAlign: 'center' } }, COMBO_CONSENT_TITLE),
-      name ? h(Text, { numberOfLines: 1, style: { marginTop: 8, fontSize: 14, fontWeight: '700', color: t.accentText, textAlign: 'center' } }, name) : null,
-      h(Text, { style: { marginTop: 8, fontSize: 13, lineHeight: 19, color: t.sub, textAlign: 'center' } }, COMBO_CONSENT_BODY),
+      h(Text, { style: { marginTop: 10, fontSize: 13, lineHeight: 19, color: t.sub, textAlign: 'center' } }, COMBO_CONSENT_BODY),
+      // the campaign and its terms, in one soft box: 「집핏」 / 「7일 무료 · 이후 월 29,900원」
+      name ? h(View, { style: { marginTop: 12, alignSelf: 'stretch', borderRadius: 12, backgroundColor: t.accentSoft, paddingVertical: 9, paddingHorizontal: 12, alignItems: 'center' } },
+        h(Text, { numberOfLines: 1, style: { fontSize: 14, lineHeight: 20, fontWeight: '800', color: t.accentText, textAlign: 'center' } }, name),
+        line ? h(Text, { numberOfLines: 1, style: { marginTop: 1, fontSize: 13, lineHeight: 18, fontWeight: '700', color: t.text, textAlign: 'center' } }, line) : null) : null,
       h(Pressable, {
-        accessibilityRole: 'button', accessibilityLabel: '안내 받기', onPress: () => onAnswer('agree'),
+        accessibilityRole: 'button', accessibilityLabel: COMBO_CONSENT_AGREE, onPress: () => onAnswer('agree'),
         style: ({ pressed }: { pressed: boolean }): import('react-native').ViewStyle => ({ marginTop: 18, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accent, opacity: pressed ? 0.85 : 1 }),
-      }, h(Text, { style: { fontSize: 16, fontWeight: '800', color: t.text } }, '안내 받기')),
+      }, h(Text, { style: { fontSize: 16, fontWeight: '800', color: t.text } }, COMBO_CONSENT_AGREE)),
       h(Pressable, {
-        accessibilityRole: 'button', accessibilityLabel: '괜찮아요', onPress: () => onAnswer('decline'),
+        accessibilityRole: 'button', accessibilityLabel: COMBO_CONSENT_DECLINE, onPress: () => onAnswer('decline'),
         style: ({ pressed }: { pressed: boolean }): import('react-native').ViewStyle => ({ marginTop: 8, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: t.chipBg ?? '#F2F4F6', opacity: pressed ? 0.85 : 1 }),
-      }, h(Text, { style: { fontSize: 15, fontWeight: '700', color: t.sub } }, '괜찮아요'))));
+      }, h(Text, { style: { fontSize: 15, fontWeight: '700', color: t.sub } }, COMBO_CONSENT_DECLINE))));
 }
 
 // ---- the member's own list ------------------------------------------------------------------------------------------

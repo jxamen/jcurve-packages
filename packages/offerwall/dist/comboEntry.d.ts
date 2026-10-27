@@ -125,6 +125,8 @@ export type ComboDetailSignal = {
 };
 /** A detail page that closes within this long after opening (ms) counts as `closed_fast`. */
 export declare const COMBO_CLOSED_FAST_MS = 15000;
+/** How long the 「해지 알림을 맞춰 뒀어요」 toast shows before the campaign's detail page opens (ms). */
+export declare const COMBO_CONSENT_TOAST_MS = 700;
 /** After sending a detail signal, the combos are fetched again this long after (the server may answer with a `soldout` list). */
 export declare const COMBO_SIGNAL_REFRESH_MS = 3000;
 /** Fetching the combos again for `done` is skipped when the last fetch was this recent (ms). */

@@ -1,8 +1,8 @@
 /** Ways into 「포인트 빨리 모으기」: Chance-tab chip, Home banner, and a route that popups / pushes / deep links can fire. */
 import type { ReactElement } from 'react';
-import { COMBO_NAME, ComboGuideScreen, DEFAULT_COMBO_THEME, comboPopupContent, formatGoal, needsTrialConsent, popupHeadlineSizes, trialMissions, useTodayCombos } from './combos';
+import { COMBO_NAME, ComboGuideScreen, DEFAULT_COMBO_THEME, comboPopupContent, formatGoal, needsTrialConsent, popupHeadlineSizes, trialLine, trialMissions, useTodayCombos } from './combos';
 import type { ComboBundle, ComboMission, ComboTheme, ComboTrial, TodayCombos } from './combos';
-import { COMBO_TRIALS_NAME, ComboTrialsScreen, TrialConsentPopup, listenForTrialRequests, parseMyTrials } from './comboTrials';
+import { COMBO_CONSENT_TOAST, COMBO_TRIALS_NAME, ComboTrialsScreen, TrialConsentPopup, listenForTrialRequests, parseMyTrials } from './comboTrials';
 import type { ConsentAnswer, MyTrial } from './comboTrials';
 import { findCampaignKey, nativeCampaignApi, nativeCopyText } from './campaigns';
 import type { CampaignApi, CampaignInfo } from './campaigns';
@@ -218,6 +218,8 @@ export type ComboTapDiagnostic = {
 export type ComboDetailSignal = { result: 'open_failed' | 'closed_fast'; campaignKey: string; platform: string; ms: number };
 /** A detail page that closes within this long after opening (ms) counts as `closed_fast`. */
 export const COMBO_CLOSED_FAST_MS = 15_000;
+/** How long the 「해지 알림을 맞춰 뒀어요」 toast shows before the campaign's detail page opens (ms). */
+export const COMBO_CONSENT_TOAST_MS = 700;
 /** After sending a detail signal, the combos are fetched again this long after (the server may answer with a `soldout` list). */
 export const COMBO_SIGNAL_REFRESH_MS = 3000;
 const short = (value: unknown, max = 80): string => {
@@ -535,9 +537,9 @@ export function ComboEntry({
    */
   // ---- free trials: the cancel-notice question before a trial's detail page, and the member's own list ----
   const answered = React.useRef(new Map<string, boolean>()); // this visit's answers (lower-case key), until the server's `trial_consent` has them
-  const [consent, setConsent] = React.useState<{ name: string } | null>(null);
+  const [consent, setConsent] = React.useState<{ name: string; line: string } | null>(null);
   const consentResolve = React.useRef<((answer: ConsentAnswer) => void) | null>(null);
-  const askConsent = (name: string): Promise<ConsentAnswer> => new Promise(resolve => { consentResolve.current = resolve; setConsent({ name }); });
+  const askConsent = (name: string, line: string): Promise<ConsentAnswer> => new Promise(resolve => { consentResolve.current = resolve; setConsent({ name, line }); });
   const answerConsent = (answer: ConsentAnswer) => { const resolve = consentResolve.current; consentResolve.current = null; setConsent(null); resolve?.(answer); };
   const [trialsOpen, setTrialsOpen] = React.useState(false);
   const [trialsFocus, setTrialsFocus] = React.useState<string | undefined>(undefined);
@@ -574,10 +576,13 @@ export function ComboEntry({
     if (!opts.skipConsent && latest.current.onTrialConsent) {
       const trialKey = [mission.campaignKey, isCampaignKey(mission.id) ? mission.id : undefined].find(k => needsTrialConsent(latest.current.combos, k, answered.current));
       if (trialKey) {
-        const answer = await askConsent(mission.name);
+        const terms = latest.current.combos?.trials?.find(x => x.campaignKey.toLowerCase() === trialKey.toLowerCase());
+        const answer = await askConsent(mission.name, terms ? trialLine(terms) : '');
         if (answer === 'cancel') return;
         answered.current.set(trialKey.toLowerCase(), answer === 'agree');
         try { void Promise.resolve(latest.current.onTrialConsent?.(trialKey, answer === 'agree')).catch(() => {}); } catch { /* the answer is kept for this visit anyway */ }
+        // 「안내 받고 참여하기」: a short toast before the detail page opens (대표님 10/27 22:51)
+        if (answer === 'agree') { say(COMBO_CONSENT_TOAST); await new Promise<void>(resolve => { setTimeout(resolve, COMBO_CONSENT_TOAST_MS); }); }
       }
     }
     const started = Date.now();
@@ -642,7 +647,7 @@ export function ComboEntry({
   // 「무료체험 확인」 is there when the app can load the list and the server turned free trials on (it sent trials or trial keys)
   const trialsChip = shown && trialsAvailable && !!state.combos && !!(state.combos.trials?.length || state.combos.trialKeys?.length);
   const chipFit = trialsChip ? comboChipFit(Dimensions.get('window').width, chipRight ?? COMBO_CHIP_RIGHT) : null;
-  const consentView = consent ? h(TrialConsentPopup, { key: 'consent', name: consent.name, theme, onAnswer: answerConsent }) : null;
+  const consentView = consent ? h(TrialConsentPopup, { key: 'consent', name: consent.name, line: consent.line, theme, onAnswer: answerConsent }) : null;
   if (!shown && !open && !notice && !popup && !trialsOpen && !consent) return null;
   if (placement === 'home') {
     return h(React.Fragment, null,

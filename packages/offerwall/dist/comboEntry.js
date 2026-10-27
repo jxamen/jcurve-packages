@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.COMBO_POPUP_DELAY_MS = exports.COMBO_REFRESH_GAP_MS = exports.COMBO_SIGNAL_REFRESH_MS = exports.COMBO_CLOSED_FAST_MS = exports.COMBO_SHEET_TOP = exports.COMBO_CHIP_RIGHT = exports.COMBO_CHIP_GAP = exports.COMBO_TITLE_GAP = exports.COMBO_TITLE_END = exports.COMBO_CHIP_TOP = exports.COMBOS_POPUP_ACTION = exports.COMBOS_ROUTE = void 0;
+exports.COMBO_POPUP_DELAY_MS = exports.COMBO_REFRESH_GAP_MS = exports.COMBO_SIGNAL_REFRESH_MS = exports.COMBO_CONSENT_TOAST_MS = exports.COMBO_CLOSED_FAST_MS = exports.COMBO_SHEET_TOP = exports.COMBO_CHIP_RIGHT = exports.COMBO_CHIP_GAP = exports.COMBO_TITLE_GAP = exports.COMBO_TITLE_END = exports.COMBO_CHIP_TOP = exports.COMBOS_POPUP_ACTION = exports.COMBOS_ROUTE = void 0;
 exports.isCombosRoute = isCombosRoute;
 exports.requestOpenCombos = requestOpenCombos;
 exports.listenForComboRequests = listenForComboRequests;
@@ -168,6 +168,8 @@ const withTimeout = (promise, ms, fallback) => {
 const NOTICE_MS = 4500;
 /** A detail page that closes within this long after opening (ms) counts as `closed_fast`. */
 exports.COMBO_CLOSED_FAST_MS = 15000;
+/** How long the 「해지 알림을 맞춰 뒀어요」 toast shows before the campaign's detail page opens (ms). */
+exports.COMBO_CONSENT_TOAST_MS = 700;
 /** After sending a detail signal, the combos are fetched again this long after (the server may answer with a `soldout` list). */
 exports.COMBO_SIGNAL_REFRESH_MS = 3000;
 const short = (value, max = 80) => {
@@ -449,7 +451,7 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     const answered = React.useRef(new Map()); // this visit's answers (lower-case key), until the server's `trial_consent` has them
     const [consent, setConsent] = React.useState(null);
     const consentResolve = React.useRef(null);
-    const askConsent = (name) => new Promise(resolve => { consentResolve.current = resolve; setConsent({ name }); });
+    const askConsent = (name, line) => new Promise(resolve => { consentResolve.current = resolve; setConsent({ name, line }); });
     const answerConsent = (answer) => { const resolve = consentResolve.current; consentResolve.current = null; setConsent(null); resolve?.(answer); };
     const [trialsOpen, setTrialsOpen] = React.useState(false);
     const [trialsFocus, setTrialsFocus] = React.useState(undefined);
@@ -495,7 +497,8 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
         if (!opts.skipConsent && latest.current.onTrialConsent) {
             const trialKey = [mission.campaignKey, isCampaignKey(mission.id) ? mission.id : undefined].find(k => (0, combos_1.needsTrialConsent)(latest.current.combos, k, answered.current));
             if (trialKey) {
-                const answer = await askConsent(mission.name);
+                const terms = latest.current.combos?.trials?.find(x => x.campaignKey.toLowerCase() === trialKey.toLowerCase());
+                const answer = await askConsent(mission.name, terms ? (0, combos_1.trialLine)(terms) : '');
                 if (answer === 'cancel')
                     return;
                 answered.current.set(trialKey.toLowerCase(), answer === 'agree');
@@ -503,6 +506,11 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
                     void Promise.resolve(latest.current.onTrialConsent?.(trialKey, answer === 'agree')).catch(() => { });
                 }
                 catch { /* the answer is kept for this visit anyway */ }
+                // 「안내 받고 참여하기」: a short toast before the detail page opens (대표님 10/27 22:51)
+                if (answer === 'agree') {
+                    say(comboTrials_1.COMBO_CONSENT_TOAST);
+                    await new Promise(resolve => { setTimeout(resolve, exports.COMBO_CONSENT_TOAST_MS); });
+                }
             }
         }
         const started = Date.now();
@@ -605,7 +613,7 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     // 「무료체험 확인」 is there when the app can load the list and the server turned free trials on (it sent trials or trial keys)
     const trialsChip = shown && trialsAvailable && !!state.combos && !!(state.combos.trials?.length || state.combos.trialKeys?.length);
     const chipFit = trialsChip ? comboChipFit(Dimensions.get('window').width, chipRight ?? exports.COMBO_CHIP_RIGHT) : null;
-    const consentView = consent ? h(comboTrials_1.TrialConsentPopup, { key: 'consent', name: consent.name, theme, onAnswer: answerConsent }) : null;
+    const consentView = consent ? h(comboTrials_1.TrialConsentPopup, { key: 'consent', name: consent.name, line: consent.line, theme, onAnswer: answerConsent }) : null;
     if (!shown && !open && !notice && !popup && !trialsOpen && !consent)
         return null;
     if (placement === 'home') {

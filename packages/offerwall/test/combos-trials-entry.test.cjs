@@ -40,8 +40,11 @@ test('consent: a trial campaign asks first (the question, both answers go on to 
   await s.tapFirst();
   assert.deepEqual(opened, [], 'nothing opens before the answer');
   assert.ok(texts(s.again()).includes(api.COMBO_CONSENT_TITLE));
-  byLabel(s.again(), '안내 받기').props.onPress();
+  byLabel(s.again(), '안내 받고 참여하기').props.onPress();
   await tick(20);
+  assert.deepEqual(opened, [], 'the toast first: the campaign opens after a moment');
+  assert.ok(texts(s.again()).includes('해지 알림을 맞춰 뒀어요'), 'the toast');
+  await tick(api.COMBO_CONSENT_TOAST_MS + 100);
   assert.deepEqual(sent, [[KEY, true]]);
   assert.deepEqual(opened, [KEY], 'then the campaign opens');
   assert.equal(texts(s.again()).includes(api.COMBO_CONSENT_TITLE), false, 'the question is gone');
@@ -57,7 +60,7 @@ test('consent: a trial campaign asks first (the question, both answers go on to 
   assert.equal(sent.length, 1);
 }, NATIVE));
 
-test('consent: 괜찮아요 is sent as "no" and the campaign opens; dismissing answers nothing and does not open it (asked again next time)', () => withReact(async ctx => {
+test('consent: 안내 없이 참여하기 is sent as "no" and the campaign opens; dismissing answers nothing and does not open it (asked again next time)', () => withReact(async ctx => {
   const opened = []; const sent = [];
   const s = await start(ctx, {opened, extra: {onTrialConsent: (key, agree) => { sent.push([key, agree]); }}});
   s.openSheet();
@@ -66,9 +69,10 @@ test('consent: 괜찮아요 is sent as "no" and the campaign opens; dismissing a
   await tick(20);
   assert.deepEqual([opened, sent], [[], []], 'dismissed: no answer, no campaign');
   await s.tapFirst();
-  assert.ok(texts(s.again()).includes('안내 받기'), 'asked again');
-  byLabel(s.again(), '괜찮아요').props.onPress();
+  assert.ok(texts(s.again()).includes('안내 받고 참여하기'), 'asked again');
+  byLabel(s.again(), '안내 없이 참여하기').props.onPress();
   await tick(20);
+  assert.equal(texts(s.again()).includes('해지 알림을 맞춰 뒀어요'), false, 'no toast for 안내 없이');
   assert.deepEqual(sent, [[KEY, false]]);
   assert.deepEqual(opened, [KEY]);
 }, NATIVE));
@@ -87,8 +91,8 @@ test('consent: not asked when the server already has the answer, when the app gi
   for (const onTrialConsent of [() => { throw new Error('x'); }, async () => { throw new Error('y'); }]) {
     const s = await start(ctx, {opened: failing, extra: {onTrialConsent}});
     s.openSheet(); await s.tapFirst();
-    byLabel(s.again(), '안내 받기').props.onPress();
-    await tick(20);
+    byLabel(s.again(), '안내 받고 참여하기').props.onPress();
+    await tick(api.COMBO_CONSENT_TOAST_MS + 100);
   }
   assert.deepEqual(failing, [KEY, KEY]);
 }, NATIVE));
@@ -102,8 +106,9 @@ test('trial tab: a tap on a row of the 「무료체험」 tab asks, then opens t
   byLabel(s.again(), '1번 집핏', true).props.onPress();
   await tick(20);
   assert.deepEqual(opened, []);
-  byLabel(s.again(), '안내 받기').props.onPress();
-  await tick(20);
+  assert.ok(texts(s.again()).includes('7일 무료 · 이후 월 29,900원'), 'the popup says the campaign\'s terms');
+  byLabel(s.again(), '안내 받고 참여하기').props.onPress();
+  await tick(api.COMBO_CONSENT_TOAST_MS + 100);
   assert.deepEqual(sent, [['1781115240', true]]);
   assert.deepEqual(opened, ['1781115240']);
 }, NATIVE));

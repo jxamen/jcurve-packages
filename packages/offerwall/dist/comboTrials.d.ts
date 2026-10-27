@@ -52,16 +52,22 @@ type TrialsOpener = {
  */
 export declare function requestOpenTrials(focusKey?: string, now?: number): boolean;
 export declare function listenForTrialRequests(opener: TrialsOpener, now?: number): () => void;
-/** Broken by hand after 「전에」 so no word is cut in the middle (the sentence is 「무료체험이 끝나기 전에 해지 안내를 받으시겠어요?」). */
-export declare const COMBO_CONSENT_TITLE = "\uBB34\uB8CC\uCCB4\uD5D8\uC774 \uB05D\uB098\uAE30 \uC804\uC5D0\n\uD574\uC9C0 \uC548\uB0B4\uB97C \uBC1B\uC73C\uC2DC\uACA0\uC5B4\uC694?";
-export declare const COMBO_CONSENT_BODY = "\uD574\uC9C0\uD558\uC9C0 \uC54A\uC73C\uBA74 \uC790\uB3D9\uC73C\uB85C \uACB0\uC81C\uB420 \uC218 \uC788\uC5B4\uC694.\n\uC548\uB0B4\uB97C \uBC1B\uC73C\uBA74 \uD574\uC9C0\uD560 \uB54C \uC54C\uB824 \uB4DC\uB824\uC694.";
+/** 대표님 10/27 22:51 wording. The body is broken by hand so no word is cut in the middle. */
+export declare const COMBO_CONSENT_TITLE = "\uBB34\uB8CC\uCCB4\uD5D8, \uC548\uC2EC\uD558\uACE0 \uCC38\uC5EC\uD558\uC138\uC694";
+export declare const COMBO_CONSENT_BODY = "\uCCB4\uD5D8\uC774 \uB05D\uB098\uAE30 \uC804\uC5D0\n\uD574\uC9C0\uD560 \uB54C\uB97C \uC54C\uB9BC\uC73C\uB85C \uC54C\uB824 \uB4DC\uB824\uC694.\n\uD574\uC9C0\uD558\uBA74 \uB3C8\uC774 \uB098\uAC00\uC9C0 \uC54A\uC544\uC694.";
+export declare const COMBO_CONSENT_AGREE = "\uC548\uB0B4 \uBC1B\uACE0 \uCC38\uC5EC\uD558\uAE30";
+export declare const COMBO_CONSENT_DECLINE = "\uC548\uB0B4 \uC5C6\uC774 \uCC38\uC5EC\uD558\uAE30";
+/** Shown for a moment after 「안내 받고 참여하기」, just before the campaign's detail page opens. */
+export declare const COMBO_CONSENT_TOAST = "\uD574\uC9C0 \uC54C\uB9BC\uC744 \uB9DE\uCDB0 \uB480\uC5B4\uC694";
 export type ConsentAnswer = 'agree' | 'decline' | 'cancel';
 /**
- * Asked before a free-trial campaign's detail page opens. 「안내 받기」 and 「괜찮아요」 both go on to the campaign (the caller records the
- * answer); tapping the dimmed area or going back answers nothing ('cancel': the campaign does not open and the question comes again next time).
+ * Asked before a free-trial campaign's detail page opens. 「안내 받고 참여하기」 and 「안내 없이 참여하기」 both go on to the campaign (the caller
+ * records the answer); tapping the dimmed area or going back answers nothing ('cancel': the campaign does not open and the question comes again
+ * next time). `line` is the campaign's terms, e.g. 「7일 무료 · 이후 월 29,900원」.
  */
-export declare function TrialConsentPopup({ name, theme, onAnswer }: {
+export declare function TrialConsentPopup({ name, line, theme, onAnswer }: {
     name: string;
+    line?: string;
     theme?: ComboTheme;
     onAnswer: (answer: ConsentAnswer) => void;
 }): ReactElement;
