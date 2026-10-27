@@ -203,8 +203,8 @@ export type ComboGuideScreenProps = {
     onToggleDone?: (id: string) => void;
 };
 /**
- * Left icon of a mission row: the campaign's icon when the server sent one (`mission.icon`, https only), else the first
- * letter of the name on a soft circle. A picture that fails to load falls back to the letter too.
+ * A campaign's icon (`mission.icon`, https only), else the first letter of the name on a soft circle; a picture that fails to load
+ * falls back to the letter too. Not used in the list rows now (they show numbers, 대표님 10/27); kept for places that want a picture.
  */
 export declare function ComboMissionIcon({ name, uri, size, theme }: {
     name: string;
@@ -214,7 +214,7 @@ export declare function ComboMissionIcon({ name, uri, size, theme }: {
 }): ReactElement;
 /**
  * The guide page, laid out like the shopping tab: white, a thin title row, small flat tabs (쉽게 모으기 · 1천 · 5천 · 1만P), a
- * one-line total, and a plain list: icon, name + what to do, +points, a small check. The whole row is the button.
+ * one-line total, and a plain list: number, name + what to do, +points, a small check. The whole row is the button.
  */
 export declare function ComboGuideScreen({ combos, loading, onClose, onPressMission, usn, theme, showHeader, topInset, variant, hint, done, onToggleDone }: ComboGuideScreenProps): ReactElement;
 export {};

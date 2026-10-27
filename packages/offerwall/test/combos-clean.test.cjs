@@ -43,7 +43,7 @@ test('icon: a picture when there is one, else the first letter (whole character,
   assert.deepEqual(texts(mount({name: '   '})), ['·']);
 }));
 
-test('row: the whole row is the button; name and what-to-do are one line each; points right; a small check last; no big button, no number circle', () => withReact(({host, rn}) => {
+test('row: the whole row is the button; a number circle first; name and what-to-do are one line each; points right; a small check last; no big button, no picture', () => withReact(({host, rn}) => {
   rn.Image = 'Image';
   const picked = [];
   const data = combos({easy: {missions: [mission('e1', 102, {name: '리아버거가게 유튜브', todo: '구독하기', minutes: 3, icon: 'https://cdn.example.com/e1.png'})]}});
@@ -55,7 +55,12 @@ test('row: the whole row is the button; name and what-to-do are one line each; p
   assert.equal(rowStyle.flexDirection, 'row');
   assert.equal(rowStyle.paddingVertical, 12);
   const inside = walk(row);
-  assert.ok(inside.some(n => n.type === 'Image' && n.props.source.uri === 'https://cdn.example.com/e1.png'), 'campaign icon on the left');
+  assert.equal(inside.some(n => n.type === 'Image'), false, 'no campaign picture in the row (numbers instead)');
+  const badge = inside.find(n => n.type === 'View' && n.props.style && n.props.style.width === 30 && n.props.style.borderRadius === 15);
+  assert.ok(badge, 'a 30 px number circle on the left');
+  assert.deepEqual(texts(badge), ['1']);
+  assert.equal(badge.props.style.backgroundColor, '#F2F4F6', 'shopping-tab grey');
+  assert.equal(inside.indexOf(badge) < inside.indexOf(inside.find(n => n.type === 'Text' && n.children[0] === '리아버거가게 유튜브')), true, 'number comes before the name');
   const name = inside.find(n => n.type === 'Text' && n.children[0] === '리아버거가게 유튜브');
   assert.equal(name.props.numberOfLines, 1);
   assert.equal(name.props.ellipsizeMode, 'tail');
@@ -65,7 +70,7 @@ test('row: the whole row is the button; name and what-to-do are one line each; p
   const texted = texts(row);
   assert.equal(texted.includes('하러 가기 ›'), false);
   assert.equal(texted.some(t => /쉬움|약 3분/.test(t)), false, 'no level / time chip');
-  assert.equal(texted.includes('1'), false, 'no number circle');
+  assert.equal(texted.includes('1'), true, 'the number');
   const check = inside.find(n => n.type === 'Pressable' && n.props.accessibilityRole === 'checkbox');
   assert.equal(check.props.style.width, 22, 'a small check');
   assert.equal(inside.indexOf(check) > inside.indexOf(name), true, 'check comes after the text, at the right');
@@ -117,4 +122,23 @@ test('look: without the chipBg token the unselected chip is still the shopping g
   assert.equal(byLabel(tree, '2단계 5천P').props.style.backgroundColor, '#F2F4F6');
   assert.ok(texts(host.render(() => api.ComboGuideScreen(props({combos: null, loading: true})))).includes('불러오고 있어요'));
   assert.ok(texts(host.render(() => api.ComboGuideScreen(props({combos: null})))).some(t => t.includes('준비하고 있어요')));
+}));
+
+test('numbers: only the rows not done get a number, counted again from 1; done rows show ✓ and sink', () => withReact(({host}) => {
+  const data = combos({easy: {missions: [mission('e1', 10), mission('e2', 20), mission('e3', 30), mission('e4', 40)]}});
+  const tree = host.render(() => api.ComboGuideScreen(props({combos: data, done: new Set(['e2']), onToggleDone() {}})));
+  const circles = walk(tree).filter(n => n.type === 'View' && n.props.style && n.props.style.width === 30 && n.props.style.borderRadius === 15).map(n => texts(n)[0]);
+  assert.deepEqual(circles, ['1', '2', '3', '✓'], 'e1 e3 e4 are 1 2 3, the done e2 is last with ✓');
+  assert.ok(byLabel(tree, '1번 일 e1', true) && byLabel(tree, '2번 일 e3', true) && byLabel(tree, '3번 일 e4', true));
+  const doneBadge = walk(byLabel(tree, '일 e2, 완료')).find(n => n.type === 'View' && n.props.style && n.props.style.width === 30);
+  assert.deepEqual(texts(doneBadge), ['✓']);
+}));
+
+test('numbers: the 「한 번에 끝내기」 list counts on its own from 1; the server icon is parsed but not drawn in rows', () => withReact(({host}) => {
+  const data = combos({singles: [{goal: 1000, missions: [mission('s1', 1008, {icon: 'https://cdn.example.com/s1.png'}), mission('s2', 2592)]}]});
+  assert.equal(data.singles[0].missions[0].icon, 'https://cdn.example.com/s1.png', 'still parsed');
+  const tree = host.render(() => api.ComboGuideScreen(props({combos: data})));
+  const circles = walk(tree).filter(n => n.type === 'View' && n.props.style && n.props.style.width === 30 && n.props.style.borderRadius === 15).map(n => texts(n)[0]);
+  assert.deepEqual(circles, ['1', '1', '2'], 'the step list (1 row) and then the singles list (1, 2)');
+  assert.equal(walk(tree).some(n => n.type === 'Image'), false);
 }));

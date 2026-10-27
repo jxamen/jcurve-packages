@@ -397,8 +397,8 @@ const NO_DONE: ReadonlySet<string> = new Set();
 const firstChar = (name: string): string => Array.from(name.trim())[0] ?? '·';
 
 /**
- * Left icon of a mission row: the campaign's icon when the server sent one (`mission.icon`, https only), else the first
- * letter of the name on a soft circle. A picture that fails to load falls back to the letter too.
+ * A campaign's icon (`mission.icon`, https only), else the first letter of the name on a soft circle; a picture that fails to load
+ * falls back to the letter too. Not used in the list rows now (they show numbers, 대표님 10/27); kept for places that want a picture.
  */
 export function ComboMissionIcon({ name, uri, size = 44, theme = DEFAULT_COMBO_THEME }: { name: string; uri?: string; size?: number; theme?: ComboTheme }): ReactElement {
   const React = require('react') as typeof import('react');
@@ -417,7 +417,7 @@ export function ComboMissionIcon({ name, uri, size = 44, theme = DEFAULT_COMBO_T
 
 /**
  * The guide page, laid out like the shopping tab: white, a thin title row, small flat tabs (쉽게 모으기 · 1천 · 5천 · 1만P), a
- * one-line total, and a plain list: icon, name + what to do, +points, a small check. The whole row is the button.
+ * one-line total, and a plain list: number, name + what to do, +points, a small check. The whole row is the button.
  */
 export function ComboGuideScreen({ combos, loading = false, onClose, onPressMission, usn, theme = DEFAULT_COMBO_THEME, showHeader = true, topInset = 0, variant = 'page', hint = COMBO_LIST_HINT, done = NO_DONE, onToggleDone }: ComboGuideScreenProps): ReactElement {
   const React = require('react') as typeof import('react');
@@ -470,7 +470,9 @@ export function ComboGuideScreen({ combos, loading = false, onClose, onPressMiss
         borderTopWidth: index === 0 ? 0 : 1, borderTopColor: t.line, backgroundColor: pressed ? '#F7F8FA' : 'transparent', opacity: isDone ? 0.5 : 1,
       }),
     },
-      h(ComboMissionIcon, { name: mission.name, uri: mission.icon, theme: t }),
+      // 대표님 10/27 「리스트 아까처럼 숫자로」: the number the user works through (restarts over the rows not done yet); a done row shows ✓.
+      h(View, { accessible: false, style: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: chipBg } },
+        h(Text, { style: { fontSize: 14, lineHeight: 18, fontWeight: '700', color: isDone ? t.sub : t.text } }, isDone ? '✓' : String(no))),
       h(View, { style: { flex: 1, minWidth: 0, marginLeft: 12 } },
         h(Text, { numberOfLines: 1, ellipsizeMode: 'tail', style: { fontSize: 15, lineHeight: 21, fontWeight: '600', color: t.text, textDecorationLine: isDone ? 'line-through' : 'none' } }, mission.name),
         mission.todo ? h(Text, { numberOfLines: 1, ellipsizeMode: 'tail', style: { marginTop: 1, fontSize: 13, lineHeight: 18, color: t.sub } }, mission.todo) : null),
