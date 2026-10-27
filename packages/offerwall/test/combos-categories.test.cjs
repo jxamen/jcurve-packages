@@ -100,7 +100,7 @@ test('category screen: the total line is the server\'s total (「다 하면 +N P
   assert.equal(all.some(x => x.includes('돈이 드는 항목')), false);
 }));
 
-test('category screen: 무료체험 has no total, just the cancel note, rows with their cost pills; 쇼핑 says there is no total; 게임 shows goal and time limit', () => withReact(({host}) => {
+test('category screen: 무료체험 has no total, just the cancel note, rows with their cost pills; a tab with a null total (쇼핑, a game tab) has no total line at all; a game row shows goal and time limit', () => withReact(({host, make}) => {
   const combos = norm();
   byLabel(open(host, combos), '무료체험').props.onPress();
   const trial = texts(open(host, combos));
@@ -110,11 +110,17 @@ test('category screen: 무료체험 has no total, just the cancel note, rows wit
   assert.ok(trial.some(x => x.includes('기간이 끝나면 자동으로 결제돼요')), 'the trial footer');
   byLabel(open(host, combos), '쇼핑').props.onPress();
   const shop = texts(open(host, combos));
-  assert.ok(shop.includes('돈이 드는 항목이라 합계에는 넣지 않았어요') && shop.includes('3만원 이상 구매'));
+  assert.ok(shop.includes('3만원 이상 구매'), 'the cost pill is there');
+  assert.equal(shop.some(x => x === '다 하면' || x === '남은 합계' || x === '모두 마쳤어요' || x.includes('돈이 드는 항목')), false, 'no total line when the server total is null — the app adds nothing up itself');
+  assert.equal(shop.some(x => /^\+[\d,]+P$/.test(x) && x !== '+2,592P'), false, 'no summed amount anywhere');
   byLabel(open(host, combos), '게임').props.onPress();
   const game = texts(open(host, combos));
-  assert.ok(game.includes('다 하면') && game.includes('+4,234,308P'));
+  assert.ok(game.includes('다 하면') && game.includes('+4,234,308P'), 'a number from the server is shown as it is');
   assert.ok(game.includes('멀티미션 달성하기 · 30일 안'));
+  const nullGame = norm({categories: [cat('game', '게임', null, [item('3', '황야의 생존자', 5000, {line: '멀티미션 달성하기 · 30일 안'}), item('4', '킹 오브 파이터', 4000)])]});
+  const noSum = texts(open(make(), nullGame));
+  assert.equal(noSum.includes('다 하면'), false, 'the server sent null: no total line, not 9,000P either');
+  assert.equal(noSum.includes('+9,000P'), false);
 }));
 
 test('category screen: a tap gives the row as a mission (id and campaignKey = the key); rows the server marked done are ✓ at the bottom and leave the remaining sum', () => withReact(({host}) => {
@@ -123,7 +129,8 @@ test('category screen: a tap gives the row as a mission (id and campaignKey = th
   const tree = open(host, combos, {onPressMission: (m, b) => tapped.push([m, b])});
   assert.deepEqual(rowNumbers(tree), ['1', '2', '✓'], 'open rows first, numbers again, the done one last');
   const all = texts(tree);
-  assert.ok(all.includes('남은 합계') && all.includes('+700P'), '1000 − the done 300 (c costs money, it was never in the total)');
+  assert.ok(all.includes('다 하면') && all.includes('+700P'), '1000 − the done 300 (c costs money, it was never in the total); always worded 「다 하면」');
+  assert.equal(all.includes('남은 합계'), false);
   byLabel(tree, '1번 a', true).props.onPress();
   assert.equal(tapped[0][0].id, '1');
   assert.equal(tapped[0][0].campaignKey, '1');
@@ -139,7 +146,8 @@ test('category screen: hand ticks work by campaign key; everything done says so'
   byLabel(tree, 'a 완료 표시').props.onPress();
   assert.deepEqual(ticks, ['1']);
   const some = open(host, combos, {done: new Set(['1'])});
-  assert.ok(texts(some).includes('남은 합계') && texts(some).includes('+300P'));
+  assert.ok(texts(some).includes('다 하면') && texts(some).includes('+300P'), 'the label stays 「다 하면」');
+  assert.equal(texts(some).includes('남은 합계'), false);
   const all = open(host, combos, {done: new Set(['1', '2'])});
   assert.ok(texts(all).includes('모두 마쳤어요'));
 }));

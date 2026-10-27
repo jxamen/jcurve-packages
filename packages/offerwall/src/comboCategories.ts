@@ -121,13 +121,15 @@ export function ComboCategoryScreen({
             style: ({ pressed }: { pressed: boolean }): import('react-native').ViewStyle => ({ height: 36, paddingHorizontal: 14, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: pressed ? (on ? '#FFE6A8' : '#E4E7EB') : on ? t.accentSoft : chipBg }),
           }, h(Text, { style: { fontSize: 14, fontWeight: '600', color: on ? t.accentText : t.sub } }, c.title));
         })) : null,
-      // the one line under the tabs: the total (nothing that costs money in it), or the cancel note, or a plain word that there is no total
+      // the one line under the tabs (대표님 10/27 23:2x): the server's total, always worded 「다 하면 +N P」; a tab whose `total_points` the server sent as null (games,
+      // shopping, free trials) has NO total line at all — the app never adds the rows up itself. The 무료체험 tab has its old cancel note instead.
       cat ? (sum
         ? h(View, { style: { flexDirection: 'row', alignItems: 'baseline', paddingHorizontal: side, paddingTop: 14, paddingBottom: 6, gap: 6 } },
-          h(Text, { style: { fontSize: 13, color: t.sub } }, sum.total === 0 && sum.paid > 0 ? '모두 마쳤어요' : sum.paid > 0 ? '남은 합계' : '다 하면'),
+          h(Text, { style: { fontSize: 13, color: t.sub } }, sum.total === 0 && sum.paid > 0 ? '모두 마쳤어요' : '다 하면'),
           sum.total === 0 && sum.paid > 0 ? null : h(Text, { style: { fontSize: 16, fontWeight: '800', color: t.point } }, `+${formatPoints(sum.total)}`))
-        : h(Text, { style: { paddingHorizontal: side, paddingTop: 14, paddingBottom: 6, fontSize: 13, lineHeight: 18, color: t.sub } },
-          isTrialTab ? COMBO_TRIAL_NOTE : '돈이 드는 항목이라 합계에는 넣지 않았어요')) : null,
+        : isTrialTab
+          ? h(Text, { style: { paddingHorizontal: side, paddingTop: 14, paddingBottom: 6, fontSize: 13, lineHeight: 18, color: t.sub } }, COMBO_TRIAL_NOTE)
+          : h(View, { style: { height: 8 } })) : null,
       cat ? h(View, { key: cat.key }, visible.map(row)) : null,
       cat && rows.length > limit ? h(Pressable, {
         accessibilityRole: 'button', accessibilityLabel: `더 보기, ${rows.length - limit}개 남음`, onPress: () => setShown(s => ({ ...s, [cat.key]: limit + COMBO_CATEGORY_PAGE })),
@@ -140,6 +142,6 @@ export function ComboCategoryScreen({
       cat ? h(Text, { style: { paddingHorizontal: side, paddingTop: 18, fontSize: 12, lineHeight: 18, color: t.sub } },
         isTrialTab
           ? '무료체험은 기간이 끝나면 자동으로 결제돼요. 끝나기 전에 꼭 해지해 주세요.'
-          : '합계는 돈이 들지 않는 항목을 모두 마쳤을 때 기준이에요. 오늘 하루 기준이고 내일은 새로 바뀌어요. 항목마다 참여 조건이 달라서, 눌러서 안내를 꼭 확인해 주세요.') : null,
+          : `${sum ? '합계는 돈이 들지 않는 항목을 모두 마쳤을 때 기준이에요. ' : ''}오늘 하루 기준이고 내일은 새로 바뀌어요. 항목마다 참여 조건이 달라서, 눌러서 안내를 꼭 확인해 주세요.`) : null,
       notice ? h(Text, { style: { paddingHorizontal: side, paddingTop: 10, fontSize: 14, fontWeight: '700', color: '#E5484D' } }, notice) : null));
 }
