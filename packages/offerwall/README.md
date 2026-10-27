@@ -182,7 +182,7 @@ const theme = comboThemeFromTokens({ C, R, F, shadow });   // 앱의 src/ui/them
 - `level`: `easy`(쉬움) / `normal`(보통) / `hard`(조금 걸려요). 합계는 화면에서 항목 포인트를 더해 만들고, 합이 `goal` 에 못 미치는 묶음은 통째로 뺀다.
 - 묶음 최대 4개(1단계 · 2단계 · 3단계 길로 그린다), 묶음당 항목 최대 12개, 항목 포인트 1천만 이하, 이름 40자 · 할 일 80자.
 
-**팝업 · 푸시 · 링크로 들어오기** — 경로 이름은 `offerwall/combos` (`COMBOS_ROUTE`). 앱은 URL 스킴이 아니라 앱 안 이동 액션을 쓰므로 팝업 `action` / 푸시 `data.go` 를 받는 쪽에서 한 줄만 더한다.
+**팝업 · 푸시 · 링크로 들어오기** — 푸시 `data.go` · 링크는 `offerwall/combos` (`COMBOS_ROUTE`), 서버 팝업은 `app_popups.action` 칸이 10자라 `combos` (`COMBOS_POPUP_ACTION`). `isCombosRoute` 가 둘 다 알아본다. 앱은 URL 스킴이 아니라 앱 안 이동 액션을 쓰므로 팝업 `action` / 푸시 `data.go` 를 받는 쪽에서 한 줄만 더한다.
 
 ```ts
 import { isCombosRoute, requestOpenCombos } from '@jcurve/offerwall';

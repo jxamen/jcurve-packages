@@ -3,13 +3,15 @@ import type { ReactElement } from 'react';
 import { COMBO_NAME, ComboGuideScreen, DEFAULT_COMBO_THEME, formatGoal, useTodayCombos } from './combos';
 import type { ComboBundle, ComboMission, ComboTheme, TodayCombos } from './combos';
 
-/** Route name shared by server popups, pushes and links. Apps use in-app actions, not a URL scheme. */
+/** Route name for pushes (`data.go`) and links. Apps use in-app actions, not a URL scheme. */
 export const COMBOS_ROUTE = 'offerwall/combos';
-/** Accepts 'offerwall/combos', '/offerwall/combos?from=push' and 'myapp://offerwall/combos'. */
+/** Server popups store their action in a 10-character column, so the popup action is this short form. */
+export const COMBOS_POPUP_ACTION = 'combos';
+/** Accepts 'offerwall/combos', '/offerwall/combos?from=push', 'myapp://offerwall/combos' and the popup action 'combos'. */
 export function isCombosRoute(value: unknown): boolean {
   if (typeof value !== 'string') return false;
   const path = value.trim().replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').replace(/^\/+/, '').split(/[?#]/)[0].replace(/\/+$/, '');
-  return path === COMBOS_ROUTE;
+  return path === COMBOS_ROUTE || path === COMBOS_POPUP_ACTION;
 }
 
 type Opener = { priority: number; open(): void };

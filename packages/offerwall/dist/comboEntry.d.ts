@@ -1,9 +1,11 @@
 /** Ways into 「쉽게 1만P 모으기」: Chance-tab chip, Home banner, and a route that popups / pushes / deep links can fire. */
 import type { ReactElement } from 'react';
 import type { ComboBundle, ComboMission, ComboTheme, TodayCombos } from './combos';
-/** Route name shared by server popups, pushes and links. Apps use in-app actions, not a URL scheme. */
+/** Route name for pushes (`data.go`) and links. Apps use in-app actions, not a URL scheme. */
 export declare const COMBOS_ROUTE = "offerwall/combos";
-/** Accepts 'offerwall/combos', '/offerwall/combos?from=push' and 'myapp://offerwall/combos'. */
+/** Server popups store their action in a 10-character column, so the popup action is this short form. */
+export declare const COMBOS_POPUP_ACTION = "combos";
+/** Accepts 'offerwall/combos', '/offerwall/combos?from=push', 'myapp://offerwall/combos' and the popup action 'combos'. */
 export declare function isCombosRoute(value: unknown): boolean;
 type Opener = {
     priority: number;

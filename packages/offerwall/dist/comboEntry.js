@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.COMBO_SHEET_TOP = exports.COMBO_CHIP_RIGHT = exports.COMBO_CHIP_TOP = exports.COMBOS_ROUTE = void 0;
+exports.COMBO_SHEET_TOP = exports.COMBO_CHIP_RIGHT = exports.COMBO_CHIP_TOP = exports.COMBOS_POPUP_ACTION = exports.COMBOS_ROUTE = void 0;
 exports.isCombosRoute = isCombosRoute;
 exports.requestOpenCombos = requestOpenCombos;
 exports.listenForComboRequests = listenForComboRequests;
@@ -8,14 +8,16 @@ exports.ComboChip = ComboChip;
 exports.ComboBanner = ComboBanner;
 exports.ComboEntry = ComboEntry;
 const combos_1 = require("./combos");
-/** Route name shared by server popups, pushes and links. Apps use in-app actions, not a URL scheme. */
+/** Route name for pushes (`data.go`) and links. Apps use in-app actions, not a URL scheme. */
 exports.COMBOS_ROUTE = 'offerwall/combos';
-/** Accepts 'offerwall/combos', '/offerwall/combos?from=push' and 'myapp://offerwall/combos'. */
+/** Server popups store their action in a 10-character column, so the popup action is this short form. */
+exports.COMBOS_POPUP_ACTION = 'combos';
+/** Accepts 'offerwall/combos', '/offerwall/combos?from=push', 'myapp://offerwall/combos' and the popup action 'combos'. */
 function isCombosRoute(value) {
     if (typeof value !== 'string')
         return false;
     const path = value.trim().replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').replace(/^\/+/, '').split(/[?#]/)[0].replace(/\/+$/, '');
-    return path === exports.COMBOS_ROUTE;
+    return path === exports.COMBOS_ROUTE || path === exports.COMBOS_POPUP_ACTION;
 }
 const openers = new Set();
 let waitingSince = 0;

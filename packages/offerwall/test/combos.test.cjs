@@ -81,10 +81,11 @@ test('point and goal labels', () => {
   assert.deepEqual([1000, 5000, 10000, 20000, 1500, 500].map(api.formatGoal), ['1천P', '5천P', '1만P', '2만P', '1,500P', '500P']);
 });
 
-test('route matcher accepts in-app and scheme forms only for offerwall/combos', () => {
-  for (const ok of ['offerwall/combos', '/offerwall/combos', ' offerwall/combos/ ', 'offerwall/combos?from=push', 'myapp://offerwall/combos#x', 'kr.co.app://offerwall/combos']) assert.equal(api.isCombosRoute(ok), true, ok);
-  for (const no of ['offerwall', 'offerwall/combos2', 'offerwall/combo', 'chance', 'https://x.kr/offerwall/combos', '', null, undefined, 5, {}]) assert.equal(api.isCombosRoute(no), false, String(no));
+test('route matcher accepts in-app and scheme forms of offerwall/combos and the popup action "combos"', () => {
+  for (const ok of ['offerwall/combos', '/offerwall/combos', ' offerwall/combos/ ', 'offerwall/combos?from=push', 'myapp://offerwall/combos#x', 'kr.co.app://offerwall/combos', 'combos', ' combos ']) assert.equal(api.isCombosRoute(ok), true, ok);
+  for (const no of ['offerwall', 'offerwall/combos2', 'offerwall/combo', 'combo', 'combos2', 'chance', 'https://x.kr/offerwall/combos', '', null, undefined, 5, {}]) assert.equal(api.isCombosRoute(no), false, String(no));
   assert.equal(api.COMBOS_ROUTE, 'offerwall/combos');
+  assert.equal(api.COMBOS_POPUP_ACTION, 'combos');
 });
 
 test('fetch: unwraps combos / data / bare bodies and rejects failures, stale days and dateless bodies', async () => {
