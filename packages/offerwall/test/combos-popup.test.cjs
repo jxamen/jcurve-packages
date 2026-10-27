@@ -414,3 +414,23 @@ test('popup ✕: tapping it closes the popup (and the dimmed area too); the shee
     assert.equal(hasSheet(again()), false);
   } finally { timers.restore(); api.notifyWallGone(); }
 }));
+
+test('popup card height: the card is as tall as the space it floats in (measured) minus 16 above and below, never under 260; a tall ad scrolls instead of running past the wall', () => withReact(async ({make}) => {
+  const timers = fakeLongTimers();
+  try {
+    const {again} = await start(make, {entry: {popupAd: () => api_el('AppAd')}});
+    api.notifyWallLoaded(); again(); timers.fire();
+    const cardOf = tree => walk(tree).find(n => n.type === 'Animated.View' && n.props.accessibilityViewIsModal === true);
+    const first = again();
+    assert.equal(cardOf(first).props.style.maxHeight, Math.round(800 * 0.86), 'before the size is known: 86 % of the window');
+    const box = walk(first).find(n => n.type === 'View' && typeof n.props.onLayout === 'function' && n.props.pointerEvents === 'box-none');
+    assert.ok(box, 'the floating container reports its size');
+    assert.equal(box.props.style.paddingVertical, 16);
+    box.props.onLayout({nativeEvent: {layout: {height: 684.4}}});
+    assert.equal(cardOf(again()).props.style.maxHeight, 684 - 32, 'the wall area, not the screen');
+    box.props.onLayout({nativeEvent: {layout: {height: 200}}});
+    assert.equal(cardOf(again()).props.style.maxHeight, 260, 'a tiny area still leaves a usable card');
+    box.props.onLayout({nativeEvent: {layout: {height: 0}}});
+    assert.equal(cardOf(again()).props.style.maxHeight, 260, 'a zero size is ignored');
+  } finally { timers.restore(); api.notifyWallGone(); }
+}));

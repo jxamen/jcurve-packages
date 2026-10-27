@@ -184,6 +184,10 @@ const SLOW_REFUSAL_MS = 4500;
 export const COMBO_REFRESH_GAP_MS = 2500;
 const isCampaignKey = (value: string | undefined): value is string => !!value && /^\d{3,20}$/.test(value);
 
+/** Space kept free above and below the popup card (px), and the least height the card is cut down to. */
+const POPUP_EDGE = 16;
+const POPUP_MIN_HEIGHT = 260;
+
 /** How long after the wall has loaded the recommendation popup waits before it appears. */
 export const COMBO_POPUP_DELAY_MS = 600;
 
@@ -205,6 +209,8 @@ function ComboPopup({ combos, theme, art, ad, onOpen, onClose }: {
   const grow = React.useRef<import('react-native').Animated.Value | null>(null);
   if (!grow.current) grow.current = new Animated.Value(0);
   React.useEffect(() => { Animated.timing(grow.current!, { toValue: 1, duration: 240, useNativeDriver: true }).start(); }, []);
+  // The card may be as tall as the space it floats in (the wall area, not the whole screen): measured, with 86 % of the window until then.
+  const [room, setRoom] = React.useState(0);
   const scale = grow.current.interpolate({ inputRange: [0, 1], outputRange: [0.88, 1] });
   const opacity = grow.current.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
   const sparkle = (key: string, left: number | string, top: number, size: number, rotate: string, color: string) => h(View, {
@@ -217,7 +223,8 @@ function ComboPopup({ combos, theme, art, ad, onOpen, onClose }: {
       h(Text, { style: { fontSize: size * 0.42, fontWeight: '900', color: t.text } }, 'P'));
   return h(View, {
     key: 'popup', pointerEvents: 'box-none',
-    style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 22, elevation: 22, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
+    onLayout: (event: import('react-native').LayoutChangeEvent) => { const height = Math.round(event.nativeEvent.layout.height); if (height > 0) setRoom(height); },
+    style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 22, elevation: 22, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28, paddingVertical: POPUP_EDGE },
   },
     h(Pressable, {
       accessibilityRole: 'button', accessibilityLabel: '팝업 닫기', onPress: onClose,
@@ -225,7 +232,7 @@ function ComboPopup({ combos, theme, art, ad, onOpen, onClose }: {
     }),
     h(Animated.View, {
       accessibilityViewIsModal: true,
-      style: { width: '100%', maxWidth: 320, maxHeight: Math.round(Dimensions.get('window').height * 0.86), borderRadius: 24, overflow: 'hidden', backgroundColor: t.card, opacity, transform: [{ scale }], ...t.shadow },
+      style: { width: '100%', maxWidth: 320, maxHeight: room > 0 ? Math.max(POPUP_MIN_HEIGHT, room - 2 * POPUP_EDGE) : Math.round(Dimensions.get('window').height * 0.86), borderRadius: 24, overflow: 'hidden', backgroundColor: t.card, opacity, transform: [{ scale }], ...t.shadow },
     },
       h(ScrollView, { bounces: false, showsVerticalScrollIndicator: false, style: { flexGrow: 0 } },
         h(View, { accessible: false, style: { height: 132, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accentSoft } },
