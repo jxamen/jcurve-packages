@@ -85,7 +85,10 @@ function normalizeTodayCombos(raw) {
         chance: data.display?.chance === 'off' ? 'off' : 'chip',
         home: data.display?.home === 'banner' ? 'banner' : 'off',
         // `chance_popup` is the server's spelling; `popup` is what normalizing keeps, so running this twice gives the same result
-        ...(data.display?.chance_popup === 'off' || data.display?.popup === 'off' ? { popup: 'off' } : {}),
+        ...(() => {
+            const mode = data.display?.chance_popup ?? data.display?.popup;
+            return mode === 'off' || mode === 'always' ? { popup: mode } : {};
+        })(),
     };
     const singles = cleanSingles(data.singles, goals);
     const easy = cleanEasy(data.easy);

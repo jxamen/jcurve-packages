@@ -14,8 +14,11 @@ export type ComboSingles = { goal: number; missions: ComboMission[] };
 /** Server switches. chance: the floating chip in the Chance tab; home: the optional banner on Home. */
 export type ComboDisplay = {
   chance: 'chip' | 'off'; home: 'banner' | 'off';
-  /** `chance_popup: 'off'` from the server turns the recommendation popup off; absent means on. */
-  popup?: 'off';
+  /**
+   * `chance_popup` from the server: 'off' turns the recommendation popup off, 'always' shows it on every direct entry to the Chance tab
+   * (test accounts: no once-a-day limit, the "guide already opened today" mark is ignored). Absent or 'on' = once a day.
+   */
+  popup?: 'off' | 'always';
 };
 /** 「쉽게 모으기」: short, easy missions (follow, subscribe, install and open) with no goal; `total` is the sum of their points. */
 export type ComboEasy = { missions: ComboMission[]; total: number };
@@ -91,7 +94,10 @@ export function normalizeTodayCombos(raw: unknown): TodayCombos | null {
     chance: data.display?.chance === 'off' ? 'off' : 'chip',
     home: data.display?.home === 'banner' ? 'banner' : 'off',
     // `chance_popup` is the server's spelling; `popup` is what normalizing keeps, so running this twice gives the same result
-    ...(data.display?.chance_popup === 'off' || data.display?.popup === 'off' ? { popup: 'off' as const } : {}),
+    ...(() => {
+      const mode = data.display?.chance_popup ?? data.display?.popup;
+      return mode === 'off' || mode === 'always' ? { popup: mode as 'off' | 'always' } : {};
+    })(),
   };
   const singles = cleanSingles(data.singles, goals);
   const easy = cleanEasy(data.easy);

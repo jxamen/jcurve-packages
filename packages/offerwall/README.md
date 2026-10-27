@@ -264,3 +264,12 @@ if (isCombosRoute(action)) { goTab('offerwall'); requestOpenCombos(); }   // 탭
 - **서버 스위치**: `display.chance_popup: "off"` 면 팝업을 안 띄운다(없거나 `"on"` 이면 켜짐). 칩 · 시트에는 영향이 없다. `normalizeTodayCombos` 는 두 번 돌려도 같은 결과(`display.popup === 'off'` 도 읽음).
 - **신호**: `wallSignal.ts` — `notifyWallLoaded()` / `notifyWallGone()` / `onWallState(cb)` / `isWallLoaded()`. `OfferwallScreen` 이 보내고 `ComboEntry` 가 듣는다(두 화면이 한 틀 안에 나란히 있으므로). 홈 배너 · 데이터가 없는 항목 · 서버가 칩을 끈 경우에는 팝업이 없다.
 - 새 네이티브 모듈 · 뷰 · prop 없음. 시험: `test/combos-popup.test.cjs`(12개) — 시간 · 하루 한 번 · 회원별 · 닫기 · 추천 보기 · 서버 off · 시트를 이미 연 날 · 메인 팝업 경로 · 홈.
+
+## 0.3.5 — 추천 팝업 「항상」 모드: `display.chance_popup: "always"` (JS only)
+
+0.3.4 위의 JS 한 가지 변경이다(네이티브 0.3.0 과 바이트 동일). 시험 계정이 매번 팝업을 확인할 수 있게 한다.
+
+- 서버 `display.chance_popup` 값: `"on"`/없음 = 하루 한 번(0.3.4 그대로) · `"off"` = 안 띄움 · **`"always"` = 하루 한 번 · 「그날 안내를 이미 열었음」 표시를 무시하고, 찬스 탭에 직접 들어올 때마다(오퍼월 `onLoaded` 뒤 0.6초) 한 번** 띄운다. `normalizeTodayCombos` 는 `display.popup` 에 `'off' | 'always'` 를 남기고 두 번 돌려도 같다. 모르는 값은 「하루 한 번」으로 본다.
+- **방문 단위**: 찬스 탭에 들어올 때마다 `ComboEntry` 가 새로 마운트되므로 그때마다 한 번이다. 같은 방문에서 오퍼월이 다시 뜨거나(재시도) 팝업을 닫은 뒤에는 다시 뜨지 않는다.
+- 메인 팝업 · 푸시로 들어와 `requestOpenCombos()` 로 시트가 바로 열린 방문에는 「항상」이어도 팝업이 없다. 홈 · 데이터 없음 · 칩이 꺼진 경우도 그대로.
+- 기기에 쓰는 「오늘 봤음」 표시는 그대로 기록되므로(칩 깜박임 규칙) 「항상」을 끄면 다음 날부터 평소 규칙으로 돌아간다.

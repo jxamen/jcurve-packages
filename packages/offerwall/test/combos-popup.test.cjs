@@ -221,3 +221,85 @@ test('wall signal: loaded / gone reach listeners once per change; a throwing lis
   assert.deepEqual(seen, [true, false], 'unsubscribed');
   api.notifyWallGone();
 });
+
+// ---- chance_popup: "always" (test accounts: every direct entry) ----
+const alwaysData = () => dataOf({display: {chance: 'chip', home: 'off', chance_popup: 'always'}});
+
+test('always: the server value is kept, survives a second normalizing, and unknown values mean the daily default', () => {
+  assert.equal(alwaysData().display.popup, 'always');
+  assert.equal(api.normalizeTodayCombos({date: TODAY(), ...alwaysData()}).display.popup, 'always', 'normalizing twice is the same');
+  assert.equal(dataOf({display: {chance: 'chip', home: 'off', chance_popup: 'sometimes'}}).display.popup, undefined);
+  assert.equal(dataOf({display: {chance: 'chip', home: 'off', chance_popup: 'off'}}).display.popup, 'off');
+});
+
+test('always: shows although the guide was opened today and the popup was already shown today', () => withReact(async ({make}) => {
+  const timers = fakeLongTimers();
+  try {
+    const storage = memory({
+      [api.seenStorageKey(7)]: JSON.stringify({d: TODAY()}),
+      [api.popupStorageKey(7)]: JSON.stringify({d: TODAY()}),
+    });
+    const {again} = await start(make, {data: alwaysData(), storage});
+    assert.equal(popupShown(again()), false, 'still waits for the wall');
+    api.notifyWallLoaded(); again(); timers.fire();
+    const tree = again();
+    assert.equal(popupShown(tree), true);
+    assert.ok(texts(tree).includes('쉬운 미션 3개로 +600P'));
+    assert.ok(byLabel(tree, '포인트 빨리 모으기'), 'chip stays');
+  } finally { timers.restore(); api.notifyWallGone(); }
+}));
+
+test('always: every new visit to the Chance tab gets it; within one visit it comes once, even if the wall reloads', () => withReact(async ({make}) => {
+  const timers = fakeLongTimers();
+  try {
+    const storage = memory();
+    const visit1 = await start(make, {data: alwaysData(), storage});
+    api.notifyWallLoaded(); visit1.again(); timers.fire();
+    assert.equal(popupShown(visit1.again()), true);
+    byLabel(visit1.again(), '닫기').props.onPress();
+    assert.equal(popupShown(visit1.again()), false);
+    // the wall reloads inside the same visit (retry): no second popup
+    api.notifyWallGone(); visit1.again(); api.notifyWallLoaded(); visit1.again(); timers.fire();
+    assert.equal(popupShown(visit1.again()), false);
+    // leaving and entering the tab again = a new entry: it shows again, same device storage
+    api.notifyWallGone();
+    const visit2 = await start(make, {data: alwaysData(), storage});
+    api.notifyWallLoaded(); visit2.again(); timers.fire();
+    assert.equal(popupShown(visit2.again()), true);
+  } finally { timers.restore(); api.notifyWallGone(); }
+}));
+
+test('always: 추천 보기 still opens the sheet; a main-popup / push entry still gets the sheet with no popup', () => withReact(async ({make}) => {
+  const timers = fakeLongTimers();
+  try {
+    const direct = await start(make, {data: alwaysData()});
+    api.notifyWallLoaded(); direct.again(); timers.fire();
+    byLabel(direct.again(), '추천 보기').props.onPress();
+    assert.equal(hasSheet(direct.again()), true);
+    api.notifyWallGone();
+    const viaMain = await start(make, {data: alwaysData(), loadKey: 8});
+    assert.equal(api.requestOpenCombos(), true);
+    assert.equal(hasSheet(viaMain.again()), true);
+    api.notifyWallLoaded(); viaMain.again(); timers.fire();
+    assert.equal(popupShown(viaMain.again()), false, 'no popup on this path, even for test accounts');
+  } finally { timers.restore(); api.notifyWallGone(); }
+}));
+
+test('always: Home and an entry without data still never show it; on / off / missing are unchanged', () => withReact(async ({make}) => {
+  const timers = fakeLongTimers();
+  try {
+    const home = await start(make, {placement: 'home', data: dataOf({display: {chance: 'chip', home: 'banner', chance_popup: 'always'}})});
+    api.notifyWallLoaded(); home.again(); timers.fire();
+    assert.equal(popupShown(home.again()), false);
+    api.notifyWallGone();
+    // daily default still respects the stored mark
+    const daily = await start(make, {data: dataOf({display: {chance: 'chip', home: 'off', chance_popup: 'on'}}), storage: memory({[api.popupStorageKey(7)]: JSON.stringify({d: TODAY()})})});
+    api.notifyWallLoaded(); daily.again(); timers.fire();
+    assert.equal(popupShown(daily.again()), false);
+    api.notifyWallGone();
+    // off still means never
+    const off = await start(make, {data: dataOf({display: {chance: 'chip', home: 'off', chance_popup: 'off'}})});
+    api.notifyWallLoaded(); off.again(); timers.fire();
+    assert.equal(popupShown(off.again()), false);
+  } finally { timers.restore(); api.notifyWallGone(); }
+}));

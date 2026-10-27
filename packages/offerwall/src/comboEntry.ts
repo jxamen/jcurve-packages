@@ -286,15 +286,18 @@ export function ComboEntry({
   const [popup, setPopup] = React.useState(false);
   const [wallReady, setWallReady] = React.useState(isWallLoaded);
   const everOpened = React.useRef(false);
+  const popupGiven = React.useRef(false); // at most one popup per visit (entry mount), even when it is shown on every visit
   React.useEffect(() => (placement === 'chance' ? onWallState(setWallReady) : undefined), [placement]);
-  const popupDue = placement === 'chance' && shown && !!state.combos && state.combos.display.popup !== 'off'
-    && seen.seen === false && popupSeen.seen === false && !open && !popup && !everOpened.current;
+  const popupMode = state.combos?.display.popup; // 'off' | 'always' | undefined (once a day)
+  const popupDue = placement === 'chance' && shown && !!state.combos && popupMode !== 'off' && !open && !popup && !everOpened.current && !popupGiven.current
+    && (popupMode === 'always' || (seen.seen === false && popupSeen.seen === false));
   const popupDueNow = React.useRef(false);
   popupDueNow.current = popupDue;
   React.useEffect(() => {
     if (!popupDue || !wallReady) return;
     const timer = setTimeout(() => {
       if (!popupDueNow.current) return;
+      popupGiven.current = true;
       setPopup(true);
       popupSeen.markSeen();
     }, COMBO_POPUP_DELAY_MS);

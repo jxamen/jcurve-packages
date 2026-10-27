@@ -27,8 +27,11 @@ export type ComboSingles = {
 export type ComboDisplay = {
     chance: 'chip' | 'off';
     home: 'banner' | 'off';
-    /** `chance_popup: 'off'` from the server turns the recommendation popup off; absent means on. */
-    popup?: 'off';
+    /**
+     * `chance_popup` from the server: 'off' turns the recommendation popup off, 'always' shows it on every direct entry to the Chance tab
+     * (test accounts: no once-a-day limit, the "guide already opened today" mark is ignored). Absent or 'on' = once a day.
+     */
+    popup?: 'off' | 'always';
 };
 /** 「쉽게 모으기」: short, easy missions (follow, subscribe, install and open) with no goal; `total` is the sum of their points. */
 export type ComboEasy = {
