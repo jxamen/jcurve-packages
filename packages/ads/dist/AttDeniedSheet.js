@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.DISMISS_MS = void 0;
+exports.CARD_EDGE = exports.DISMISS_MS = void 0;
 exports.AttDeniedSheet = AttDeniedSheet;
 const react_1 = __importStar(require("react"));
 const attSheet_1 = require("./attSheet");
@@ -47,6 +47,8 @@ const DEFAULT_THEME = {
 };
 /** 안내가 사라지는 동안(페이드) — 이 뒤에 시스템 창 · 오퍼월 화면을 올려야 iOS 가 겹쳐서 놓치지 않는다 */
 exports.DISMISS_MS = 400;
+/** (1.9.15) 카드 위아래 여백 — 노치 · 다이내믹 아일랜드(위 ~59) · 홈 인디케이터(아래 ~34) 밖에 카드가 머물게 한다. 카드는 가운데 정렬이라 짧은 글에서는 모양이 안 바뀐다 */
+exports.CARD_EDGE = 64;
 function AttDeniedSheet({ theme, storage, primerTexts, deniedTexts, renderPopup }) {
     const [mode, setMode] = (0, react_1.useState)('none');
     // 열려 있는 동안 기다리는 쪽 — 사라지면 풀어 준다
@@ -93,16 +95,19 @@ function AttDeniedSheet({ theme, storage, primerTexts, deniedTexts, renderPopup 
         catch { /* noop */ }
         void (0, attSheet_1.waitForReturn)(rn.AppState).then(finish);
     };
-    // 가운데 카드 — 중립 안내와 같은 틀
-    const card = (key, onRequestClose, ...children) => h(rn.Modal, { key, visible: mode === key, transparent: true, animationType: 'fade', onRequestClose }, h(rn.View, { style: { flex: 1, backgroundColor: th.overlay, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 } }, h(rn.View, { style: { width: '100%', maxWidth: 360, backgroundColor: th.background, borderRadius: 16, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 16 } }, ...children)));
+    // 가운데 카드 — 중립 안내와 같은 틀. (1.9.15) 제목 · 본문은 스크롤 영역, 버튼은 그 아래 바닥에 고정한다:
+    // 접근성 최대 글자에서 글이 길어져도 카드는 화면 안에 있고(위아래 여백 CARD_EDGE = 노치 · 홈 인디케이터 밖), 버튼은 늘 보인다.
+    // 글이 짧아 화면에 다 들어가면 예전과 모양이 같다(스크롤 영역은 내용 높이만큼만 차지한다).
+    const Scroll = rn.ScrollView ?? rn.View;
+    const card = (key, onRequestClose, content, footer) => h(rn.Modal, { key, visible: mode === key, transparent: true, animationType: 'fade', onRequestClose }, h(rn.View, { style: { flex: 1, backgroundColor: th.overlay, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24, paddingVertical: exports.CARD_EDGE } }, h(rn.View, { style: { width: '100%', maxWidth: 360, maxHeight: '100%', backgroundColor: th.background, borderRadius: 16, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 16 } }, h(Scroll, { style: { flexGrow: 0, flexShrink: 1 }, showsVerticalScrollIndicator: true }, ...content), h(rn.View, { style: { flexShrink: 0 } }, footer))));
     const title = (text) => h(rn.Text, { style: { color: th.text, fontSize: 17, fontWeight: '700', lineHeight: 24 } }, text);
     const body = (text) => h(rn.Text, { style: { color: th.subText, fontSize: 14, marginTop: 10, lineHeight: 20 } }, text);
     // ① 중립 안내 — 버튼 하나. 닫기 · 뒤로가기로 건너뛸 수 없다(onRequestClose 는 아무것도 안 한다)
-    const primer = card('primer', () => undefined, title(pr.title), body(pr.body), h(rn.TouchableOpacity, { onPress: dismiss, accessibilityRole: 'button', style: { marginTop: 18, backgroundColor: th.primary, borderRadius: 10, paddingVertical: 14, alignItems: 'center' } }, h(rn.Text, { style: { color: th.primaryText, fontSize: 16, fontWeight: '700' } }, pr.button)));
+    const primer = card('primer', () => undefined, [title(pr.title), body(pr.body)], h(rn.TouchableOpacity, { onPress: dismiss, accessibilityRole: 'button', style: { marginTop: 18, backgroundColor: th.primary, borderRadius: 10, paddingVertical: 14, alignItems: 'center' } }, h(rn.Text, { style: { color: th.primaryText, fontSize: 16, fontWeight: '700' } }, pr.button)));
     // ② 추적이 꺼져 있을 때 — 두 버튼은 같은 모양 · 같은 크기(한쪽으로 몰아가지 않는다)
     const choice = (label, onPress) => h(rn.TouchableOpacity, { key: label, onPress, accessibilityRole: 'button',
         style: { flex: 1, borderWidth: 1, borderColor: th.subText, borderRadius: 10, paddingVertical: 13, alignItems: 'center' } }, h(rn.Text, { style: { color: th.text, fontSize: 15, fontWeight: '700' } }, label));
-    const denied = card('denied', dismiss, title(dn.title), body(dn.body), h(rn.View, { style: { flexDirection: 'row', gap: 10, marginTop: 18 } }, choice(dn.proceed, dismiss), choice(dn.openSettings, openSettings)));
+    const denied = card('denied', dismiss, [title(dn.title), body(dn.body)], h(rn.View, { style: { flexDirection: 'row', gap: 10, marginTop: 18 } }, choice(dn.proceed, dismiss), choice(dn.openSettings, openSettings)));
     // (1.9.14) 앱이 자기 팝업으로 그린다 — 열려 있는 동안만 부른다. 문구 · 버튼 순서 · 동작은 위 기본 카드와 같다
     if (renderPopup) {
         const custom = mode === 'primer'

@@ -32,7 +32,7 @@ function harness(os = 'ios') {
   const appListeners = new Set<(s: string) => void>();
   const rn = {
     Platform: { OS: os },
-    Modal: 'Modal', View: 'View', Text: 'Text', TouchableOpacity: 'TouchableOpacity',
+    Modal: 'Modal', View: 'View', ScrollView: 'ScrollView', Text: 'Text', TouchableOpacity: 'TouchableOpacity',
     Linking: { openSettings: vi.fn(async () => undefined) },
     AppState: { addEventListener: vi.fn((_t: string, fn: (s: string) => void) => { appListeners.add(fn); return { remove: vi.fn(() => { appListeners.delete(fn); }) }; }) },
   };
@@ -336,6 +336,82 @@ describe('AttDeniedSheet — 호스트', () => {
     await flush();
     expect(resolved).toBe(true);
     expect(await ensure(h, tracking('denied'))).toBe('proceed');   // 등록이 없으니 바로 지나간다
+  });
+});
+
+describe('기본 카드 — 접근성 최대 글자에서도 화면 안에 (1.9.15: 제목 · 본문은 스크롤, 버튼은 바닥 고정)', () => {
+  /** 카드 안쪽 View(= 흰 카드) — 모달 > 어두운 배경 > 카드 */
+  const parts = (modal: any) => {
+    const overlay = ([] as any[]).concat(modal.props.children)[0];
+    const card = ([] as any[]).concat(overlay.props.children)[0];
+    const [scroll, footer] = ([] as any[]).concat(card.props.children);
+
+    return { overlay, card, scroll, footer };
+  };
+  const open = async (kind: 'primer' | 'denied', props: any = { appName: '앱' }) => {
+    const h = harness();
+    h.mount(props);
+    void ensure(h, tracking(kind === 'primer' ? 'undetermined' : 'denied'));
+    await flush();
+
+    return { h, modal: h.modal(kind, props) };
+  };
+
+  for (const kind of ['primer', 'denied'] as const) {
+    it(`${kind}: 제목 · 본문은 스크롤 영역 안에, 버튼은 그 밖(바닥 고정 영역)에 있다`, async () => {
+      const { modal } = await open(kind);
+      const { scroll, footer } = parts(modal);
+      expect(scroll.type).toBe('ScrollView');
+      expect(strings(scroll)).toHaveLength(2);                       // 제목 + 본문
+      expect(buttons(scroll)).toEqual([]);                           // 버튼은 스크롤에 실리지 않는다
+      expect(buttons(footer).length).toBe(kind === 'primer' ? 1 : 2);
+      expect(footer.props.style.flexShrink, '글이 길어도 버튼 영역은 줄지 않는다').toBe(0);
+    });
+    it(`${kind}: 카드는 화면 높이를 넘지 않고, 스크롤 영역만 줄어든다`, async () => {
+      const { modal } = await open(kind);
+      const { overlay, card, scroll } = parts(modal);
+      expect(card.props.style.maxHeight).toBe('100%');
+      expect(scroll.props.style).toMatchObject({ flexGrow: 0, flexShrink: 1 });
+      // 위아래 여백이 노치 · 다이내믹 아일랜드(~59) 밖
+      expect(overlay.props.style.paddingVertical).toBeGreaterThanOrEqual(59);
+    });
+    it(`${kind}: 예전 모양은 그대로 — 가운데 정렬 · 너비 · 둥근 모서리 · 안쪽 여백 · 버튼 간격`, async () => {
+      const { modal } = await open(kind);
+      const { overlay, card, footer } = parts(modal);
+      expect(overlay.props.style).toMatchObject({ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 });
+      expect(card.props.style).toMatchObject({ width: '100%', maxWidth: 360, borderRadius: 16, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 16 });
+      const first = ([] as any[]).concat(footer.props.children)[0];
+      expect(first.props.style.marginTop).toBe(18);
+    });
+  }
+
+  it('버튼은 스크롤 영역과 상관없이 눌린다 — 같은 onPress, 닫기 · 설정 열기 동작 그대로', async () => {
+    const { h, modal } = await open('denied');
+    expect(buttons(parts(modal).footer).map(labelOf)).toEqual(['그냥 보기', '설정 열기']);
+    press(modal, '설정 열기');
+    expect(h.rn.Linking.openSettings).toHaveBeenCalledTimes(1);
+  });
+  it('primer 는 여전히 닫기로 건너뛸 수 없다', async () => {
+    const { modal } = await open('primer');
+    expect(modal.props.onRequestClose()).toBeUndefined();
+    expect(parts(modal).card).toBeTruthy();
+  });
+  it('문구를 덮어써도(긴 글) 같은 구조 — 버튼 문구만 바닥에', async () => {
+    const long = '아주 긴 설명 '.repeat(60);
+    const props = { appName: '앱', deniedTexts: { body: long } };
+    const { modal } = await open('denied', props);
+    const { scroll, footer } = parts(modal);
+    expect(strings(scroll)).toContain(long);
+    expect(strings(footer)).toEqual(['그냥 보기', '설정 열기']);
+  });
+  it('ScrollView 가 없는 환경(가짜 RN)에서도 던지지 않고 View 로 대신 그린다', async () => {
+    const h = harness();
+    delete (h.rn as any).ScrollView;
+    h.mount();
+    void ensure(h, tracking('denied'));
+    await flush();
+    const { scroll } = parts(h.modal('denied'));
+    expect(scroll.type).toBe('View');
   });
 });
 

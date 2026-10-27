@@ -54,4 +54,6 @@ export type AttDeniedSheetProps = {
 };
 /** 안내가 사라지는 동안(페이드) — 이 뒤에 시스템 창 · 오퍼월 화면을 올려야 iOS 가 겹쳐서 놓치지 않는다 */
 export declare const DISMISS_MS = 400;
+/** (1.9.15) 카드 위아래 여백 — 노치 · 다이내믹 아일랜드(위 ~59) · 홈 인디케이터(아래 ~34) 밖에 카드가 머물게 한다. 카드는 가운데 정렬이라 짧은 글에서는 모양이 안 바뀐다 */
+export declare const CARD_EDGE = 64;
 export declare function AttDeniedSheet({ theme, storage, primerTexts, deniedTexts, renderPopup }: AttDeniedSheetProps): React.FunctionComponentElement<React.FragmentProps> | null;
