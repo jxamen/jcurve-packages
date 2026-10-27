@@ -181,7 +181,10 @@ test('guide: path of steps, shows the chosen bundle with big goal + sum, rows re
   const props = {combos, onClose() {}, onPressMission: (m, b) => picked.push([m.id, b.goal])};
   let tree = host.render(() => api.ComboGuideScreen(props));
   const all = texts(tree);
-  for (const want of ['포인트 빨리 모으기', '1천 → 5천 → 1만P 차례로 모아요', '1단계', '2단계', '3단계', '1천P', '5천P', '1만P', '1,000P 모으기', '합계', '1,050P', '일 a', '+600P', '쉬움 · 약 2분', '조금 걸려요', '하러 가기 ›']) assert.ok(all.includes(want), want);
+  for (const want of ['포인트 빨리 모으기', '1천P', '5천P', '1만P', '합계', '1,050P', '일 a', '+600P']) assert.ok(all.includes(want), want);
+  for (const gone of ['1천 → 5천 → 1만P 차례로 모아요', '1,000P 모으기', '쉬움 · 약 2분', '조금 걸려요', '하러 가기 ›']) assert.equal(all.includes(gone), false, `${gone} is not on the page any more`);
+  assert.equal(byLabel(tree, '1단계 1천P').props.accessibilityState.selected, true);
+  assert.match(byLabel(tree, '1번 일 a', true).props.accessibilityLabel, /하러 가기/);
   assert.equal(all.includes('5,000P 모으기'), false, 'only the chosen step is listed');
   assert.equal(all.some(t => /오퍼월|캠페인|SDK|찬스/.test(t)), false, 'no in-app jargon on the page');
   assert.equal(all.some(t => t.includes('쌓여요')), false, 'no promise wording');
@@ -192,8 +195,9 @@ test('guide: path of steps, shows the chosen bundle with big goal + sum, rows re
   byLabel(tree, '2단계 5천P').props.onPress();
   tree = host.render(() => api.ComboGuideScreen(props));
   const second = texts(tree);
-  assert.ok(second.includes('5,000P 모으기') && second.includes('5,200P') && second.includes('+5,200P'));
-  assert.equal(second.includes('1,000P 모으기'), false);
+  assert.ok(second.includes('5,200P') && second.includes('+5,200P'));
+  assert.equal(byLabel(tree, '2단계 5천P').props.accessibilityState.selected, true);
+  assert.equal(second.includes('1,050P'), false, 'the first step is not listed any more');
 }));
 
 test('guide: sheet variant has the name and a 닫기 button, page variant a back arrow', () => withReact(({host}) => {

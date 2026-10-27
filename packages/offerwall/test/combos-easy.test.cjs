@@ -43,9 +43,11 @@ test('guide: 쉽게 모으기 is the first tab and what opens; rows, 하러 가�
   assert.deepEqual(pills(tree), ['쉽게 모으기', '1단계 1천P', '2단계 5천P', '3단계 1만P']);
   assert.equal(byLabel(tree, '쉽게 모으기').props.accessibilityState.selected, true);
   const all = texts(tree);
-  assert.ok(all.includes('쉬운 것부터 가볍게 모아요'));
+  assert.equal(all.includes('쉬운 것부터 가볍게 모아요'), false, 'no big headline paragraph any more');
   assert.ok(all.includes('쉽게 모으기') && all.includes('다 하면') && all.includes('+252P'), 'total of what is left');
-  assert.ok(all.includes('삼성생명 인스타그램') && all.includes('+102P') && all.includes('하러 가기 ›'));
+  assert.ok(all.includes('삼성생명 인스타그램') && all.includes('+102P'));
+  assert.equal(all.includes('하러 가기 ›'), false, 'the whole row is the button: no big 하러 가기 button');
+  assert.match(byLabel(tree, '1번 삼성생명 인스타그램', true).props.accessibilityLabel, /하러 가기/, 'screen readers still hear it');
   assert.ok(byLabel(tree, '1번 삼성생명 인스타그램', true) && byLabel(tree, '2번 메디필 공식 채널', true));
   assert.equal(all.includes('1,000P 모으기'), false);
   assert.equal(all.includes('한 번에 끝내기'), false, 'singles belong to the steps');
@@ -57,8 +59,9 @@ test('guide: switching to a step and back works; steps keep their own look (bund
   const p = props({combos: data});
   byLabel(host.render(() => api.ComboGuideScreen(p)), '1단계 1천P').props.onPress();
   let all = texts(host.render(() => api.ComboGuideScreen(p)));
-  assert.ok(all.includes('1,000P 모으기') && all.includes('합계') && all.includes('한 번에 끝내기') && all.includes('신한 SOL페이 앱'));
-  assert.ok(all.includes('1천 → 5천 → 1만P 차례로 모아요'));
+  assert.ok(all.includes('합계') && all.includes('한 번에 끝내기') && all.includes('신한 SOL페이 앱'));
+  assert.equal(byLabel(host.render(() => api.ComboGuideScreen(p)), '1단계 1천P').props.accessibilityState.selected, true);
+  assert.equal(all.includes('1천 → 5천 → 1만P 차례로 모아요'), false, 'no headline paragraph');
   assert.equal(all.includes('다 하면'), false);
   byLabel(host.render(() => api.ComboGuideScreen(p)), '쉽게 모으기').props.onPress();
   all = texts(host.render(() => api.ComboGuideScreen(p)));
@@ -76,7 +79,7 @@ test('guide: tapping an easy row reports the mission with an easy bundle (goal 0
 test('guide: done marks work in the easy tab; remaining sum, finished message; a mark is shared with the same id elsewhere', () => withReact(({host}) => {
   const data = combos({easy: easyOf(mission('e1', 102), mission('e2', 150))});
   const some = texts(host.render(() => api.ComboGuideScreen(props({combos: data, done: new Set(['e1']), onToggleDone() {}}))));
-  assert.ok(some.includes('남은 합계') && some.includes('+150P') && some.includes('완료'));
+  assert.ok(some.includes('남은 합계') && some.includes('+150P') && some.includes('✓'));
   const all = texts(host.render(() => api.ComboGuideScreen(props({combos: data, done: new Set(['e1', 'e2']), onToggleDone() {}}))));
   assert.ok(all.includes('모두 마쳤어요'));
   assert.equal(all.includes('다 하면'), false);
@@ -84,7 +87,7 @@ test('guide: done marks work in the easy tab; remaining sum, finished message; a
   const tree = host.render(() => api.ComboGuideScreen(props({combos: data, onToggleDone: id => ticks.push(id)})));
   byLabel(tree, '일 e2 완료 표시').props.onPress();
   assert.deepEqual(ticks, ['e2']);
-  assert.ok(texts(tree).some(t => t.includes('동그라미')));
+  assert.equal(texts(tree).some(t => t.includes('동그라미')), false, 'no instruction paragraph any more');
 }));
 
 test('guide: without easy nothing changes (1단계 first and selected, no 쉽게 모으기 pill); easy with one step still gets two tabs', () => withReact(({host}) => {
@@ -101,7 +104,8 @@ test('guide: easy tab disappearing after a refresh falls back to a valid tab', (
   const withEasy = combos({easy: easyOf(mission('e1', 102))});
   byLabel(host.render(() => api.ComboGuideScreen(props({combos: withEasy}))), '3단계 1만P').props.onPress();
   const without = host.render(() => api.ComboGuideScreen(props({combos: combos()})));
-  assert.ok(texts(without).some(t => t === '1,000P 모으기' || t === '5,000P 모으기' || t === '10,000P 모으기'), 'some step is shown, never an empty card');
+  assert.ok(['1단계 1천P', '2단계 5천P', '3단계 1만P'].some(l => byLabel(without, l)?.props.accessibilityState.selected === true), 'some step is selected, never an empty list');
+  assert.ok(texts(without).includes('합계'));
 }));
 
 test('entry: the first row of the easy tab goes straight to the SDK with its server key and reports one diagnostic', () => withReact(async ({make}) => {

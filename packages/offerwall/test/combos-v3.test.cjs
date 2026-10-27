@@ -116,7 +116,7 @@ test('guide: done rows sink, dim and drop out of the remaining sum; numbers rest
   assert.deepEqual(names, ['일 b', '일 c', '일 a'], 'remaining rows first, done last');
   const all = texts(tree);
   assert.ok(all.includes('남은 합계') && all.includes('800P'), 'sum counts only what is left (300 + 500)');
-  assert.ok(all.includes('✓') && all.includes('완료'));
+  assert.ok(all.includes('✓'));
   assert.ok(byLabel(tree, '1번 일 b', true) && byLabel(tree, '2번 일 c', true), 'numbers restart for the remaining rows');
   const doneRow = byLabel(tree, '일 a, 완료');
   assert.equal(doneRow.props.disabled, true);
@@ -127,7 +127,7 @@ test('guide: done rows sink, dim and drop out of the remaining sum; numbers rest
   assert.equal(marks.find(n => n.props.accessibilityLabel === '일 a 완료 표시').props.accessibilityState.checked, true);
   marks.find(n => n.props.accessibilityLabel === '일 b 완료 표시').props.onPress();
   assert.deepEqual(ticked, ['b']);
-  assert.ok(all.some(t => t.includes('동그라미')), 'the page says how to tick');
+  assert.equal(all.some(t => t.includes('동그라미')), false, 'no instruction paragraph any more');
 }));
 
 test('guide: everything done says so; without onToggleDone the marks are inert and there is no tick hint', () => withReact(({host}) => {
@@ -137,7 +137,7 @@ test('guide: everything done says so; without onToggleDone the marks are inert a
   assert.equal(finished.includes('합계') || finished.includes('남은 합계'), false);
   const plain = host.render(() => api.ComboGuideScreen({combos, onClose() {}, onPressMission() {}}));
   assert.equal(texts(plain).some(t => t.includes('동그라미')), false);
-  assert.equal(walk(plain).find(n => n.props?.accessibilityRole === 'checkbox').props.disabled, true);
+  assert.equal(walk(plain).some(n => n.props?.accessibilityRole === 'checkbox'), false, 'without a toggle there is no tick at all');
   assert.ok(texts(plain).includes('합계'));
 }));
 

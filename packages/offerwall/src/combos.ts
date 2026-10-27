@@ -7,7 +7,11 @@ export const COMBO_NAME = '포인트 빨리 모으기';
 
 export type ComboLevel = 'easy' | 'normal' | 'hard';
 /** One mission row = one real campaign. `campaignKey` is optional: when the server knows it, the app opens that campaign directly. */
-export type ComboMission = { id: string; name: string; points: number; todo: string; level: ComboLevel; minutes?: number; campaignKey?: string };
+export type ComboMission = {
+  id: string; name: string; points: number; todo: string; level: ComboLevel; minutes?: number; campaignKey?: string;
+  /** The campaign's icon (https URL from the server, `icon`). Without it the row shows the first letter of the name. */
+  icon?: string;
+};
 export type ComboBundle = { goal: number; missions: ComboMission[]; total: number };
 /** Missions that reach `goal` on their own ("한 번에 끝내기"), mixed kinds. Several to choose from, any one is enough. */
 export type ComboSingles = { goal: number; missions: ComboMission[] };
@@ -52,11 +56,14 @@ function cleanMission(m: any): ComboMission | null {
   if (!id || !name || !points) return null;
   const minutes = whole(m.minutes);
   const campaignKey = text(m.campaignKey ?? m.campaign_key, 64);
+  const iconUrl = text(m.icon ?? m.icon_url ?? m.iconUrl, 500);
+  const icon = /^https:\/\/\S+$/i.test(iconUrl) ? iconUrl : ''; // https only: no http, data: or script URLs from the network
   return {
     id, name, points, todo: text(m.todo, 80),
     level: LEVELS.includes(m.level) ? m.level : 'normal',
     ...(minutes && minutes <= 120 ? { minutes } : {}),
     ...(campaignKey ? { campaignKey } : {}),
+    ...(icon ? { icon } : {}),
   };
 }
 
@@ -192,6 +199,8 @@ export type ComboTheme = {
   bg: string; card: string; line: string; divider: string; text: string; sub: string;
   accent: string; accentText: string; accentSoft: string; point: string; pointSoft: string;
   tag: string; tagText: string;
+  /** Flat grey behind unselected tabs (default #F2F4F6, as in the shopping tab) and behind a loading icon. */
+  chipBg?: string; thumbBg?: string;
   radius: { card: number; slot: number; chip: number };
   font: { title: number; head: number; body: number; small: number; tiny: number };
   shadow: Record<string, any>;
@@ -374,12 +383,38 @@ export type ComboGuideScreenProps = {
   onToggleDone?: (id: string) => void;
 };
 const NO_DONE: ReadonlySet<string> = new Set();
-/** The guide page: a 1단계 · 2단계 · 3단계 path (1천P → 5천P → 1만P), one bundle shown at a time. */
+/** First character of a name (a whole character even for emoji / surrogate pairs), for the icon fallback. */
+const firstChar = (name: string): string => Array.from(name.trim())[0] ?? '·';
+
+/**
+ * Left icon of a mission row: the campaign's icon when the server sent one (`mission.icon`, https only), else the first
+ * letter of the name on a soft circle. A picture that fails to load falls back to the letter too.
+ */
+export function ComboMissionIcon({ name, uri, size = 44, theme = DEFAULT_COMBO_THEME }: { name: string; uri?: string; size?: number; theme?: ComboTheme }): ReactElement {
+  const React = require('react') as typeof import('react');
+  const { View, Text, Image } = require('react-native') as typeof import('react-native');
+  const [failed, setFailed] = React.useState(false);
+  const t = theme;
+  if (uri && !failed) {
+    return React.createElement(Image, {
+      source: { uri }, accessibilityIgnoresInvertColors: true, resizeMode: 'cover', onError: () => setFailed(true),
+      style: { width: size, height: size, borderRadius: 10, backgroundColor: t.thumbBg ?? '#F2F4F6' },
+    });
+  }
+  return React.createElement(View, { accessible: false, style: { width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accentSoft } },
+    React.createElement(Text, { style: { fontSize: Math.round(size * 0.4), fontWeight: '700', color: t.accentText } }, firstChar(name)));
+}
+
+/**
+ * The guide page, laid out like the shopping tab: white, a thin title row, small flat tabs (쉽게 모으기 · 1천 · 5천 · 1만P), a
+ * one-line total, and a plain list: icon, name + what to do, +points, a small check. The whole row is the button.
+ */
 export function ComboGuideScreen({ combos, loading = false, onClose, onPressMission, usn, theme = DEFAULT_COMBO_THEME, showHeader = true, topInset = 0, variant = 'page', hint = COMBO_LIST_HINT, done = NO_DONE, onToggleDone }: ComboGuideScreenProps): ReactElement {
   const React = require('react') as typeof import('react');
   const { View, Text, Pressable, ScrollView, BackHandler } = require('react-native') as typeof import('react-native');
   const h = React.createElement;
   const t = theme;
+  const chipBg = t.chipBg ?? '#F2F4F6';
   const [notice, setNotice] = React.useState('');
   const [selected, setSelected] = React.useState(0);
   React.useEffect(() => {
@@ -388,7 +423,7 @@ export function ComboGuideScreen({ combos, loading = false, onClose, onPressMiss
   }, [onClose]);
   const bundles = combos?.bundles ?? [];
   const easy = combos?.easy;
-  // Tabs: 「쉽게 모으기」 first when the server sent it (and it is what opens), then the steps. Its card is a bundle with goal 0.
+  // Tabs: 「쉽게 모으기」 first when the server sent it (and it is what opens), then the steps. Its list is a bundle with goal 0.
   const tabCount = bundles.length + (easy ? 1 : 0);
   const index = Math.min(selected, Math.max(0, tabCount - 1));
   const onEasy = !!easy && index === 0;
@@ -401,7 +436,6 @@ export function ComboGuideScreen({ combos, loading = false, onClose, onPressMiss
     const result = openOfferwall({ usn });
     setNotice(result.ok ? '' : result.message);
   };
-  const card = { backgroundColor: t.card, borderRadius: t.radius.card, borderWidth: 1.5, borderColor: t.line, padding: 16, ...t.shadow };
   const todo = bundle ? bundle.missions.filter(m => !done.has(m.id)) : [];
   const rows = bundle ? [...todo, ...bundle.missions.filter(m => done.has(m.id))] : [];
   const remaining = todo.reduce((sum, m) => sum + m.points, 0);
@@ -409,9 +443,9 @@ export function ComboGuideScreen({ combos, loading = false, onClose, onPressMiss
   const anyDone = !!bundle && todo.length < bundle.missions.length;
   // 「한 번에 끝내기」: missions that reach this step's goal on their own (hidden when the server sent none for it).
   const singles = bundle && !onEasy ? (combos?.singles?.find(s => s.goal === bundle.goal)?.missions ?? []) : [];
-  const singlesTodo = singles.filter(m => !done.has(m.id));
-  const singleRows = [...singlesTodo, ...singles.filter(m => done.has(m.id))];
-  /** One mission row, the same look in the bundle and in the 「한 번에 끝내기」 box. `no` counts the ones not done yet. */
+  const singleRows = [...singles.filter(m => !done.has(m.id)), ...singles.filter(m => done.has(m.id))];
+  const side = 20;
+  /** One mission row, the same look in the list and in the 「한 번에 끝내기」 list. `no` counts the ones not done yet (screen readers only). */
   const missionRow = (mission: ComboMission, index: number, no: number, forPress: ComboBundle): ReactElement => {
     const isDone = done.has(mission.id);
     return h(Pressable, {
@@ -422,83 +456,65 @@ export function ComboGuideScreen({ combos, loading = false, onClose, onPressMiss
       disabled: !actionable || isDone,
       onPress: () => press(mission, forPress),
       style: ({ pressed }: { pressed: boolean }): import('react-native').ViewStyle => ({
-        flexDirection: 'row', alignItems: 'center', paddingVertical: 14, marginTop: index === 0 ? 8 : 0,
-        borderTopWidth: index === 0 ? 0 : 1.5, borderTopColor: t.divider, opacity: isDone ? 0.55 : pressed ? 0.7 : 1,
+        flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: side,
+        borderTopWidth: index === 0 ? 0 : 1, borderTopColor: t.line, backgroundColor: pressed ? '#F7F8FA' : 'transparent', opacity: isDone ? 0.5 : 1,
       }),
     },
-      h(Pressable, {
+      h(ComboMissionIcon, { name: mission.name, uri: mission.icon, theme: t }),
+      h(View, { style: { flex: 1, minWidth: 0, marginLeft: 12 } },
+        h(Text, { numberOfLines: 1, ellipsizeMode: 'tail', style: { fontSize: 15, lineHeight: 21, fontWeight: '600', color: t.text, textDecorationLine: isDone ? 'line-through' : 'none' } }, mission.name),
+        mission.todo ? h(Text, { numberOfLines: 1, ellipsizeMode: 'tail', style: { marginTop: 1, fontSize: 13, lineHeight: 18, color: t.sub } }, mission.todo) : null),
+      h(Text, { style: { marginLeft: 8, fontSize: 15, fontWeight: '800', color: t.point } }, `+${formatPoints(mission.points)}`),
+      onToggleDone ? h(Pressable, {
         accessibilityRole: 'checkbox', accessibilityState: { checked: isDone }, accessibilityLabel: `${mission.name} 완료 표시`,
-        disabled: !onToggleDone, onPress: () => onToggleDone?.(mission.id), hitSlop: 8,
+        onPress: () => onToggleDone(mission.id), hitSlop: 10,
         style: {
-          width: 32, height: 32, borderRadius: 16, marginRight: 12, alignItems: 'center', justifyContent: 'center',
-          backgroundColor: isDone ? t.accent : t.accentSoft, borderWidth: isDone ? 0 : 1.5, borderColor: t.accent,
+          marginLeft: 10, width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center',
+          backgroundColor: isDone ? t.accentText : 'transparent', borderWidth: isDone ? 0 : 1.5, borderColor: '#D1D6DB',
         },
-      },
-        h(Text, { style: { fontSize: t.font.small, fontWeight: '900', color: isDone ? t.text : t.accentText } }, isDone ? '✓' : String(no))),
-      h(View, { style: { flex: 1, minWidth: 0, paddingRight: 8 } },
-        h(Text, { numberOfLines: 2, style: { fontSize: t.font.body, fontWeight: '800', color: t.text, textDecorationLine: isDone ? 'line-through' : 'none' } }, mission.name),
-        mission.todo ? h(Text, { numberOfLines: 1, style: { marginTop: 2, fontSize: t.font.small, color: t.sub } }, mission.todo) : null,
-        h(View, { style: { flexDirection: 'row', marginTop: 6 } },
-          h(View, { style: { borderRadius: 8, paddingVertical: 4, paddingHorizontal: 8, backgroundColor: t.tag } },
-            h(Text, { style: { fontSize: t.font.tiny, fontWeight: '700', color: t.tagText } },
-              mission.minutes ? `${COMBO_LEVEL_LABEL[mission.level]} · 약 ${mission.minutes}분` : COMBO_LEVEL_LABEL[mission.level])))),
-      h(View, { style: { alignItems: 'flex-end', gap: 6 } },
-        h(Text, { style: { fontSize: t.font.head, fontWeight: '900', color: t.point } }, `+${formatPoints(mission.points)}`),
-        isDone ? h(Text, { style: { fontSize: t.font.tiny, fontWeight: '700', color: t.sub } }, '완료')
-          : actionable ? h(View, { style: { borderRadius: t.radius.chip, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: t.accentSoft } },
-            h(Text, { style: { fontSize: t.font.small, fontWeight: '900', color: t.accentText } }, '하러 가기 ›')) : null));
+      }, isDone ? h(Text, { style: { fontSize: 13, lineHeight: 16, fontWeight: '900', color: '#FFFFFF' } }, '✓') : null) : null);
   };
   let nextNo = 0;
   let nextSingleNo = 0;
+  const closeText = (label: string) => h(Text, { style: { fontSize: 14, fontWeight: '600', color: t.sub } }, label);
   return h(View, { style: { flex: 1, backgroundColor: t.bg, paddingTop: Math.max(0, topInset) } },
     showHeader ? (variant === 'sheet'
-      ? h(View, { style: { height: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 } },
-        h(Text, { style: { fontSize: t.font.head, fontWeight: '900', color: t.text } }, COMBO_NAME),
-        h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 12, style: { paddingVertical: 8, paddingHorizontal: 4 } },
-          h(Text, { style: { fontSize: t.font.small, fontWeight: '900', color: t.accentText } }, '닫기')))
-      : h(View, { style: { height: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8 } },
+      ? h(View, { style: { height: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: side } },
+        h(Text, { style: { fontSize: 18, fontWeight: '700', color: t.text } }, COMBO_NAME),
+        h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 12, style: { paddingVertical: 8, paddingLeft: 8 } }, closeText('닫기')))
+      : h(View, { style: { height: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8 } },
         h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 12, style: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' } },
-          h(Text, { style: { fontSize: 30, color: t.text } }, '‹')),
-        h(Text, { style: { fontSize: t.font.head, fontWeight: '900', color: t.text } }, COMBO_NAME))) : null,
-    h(ScrollView, { contentContainerStyle: { padding: 16, paddingBottom: 40, gap: 16 } },
-      bundle ? h(View, { style: { gap: 4 } },
-        h(Text, { style: { fontSize: t.font.title, fontWeight: '900', color: t.text } }, onEasy ? '쉬운 것부터 가볍게 모아요' : '1천 → 5천 → 1만P 차례로 모아요'),
-        h(Text, { style: { fontSize: t.font.small, lineHeight: 22, color: t.sub } },
-          onEasy ? (onToggleDone ? '몇 분이면 끝나는 쉬운 미션만 모았어요. 포인트가 작아도 차곡차곡 쌓여요. 다 한 것은 앞의 동그라미를 눌러 체크해 두세요.' : '몇 분이면 끝나는 쉬운 미션만 모았어요. 포인트가 작아도 차곡차곡 쌓여요.')
-            : onToggleDone ? '쉬운 것부터 하나씩 해 보세요. 다 한 것은 앞의 동그라미를 눌러 체크해 두세요.' : '쉬운 것부터 하나씩 해 보세요.')) : null,
-      tabCount > 1 ? h(View, { style: { flexDirection: 'row', alignItems: 'center', gap: 6 } },
-        [...(easy ? [null] : []), ...bundles].flatMap((b, i) => {
+          h(Text, { style: { fontSize: 28, color: t.text } }, '‹')),
+        h(Text, { style: { fontSize: 18, fontWeight: '700', color: t.text } }, COMBO_NAME))) : null,
+    h(ScrollView, { contentContainerStyle: { paddingBottom: 32 } },
+      tabCount > 1 ? h(ScrollView, { horizontal: true, showsHorizontalScrollIndicator: false, style: { flexGrow: 0 }, contentContainerStyle: { paddingHorizontal: side, paddingVertical: 4, gap: 8, alignItems: 'center' } },
+        [...(easy ? [null] : []), ...bundles].map((b, i) => {
           const on = i === index;
           const isEasyTab = b === null;
           const step = i - (easy ? 1 : 0);
-          const pill = h(Pressable, {
+          return h(Pressable, {
             key: isEasyTab ? 'easy' : `step-${b.goal}`, accessibilityRole: 'button', accessibilityState: { selected: on },
             accessibilityLabel: isEasyTab ? COMBO_EASY_NAME : `${step + 1}단계 ${formatGoal(b.goal)}`, onPress: () => setSelected(i),
-            style: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: t.radius.slot, borderWidth: 1.5, borderColor: on ? t.accent : t.line, backgroundColor: on ? t.accent : t.card },
-          },
-            h(Text, { style: { fontSize: t.font.tiny, fontWeight: '700', color: on ? t.accentText : t.sub } }, isEasyTab ? '쉽게' : `${step + 1}단계`),
-            h(Text, { style: { fontSize: t.font.head, fontWeight: '900', color: t.text } }, isEasyTab ? '모으기' : formatGoal(b.goal)));
-          if (i === 0) return [pill];
-          // a thin bar after 「쉽게 모으기」 (it is not a step), an arrow between steps
-          return [i === 1 && easy ? h(View, { key: 'easy-bar', style: { width: 1.5, height: 28, backgroundColor: t.divider } }) : h(Text, { key: `to-${b!.goal}`, style: { fontSize: 20, color: t.divider } }, '›'), pill];
+            style: { height: 34, paddingHorizontal: 14, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? t.accentSoft : chipBg },
+          }, h(Text, { style: { fontSize: 14, fontWeight: '600', color: on ? t.accentText : t.sub } }, isEasyTab ? COMBO_EASY_NAME : formatGoal(b.goal)));
         })) : null,
-      bundle ? h(View, { key: String(bundle.goal), style: card },
-        h(View, { style: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' } },
-          h(Text, { style: { fontSize: t.font.title, fontWeight: '900', color: t.text } }, onEasy ? COMBO_EASY_NAME : `${formatPoints(bundle.goal)} 모으기`),
-          h(View, { style: { alignItems: 'flex-end' } },
-            h(Text, { style: { fontSize: t.font.tiny, color: t.sub } }, allDone ? '모두 마쳤어요' : anyDone ? '남은 합계' : onEasy ? '다 하면' : '합계'),
-            allDone ? null : h(Text, { style: { fontSize: t.font.head, fontWeight: '900', color: t.point } }, onEasy ? `+${formatPoints(remaining)}` : formatPoints(remaining)))),
-        actionable && !onPressMission && hint ? h(Text, { style: { marginTop: 8, fontSize: t.font.small, lineHeight: 21, color: t.sub } }, hint) : null,
+      // the sum as one line: what is left (or what finishing everything gives)
+      bundle ? h(View, { style: { flexDirection: 'row', alignItems: 'baseline', paddingHorizontal: side, paddingTop: 14, paddingBottom: 6, gap: 6 } },
+        h(Text, { style: { fontSize: 13, color: t.sub } }, allDone ? '모두 마쳤어요' : anyDone ? '남은 합계' : onEasy ? '다 하면' : '합계'),
+        allDone ? null : h(Text, { style: { fontSize: 16, fontWeight: '800', color: t.point } }, onEasy ? `+${formatPoints(remaining)}` : formatPoints(remaining))) : null,
+      actionable && !onPressMission && hint && bundle ? h(Text, { style: { paddingHorizontal: side, paddingBottom: 6, fontSize: 12, lineHeight: 18, color: t.sub } }, hint) : null,
+      bundle ? h(View, { key: String(bundle.goal) },
         rows.map((mission, i) => missionRow(mission, i, done.has(mission.id) ? 0 : ++nextNo, bundle))) : null,
-      // 「한 번에 끝내기」: a second box under the step's bundle, one mission is enough to reach the goal. Hidden when the server sent none.
-      bundle && singleRows.length ? h(View, { key: `singles-${bundle.goal}`, style: card },
-        h(Text, { style: { fontSize: t.font.title, fontWeight: '900', color: t.text } }, '한 번에 끝내기'),
-        h(Text, { style: { marginTop: 4, fontSize: t.font.small, lineHeight: 22, color: t.sub } }, `아래 중 하나만 해도 ${formatPoints(bundle.goal)}를 채워요`),
+      // 「한 번에 끝내기」: a second list under the step's, one mission is enough to reach the goal. Hidden when the server sent none.
+      bundle && singleRows.length ? h(View, { key: `singles-${bundle.goal}`, style: { marginTop: 22 } },
+        h(View, { style: { paddingHorizontal: side, paddingBottom: 6 } },
+          h(Text, { accessibilityRole: 'header', style: { fontSize: 16, fontWeight: '700', color: t.text } }, '한 번에 끝내기'),
+          h(Text, { style: { marginTop: 2, fontSize: 13, color: t.sub } }, `아래 중 하나만 해도 ${formatPoints(bundle.goal)}를 채워요`)),
         singleRows.map((mission, i) => missionRow(
           mission, i, done.has(mission.id) ? 0 : ++nextSingleNo,
           { goal: bundle.goal, missions: [mission], total: mission.points }))) : null,
-      !bundle ? h(Text, { style: { marginTop: 48, fontSize: t.font.small, lineHeight: 22, textAlign: 'center', color: t.sub } },
+      !bundle ? h(Text, { style: { marginTop: 48, fontSize: 15, lineHeight: 22, textAlign: 'center', color: t.sub } },
         loading ? '불러오고 있어요' : '지금은 준비하고 있어요.\n잠시 뒤에 다시 확인해 주세요.') : null,
-      bundle ? h(Text, { style: { fontSize: t.font.tiny, lineHeight: 20, color: t.sub } }, '합계는 표시된 항목을 모두 마쳤을 때 기준이에요. 오늘 하루 기준이고 내일은 새로 바뀌어요. 항목마다 참여 조건이 달라서, 눌러서 안내를 꼭 확인해 주세요.') : null,
-      notice ? h(Text, { style: { fontSize: t.font.small, fontWeight: '700', color: '#E5484D' } }, notice) : null));
+      bundle ? h(Text, { style: { paddingHorizontal: side, paddingTop: 18, fontSize: 12, lineHeight: 18, color: t.sub } }, '합계는 표시된 항목을 모두 마쳤을 때 기준이에요. 오늘 하루 기준이고 내일은 새로 바뀌어요. 항목마다 참여 조건이 달라서, 눌러서 안내를 꼭 확인해 주세요.') : null,
+      notice ? h(Text, { style: { paddingHorizontal: side, paddingTop: 10, fontSize: 14, fontWeight: '700', color: '#E5484D' } }, notice) : null));
 }

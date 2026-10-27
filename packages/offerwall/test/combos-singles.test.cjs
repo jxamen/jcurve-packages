@@ -80,7 +80,8 @@ test('guide: 「한 번에 끝내기」 sits under the chosen step with rows in 
   const p = props({combos: data});
   let tree = host.render(() => api.ComboGuideScreen(p));
   let all = texts(tree);
-  assert.ok(all.includes('1,000P 모으기') && all.includes('한 번에 끝내기'));
+  assert.ok(all.includes('한 번에 끝내기'));
+  assert.equal(byLabel(tree, '1단계 1천P').props.accessibilityState.selected, true);
   assert.ok(all.includes('아래 중 하나만 해도 1,000P를 채워요'));
   assert.ok(all.includes('신한 SOL페이 앱') && all.includes('+1,008P') && all.includes('신규 회원가입하기'));
   assert.ok(all.includes('연말 환급받기') && all.includes('+2,592P') && all.includes('무료로 조회하기'));
@@ -89,7 +90,8 @@ test('guide: 「한 번에 끝내기」 sits under the chosen step with rows in 
   byLabel(tree, '2단계 5천P').props.onPress();
   tree = host.render(() => api.ComboGuideScreen(p));
   all = texts(tree);
-  assert.ok(all.includes('5,000P 모으기') && all.includes('짱구 게임 방범대') && all.includes('아래 중 하나만 해도 5,000P를 채워요'));
+  assert.ok(all.includes('짱구 게임 방범대') && all.includes('아래 중 하나만 해도 5,000P를 채워요'));
+  assert.equal(byLabel(tree, '2단계 5천P').props.accessibilityState.selected, true);
   assert.equal(all.includes('신한 SOL페이 앱'), false);
 }));
 
@@ -137,6 +139,6 @@ test('guide: a 「결제 필요」 todo is shown as it comes', () => withReact((
 
 test('guide: no singles box and no 합계 change for a plain bundle response (compatible with servers that never send singles)', () => withReact(({host}) => {
   const all = texts(host.render(() => api.ComboGuideScreen(props({combos: combos()}))));
-  assert.ok(all.includes('합계') && all.includes('1,000P 모으기'));
+  assert.ok(all.includes('합계') && all.includes('1,000P'));
   assert.equal(all.some(t => t.includes('하나만 해도')), false);
 }));

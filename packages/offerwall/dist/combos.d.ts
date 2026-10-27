@@ -12,6 +12,8 @@ export type ComboMission = {
     level: ComboLevel;
     minutes?: number;
     campaignKey?: string;
+    /** The campaign's icon (https URL from the server, `icon`). Without it the row shows the first letter of the name. */
+    icon?: string;
 };
 export type ComboBundle = {
     goal: number;
@@ -85,6 +87,9 @@ export type ComboTheme = {
     pointSoft: string;
     tag: string;
     tagText: string;
+    /** Flat grey behind unselected tabs (default #F2F4F6, as in the shopping tab) and behind a loading icon. */
+    chipBg?: string;
+    thumbBg?: string;
     radius: {
         card: number;
         slot: number;
@@ -189,6 +194,19 @@ export type ComboGuideScreenProps = {
     /** Called when the round mark in front of a row is tapped. Without it the marks are not interactive. */
     onToggleDone?: (id: string) => void;
 };
-/** The guide page: a 1단계 · 2단계 · 3단계 path (1천P → 5천P → 1만P), one bundle shown at a time. */
+/**
+ * Left icon of a mission row: the campaign's icon when the server sent one (`mission.icon`, https only), else the first
+ * letter of the name on a soft circle. A picture that fails to load falls back to the letter too.
+ */
+export declare function ComboMissionIcon({ name, uri, size, theme }: {
+    name: string;
+    uri?: string;
+    size?: number;
+    theme?: ComboTheme;
+}): ReactElement;
+/**
+ * The guide page, laid out like the shopping tab: white, a thin title row, small flat tabs (쉽게 모으기 · 1천 · 5천 · 1만P), a
+ * one-line total, and a plain list: icon, name + what to do, +points, a small check. The whole row is the button.
+ */
 export declare function ComboGuideScreen({ combos, loading, onClose, onPressMission, usn, theme, showHeader, topInset, variant, hint, done, onToggleDone }: ComboGuideScreenProps): ReactElement;
 export {};
