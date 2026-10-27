@@ -33,7 +33,7 @@ export declare function recentDays(now: number, n: number): Array<{
     start: number;
     end: number;
 }>;
-/** 오늘과 어제만 남긴다 — 서버가 받는 날은 이 둘뿐이다(그 앞 날을 올려도 거절). */
+/** 오늘과 어제만 남긴다 — 단계 상태(`steps/stages?day=`)와 청구는 이 둘뿐이다. `steps/sync` 는 지난 날도 받는다(앱보조5, 하루 상한만 적용)지만, 이 패키지의 동기화는 예전처럼 최근 날만 올린다. 먼 날까지 올려 온 앱(에그머니 `toSend`)은 그 동작을 바꾸지 말 것. */
 export declare function keepRecent(days: DaySteps[], now: number): DaySteps[];
 /** 그 날짜 걸음 수 — 기록이 여러 개면 가장 큰 값, 그 날 기록이 없으면 null */
 export declare function stepsOn(days: DaySteps[], date: string): number | null;

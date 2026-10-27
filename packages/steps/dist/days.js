@@ -54,7 +54,7 @@ function recentDays(now, n) {
     }
     return out;
 }
-/** 오늘과 어제만 남긴다 — 서버가 받는 날은 이 둘뿐이다(그 앞 날을 올려도 거절). */
+/** 오늘과 어제만 남긴다 — 단계 상태(`steps/stages?day=`)와 청구는 이 둘뿐이다. `steps/sync` 는 지난 날도 받는다(앱보조5, 하루 상한만 적용)지만, 이 패키지의 동기화는 예전처럼 최근 날만 올린다. 먼 날까지 올려 온 앱(에그머니 `toSend`)은 그 동작을 바꾸지 말 것. */
 function keepRecent(days, now) {
     const keep = new Set([kstDay(now), yesterdayKst(now)]);
     return days.filter((d) => keep.has(d.date));
