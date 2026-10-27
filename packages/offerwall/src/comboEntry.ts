@@ -184,8 +184,9 @@ const SLOW_REFUSAL_MS = 4500;
 export const COMBO_REFRESH_GAP_MS = 2500;
 const isCampaignKey = (value: string | undefined): value is string => !!value && /^\d{3,20}$/.test(value);
 
-/** Space kept free above and below the popup card (px), and the least height the card is cut down to. */
+/** Space kept free below the popup card (px), above it (the chip row stays clear and tappable), and the least height the card is cut down to. */
 const POPUP_EDGE = 16;
+const POPUP_TOP = 44;
 const POPUP_MIN_HEIGHT = 260;
 
 /** How long after the wall has loaded the recommendation popup waits before it appears. */
@@ -224,7 +225,7 @@ function ComboPopup({ combos, theme, art, ad, onOpen, onClose }: {
   return h(View, {
     key: 'popup', pointerEvents: 'box-none',
     onLayout: (event: import('react-native').LayoutChangeEvent) => { const height = Math.round(event.nativeEvent.layout.height); if (height > 0) setRoom(height); },
-    style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 22, elevation: 22, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28, paddingVertical: POPUP_EDGE },
+    style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 22, elevation: 22, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28, paddingTop: POPUP_TOP, paddingBottom: POPUP_EDGE },
   },
     h(Pressable, {
       accessibilityRole: 'button', accessibilityLabel: '팝업 닫기', onPress: onClose,
@@ -232,7 +233,7 @@ function ComboPopup({ combos, theme, art, ad, onOpen, onClose }: {
     }),
     h(Animated.View, {
       accessibilityViewIsModal: true,
-      style: { width: '100%', maxWidth: 320, maxHeight: room > 0 ? Math.max(POPUP_MIN_HEIGHT, room - 2 * POPUP_EDGE) : Math.round(Dimensions.get('window').height * 0.86), borderRadius: 24, overflow: 'hidden', backgroundColor: t.card, opacity, transform: [{ scale }], ...t.shadow },
+      style: { width: '100%', maxWidth: 320, maxHeight: room > 0 ? Math.max(POPUP_MIN_HEIGHT, room - POPUP_TOP - POPUP_EDGE) : Math.round(Dimensions.get('window').height * 0.86), borderRadius: 24, overflow: 'hidden', backgroundColor: t.card, opacity, transform: [{ scale }], ...t.shadow },
     },
       h(ScrollView, { bounces: false, showsVerticalScrollIndicator: false, style: { flexGrow: 0 } },
         h(View, { accessible: false, style: { height: 132, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accentSoft } },
