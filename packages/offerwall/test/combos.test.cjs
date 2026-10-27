@@ -10,7 +10,7 @@ const mission = (id, points, extra = {}) => ({id, name: `일 ${id}`, points, tod
 const raw = (over = {}) => ({date: TODAY, bundles: [{goal: 1000, missions: [mission('a', 600), mission('b', 450)]}], ...over});
 
 test('name is one constant', () => {
-  assert.equal(api.COMBO_NAME, '쉽게 1만P 모으기');
+  assert.equal(api.COMBO_NAME, '포인트 빨리 모으기');
 });
 
 test('normalize: keeps good rows, recomputes totals, sorts, fills display defaults', () => {
@@ -241,7 +241,7 @@ test('guide: path of steps, shows the chosen bundle with big goal + sum, rows re
   const props = {combos, onClose() {}, onPressMission: (m, b) => picked.push([m.id, b.goal])};
   let tree = host.render(() => api.ComboGuideScreen(props));
   const all = texts(tree);
-  for (const want of ['쉽게 1만P 모으기', '1만P까지 가는 길', '1단계', '2단계', '3단계', '1천P', '5천P', '1만P', '1,000P 모으기', '합계', '1,050P', '일 a', '+600P', '쉬움 · 약 2분', '조금 걸려요', '하러 가기 ›']) assert.ok(all.includes(want), want);
+  for (const want of ['포인트 빨리 모으기', '1천 → 5천 → 1만P 차례로 모아요', '1단계', '2단계', '3단계', '1천P', '5천P', '1만P', '1,000P 모으기', '합계', '1,050P', '일 a', '+600P', '쉬움 · 약 2분', '조금 걸려요', '하러 가기 ›']) assert.ok(all.includes(want), want);
   assert.equal(all.includes('5,000P 모으기'), false, 'only the chosen step is listed');
   assert.equal(all.some(t => /오퍼월|캠페인|SDK|찬스/.test(t)), false, 'no in-app jargon on the page');
   assert.equal(all.some(t => t.includes('쌓여요')), false, 'no promise wording');
@@ -260,7 +260,7 @@ test('guide: sheet variant has the name and a 닫기 button, page variant a back
   const combos = THREE();
   let closed = 0;
   const sheet = host.render(() => api.ComboGuideScreen({combos, onClose: () => closed++, variant: 'sheet', usn: 'a'.repeat(64)}));
-  assert.ok(texts(sheet).includes('닫기') && texts(sheet).includes('쉽게 1만P 모으기'));
+  assert.ok(texts(sheet).includes('닫기') && texts(sheet).includes('포인트 빨리 모으기'));
   byLabel(sheet, '닫기').props.onPress();
   assert.equal(closed, 1);
   const page = host.render(() => api.ComboGuideScreen({combos, onClose: () => closed++, usn: 'a'.repeat(64)}));
@@ -271,7 +271,7 @@ test('guide: loading and empty messages, no rows', () => withReact(({host}) => {
   assert.ok(texts(host.render(() => api.ComboGuideScreen({combos: null, loading: true, onClose() {}}))).includes('불러오고 있어요'));
   const empty = texts(host.render(() => api.ComboGuideScreen({combos: null, onClose() {}})));
   assert.ok(empty.some(t => t.includes('준비하고 있어요')));
-  assert.equal(empty.some(t => t.includes('모으기') && t !== '쉽게 1만P 모으기'), false);
+  assert.equal(empty.some(t => t.includes('모으기') && t !== '포인트 빨리 모으기'), false);
 }));
 
 test('guide: without a callback, usn opens the whole list (with a hint); no usn makes rows inert', () => withReact(({host, opened}) => {
@@ -385,7 +385,7 @@ test('entry (Chance tab): chip over the header row, sheet rises over the wall, c
   const chipBox = walk(tree).find(n => n.type === 'View' && n.props.pointerEvents === 'box-none');
   assert.deepEqual([chipBox.props.style.position, chipBox.props.style.top, chipBox.props.style.right], ['absolute', 6, 52]);
   assert.equal('backgroundColor' in chipBox.props.style || 'padding' in chipBox.props.style, false, 'no band or padding around the chip');
-  assert.ok(texts(tree).includes('쉽게 1만P 모으기') && texts(tree).includes('›'));
+  assert.ok(texts(tree).includes('포인트 빨리 모으기') && texts(tree).includes('›'));
   assert.equal(hasType(tree, 'Modal') || hasType(tree, 'Animated.View'), false);
   assert.equal(walk(tree).some(n => n.props?.accessibilityLabel?.startsWith('오늘의 포인트 조합')), false, 'no card above the wall');
   assert.deepEqual([mount({chipTop: 20, chipRight: 70})].map(t => walk(t).find(n => n.props.pointerEvents === 'box-none').props.style).map(s => [s.top, s.right])[0], [20, 70]);
@@ -397,14 +397,14 @@ test('entry (Chance tab): chip over the header row, sheet rises over the wall, c
   assert.equal(hasType(tree, 'Modal'), false);
   assert.equal(walk(tree).find(n => n.type === 'Animated.View').props.style.top, 52);
   assert.ok(texts(tree).includes('1,000P 모으기') && texts(tree).includes('✕') && texts(tree).includes('닫기'));
-  const chip = byLabel(tree, '쉽게 1만P 모으기');
+  const chip = byLabel(tree, '포인트 빨리 모으기');
   assert.equal(chip.props.accessibilityState.expanded, true);
   chip.props.onPress(); // tapping the chip again closes
   tree = mount();
   assert.equal(hasType(tree, 'Animated.View'), false);
   assert.ok(texts(tree).includes('›'));
 
-  byLabel(tree, '쉽게 1만P 모으기').props.onPress(); // open by the chip itself
+  byLabel(tree, '포인트 빨리 모으기').props.onPress(); // open by the chip itself
   tree = mount();
   assert.ok(hasType(tree, 'Animated.View'));
   const closers = walk(tree).filter(n => n.type === 'Pressable' && n.props.accessibilityLabel === '닫기'); // backdrop and the 닫기 button
@@ -439,11 +439,11 @@ test('entry (Home): banner only when the server turns it on; it opens the guide 
   const home = make();
   const mount = () => home.render(() => api.ComboEntry({placement: 'home', sample: true}));
   let tree = mount();
-  assert.ok(byLabel(tree, '쉽게 1만P 모으기, ', true), 'sample turns the Home banner on');
+  assert.ok(byLabel(tree, '포인트 빨리 모으기, ', true), 'sample turns the Home banner on');
   assert.ok(texts(tree).includes('보기 ›') && texts(tree).includes('1천P') && texts(tree).includes('1만P'));
   assert.equal(hasType(tree, 'Modal'), false);
   home.flush();
-  byLabel(tree, '쉽게 1만P 모으기, ', true).props.onPress();
+  byLabel(tree, '포인트 빨리 모으기, ', true).props.onPress();
   tree = mount();
   assert.ok(hasType(tree, 'Modal'));
   assert.ok(texts(tree).includes('‹'), 'page variant with a back arrow');

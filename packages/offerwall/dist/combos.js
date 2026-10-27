@@ -15,7 +15,7 @@ exports.useTodayCombos = useTodayCombos;
 exports.ComboGuideScreen = ComboGuideScreen;
 const index_1 = require("./index");
 /** The one place the feature's name lives (chip, Home banner, guide title, labels, popup text). */
-exports.COMBO_NAME = '쉽게 1만P 모으기';
+exports.COMBO_NAME = '포인트 빨리 모으기';
 const LEVELS = ['easy', 'normal', 'hard'];
 exports.COMBO_LEVEL_LABEL = { easy: '쉬움', normal: '보통', hard: '조금 걸려요' };
 const text = (v, max) => typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, max) : '';
@@ -260,7 +260,7 @@ function ComboGuideScreen({ combos, loading = false, onClose, onPressMission, us
     let nextNo = 0;
     return h(View, { style: { flex: 1, backgroundColor: t.bg, paddingTop: Math.max(0, topInset) } }, showHeader ? (variant === 'sheet'
         ? h(View, { style: { height: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 } }, h(Text, { style: { fontSize: t.font.head, fontWeight: '900', color: t.text } }, exports.COMBO_NAME), h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 12, style: { paddingVertical: 8, paddingHorizontal: 4 } }, h(Text, { style: { fontSize: t.font.small, fontWeight: '900', color: t.accentText } }, '닫기')))
-        : h(View, { style: { height: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8 } }, h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 12, style: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' } }, h(Text, { style: { fontSize: 30, color: t.text } }, '‹')), h(Text, { style: { fontSize: t.font.head, fontWeight: '900', color: t.text } }, exports.COMBO_NAME))) : null, h(ScrollView, { contentContainerStyle: { padding: 16, paddingBottom: 40, gap: 16 } }, bundle ? h(View, { style: { gap: 4 } }, h(Text, { style: { fontSize: t.font.title, fontWeight: '900', color: t.text } }, '1만P까지 가는 길'), h(Text, { style: { fontSize: t.font.small, lineHeight: 22, color: t.sub } }, onToggleDone ? '쉬운 것부터 하나씩 해 보세요. 다 한 것은 앞의 동그라미를 눌러 체크해 두세요.' : '쉬운 것부터 하나씩 해 보세요.')) : null, bundles.length > 1 ? h(View, { style: { flexDirection: 'row', alignItems: 'center', gap: 6 } }, bundles.flatMap((b, i) => {
+        : h(View, { style: { height: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8 } }, h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 12, style: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' } }, h(Text, { style: { fontSize: 30, color: t.text } }, '‹')), h(Text, { style: { fontSize: t.font.head, fontWeight: '900', color: t.text } }, exports.COMBO_NAME))) : null, h(ScrollView, { contentContainerStyle: { padding: 16, paddingBottom: 40, gap: 16 } }, bundle ? h(View, { style: { gap: 4 } }, h(Text, { style: { fontSize: t.font.title, fontWeight: '900', color: t.text } }, '1천 → 5천 → 1만P 차례로 모아요'), h(Text, { style: { fontSize: t.font.small, lineHeight: 22, color: t.sub } }, onToggleDone ? '쉬운 것부터 하나씩 해 보세요. 다 한 것은 앞의 동그라미를 눌러 체크해 두세요.' : '쉬운 것부터 하나씩 해 보세요.')) : null, bundles.length > 1 ? h(View, { style: { flexDirection: 'row', alignItems: 'center', gap: 6 } }, bundles.flatMap((b, i) => {
         const on = i === index;
         const pill = h(Pressable, {
             key: `step-${b.goal}`, accessibilityRole: 'button', accessibilityState: { selected: on },

@@ -1,7 +1,7 @@
-/** 「쉽게 1만P 모으기」 — daily point combos. Pure JS (OTA-safe); it only shows server data and never grants points. */
+/** 「포인트 빨리 모으기」 — daily point combos. Pure JS (OTA-safe); it only shows server data and never grants points. */
 import type { ReactElement } from 'react';
 /** The one place the feature's name lives (chip, Home banner, guide title, labels, popup text). */
-export declare const COMBO_NAME = "\uC27D\uAC8C 1\uB9CCP \uBAA8\uC73C\uAE30";
+export declare const COMBO_NAME = "\uD3EC\uC778\uD2B8 \uBE68\uB9AC \uBAA8\uC73C\uAE30";
 export type ComboLevel = 'easy' | 'normal' | 'hard';
 /** One mission row = one real campaign. `campaignKey` is optional: when the server knows it, the app opens that campaign directly. */
 export type ComboMission = {

@@ -1,9 +1,9 @@
-/** 「쉽게 1만P 모으기」 — daily point combos. Pure JS (OTA-safe); it only shows server data and never grants points. */
+/** 「포인트 빨리 모으기」 — daily point combos. Pure JS (OTA-safe); it only shows server data and never grants points. */
 import type { ReactElement } from 'react';
 import { openOfferwall } from './index';
 
 /** The one place the feature's name lives (chip, Home banner, guide title, labels, popup text). */
-export const COMBO_NAME = '쉽게 1만P 모으기';
+export const COMBO_NAME = '포인트 빨리 모으기';
 
 export type ComboLevel = 'easy' | 'normal' | 'hard';
 /** One mission row = one real campaign. `campaignKey` is optional: when the server knows it, the app opens that campaign directly. */
@@ -302,7 +302,7 @@ export function ComboGuideScreen({ combos, loading = false, onClose, onPressMiss
         h(Text, { style: { fontSize: t.font.head, fontWeight: '900', color: t.text } }, COMBO_NAME))) : null,
     h(ScrollView, { contentContainerStyle: { padding: 16, paddingBottom: 40, gap: 16 } },
       bundle ? h(View, { style: { gap: 4 } },
-        h(Text, { style: { fontSize: t.font.title, fontWeight: '900', color: t.text } }, '1만P까지 가는 길'),
+        h(Text, { style: { fontSize: t.font.title, fontWeight: '900', color: t.text } }, '1천 → 5천 → 1만P 차례로 모아요'),
         h(Text, { style: { fontSize: t.font.small, lineHeight: 22, color: t.sub } },
           onToggleDone ? '쉬운 것부터 하나씩 해 보세요. 다 한 것은 앞의 동그라미를 눌러 체크해 두세요.' : '쉬운 것부터 하나씩 해 보세요.')) : null,
       bundles.length > 1 ? h(View, { style: { flexDirection: 'row', alignItems: 'center', gap: 6 } },

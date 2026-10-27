@@ -270,7 +270,7 @@ test('tap (Home): the fallback shows the name inside the full-screen guide, then
   const load = async () => ({ok: true, combos: api.normalizeTodayCombos({date: TODAY(), display: {chance: 'chip', home: 'banner'}, bundles: [{goal: 1000, missions: [mission('abc123def456', 1008, {name: '신한 SOL페이 앱'})]}]})});
   const mount = () => host.render(() => api.ComboEntry({placement: 'home', load, loadKey: 1, usn: 'a'.repeat(64), campaigns: null, copyText: () => true}));
   mount(); host.flush(); await tick(); mount(); host.flush();
-  byLabel(mount(), '쉽게 1만P 모으기, ', true).props.onPress();
+  byLabel(mount(), '포인트 빨리 모으기, ', true).props.onPress();
   const tree = mount();
   assert.ok(hasType(tree, 'Modal'));
   const timers = fakeLongTimers();

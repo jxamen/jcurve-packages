@@ -1,4 +1,4 @@
-/** Ways into 「쉽게 1만P 모으기」: Chance-tab chip, Home banner, and a route that popups / pushes / deep links can fire. */
+/** Ways into 「포인트 빨리 모으기」: Chance-tab chip, Home banner, and a route that popups / pushes / deep links can fire. */
 import type { ReactElement } from 'react';
 import type { ComboBundle, ComboMission, ComboTheme, TodayCombos } from './combos';
 import type { CampaignApi, CampaignInfo } from './campaigns';
