@@ -14,11 +14,11 @@ function cleanCampaigns(raw) {
     const out = [];
     for (const row of raw.slice(0, 500)) {
         const campaignKey = clean(row?.campaignKey, 64);
-        const name = clean(row?.name, 120);
+        const name = clean(row?.name ?? row?.title, 120); // the native list calls it title
         if (!campaignKey || !name || seen.has(campaignKey))
             continue;
         seen.add(campaignKey);
-        const reward = clean(row?.reward, 30);
+        const reward = clean(typeof row?.reward === 'number' ? String(row.reward) : row?.reward, 30); // iOS sends a number, Android a string
         out.push(reward ? { campaignKey, name, reward } : { campaignKey, name });
     }
     return out;

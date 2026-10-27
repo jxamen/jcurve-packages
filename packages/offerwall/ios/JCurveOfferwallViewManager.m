@@ -6,6 +6,8 @@
 
 @interface JCurveOfferwallView : UIView <AdPopcornOfferwallViewTypeDelegate>
 @property (nonatomic, copy) NSString *usn;
+/// Optional: open this campaign's detail inside the list view (SDK detailPageCampaignKey). Unset = the list, as before.
+@property (nonatomic, copy) NSString *detailCampaignKey;
 @property (nonatomic, copy) RCTDirectEventBlock onLoaded;
 @property (nonatomic, weak) RCTBridge *bridge;
 @property (nonatomic, strong) AdPopcornOfferwallViewController *offerwall;
@@ -17,6 +19,12 @@
   if ([_usn isEqualToString:usn]) return;
   [self detach];
   _usn = [usn copy];
+  [self setNeedsLayout];
+}
+- (void)setDetailCampaignKey:(NSString *)key {
+  if (key == _detailCampaignKey || [key isEqualToString:_detailCampaignKey]) return;
+  [self detach];
+  _detailCampaignKey = [key copy];
   [self setNeedsLayout];
 }
 - (void)didMoveToWindow {
@@ -41,6 +49,7 @@
     [vc setViewModeWidthSize:size.width];
     [vc setViewModeHeightSize:size.height];
     vc.offerwallViewTypeDelegate = self;
+    if (self.detailCampaignKey.length > 0) vc.detailPageCampaignKey = self.detailCampaignKey;
     self.offerwall = vc;
     self.lastSize = size;
     self.clipsToBounds = YES;
@@ -86,5 +95,6 @@ RCT_EXPORT_MODULE(JCurveOfferwallView)
   return view;
 }
 RCT_EXPORT_VIEW_PROPERTY(usn, NSString)
+RCT_EXPORT_VIEW_PROPERTY(detailCampaignKey, NSString)
 RCT_EXPORT_VIEW_PROPERTY(onLoaded, RCTDirectEventBlock)
 @end

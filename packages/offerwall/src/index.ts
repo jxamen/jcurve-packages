@@ -1,3 +1,4 @@
+import { hasNativeBridge } from './native';
 /** Native SDK is required lazily: importing this package works before keys/SDK exist. */
 export type OfferwallResult = { ok: true } | { ok: false; reason: 'not_ready' | 'invalid_usn' | 'sdk_error'; message: string };
 export type RewardInfo = { queryResult: boolean; totalCount: number; totalReward: string };
@@ -211,10 +212,14 @@ export type OfferwallViewProps = {
   style?: import('react-native').StyleProp<import('react-native').ViewStyle>;
   onLoaded?: () => void;
   onError?: (result: OfferwallResult) => void;
+  /** 0.3.0 builds only (ignored on older binaries): list just these campaigns. Android SDK setFilterCampaignKeyList. */
+  campaignKeys?: string[];
+  /** 0.3.0 builds only (ignored on older binaries): open this campaign's detail inside the list. iOS SDK detailPageCampaignKey. */
+  detailCampaignKey?: string;
 };
 let embeddedView: import('react').ComponentType<any> | undefined;
 /** SDK ViewType list. Mount only after initializeOfferwall succeeds; unmount on exit/logout. */
-export function OfferwallView({ usn, style, onLoaded, onError }: OfferwallViewProps): import('react').ReactElement | null {
+export function OfferwallView({ usn, style, onLoaded, onError, campaignKeys, detailCampaignKey }: OfferwallViewProps): import('react').ReactElement | null {
   const React = require('react') as typeof import('react');
   const [readyUsn, setReadyUsn] = React.useState<string | null>(null);
   const error = React.useRef(onError);
@@ -237,7 +242,9 @@ export function OfferwallView({ usn, style, onLoaded, onError }: OfferwallViewPr
     }
   }, [usn]);
   if (readyUsn !== usn || !embeddedView) return null;
-  return React.createElement(embeddedView, { usn, style: [{ flex: 1 }, style], onLoaded });
+  // A view prop the installed binary does not know would be an error there, so the new ones go only when the bridge is present.
+  const extra = hasNativeBridge() ? { ...(campaignKeys?.length ? { campaignKeys } : {}), ...(detailCampaignKey ? { detailCampaignKey } : {}) } : {};
+  return React.createElement(embeddedView, { usn, style: [{ flex: 1 }, style], onLoaded, ...extra });
 }
 
 export { OfferwallScreen, OFFERWALL_SCREEN_MARK } from './OfferwallScreen';
@@ -245,4 +252,5 @@ export type { OfferwallScreenProps } from './OfferwallScreen';
 export * from './combos';
 export * from './comboEntry';
 export * from './campaigns';
+export * from './native';
 export * from './comboDone';

@@ -196,3 +196,47 @@ if (isCombosRoute(action)) { goTab('offerwall'); requestOpenCombos(); }   // 탭
 `requestOpenCombos()` 는 마운트된 `ComboEntry` 가 있으면 바로 열고(찬스 탭이 홈보다 먼저, 같은 순위면 나중에 마운트된 쪽), 아직 없으면 10초까지 기다렸다가 처음 마운트되는 쪽에서 연다. 오래된 요청이 나중에 갑자기 열리지는 않는다. 구버전 앱에는 이 코드가 없으므로 서버 팝업은 `chancePromo=1` 처럼 지원 앱만 받는 조건을 따로 걸어야 한다.
 
 **기준 가지 주의**: 0.2.3 이 두 갈래다 — `offerwall-v0.2.3` 태그(JS 찬스 퍼널, `OfferwallScreen` 없음)와 에그머니가 쓰는 `codex/chance-header-remove-1022`(`OfferwallScreen`, 퍼널 없음). 0.2.4 는 에그머니가 쓰는 쪽 위에서 만들었다. 퍼널 쪽은 합치지 않았다.
+
+## 0.3.0 — 애드팝콘 SDK 네이티브 브리지 (새 빌드 필요, 이 줄부터는 OTA 로 쓴다)
+
+`react-native-adpopcorn-reward` 1.0.0 은 JS 에 9개 메서드만 내놓는다(setAppKey · setLogEnable · openOfferwall · openBridge · openCSPage · setUserId · setStyle · getOfferwallTotalRewardInfo · getBridgeTotalRewardInfo). SDK(Android 9.2.6 · iOS 5.2.3, **업그레이드 없이**) 안에는 더 많은 공개 기능이 있어, 새 빌드에서 JS 에 열어 두면 다음부터는 OTA 로 쓸 수 있다. 네이티브 모듈 이름은 `JCurveOfferwallModule`(Android `JCurveOfferwallModule.java` · iOS `JCurveOfferwallModule.m`), JS 는 `src/native.ts`.
+
+- **옛 바이너리 안전**: 모듈은 `NativeModules.JCurveOfferwallModule` 속성 조회로만 찾는다(`require` 안 함). 없으면 모든 함수가 `code: 'E_UNSUPPORTED'` 로 reject 하고 던지지 않는다. `hasNativeBridge()` 로 먼저 물을 수 있다. 새 뷰 prop 은 브리지가 있을 때만 네이티브 뷰에 넘긴다.
+- **오류 코드**: `E_UNSUPPORTED`(이 플랫폼 · 빌드에 없음) · `E_FAILED`(SDK 가 던짐) · `E_LOAD_FAILED`(목록 받기 실패) · `E_NO_ACTIVITY`(앞에 화면 없음, Android). 시간이 지나도 SDK 가 답이 없으면 reject 대신 `false`/`null`/`[]` 로 끝난다(8~10초).
+- **SDK 콜백은 이름으로 연결**한다(Android 는 `java.lang.reflect.Proxy`, 메서드 서명을 추측하지 않음). 앱이 R8 을 켜도 SDK 의 `-keep class com.igaworks.adpopcorn.** { *; }` 가 이름을 지킨다.
+- 이벤트는 `addOfferwallNativeListener(cb)` (`NativeEventEmitter`, iOS 가 청취자를 세야 이벤트를 보낸다): `detailClosed` · `customNativeClickSuccess|Failed|Completed` · `customCpmClickSuccess|Failed|Completed`.
+- 컴파일 · 실기기 확인 **전**의 소스다. 이 코드를 쓴 PC 에는 Xcode · JDK 가 없어 맥북16 빌드에서 처음 컴파일된다.
+
+| JS 함수 | 하는 일 | Android (SDK 9.2.6) | iOS (SDK 5.2.3) |
+|---|---|---|---|
+| `openCampaignDetail(key)` | 캠페인 키로 상세 열기 → true/false | `Adpopcorn.openCampaignDetailPage` | `+openCampaignDetailViewController:campaignKey:delegate:` |
+| `tryParticipateCampaign(key)` | SDK 가 대신 참여 시도 → `{success, code, message, landingUrl}` | `AdpopcornExtension.tryParticipateCampaign` | `+tryParticipateCampaign:` (결과는 공용 델리게이트로 와서 잠시 빌렸다 돌려줌) |
+| `loadCustomCampaigns(max)` | 지금 열 수 있는 캠페인 목록 `[{campaignKey, title, description, reward, iconImageURL, mainImageURL}]` | `ApCustomReward` (`setMaxCampaignCount` · `loadAd`) | `AdPopcornCustomReward` (`ApCustomRewardLoadSuccess:`, 모델 `ApCustomRewardModel`) |
+| `clickCustomCampaign(key)` | 그 목록의 캠페인 참여 | `ApCustomReward.clickCampaign` | `-clickCampaign:` |
+| `destroyCustomCampaigns()` | 목록 객체 정리 | `ApCustomReward.destroy` | `-stopAd` |
+| `loadCustomNativeAds(placementId)` | 콘솔 지면의 커스텀 네이티브 광고 목록 | `AdPopcornRewardCustomNativeAd` | `AdPopcornRewardCustomNativeAd` |
+| `impressionCustomNativeAd(id)` · `clickCustomNativeAd(id)` | 노출 · 클릭 기록 | 같은 이름 | 같은 이름 |
+| `completeCustomNativeAd()` | 선택한 캠페인 완료 | `completeSelectedCampaign` | **지원 안 함** |
+| `loadCustomCpm(max)` · `impressionCustomCpm(id)` · `clickCustomCpm(id)` | CPM 형 커스텀 목록 | `ApCustomRewardCPM` | `AdPopcornCustomRewardCPM` |
+| `getEarnableTotalRewardInfo()` | 적립 가능 캠페인 수 · 총 포인트 | `AdpopcornExtension.getEarnableTotalRewardInfo` | `+getEarnableTotalRewardInfo:` |
+| `getBridgeTotalRewardInfo(placementId)` | 브릿지 지면의 같은 값 | `AdpopcornExtension.getBridgeTotalRewardInfo` | `+getBridgeTotalRewardInfo:delegate:` |
+| `openOfferwallWithFilter({k: v})` | 사용자 필터를 주고 오퍼월 열기 | `setUserFilter` 를 키마다 부른 뒤 `openOfferwall` | `openOfferWallWithViewController:…userDataDictionaryForFilter:` |
+| `closeOfferwall()` | 열려 있는 오퍼월 닫기 | **지원 안 함**(공개 API 없음) | `+closeOfferwallViewController` |
+| `setUserAgreement(bool)` | 개인정보 동의 전달 | `AdpopcornExtension.setUserAgreement` | **지원 안 함** |
+| `useFlagShowWhenLocked(bool)` | 잠금 화면 위 표시 | `AdpopcornExtension.useFlagShowWhenLocked` | **지원 안 함** |
+| `setClipboard(text)` | 클립보드 복사(별도 모듈 없이) | `ClipboardManager` | `UIPasteboard` |
+| `getOfferwallNativeCapabilities()` | 이 빌드의 플랫폼 · SDK · 메서드 목록 | 〃 | 〃 |
+| `<OfferwallView campaignKeys={[…]}>` | 목록을 이 캠페인들로 거르기 | `setFilterCampaignKeyList` | **지원 안 함** |
+| `<OfferwallView detailCampaignKey="…">` | 목록 안에서 이 캠페인 상세로 열기 | **지원 안 함** | `AdPopcornOfferwallViewController.detailPageCampaignKey` |
+
+**이미 래퍼가 주는 것(그대로 쓴다)**: `setAppKey` · `setUserId` · `setStyle` · `setLogEnable` · `openOfferwall` · `openBridge(placementId)` · `openCSPage` · `getOfferwallTotalRewardInfo` · `getBridgeTotalRewardInfo` 와 이벤트 `OnClosedOfferWallPage` · `OnCompletedCampaign` · `OnOfferwallTotalRewardInfo` · `OnBridgeTotalRewardInfo`(`useOfferwallClosed` 등).
+
+**열지 않은 공개 기능과 이유(SDK 파일에서 확인한 것)**
+- 시작 탭 · 탭 지정: 공개 옵션이 없어 함수를 만들지 않았다(Android 시작 탭은 코드에 0 으로 고정, iOS 는 헤더에 속성 없음).
+- 클라이언트 보상 방식(`setClientRewardCallbackListener` · `getClientPendingRewardItems` · `didGiveRewardItemWithRewardKey` · iOS `setUseClientRewardServer:`): 우리는 **서버 콜백 보상**이라 쓰지 않는다(앱이 지급을 맡으면 안 된다).
+- `AdpopcornExtension.openOnestoreOfferWall`: 원스토어 전용.
+- `AdpopcornExtension.openURL` · `setAppKeyAndHashKey` · `setFromPluginAPI` · Android `setCustomWebOfferwallLayout`/`setOfferwallImpressions`(임베드 뷰가 이미 사용) · iOS `setAppKey:andHashKey:`(래퍼가 제공) · `setLogLevel:`(래퍼 `setLogEnable`): 용도 불명이거나 이미 있다.
+- `AdPopcornCustomRewardCPM.setNewsCampaignAuth:`(iOS 전용 인증 문자열): 용도 불명.
+- 상세 페이지 열림 · 닫힘 외의 델리게이트(`willOpenOfferWall` 등): 래퍼 모듈이 필요한 것만 JS 로 보낸다. 우리 모듈은 참여 시도 중에만 공용 델리게이트를 잠시 가져가고 받은 호출은 래퍼에 넘긴다.
+
+**실기기에서 확인할 것(소스만 있는 상태)**: (가) 커스텀 목록이 콘솔 설정 없이 오는지(`CAN_NOT_FIND_AVAILABLE_CAMPAIGN` 이면 비어 올 수 있음) (나) 커스텀 목록 이름이 오퍼월에 보이는 이름과 같은지 (다) 상세 열기가 실제로 열리고 `OnOpenSuccess`/`onOpenCampaignDetailPage` 가 오는지 (라) iOS `detailCampaignKey` 가 임베드 목록에서 상세로 열리는지.

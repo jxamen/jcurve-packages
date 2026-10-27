@@ -3,6 +3,7 @@ package kr.co.jcurve.offerwall;
 import android.app.Activity;
 import android.widget.FrameLayout;
 import com.facebook.react.bridge.LifecycleEventListener;
+import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.common.MapBuilder;
 import com.facebook.react.uimanager.SimpleViewManager;
 import com.facebook.react.uimanager.ThemedReactContext;
@@ -10,12 +11,24 @@ import com.facebook.react.uimanager.annotations.ReactProp;
 import com.igaworks.adpopcorn.Adpopcorn;
 import com.igaworks.adpopcorn.AdpopcornExtension;
 import com.igaworks.adpopcorn.renewal.layout.web.ApRewardWebOfferWallLayout;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 public final class JCurveOfferwallViewManager extends SimpleViewManager<JCurveOfferwallViewManager.Container> {
     @Override public String getName() { return "JCurveOfferwallView"; }
     @Override protected Container createViewInstance(ThemedReactContext context) { return new Container(context); }
     @ReactProp(name = "usn") public void setUsn(Container view, String usn) { view.setUsn(usn); }
+    /** Optional: only these campaign keys are listed (SDK setFilterCampaignKeyList). Unset = the whole list, as before. */
+    @ReactProp(name = "campaignKeys") public void setCampaignKeys(Container view, ReadableArray keys) {
+        List<String> list = null;
+        if (keys != null && keys.size() > 0) {
+            list = new ArrayList<String>();
+            for (int i = 0; i < keys.size(); i++) { String key = keys.getString(i); if (key != null && key.length() > 0) list.add(key); }
+            if (list.isEmpty()) list = null;
+        }
+        view.setFilterKeys(list);
+    }
     @Override public void onDropViewInstance(Container view) {
         view.dispose();
         super.onDropViewInstance(view);
@@ -27,11 +40,17 @@ public final class JCurveOfferwallViewManager extends SimpleViewManager<JCurveOf
         private final ThemedReactContext context;
         private ApRewardWebOfferWallLayout wall;
         private String usn;
+        private List<String> filterKeys;
         Container(ThemedReactContext context) {
             super(context);
             this.context = context;
             setClipChildren(true);
             context.addLifecycleEventListener(this);
+        }
+        void setFilterKeys(List<String> keys) {
+            if (keys == null ? filterKeys == null : keys.equals(filterKeys)) return;
+            filterKeys = keys;
+            if (wall != null) { release(); mount(); }
         }
         void setUsn(String value) {
             if (value != null && value.equals(usn)) return;
@@ -55,6 +74,7 @@ public final class JCurveOfferwallViewManager extends SimpleViewManager<JCurveOf
                 Adpopcorn.setEventListener(context, (com.igaworks.adpopcorn.interfaces.IAdPOPcornEventListener) module);
             }
             wall = new ApRewardWebOfferWallLayout(activity);
+            if (filterKeys != null) wall.setFilterCampaignKeyList(filterKeys);
             wall.setViewTypeEventListener(new ApRewardWebOfferWallLayout.IViewTypeEventListener() {
                 @Override public void OnLoadedOfferwall() {
                     if (wall == null) return;

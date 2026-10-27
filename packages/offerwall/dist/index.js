@@ -25,6 +25,7 @@ exports.getOfferwallTotalRewardInfo = getOfferwallTotalRewardInfo;
 exports.onOfferwallClosed = onOfferwallClosed;
 exports.useOfferwallClosed = useOfferwallClosed;
 exports.OfferwallView = OfferwallView;
+const native_1 = require("./native");
 const pending = () => ({ ok: false, reason: 'not_ready', message: '준비 중' });
 let config;
 let serverConfig;
@@ -271,7 +272,7 @@ function useOfferwallClosed(callback) {
 }
 let embeddedView;
 /** SDK ViewType list. Mount only after initializeOfferwall succeeds; unmount on exit/logout. */
-function OfferwallView({ usn, style, onLoaded, onError }) {
+function OfferwallView({ usn, style, onLoaded, onError, campaignKeys, detailCampaignKey }) {
     const React = require('react');
     const [readyUsn, setReadyUsn] = React.useState(null);
     const error = React.useRef(onError);
@@ -302,7 +303,9 @@ function OfferwallView({ usn, style, onLoaded, onError }) {
     }, [usn]);
     if (readyUsn !== usn || !embeddedView)
         return null;
-    return React.createElement(embeddedView, { usn, style: [{ flex: 1 }, style], onLoaded });
+    // A view prop the installed binary does not know would be an error there, so the new ones go only when the bridge is present.
+    const extra = (0, native_1.hasNativeBridge)() ? { ...(campaignKeys?.length ? { campaignKeys } : {}), ...(detailCampaignKey ? { detailCampaignKey } : {}) } : {};
+    return React.createElement(embeddedView, { usn, style: [{ flex: 1 }, style], onLoaded, ...extra });
 }
 var OfferwallScreen_1 = require("./OfferwallScreen");
 Object.defineProperty(exports, "OfferwallScreen", { enumerable: true, get: function () { return OfferwallScreen_1.OfferwallScreen; } });
@@ -310,4 +313,5 @@ Object.defineProperty(exports, "OFFERWALL_SCREEN_MARK", { enumerable: true, get:
 __exportStar(require("./combos"), exports);
 __exportStar(require("./comboEntry"), exports);
 __exportStar(require("./campaigns"), exports);
+__exportStar(require("./native"), exports);
 __exportStar(require("./comboDone"), exports);

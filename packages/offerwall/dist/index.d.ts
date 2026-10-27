@@ -77,12 +77,17 @@ export type OfferwallViewProps = {
     style?: import('react-native').StyleProp<import('react-native').ViewStyle>;
     onLoaded?: () => void;
     onError?: (result: OfferwallResult) => void;
+    /** 0.3.0 builds only (ignored on older binaries): list just these campaigns. Android SDK setFilterCampaignKeyList. */
+    campaignKeys?: string[];
+    /** 0.3.0 builds only (ignored on older binaries): open this campaign's detail inside the list. iOS SDK detailPageCampaignKey. */
+    detailCampaignKey?: string;
 };
 /** SDK ViewType list. Mount only after initializeOfferwall succeeds; unmount on exit/logout. */
-export declare function OfferwallView({ usn, style, onLoaded, onError }: OfferwallViewProps): import('react').ReactElement | null;
+export declare function OfferwallView({ usn, style, onLoaded, onError, campaignKeys, detailCampaignKey }: OfferwallViewProps): import('react').ReactElement | null;
 export { OfferwallScreen, OFFERWALL_SCREEN_MARK } from './OfferwallScreen';
 export type { OfferwallScreenProps } from './OfferwallScreen';
 export * from './combos';
 export * from './comboEntry';
 export * from './campaigns';
+export * from './native';
 export * from './comboDone';

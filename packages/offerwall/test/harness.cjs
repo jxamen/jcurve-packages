@@ -14,7 +14,9 @@ function withReact(run, opts = {}) {
     Dimensions: {get: () => ({width: 400, height: 800})},
     Animated: {Value, timing: () => ({start() {}}), View: 'Animated.View'},
     View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView', Modal: 'Modal', SafeAreaView: 'SafeAreaView',
+    __subs: [], __removed: 0,
   };
+  rn.NativeEventEmitter = class { constructor(mod) { this.mod = mod; } addListener(name, cb) { rn.__subs.push([this.mod, name, cb]); return {remove() { rn.__removed++; }}; } };
   const native = {setUserId() {}, setStyle() {}, openOfferwall: () => opened.push('wall'), addListener: () => ({remove() {}})};
   let current;
   const react = {

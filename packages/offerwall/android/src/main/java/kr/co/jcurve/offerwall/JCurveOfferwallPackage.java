@@ -9,7 +9,7 @@ import java.util.List;
 
 public final class JCurveOfferwallPackage implements ReactPackage {
     @Override public List<NativeModule> createNativeModules(ReactApplicationContext context) {
-        return Collections.emptyList();
+        return Collections.<NativeModule>singletonList(new JCurveOfferwallModule(context));
     }
     @Override public List<ViewManager> createViewManagers(ReactApplicationContext context) {
         return Collections.singletonList(new JCurveOfferwallViewManager());
