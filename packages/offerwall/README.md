@@ -344,6 +344,6 @@ if (isCombosRoute(action)) { goTab('offerwall'); requestOpenCombos(); }   // 탭
 - **칩 줄 간격**(대표님 10/27 22:47): 「무료체험」 버튼은 「포인트 빨리 모으기」 칩 바로 왼쪽에 8 띄워 붙고(`COMBO_CHIP_GAP`), 앱 자체 제목 「리워드 충전소」(왼쪽에서 약 150, `COMBO_TITLE_END`)와는 8 이상 떨어진다(`COMBO_TITLE_GAP`). 화면 폭에 맞춰 `comboChipFit(폭, 오른쪽 여백)` 이 글자를 고른다: 넓으면 둘 다 전체, 아이폰 402 · A32 411 은 칩이 「빨리 모으기」, 360 은 버튼도 「체험」(스크린리더 이름은 항상 전체).
 - 새 props(모두 선택): `onTrialConsent` · `loadTrials` · `onTrialCancelled`. 안 주면 0.3.10 과 똑같이 동작한다.
 
-## 0.3.12 — 동의 팝업 새 문구 · (예정) 항목별 탭
+## 0.3.12 — 동의 팝업 새 문구 (항목별 탭은 0.3.13)
 
 - **동의 팝업 문구**(대표님 10/27 22:51): 제목 「무료체험, 안심하고 참여하세요」, 본문 「체험이 끝나기 전에 해지할 때를 알림으로 알려 드려요. 해지하면 돈이 나가지 않아요.」, 그 캠페인의 「7일 무료 · 이후 월 29,900원」 한 줄(서버 `trials` 에 있을 때), 버튼 [안내 받고 참여하기](강조) · [안내 없이 참여하기]. 둘 다 그 캠페인을 열고, 「안내 받고 참여하기」는 상세를 열기 전에 토스트 「해지 알림을 맞춰 뒀어요」(0.7초, `COMBO_CONSENT_TOAST_MS`)를 보여 준다. 문구 상수: `COMBO_CONSENT_TITLE` · `COMBO_CONSENT_BODY` · `COMBO_CONSENT_AGREE` · `COMBO_CONSENT_DECLINE` · `COMBO_CONSENT_TOAST`.
