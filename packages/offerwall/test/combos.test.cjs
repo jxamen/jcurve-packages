@@ -31,6 +31,17 @@ test('normalize: a bundle that cannot reach its goal is dropped, junk gives null
   }
   const many = api.normalizeTodayCombos(raw({bundles: [1, 2, 3, 4, 5, 6].map(n => ({goal: n * 100, missions: [mission(`m${n}`, n * 100)]}))}));
   assert.deepEqual(many.bundles.map(b => b.goal), [100, 200, 300, 400]);
+  // The live server sent alternatives (several bundles per goal): keep the first valid one per goal, not the first four entries.
+  const alt = (goal, tag, points = goal) => ({goal, missions: [mission(`${tag}`, points)]});
+  const live = api.normalizeTodayCombos(raw({bundles: [
+    alt(1000, 'a1'), alt(1000, 'a2'), alt(1000, 'a3'), alt(1000, 'a4'), alt(5000, 'b1'), alt(5000, 'b2'), alt(10000, 'c1'), alt(10000, 'c2'),
+  ]}));
+  assert.deepEqual(live.bundles.map(b => [b.goal, b.missions[0].id]), [[1000, 'a1'], [5000, 'b1'], [10000, 'c1']]);
+  // A broken first entry for a goal does not hide the next valid one; missions are collected past invalid rows up to 12.
+  const skip = api.normalizeTodayCombos(raw({bundles: [alt(1000, 'short', 10), alt(1000, 'good')]}));
+  assert.deepEqual(skip.bundles.map(b => b.missions[0].id), ['good']);
+  const rows = api.normalizeTodayCombos(raw({bundles: [{goal: 1000, missions: [...Array.from({length: 20}, () => null), ...Array.from({length: 20}, (_, i) => mission(`r${i}`, 100))]}]}));
+  assert.equal(rows.bundles[0].missions.length, 12);
 });
 
 test('normalize: clamps text, level, minutes, display and hostile numbers', () => {

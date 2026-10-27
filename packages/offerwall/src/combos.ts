@@ -30,12 +30,15 @@ export function normalizeTodayCombos(raw: unknown): TodayCombos | null {
   if (!data || !Array.isArray(data.bundles)) return null;
   const bundles: ComboBundle[] = [];
   const goals = new Set<number>();
-  for (const item of data.bundles.slice(0, 4)) {
+  // Look through the first 40 entries and keep the first valid bundle per goal, at most 4 (the server may send alternatives).
+  for (const item of data.bundles.slice(0, 40)) {
+    if (bundles.length >= 4) break;
     const goal = whole(item?.goal);
     if (!goal || goals.has(goal) || !Array.isArray(item.missions)) continue;
     const ids = new Set<string>();
     const missions: ComboMission[] = [];
-    for (const m of item.missions.slice(0, 12)) {
+    for (const m of item.missions.slice(0, 40)) {
+      if (missions.length >= 12) break;
       const id = text(typeof m?.id === 'number' ? String(m.id) : m?.id, 64);
       const name = text(m?.name, 40);
       const points = whole(m?.points, MAX_POINTS);
