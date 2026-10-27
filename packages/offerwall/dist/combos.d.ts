@@ -56,6 +56,32 @@ export type TodayCombos = {
     trialKeys?: string[];
     /** The campaigns this member already answered (`trial_consent`): key (lower case) → agreed or not. An answered one is not asked again. */
     trialConsent?: Record<string, boolean>;
+    /**
+     * 항목별 탭 (the server's `categories`): the tabs of the guide, in the server's order; each with its items and its own total. When there are
+     * some, the guide shows these tabs instead of the easy / amount / trial tabs; without them it is the screen it always was.
+     */
+    categories?: ComboCategory[];
+};
+/** One row of a category: what to do (`line`, one line: for games the goal and its time limit) and what it costs (`cost`, a short phrase, none when it is free). */
+export type ComboCategoryItem = {
+    campaignKey: string;
+    name: string;
+    points: number;
+    icon?: string;
+    line?: string;
+    cost?: string;
+    trialDays?: number;
+    chargeAmount?: number;
+    /** this member was already paid for it today */
+    done?: boolean;
+};
+/** One tab: `totalPoints` is the sum of the items that cost nothing (null: the tab has no total, e.g. 무료체험 · 쇼핑); `count` the server's item count. */
+export type ComboCategory = {
+    key: string;
+    title: string;
+    totalPoints: number | null;
+    count: number;
+    items: ComboCategoryItem[];
 };
 /**
  * One free-trial campaign. Everything but key, name and points is optional: a value the server could not read is simply missing
@@ -77,6 +103,10 @@ export declare const COMBO_EASY_NAME = "\uC27D\uAC8C \uBAA8\uC73C\uAE30";
 export declare const COMBO_LEVEL_LABEL: Record<ComboLevel, string>;
 /** Keeps only well-formed rows; totals are recomputed so the screen never shows a sum the rows do not add up to. */
 export declare function normalizeTodayCombos(raw: unknown): TodayCombos | null;
+/** The category rows as mission-shaped rows (id = campaign key), for the check marks and the 「paid today」 mark. A campaign in two tabs is one row here. */
+export declare function categoryMissions(combos: TodayCombos | null | undefined): ComboMission[];
+/** The terms of a free-trial campaign for the consent popup: from the `trials` list, else from a category row that carries them. Empty when unknown. */
+export declare function trialTerms(combos: TodayCombos | null | undefined, key: string | undefined): string;
 /** 29900 → 「29,900원」 */
 export declare function formatWon(amount: number): string;
 /**
@@ -287,8 +317,13 @@ export declare function ComboMissionIcon({ name, uri, size, theme }: {
     theme?: ComboTheme;
 }): ReactElement;
 /**
- * The guide page, laid out like the shopping tab: white, a thin title row, small flat tabs (쉽게 모으기 · 1천 · 5천 · 1만P), a
+ * The guide page. With the server's `categories` it is one tab per category (see comboCategories.ts); without them the steps screen
+ * (쉽게 모으기 · 1천 · 5천 · 1만P · 무료체험), exactly as before. No hooks here, so the two can swap when the server's answer changes.
+ */
+export declare function ComboGuideScreen(props: ComboGuideScreenProps): ReactElement;
+/**
+ * The steps screen, laid out like the shopping tab: white, a thin title row, small flat tabs (쉽게 모으기 · 1천 · 5천 · 1만P), a
  * one-line total, and a plain list: number, name + what to do, +points, a small check. The whole row is the button.
  */
-export declare function ComboGuideScreen({ combos, loading, onClose, onPressMission, usn, theme, showHeader, topInset, variant, hint, done, onToggleDone, onPressTrial }: ComboGuideScreenProps): ReactElement;
+export declare function ComboStepsScreen({ combos, loading, onClose, onPressMission, usn, theme, showHeader, topInset, variant, hint, done, onToggleDone, onPressTrial }: ComboGuideScreenProps): ReactElement;
 export {};

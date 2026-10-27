@@ -1,6 +1,6 @@
 /** Ways into 「포인트 빨리 모으기」: Chance-tab chip, Home banner, and a route that popups / pushes / deep links can fire. */
 import type { ReactElement } from 'react';
-import { COMBO_NAME, ComboGuideScreen, DEFAULT_COMBO_THEME, comboPopupContent, formatGoal, needsTrialConsent, popupHeadlineSizes, trialLine, trialMissions, useTodayCombos } from './combos';
+import { COMBO_NAME, ComboGuideScreen, DEFAULT_COMBO_THEME, categoryMissions, comboPopupContent, formatGoal, needsTrialConsent, popupHeadlineSizes, trialMissions, trialTerms, useTodayCombos } from './combos';
 import type { ComboBundle, ComboMission, ComboTheme, ComboTrial, TodayCombos } from './combos';
 import { COMBO_CONSENT_TOAST, COMBO_TRIALS_NAME, ComboTrialsScreen, TrialConsentPopup, listenForTrialRequests, parseMyTrials } from './comboTrials';
 import type { ConsentAnswer, MyTrial } from './comboTrials';
@@ -404,7 +404,7 @@ export function ComboEntry({
   // Hand ticks are kept per member and per campaign key (the server's key when it gave one, else the row id), with no daily reset.
   const marks = useDoneMissions({ storage, scope: loadKey });
   const missionRows = state.combos
-    ? [...state.combos.bundles.flatMap(b => b.missions), ...(state.combos.singles ?? []).flatMap(s => s.missions), ...(state.combos.easy?.missions ?? [])]
+    ? [...state.combos.bundles.flatMap(b => b.missions), ...(state.combos.singles ?? []).flatMap(s => s.missions), ...(state.combos.easy?.missions ?? []), ...trialMissions(state.combos), ...categoryMissions(state.combos)]
     : [];
   const markKey = (m: ComboMission) => m.campaignKey || m.id;
   const doneIds = new Set(missionRows.filter(m => marks.done.has(markKey(m))).map(m => m.id));
@@ -576,8 +576,7 @@ export function ComboEntry({
     if (!opts.skipConsent && latest.current.onTrialConsent) {
       const trialKey = [mission.campaignKey, isCampaignKey(mission.id) ? mission.id : undefined].find(k => needsTrialConsent(latest.current.combos, k, answered.current));
       if (trialKey) {
-        const terms = latest.current.combos?.trials?.find(x => x.campaignKey.toLowerCase() === trialKey.toLowerCase());
-        const answer = await askConsent(mission.name, terms ? trialLine(terms) : '');
+        const answer = await askConsent(mission.name, trialTerms(latest.current.combos, trialKey));
         if (answer === 'cancel') return;
         answered.current.set(trialKey.toLowerCase(), answer === 'agree');
         try { void Promise.resolve(latest.current.onTrialConsent?.(trialKey, answer === 'agree')).catch(() => {}); } catch { /* the answer is kept for this visit anyway */ }

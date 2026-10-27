@@ -279,7 +279,7 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     // Hand ticks are kept per member and per campaign key (the server's key when it gave one, else the row id), with no daily reset.
     const marks = (0, comboDone_1.useDoneMissions)({ storage, scope: loadKey });
     const missionRows = state.combos
-        ? [...state.combos.bundles.flatMap(b => b.missions), ...(state.combos.singles ?? []).flatMap(s => s.missions), ...(state.combos.easy?.missions ?? [])]
+        ? [...state.combos.bundles.flatMap(b => b.missions), ...(state.combos.singles ?? []).flatMap(s => s.missions), ...(state.combos.easy?.missions ?? []), ...(0, combos_1.trialMissions)(state.combos), ...(0, combos_1.categoryMissions)(state.combos)]
         : [];
     const markKey = (m) => m.campaignKey || m.id;
     const doneIds = new Set(missionRows.filter(m => marks.done.has(markKey(m))).map(m => m.id));
@@ -497,8 +497,7 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
         if (!opts.skipConsent && latest.current.onTrialConsent) {
             const trialKey = [mission.campaignKey, isCampaignKey(mission.id) ? mission.id : undefined].find(k => (0, combos_1.needsTrialConsent)(latest.current.combos, k, answered.current));
             if (trialKey) {
-                const terms = latest.current.combos?.trials?.find(x => x.campaignKey.toLowerCase() === trialKey.toLowerCase());
-                const answer = await askConsent(mission.name, terms ? (0, combos_1.trialLine)(terms) : '');
+                const answer = await askConsent(mission.name, (0, combos_1.trialTerms)(latest.current.combos, trialKey));
                 if (answer === 'cancel')
                     return;
                 answered.current.set(trialKey.toLowerCase(), answer === 'agree');

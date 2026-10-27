@@ -89,6 +89,7 @@ export type { OfferwallScreenProps } from './OfferwallScreen';
 export * from './combos';
 export * from './comboEntry';
 export * from './comboTrials';
+export * from './comboCategories';
 export * from './campaigns';
 export * from './native';
 export * from './comboDone';

@@ -2,6 +2,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.COMBO_LIST_HINT = exports.TODAY_COMBOS_SAMPLE = exports.DEFAULT_COMBO_THEME = exports.COMBO_POPUP_HEADLINE_WIDTH = exports.COMBO_POPUP_NOTICE = exports.COMBO_TRIAL_NAME = exports.COMBO_TRIAL_NOTE = exports.COMBO_LEVEL_LABEL = exports.COMBO_EASY_NAME = exports.COMBO_NAME = void 0;
 exports.normalizeTodayCombos = normalizeTodayCombos;
+exports.categoryMissions = categoryMissions;
+exports.trialTerms = trialTerms;
 exports.formatWon = formatWon;
 exports.trialLine = trialLine;
 exports.trialMissions = trialMissions;
@@ -22,6 +24,7 @@ exports.loadTodayCombos = loadTodayCombos;
 exports.useTodayCombos = useTodayCombos;
 exports.ComboMissionIcon = ComboMissionIcon;
 exports.ComboGuideScreen = ComboGuideScreen;
+exports.ComboStepsScreen = ComboStepsScreen;
 const index_1 = require("./index");
 /** The one place the feature's name lives (chip, Home banner, guide title, labels, popup text). */
 exports.COMBO_NAME = '포인트 빨리 모으기';
@@ -117,10 +120,102 @@ function normalizeTodayCombos(raw) {
     const trials = cleanTrials(data.trials, soldout, paid);
     const trialKeys = cleanKeys(data.trial_keys ?? data.trialKeys).map(k => k.toLowerCase());
     const trialConsent = cleanConsent(data.trial_consent ?? data.trialConsent);
+    const categories = cleanCategories(data.categories, soldout, paid);
     return {
         ...(date ? { date } : {}), display, bundles, ...(singles.length ? { singles } : {}), ...(easy ? { easy } : {}), ...(done.length ? { done } : {}),
         ...(trials.length ? { trials } : {}), ...(trialKeys.length ? { trialKeys } : {}), ...(Object.keys(trialConsent).length ? { trialConsent } : {}),
+        ...(categories.length ? { categories } : {}),
     };
+}
+/** Sanity limits for the category tabs (the server sends about 400 items in all; a game tab can have a few hundred). */
+const MAX_CATEGORIES = 20;
+const MAX_CATEGORY_ITEMS = 600;
+/** Names for the tabs the server names by key only. */
+const CATEGORY_TITLES = {
+    signup: '회원가입', follow: '팔로우·구독', install: '앱 설치', trial: '무료체험', game: '게임', shop: '쇼핑', insurance: '보험', consult: '상담·조회', account: '계좌·카드', etc: '그 밖',
+};
+/**
+ * `categories`: [{ key, title, total_points (null = none), count, items: [{ campaignKey, name, icon, points, line, done, cost, trial_days, charge_amount }] }].
+ * Kept in the server's order (it is the tab order). A tab needs a key, a title (the server's, else the known name of the key) and at least one
+ * usable item; an item needs a campaign key, a name and points. Sold-out keys (not ones this member was paid for) are left out; one row per key in a tab.
+ */
+function cleanCategories(raw, soldout, paid) {
+    if (!Array.isArray(raw))
+        return [];
+    const keys = new Set();
+    const out = [];
+    for (const entry of raw.slice(0, MAX_CATEGORIES * 2)) {
+        if (out.length >= MAX_CATEGORIES)
+            break;
+        const key = text(entry?.key, 32);
+        const title = text(entry?.title ?? entry?.name ?? entry?.label, 20) || CATEGORY_TITLES[key] || '';
+        if (!key || !title || keys.has(key) || !Array.isArray(entry.items))
+            continue;
+        const seen = new Set();
+        const items = [];
+        for (const item of entry.items.slice(0, MAX_CATEGORY_ITEMS * 2)) {
+            if (items.length >= MAX_CATEGORY_ITEMS)
+                break;
+            const rawKey = typeof item?.campaignKey === 'number' ? String(item.campaignKey) : item?.campaignKey ?? item?.campaign_key;
+            const campaignKey = text(rawKey, 64);
+            const name = text(item?.name, 60);
+            const points = whole(item?.points, MAX_POINTS);
+            if (!campaignKey || !name || !points || seen.has(campaignKey))
+                continue;
+            const isDone = item.done === true;
+            if (soldout.has(campaignKey) && !isDone && !paid.has(campaignKey))
+                continue;
+            seen.add(campaignKey);
+            const iconUrl = text(item.icon ?? item.icon_url, 500);
+            const line = text(item.line, 80);
+            const cost = text(item.cost, 40);
+            const trialDays = optionalWhole(item.trial_days ?? item.trialDays, 365);
+            const chargeAmount = optionalWhole(item.charge_amount ?? item.chargeAmount, 10000000);
+            items.push({
+                campaignKey, name, points,
+                ...(/^https:\/\/\S+$/i.test(iconUrl) ? { icon: iconUrl } : {}), ...(line ? { line } : {}), ...(cost ? { cost } : {}),
+                ...(trialDays ? { trialDays } : {}), ...(chargeAmount ? { chargeAmount } : {}), ...(isDone ? { done: true } : {}),
+            });
+        }
+        if (!items.length)
+            continue;
+        keys.add(key);
+        const totalPoints = whole(entry.total_points ?? entry.totalPoints, 100000000000) || null;
+        out.push({ key, title, totalPoints, count: Math.max(items.length, optionalWhole(entry.count, 100000) ?? 0), items });
+    }
+    return out;
+}
+/** The category rows as mission-shaped rows (id = campaign key), for the check marks and the 「paid today」 mark. A campaign in two tabs is one row here. */
+function categoryMissions(combos) {
+    const seen = new Set();
+    const out = [];
+    for (const category of combos?.categories ?? []) {
+        for (const item of category.items) {
+            if (seen.has(item.campaignKey))
+                continue;
+            seen.add(item.campaignKey);
+            out.push({
+                id: item.campaignKey, name: item.name, points: item.points, todo: item.line ?? '', level: 'easy', campaignKey: item.campaignKey,
+                ...(item.icon ? { icon: item.icon } : {}),
+            });
+        }
+    }
+    return out;
+}
+/** The terms of a free-trial campaign for the consent popup: from the `trials` list, else from a category row that carries them. Empty when unknown. */
+function trialTerms(combos, key) {
+    if (!key || !combos)
+        return '';
+    const k = key.toLowerCase();
+    const trial = combos.trials?.find(x => x.campaignKey.toLowerCase() === k);
+    if (trial)
+        return trialLine(trial);
+    for (const category of combos.categories ?? []) {
+        const item = category.items.find(x => x.campaignKey.toLowerCase() === k);
+        if (item && (item.trialDays || item.chargeAmount))
+            return trialLine(item);
+    }
+    return '';
 }
 /** Sanity limit for the free-trial list. */
 const MAX_TRIALS = 100;
@@ -244,10 +339,17 @@ function cleanKeys(raw) {
  */
 function autoDoneIds(combos) {
     const ids = new Set();
-    if (!combos?.done?.length)
+    if (!combos)
+        return ids;
+    // a category row the server itself marked `done` counts, even when `combos.done` does not list it
+    for (const category of combos.categories ?? [])
+        for (const item of category.items)
+            if (item.done)
+                ids.add(item.campaignKey);
+    if (!combos.done?.length)
         return ids;
     const paid = new Set(combos.done);
-    const rows = [...combos.bundles.flatMap(b => b.missions), ...(combos.singles ?? []).flatMap(s => s.missions), ...(combos.easy?.missions ?? []), ...trialMissions(combos)];
+    const rows = [...combos.bundles.flatMap(b => b.missions), ...(combos.singles ?? []).flatMap(s => s.missions), ...(combos.easy?.missions ?? []), ...trialMissions(combos), ...categoryMissions(combos)];
     for (const m of rows)
         if ((m.campaignKey && paid.has(m.campaignKey)) || paid.has(m.id))
             ids.add(m.id);
@@ -535,10 +637,22 @@ function ComboMissionIcon({ name, uri, size = 44, theme = exports.DEFAULT_COMBO_
     return React.createElement(View, { accessible: false, style: { width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accentSoft } }, React.createElement(Text, { style: { fontSize: Math.round(size * 0.4), fontWeight: '700', color: t.accentText } }, firstChar(name)));
 }
 /**
- * The guide page, laid out like the shopping tab: white, a thin title row, small flat tabs (쉽게 모으기 · 1천 · 5천 · 1만P), a
+ * The guide page. With the server's `categories` it is one tab per category (see comboCategories.ts); without them the steps screen
+ * (쉽게 모으기 · 1천 · 5천 · 1만P · 무료체험), exactly as before. No hooks here, so the two can swap when the server's answer changes.
+ */
+function ComboGuideScreen(props) {
+    const React = require('react');
+    if (props.combos?.categories?.length) {
+        const { ComboCategoryScreen } = require('./comboCategories'); // loaded here: that file imports this one
+        return React.createElement(ComboCategoryScreen, props);
+    }
+    return React.createElement(ComboStepsScreen, props);
+}
+/**
+ * The steps screen, laid out like the shopping tab: white, a thin title row, small flat tabs (쉽게 모으기 · 1천 · 5천 · 1만P), a
  * one-line total, and a plain list: number, name + what to do, +points, a small check. The whole row is the button.
  */
-function ComboGuideScreen({ combos, loading = false, onClose, onPressMission, usn, theme = exports.DEFAULT_COMBO_THEME, showHeader = true, topInset = 0, variant = 'page', hint = exports.COMBO_LIST_HINT, done = NO_DONE, onToggleDone, onPressTrial }) {
+function ComboStepsScreen({ combos, loading = false, onClose, onPressMission, usn, theme = exports.DEFAULT_COMBO_THEME, showHeader = true, topInset = 0, variant = 'page', hint = exports.COMBO_LIST_HINT, done = NO_DONE, onToggleDone, onPressTrial }) {
     const React = require('react');
     const { View, Text, Pressable, ScrollView, BackHandler } = require('react-native');
     const h = React.createElement;
