@@ -15,8 +15,9 @@ function OfferwallScreen({ usn, onClose, onRetry, loadingColor = '#555', topInse
     const [attempt, setAttempt] = React.useState(0);
     React.useEffect(() => { setLoaded(false); setError(false); (0, wallSignal_1.notifyWallGone)(); }, [usn, attempt]);
     React.useEffect(() => () => (0, wallSignal_1.notifyWallGone)(), []);
+    // 0.4.3: no member yet (the app's open() has not finished) means nothing to load, so nothing can have failed: the 20 s start when the member arrives.
     React.useEffect(() => {
-        if (loaded)
+        if (loaded || !usn)
             return;
         const timer = setTimeout(() => setError(true), 20000);
         return () => clearTimeout(timer);

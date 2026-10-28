@@ -1,6 +1,6 @@
 {
   "name": "@jcurve/offerwall",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "AdPopcorn 서버 보상 오퍼월 · Expo 설정 · 회원 별칭 · 포인트 빨리 모으기(화면 전부)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
