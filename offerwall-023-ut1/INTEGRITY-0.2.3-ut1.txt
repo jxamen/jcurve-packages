@@ -1,0 +1,5 @@
+jcurve-offerwall-0.2.3-ut1.tgz
+sha256 8879bdd9abbabaa04c9368bf5fe204e3283c92287c89bd106773e2232520603c
+integrity sha512-1uGFiV1Yjw86WbYgVdgzgyDUqG5m5CpyzVZVQG8U5TyRuc8ZqakvSxz0ihMzCSL5NvEx1fepqfkqFu512VIjpQ==
+commit jcurve-packages fix/offerwall-023-usn-timer c036485 (0.2.3 소스 0e555d2 위 한 줄)
+base jcurve-offerwall-0.2.3.tgz sha256 f9c0acc0ca1e8706630ae796427461c0710752c02927f6603750671b2cfaa3b4 (멤버 16개) — 다른 멤버 4개(package.json 버전만 · README 끝에 한 문단 · src/OfferwallScreen.ts 25줄 · dist/OfferwallScreen.js 17줄), 나머지 12개(네이티브 포함) 바이트 동일
