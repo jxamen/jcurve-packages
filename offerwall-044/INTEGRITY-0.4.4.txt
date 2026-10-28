@@ -1,0 +1,5 @@
+jcurve-offerwall-0.4.4.tgz
+sha256 8e6d015f457f06a6f04a474b0dc293235754e2b7530726dd6e70a005b050a30a
+integrity sha512-Ix0MnR9ezAHLhHDgknDpMj61Bpe8Un1OTqiRojC/0T1s/D/s6M8+363Pc+0kdtiRR/A1wfnAA5ohJ88RE5GlfQ==
+commit jcurve-packages feat/offerwall-044 6214172 (0.4.3 979bd1a + 0.4.4)
+base 0.4.3 tgz (offerwall-043) — 멤버 68 → 71: 새 JS 멤버 3개(dist/comboSheetFrame.js · dist/comboSheetFrame.d.ts · src/comboSheetFrame.ts), 다른 멤버 11개(README · dist/comboCategories.js · dist/comboEntry.js · dist/comboTrials.js · dist/combos.d.ts · dist/combos.js · src/comboCategories.ts · src/comboEntry.ts · src/comboTrials.ts · src/combos.ts · package.json), 네이티브 관련 12개 멤버(android · ios · podspec · gradle · app.plugin.js · react-native.config.js) 바이트 동일 — 0.4.0 · 0.4.1 · 0.4.2 · 0.4.3 의 non-external tgz 와 모두 동일(external 변형은 podspec 이 달라 별도)
