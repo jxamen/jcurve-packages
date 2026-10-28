@@ -13,7 +13,7 @@ import { canClaimStage, type StepsState } from './stages';
 export type StepsHealApi = {
   /** `GET ads/seen?purpose=&since=`(읽기만) — 아직 청구 안 된 확인이 있으면 true, 없으면 false, 모르면 null(또는 오류) */
   adSeen?(purpose: string, sinceSec: number): Promise<boolean | null>;
-  claimStage(stageId: string, day: string, earned?: boolean): Promise<StepsState & { gained: number; balance: number }>;
+  claimStage(stageId: string, day: string, earned?: boolean): Promise<StepsState & { gained: number; balance: number }>;   // heal 은 earned 를 넘기지 않는다
 };
 /** 단계(`날짜:stage_id`)마다 몇 번 물었나 — 화면이 떠 있는 동안 들고 있는다(답을 받았거나 3번 모르면 더 안 묻는다) */
 export type StepsHealMemory = Map<string, number>;
@@ -46,7 +46,8 @@ export async function healUnclaimedStages(api: StepsHealApi, sources: ReadonlyAr
       options.memory.set(key, HEAL_MAX_ASKS);                                                          // 답을 받았다 — 이 화면에서는 더 묻지 않는다
       if (answer !== true) continue;
       try {
-        const next = await api.claimStage(stage.stage_id, src.day, true);
+        // `earned` 를 주지 않는다 — 서버가 광고 확인(SSV) 한 줄을 소비해야만 지급하고, 앱 말만 믿는 길(`X-Ad-Client-Earned`)은 이 호출에 켜지 않는다
+        const next = await api.claimStage(stage.stage_id, src.day);
         if (next.gained) claimed += 1;
         await options.onClaimed?.(next, src);
       } catch { /* 이미 받음 · 날짜 지남 · 확인 아직 없음 · 네트워크 — 조용히 넘긴다 */ }

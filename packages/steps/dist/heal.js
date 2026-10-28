@@ -47,7 +47,8 @@ async function healUnclaimedStages(api, sources, options) {
             if (answer !== true)
                 continue;
             try {
-                const next = await api.claimStage(stage.stage_id, src.day, true);
+                // `earned` 를 주지 않는다 — 서버가 광고 확인(SSV) 한 줄을 소비해야만 지급하고, 앱 말만 믿는 길(`X-Ad-Client-Earned`)은 이 호출에 켜지 않는다
+                const next = await api.claimStage(stage.stage_id, src.day);
                 if (next.gained)
                     claimed += 1;
                 await options.onClaimed?.(next, src);

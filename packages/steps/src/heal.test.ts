@@ -18,7 +18,7 @@ describe('healUnclaimedStages', () => {
     expect(n).toBe(1);
     expect(adSeen).toHaveBeenCalledTimes(1);   // stage_1 claimed · stage_3 needs 3000 steps → only stage_2 is asked
     expect(adSeen).toHaveBeenCalledWith('steps_stage:2026-10-28:stage_2', Date.parse('2026-10-28T00:00:00+09:00') / 1000);
-    expect(claimStage).toHaveBeenCalledWith('stage_2', '2026-10-28', true);
+    expect(claimStage).toHaveBeenCalledWith('stage_2', '2026-10-28');
     expect(onClaimed).toHaveBeenCalledOnce();
   });
   it('a server replay (already claimed, 0P) is not counted as a recovered reward', async () => {
@@ -56,6 +56,6 @@ describe('healUnclaimedStages', () => {
     const adSeen = vi.fn(async () => true); const claimStage = claimed();
     await healUnclaimedStages({ adSeen, claimStage }, [null, state({ day: '2026-10-27', stages: [{ ...stage(2), ad_purpose: 'steps_stage:2026-10-27:stage_2' }] })], { memory: new Map() });
     expect(adSeen).toHaveBeenCalledWith('steps_stage:2026-10-27:stage_2', Date.parse('2026-10-27T00:00:00+09:00') / 1000);
-    expect(claimStage).toHaveBeenCalledWith('stage_2', '2026-10-27', true);
+    expect(claimStage).toHaveBeenCalledWith('stage_2', '2026-10-27');
   });
 });

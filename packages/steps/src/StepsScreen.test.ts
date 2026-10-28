@@ -100,7 +100,7 @@ describe('StepsScreen 0.3.2 — 놓친 광고 보상 되찾기 (adSeen)', () => 
   const s = await screen({ api, showRewardedAd });
   expect(adSeen).toHaveBeenCalledTimes(1);
   expect(adSeen).toHaveBeenCalledWith('steps_2', Math.floor(Date.parse(sample.day + 'T00:00:00+09:00') / 1000));
-  expect(api.claimStage).toHaveBeenCalledTimes(1); expect(api.claimStage).toHaveBeenCalledWith('2', sample.day, true);
+  expect(api.claimStage).toHaveBeenCalledTimes(1); expect(api.claimStage).toHaveBeenCalledWith('2', sample.day);
   expect(showRewardedAd).not.toHaveBeenCalled();
   expect(s.text()).toContain('지난 광고 보상 5P 받았어요'); expect(s.props.onBalance).toHaveBeenCalled();
   await act(async () => s.root.unmount());
@@ -151,7 +151,7 @@ describe('StepsScreen 0.3.2 — 놓친 광고 보상 되찾기 (adSeen)', () => 
    const claimStage = vi.fn(async (_id: string, day: string) => ({ ...(day === yesterdayState.day ? yesterdayState : sample), gained: 5, balance: 40 }));
    const api = { ...withYesterday(), adSeen, claimStage };
    const s = await screen({ api });
-   expect(claimStage).toHaveBeenCalledTimes(1); expect(claimStage).toHaveBeenCalledWith('stage_2', '2026-10-19', true);
+   expect(claimStage).toHaveBeenCalledTimes(1); expect(claimStage).toHaveBeenCalledWith('stage_2', '2026-10-19');
    expect(adSeen).toHaveBeenCalledWith('steps_stage:2026-10-19:stage_2', Math.floor(Date.parse('2026-10-19T00:00:00+09:00') / 1000));
    await act(async () => s.root.unmount());
   } finally { vi.useRealTimers(); }
