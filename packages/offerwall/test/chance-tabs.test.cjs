@@ -22,7 +22,7 @@ Module._load = function (id, ...args) {
 };
 const { OfferwallScreen } = require('../dist/OfferwallScreen');
 const chance = require('../dist/chanceProviders');
-const { isWallLoaded, getChanceTabInset } = require('../dist/wallSignal');
+const { isWallLoaded, getChanceTabInset, getChanceTab, onChanceTab } = require('../dist/wallSignal');
 
 const USN = 'a'.repeat(64);
 const base = { usn: USN, onClose() {}, onRetry() {} };
@@ -249,3 +249,31 @@ test('0.6.0: an embed whose prepare fails shows the retry message instead of an 
   assert.ok(texts().includes('잠시 후 다시 시도해 주세요'));
 });
 
+
+test('0.6.2: the screen tells 「포인트 빨리 모으기」 which tab is up (찬스1 = adpopcorn, 찬스2 = the launcher), and resets it when the tabs go away or the screen unmounts', async () => {
+  const heard = [];
+  const stop = onChanceTab((id) => heard.push(id));
+  try {
+    launcher();
+    await mount();
+    assert.equal(getChanceTab(), 'adpopcorn');
+    await press(tabs()[1]);
+    assert.equal(getChanceTab(), 'second');
+    await press(tabs()[0]);
+    assert.equal(getChanceTab(), 'adpopcorn');
+    await press(tabs()[1]);
+    assert.equal(getChanceTab(), 'second');
+    await act(() => tree.unmount()); tree = undefined;
+    assert.equal(getChanceTab(), 'adpopcorn', 'unmounting the screen puts it back');
+    assert.deepEqual(heard, ['second', 'adpopcorn', 'second', 'adpopcorn']);
+  } finally { stop(); }
+});
+
+test('0.6.2: a screen with a single provider never leaves the tab signal on another tab', async () => {
+  await mount();
+  assert.equal(getChanceTab(), 'adpopcorn');
+});
+
+test('0.6.2: the bundle carries the per-tab 「포인트 빨리 모으기」 mark', () => {
+  assert.equal(require('../dist/comboEntry').OFFERWALL_FAST_COMBOS_TABS_MARK, 'jcurve-offerwall-fast-combos-tabs:v1');
+});

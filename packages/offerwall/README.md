@@ -561,3 +561,19 @@ iOS 의 애드팝콘 오퍼월 목록(「전체 미션」)은 SDK 안의 웹 화
 - `"daily"` = 하루(KST) 첫 진입에 한 번만 묻는다(이미 켰어도). 어떤 답이든 그날은 다시 안 묻고 다음 날 다시 묻는다.
 묻는 시점만 바뀐다 — 체험 줄을 눌렀을 때의 동작(저장된 「켜고 참여하기」에 따라 팝업 없이 바로 상세)은 그대로다. 앱 코드 변경 없음, `normalizeTodayCombos` 가 `display.trialNotice` 로 읽는다. 시험 6개 추가.
 
+
+## 0.6.2 — 「포인트 빨리 모으기」를 찬스1 · 찬스2 탭마다 따로 + 찬스2 추천 미션은 SDK 로 그 광고를 바로 연다 (JS만 · 새 네이티브 없음)
+
+**배경(대표님 10/28 23:28 · 23:29)**: 찬스1(애드팝콘)과 찬스2(스냅플레이)가 각각 「포인트 빨리 모으기」 추천 미션 목록을 가져야 하고, 추천 미션을 누르면 **그 탭 SDK 의 해당 캠페인 화면**이 열려야 한다.
+
+**탭마다 목록** — `ComboEntry`(앱이 오퍼월 화면 옆에 두는 칩 · 시트)가 고른 탭을 따라간다. `OfferwallScreen` 이 탭을 고를 때 `setChanceTab(id)` 로 알리고(`wallSignal` — `getChanceTab` · `onChanceTab`), 찬스1 은 지금까지 쓰던 목록 그대로, 찬스2 는 새 prop `loadSnapPlay`(= `GET offerwall/combos?source=snapplay` 본문 — 찬스1 응답과 같은 모양, **행의 `campaignKey` = 스냅플레이 `adv_id`**)의 목록을 쓴다. 완료 표시 · 깜빡임 저장 칸도 탭마다 따로(`…:snapplay`). 찬스2 가 떠 있는 동안 애드팝콘 목록은 **절대 보이지 않는다**(다른 SDK 로 열리는 미션이라서): `loadSnapPlay` 가 없거나, 응답이 비었거나, 실패하면 찬스2 에는 **칩이 없다**(빈 칩 없음). 탭을 바꾸면 열려 있던 시트 · 팝업은 닫힌다. 추천 팝업(로딩 뒤 한 번)과 「무료체험 확인」은 찬스1 전용이다.
+
+**추천 미션 → 광고 직접 열기** — 스냅플레이 RN 플러그인(1.0.38)의 Data API: `requestOfferwallData(placement, false)` 로 지금 참여할 수 있는 광고 목록(JSON)을 읽고(`parseSnapPlayAds` → `SnapPlayAd`), 눌린 행의 `adv_id` 가 그 목록에 있으면 `openAdItem(adv_id, detail_yn == "Y", placement)`. 서버 설정 `content/config/snapplay` 에 **목록용 플레이스먼트 `listPlacement`** 가 있어야 한다(스냅플레이 문서가 목록에 `"main"` 을 못 쓰게 해서 콘솔에서 따로 만든 이름; 없으면 직접 열기는 꺼지고 찬스2 탭으로만 안내). 결과:
+- 열림 요청됨 → 시트는 그대로(다음 광고를 누를 수 있게). SDK 는 화면이 열렸는지 돌려주지 않아 `ok` 는 「열기를 요청했다」까지다.
+- 목록에 없음(마감 · 이 기기에 해당 없음) → 「"이름" 는 마감됐어요 · 다른 미션을 골라 주세요」 + `onDetailSignal({result:'open_failed'})` 로 서버에 힌트(서버가 3초 뒤 다시 받는 목록에서 뺀다). 캐시된 목록에 없을 때는 한 번 새로 읽고 나서 판단한다.
+- 직접 열 수 없음(`listPlacement` 없음 · 옛 플러그인 · 목록 읽기 실패 · SDK 오류) → 기존 폴백: 이름을 복사하고 「"이름" 를 찾아 주세요」, 시트는 닫혀 찬스2 화면이 보인다.
+진단: `onDiagnostic` 의 `how: 'snapplay_id'`, `openError` = 위 결과 이유. 목록은 1분 캐시, 동시 호출은 한 번만 읽는다.
+
+**선택 — 폰이 읽은 목록을 앱에 준다**: `ComboEntry` 의 `onSnapPlayAds(ads)`(찬스2 가 쓸 수 있을 때 목록을 읽을 때마다, 약 한 시간에 한 번까지). 서버로 올리고 싶을 때, 그리고 `ads[].points`(= SDK 의 `user_pnt`) 를 스냅플레이 화면에 보이는 P 와 비교해 **전환 비율이 이미 반영된 값인지** 실기기에서 확인하는 데 쓴다(문서에는 「사용자 적립 포인트」라고만 나온다). 서버가 스냅플레이 S2S API(`GET https://ads.snapplay.io/api/main/offer/v1`, 등록된 매체 서버 IP 에서만)로 직접 받으면 이 콜백은 필요 없다.
+
+앱 연결(한 줄): `<ComboEntry … loadSnapPlay={() => api.get('offerwall/combos', { source: 'snapplay' })} />`. 새 서버 칸은 `listPlacement`(+ 위 combos 응답) 뿐이고 새 네이티브는 없다. `snapPlayStatus().directOpen` 이 지금 이 기기에서 직접 열기가 가능한지 알려 준다. 시험 19개 추가.

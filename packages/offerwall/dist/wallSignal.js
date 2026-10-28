@@ -7,6 +7,9 @@ exports.onWallState = onWallState;
 exports.setChanceTabInset = setChanceTabInset;
 exports.getChanceTabInset = getChanceTabInset;
 exports.onChanceTabInset = onChanceTabInset;
+exports.setChanceTab = setChanceTab;
+exports.getChanceTab = getChanceTab;
+exports.onChanceTab = onChanceTab;
 const listeners = new Set();
 let loaded = false;
 function set(value) {
@@ -48,4 +51,24 @@ function getChanceTabInset() { return tabInset; }
 function onChanceTabInset(listener) {
     insetListeners.add(listener);
     return () => { insetListeners.delete(listener); };
+}
+const tabListeners = new Set();
+let chanceTab = 'adpopcorn';
+function setChanceTab(id) {
+    const next = typeof id === 'string' && id ? id : 'adpopcorn';
+    if (next === chanceTab)
+        return;
+    chanceTab = next;
+    for (const listener of [...tabListeners]) {
+        try {
+            listener(next);
+        }
+        catch { /* one bad listener must not stop the rest */ }
+    }
+}
+function getChanceTab() { return chanceTab; }
+/** Calls back whenever the picked 찬스 tab changes. Returns the unsubscribe function. */
+function onChanceTab(listener) {
+    tabListeners.add(listener);
+    return () => { tabListeners.delete(listener); };
 }

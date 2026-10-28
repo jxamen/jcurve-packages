@@ -43,3 +43,23 @@ export function onChanceTabInset(listener: InsetListener): () => void {
   return () => { insetListeners.delete(listener); };
 }
 
+
+/**
+ * 0.6.2 — which 「찬스」 tab is up (`'adpopcorn'` = 찬스1, `'snapplay'` = 찬스2). `OfferwallScreen` sets it when the member picks a tab (and back to `'adpopcorn'` when there are no tabs or the
+ * screen goes away); `ComboEntry` follows it, so 「포인트 빨리 모으기」 shows each tab's own list.
+ */
+type TabListener = (id: string) => void;
+const tabListeners = new Set<TabListener>();
+let chanceTab = 'adpopcorn';
+export function setChanceTab(id: string): void {
+  const next = typeof id === 'string' && id ? id : 'adpopcorn';
+  if (next === chanceTab) return;
+  chanceTab = next;
+  for (const listener of [...tabListeners]) { try { listener(next); } catch { /* one bad listener must not stop the rest */ } }
+}
+export function getChanceTab(): string { return chanceTab; }
+/** Calls back whenever the picked 찬스 tab changes. Returns the unsubscribe function. */
+export function onChanceTab(listener: TabListener): () => void {
+  tabListeners.add(listener);
+  return () => { tabListeners.delete(listener); };
+}

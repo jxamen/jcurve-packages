@@ -10,8 +10,14 @@ import { useDoneMissions } from './comboDone';
 import { addOfferwallNativeListener } from './native';
 import type { ComboStorage } from './comboDone';
 import { popupStorageKey, usePulse, useSeenToday } from './comboSeen';
-import { getChanceTabInset, isWallLoaded, onChanceTabInset, onWallState } from './wallSignal';
+import { getChanceTab, getChanceTabInset, isWallLoaded, onChanceTab, onChanceTabInset, onWallState } from './wallSignal';
+import { useChanceProviders } from './chanceProviders';
+import { SNAPPLAY_PROVIDER_ID, openSnapPlayAd, readSnapPlayAds } from './snapPlay';
+import type { SnapPlayAd, SnapPlayOpenResult } from './snapPlay';
 import { openOfferwall } from './index';
+
+/** 0.6.2 bundle mark — a deploy check can look for it to tell a build whose 「포인트 빨리 모으기」 follows the 찬스1 / 찬스2 tab. */
+export const OFFERWALL_FAST_COMBOS_TABS_MARK = 'jcurve-offerwall-fast-combos-tabs:v1';
 
 /** Route name for pushes (`data.go`) and links. Apps use in-app actions, not a URL scheme. */
 export const COMBOS_ROUTE = 'offerwall/combos';
@@ -208,7 +214,7 @@ export type ComboTapDiagnostic = {
   /** first names of the SDK list, to see why a name did not match */
   listSample?: string[];
   /** where the key we tried came from: the server (`campaignKey` / a numeric id), a name match, the row id found in the list, or none */
-  how: 'server_key' | 'name' | 'id_in_list' | 'none';
+  how: 'server_key' | 'name' | 'id_in_list' | 'none' | 'snapplay_id';
   key?: string;
   /** keys tried in all (the last one is described by `key` / `open`) */
   attempts: number;
@@ -367,6 +373,18 @@ export type ComboEntryProps = {
   /** Called after every 하러 가기 tap with what happened (see ComboTapDiagnostic). Sending it is the app's business. */
   onDiagnostic?: (diagnostic: ComboTapDiagnostic) => unknown;
   /**
+   * 0.6.2 — the 찬스2 (SnapPlay) tab's own list: the parsed body of `GET offerwall/combos?source=snapplay` (same shape as the 찬스1 body; a row's `campaignKey` is the SnapPlay
+   * `adv_id`). On the 찬스2 tab the chip, the sheet and the done marks use this list; a tap opens that ad through the SDK (`openAdItem`) and, when the SDK cannot, falls back to the
+   * 찬스2 tab. Without it, or when the answer has no rows, the 찬스2 tab has no chip (the 찬스1 list is never shown over SnapPlay); a build without SnapPlay has no 찬스2 tab at all.
+   * 찬스1 is not touched.
+   */
+  loadSnapPlay?: () => Promise<unknown>;
+  /**
+   * 0.6.2 — called each time the SnapPlay SDK's ad list is read from the phone (at most about once a minute; needs the server's `listPlacement`), with the normalized ads
+   * (`advId`, `title`, `points` = the SDK's `user_pnt`, …). For an app that sends the list to its server, and the way to compare `points` with what SnapPlay shows. Optional.
+   */
+  onSnapPlayAds?: (ads: SnapPlayAd[]) => unknown;
+  /**
    * Called (for every member, once per result and campaign key per visit) when the SDK would not open a campaign's detail page
    * (`open_failed`) or the page was closed again within 15 s (`closed_fast`): a sold-out campaign ends up here, but so can a slow load
    * or a quick participation, so the app only reports and never hides the row itself. The server decides (the `soldout` list in the
@@ -418,17 +436,29 @@ export type ComboEntryProps = {
 export function ComboEntry({
   placement, url, headers, load, loadKey, usn, theme = DEFAULT_COMBO_THEME, sample = false, onPressMission, storage, copyText, campaigns,
   reportCampaigns, onDiagnostic, onDetailSignal, onSheetShown, onTrialConsent, onTrialNotify, loadTrials, onTrialCancelled, chipTop, chipRight, sheetTop = COMBO_SHEET_TOP, popupArt, popupAd,
+  loadSnapPlay, onSnapPlayAds,
 }: ComboEntryProps): ReactElement | null {
   const React = require('react') as typeof import('react');
   const { Modal, Pressable, SafeAreaView, Dimensions } = require('react-native') as typeof import('react-native');
   const h = React.createElement;
-  const state = useTodayCombos({ url, headers, load, loadKey, sample });
+  // 0.6.2: the Chance tab has one list per tab. 찬스1 (AdPopcorn) is the list this entry always had; 찬스2 (SnapPlay) has its own, loaded only when the build has SnapPlay and the server
+  // turned it on (the provider is then in the list), and used only while that tab is up. While 찬스2 is up the AdPopcorn list is never shown (its missions open in the other SDK):
+  // an app that gives no `loadSnapPlay`, or a server answer without rows, simply has no chip on that tab.
+  const providers = useChanceProviders();
+  const snapUsable = placement === 'chance' && providers.some(provider => provider.id === SNAPPLAY_PROVIDER_ID);
+  const [chanceTab, setChanceTabState] = React.useState(getChanceTab);
+  React.useEffect(() => (placement === 'chance' ? onChanceTab(setChanceTabState) : undefined), [placement]);
+  const snapActive = snapUsable && chanceTab === SNAPPLAY_PROVIDER_ID;
+  const adState = useTodayCombos({ url, headers, load, loadKey, sample });
+  const snapState = useTodayCombos({ load: snapUsable ? loadSnapPlay : undefined, loadKey: `${loadKey ?? ''}:snapplay` });
+  const state = snapActive ? snapState : adState;
+  const scope = snapActive ? `${loadKey ?? ''}:snapplay` : loadKey;
   const [open, setOpen] = React.useState(false);
   // When the render that opened the guide began, for `onSheetShown` (cleared when it closes, so every opening is timed on its own).
   const openedAt = React.useRef<number | null>(null);
   if (!open) openedAt.current = null; else if (openedAt.current === null) openedAt.current = Date.now();
   // Hand ticks are kept per member and per campaign key (the server's key when it gave one, else the row id), with no daily reset.
-  const marks = useDoneMissions({ storage, scope: loadKey });
+  const marks = useDoneMissions({ storage, scope });
   const missionRows = missionRowsOf(state.combos);
   const markKey = (m: ComboMission) => m.campaignKey || m.id;
   const doneIds = new Set(missionRows.filter(m => marks.done.has(markKey(m))).map(m => m.id));
@@ -436,8 +466,8 @@ export function ComboEntry({
   const [notice, setNotice] = React.useState<string | null>(null);
   const noticeTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const campaignCache = React.useRef<{ key: string; promise: Promise<ListResult> } | null>(null);
-  const latest = React.useRef({ campaigns, copyText, reportCampaigns, usn, placement, onDiagnostic, onDetailSignal, onTrialConsent, onTrialNotify, loadTrials, onTrialCancelled, combos: state.combos, refresh: state.refresh });
-  latest.current = { campaigns, copyText, reportCampaigns, usn, placement, onDiagnostic, onDetailSignal, onTrialConsent, onTrialNotify, loadTrials, onTrialCancelled, combos: state.combos, refresh: state.refresh };
+  const latest = React.useRef({ campaigns, copyText, reportCampaigns, usn, placement, onDiagnostic, onDetailSignal, onTrialConsent, onTrialNotify, loadTrials, onTrialCancelled, combos: state.combos, refresh: state.refresh, snap: snapActive, onSnapPlayAds });
+  latest.current = { campaigns, copyText, reportCampaigns, usn, placement, onDiagnostic, onDetailSignal, onTrialConsent, onTrialNotify, loadTrials, onTrialCancelled, combos: state.combos, refresh: state.refresh, snap: snapActive, onSnapPlayAds };
   const signalled = React.useRef(new Set<string>());
   const signalTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastOpened = React.useRef<{ key: string; at: number } | null>(null); // the detail page the SDK opened last, until it closes
@@ -485,14 +515,15 @@ export function ComboEntry({
     refreshNow();
   }), []);
   const mode = placement === 'chance' ? state.combos?.display.chance ?? 'chip' : state.combos?.display.home ?? 'off';
-  const shown = placement === 'chance' ? mode === 'chip' && !!state.combos : mode === 'banner' && !!state.combos;
+  // (the 찬스2 tab has no chip until the server sent rows: an empty chip is never shown)
+  const shown = placement === 'chance' ? mode === 'chip' && !!state.combos && (!snapActive || hasComboRows(state.combos)) : mode === 'banner' && !!state.combos;
   const listening = placement === 'chance' || mode !== 'off';
   // Blink until the guide was opened once today (by anyone: chip, banner, popup); then rest until the next Korean day.
-  const seen = useSeenToday({ storage, scope: loadKey, date: state.combos?.date });
+  const seen = useSeenToday({ storage, scope, date: state.combos?.date });
   const blink = usePulse(shown && !open && seen.seen === false);
   // The recommendation popup: once a day per member, after the Chance tab's wall has loaded, unless the guide was already opened
   // today (by the chip, a main popup, a push) or this very visit. Server `display.popup: 'off'` turns it off.
-  const popupSeen = useSeenToday({ storage, scope: loadKey, date: state.combos?.date, keyOf: popupStorageKey });
+  const popupSeen = useSeenToday({ storage, scope, date: state.combos?.date, keyOf: popupStorageKey });
   const [popup, setPopup] = React.useState(false);
   const [wallReady, setWallReady] = React.useState(isWallLoaded);
   // 0.5.1: the 「찬스1 · 찬스2」 tab row above the wall pushes everything down by its height — the chip row, the sheet and the toast follow
@@ -504,7 +535,7 @@ export function ComboEntry({
   React.useEffect(() => (placement === 'chance' ? onWallState(setWallReady) : undefined), [placement]);
   const popupMode = state.combos?.display.popup; // 'off' | 'always' | undefined (once a day)
   // (nothing to recommend while an iPhone list is being prepared with no rows: no popup, and the day's one popup is not used up)
-  const popupDue = placement === 'chance' && shown && hasComboRows(state.combos) && popupMode !== 'off' && !open && !popup && !everOpened.current && !popupGiven.current
+  const popupDue = placement === 'chance' && !snapActive && shown && hasComboRows(state.combos) && popupMode !== 'off' && !open && !popup && !everOpened.current && !popupGiven.current
     && (popupMode === 'always' || (seen.seen === false && popupSeen.seen === false));
   const popupDueNow = React.useRef(false);
   popupDueNow.current = popupDue;
@@ -532,6 +563,28 @@ export function ComboEntry({
     if (noticeTimer.current) clearTimeout(noticeTimer.current);
     if (signalTimer.current) clearTimeout(signalTimer.current);
   }, []);
+  // 0.6.2: another tab was picked while the sheet / popup was up — they belong to the tab they were opened on, so they close (the tab row is above the sheet and stays tappable).
+  const lastSnapActive = React.useRef(snapActive);
+  React.useEffect(() => {
+    if (lastSnapActive.current === snapActive) return;
+    lastSnapActive.current = snapActive;
+    setOpen(false); setPopup(false); setTabPopup(false); setTrialsOpen(false); setNotice(null);
+  }, [snapActive]);
+  // 0.6.2: an app that sends the SnapPlay ad list to its server gets it as soon as the phone can read it, and again about every hour (only when it passed `onSnapPlayAds`).
+  const wantsAds = snapUsable && !!onSnapPlayAds && !!usn;
+  React.useEffect(() => {
+    if (!wantsAds) return;
+    let live = true;
+    const run = () => {
+      void readSnapPlayAds({ usn: usn! }).then(result => {
+        if (!live || !result.ok || result.cached) return;
+        try { void Promise.resolve(latest.current.onSnapPlayAds?.(result.ads)).catch(() => {}); } catch { /* the app's upload must not break the screen */ }
+      }).catch(() => {});
+    };
+    run();
+    const timer = setInterval(run, 60 * 60 * 1000);
+    return () => { live = false; clearInterval(timer); };
+  }, [wantsAds, usn]);
 
   const bridge = (): CampaignApi | null => (latest.current.campaigns === undefined ? nativeCampaignApi() : latest.current.campaigns);
   /** The SDK's current campaigns, read once per member (and again after an empty result). Keeps WHY it was empty. */
@@ -552,7 +605,7 @@ export function ComboEntry({
     return promise;
   };
   // Warm the list when the guide opens, so a tap that needs it does not wait.
-  React.useEffect(() => { if (open && bridge()) void campaignList(); }, [open]);
+  React.useEffect(() => { if (open && !snapActive && bridge()) void campaignList(); }, [open]);
 
   const say = (text: string) => {
     if (noticeTimer.current) clearTimeout(noticeTimer.current);
@@ -607,7 +660,7 @@ export function ComboEntry({
   };
   React.useEffect(() => { if (trialsOpen) loadMine(); }, [trialsOpen]);
   const openTrials = (key?: string) => { setTrialsFocus(key); setOpen(false); setPopup(false); setTrialsOpen(true); };
-  const trialsAvailable = !!loadTrials && placement === 'chance';
+  const trialsAvailable = !!loadTrials && placement === 'chance' && !snapActive; // free trials are 찬스1's
   React.useEffect(() => (trialsAvailable ? listenForTrialRequests({ priority: 2, open: openTrials }) : undefined), [trialsAvailable]);
   const markCancelled = (trial: MyTrial, cancelled: boolean) => {
     setMine(m => ({ ...m, items: m.items ? m.items.map(x => (x.campaignKey === trial.campaignKey ? { ...x, cancelled } : x)) : m.items }));
@@ -627,7 +680,8 @@ export function ComboEntry({
       }
     }
     const started = Date.now();
-    const api = bridge();
+    const snap = latest.current.snap;
+    const api = snap ? null : bridge(); // the AdPopcorn campaign bridge belongs to 찬스1
     const diag: ComboTapDiagnostic = { t: 'tap', mission: mission.id, name: mission.name, bridge: !!api, listCount: 0, how: 'none', attempts: 0, open: 'skipped', ms: 0 };
     const tried = new Set<string>();
     let unsure = false;
@@ -651,6 +705,26 @@ export function ComboEntry({
       Object.assign(diag, extra, { ms: Date.now() - started });
       try { void Promise.resolve(latest.current.onDiagnostic?.({ ...diag })).catch(() => {}); } catch { /* diagnostics never break the tap */ }
     };
+    if (snap) {
+      // 0.6.2, 찬스2: the row's key is the SnapPlay adv_id; the SDK opens that ad itself. Not in the SDK's fresh list = closed (reported as a hint, the server decides); anything else that
+      // keeps it from opening (no list placement, an old plugin, a failed list) falls through to the plain fallback below: the name is shown, copied, and the sheet closes onto the 찬스2 tab.
+      const key = [mission.campaignKey, isCampaignKey(mission.id) ? mission.id : undefined].find(isCampaignKey);
+      if (key) {
+        diag.how = 'snapplay_id'; diag.key = key; diag.attempts = 1;
+        const at = Date.now();
+        let result: SnapPlayOpenResult;
+        try { result = await openSnapPlayAd(key, latest.current.usn ? { usn: latest.current.usn } : undefined); } catch { result = { ok: false, reason: 'sdk_error', listCount: 0 }; }
+        diag.openMs = Date.now() - at; diag.listCount = result.listCount;
+        if (result.ok) { diag.open = true; finish(); return; }
+        diag.open = result.reason === 'sdk_error' ? 'error' : false; diag.openError = result.reason;
+        if (result.reason === 'gone') {
+          signalDetail('open_failed', key, diag.openMs);
+          finish();
+          say(`"${mission.name}" 는 마감됐어요 · 다른 미션을 골라 주세요`);
+          return;
+        }
+      }
+    }
     if (api) {
       // 1) the server's key: no list needed
       for (const key of [mission.campaignKey, isCampaignKey(mission.id) ? mission.id : undefined]) {

@@ -74,6 +74,10 @@ function OfferwallScreen({ usn, onClose, onRetry, loadingColor, topInset = 0, ta
     // Tell the combos chip how far down the tab row pushes the wall (the chip is drawn by the app beside this screen).
     React.useEffect(() => { (0, wallSignal_1.setChanceTabInset)(tabs ? tabHeight || exports.CHANCE_TAB_FALLBACK_HEIGHT : 0); }, [tabs, tabHeight]);
     React.useEffect(() => () => (0, wallSignal_1.setChanceTabInset)(0), []);
+    // 0.6.2: tell 「포인트 빨리 모으기」 (ComboEntry, drawn by the app beside this screen) which tab is up, so each tab shows its own list.
+    const tabId = tabs && current ? current.id : chanceProviders_1.ADPOPCORN_PROVIDER_ID;
+    React.useEffect(() => { (0, wallSignal_1.setChanceTab)(tabId); }, [tabId]);
+    React.useEffect(() => () => (0, wallSignal_1.setChanceTab)(chanceProviders_1.ADPOPCORN_PROVIDER_ID), []);
     // Warm the launchers up (SDK init, member) while the member is still on 찬스1, so 찬스2 opens at once. A failure here changes nothing on screen.
     React.useEffect(() => {
         if (!usn || !tabs)

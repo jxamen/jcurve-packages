@@ -4,6 +4,9 @@ import type { ComboBundle, ComboMission, ComboTheme, TodayCombos } from './combo
 import type { TrialNotifyResult } from './comboTrials';
 import type { CampaignApi, CampaignInfo } from './campaigns';
 import type { ComboStorage } from './comboDone';
+import type { SnapPlayAd } from './snapPlay';
+/** 0.6.2 bundle mark — a deploy check can look for it to tell a build whose 「포인트 빨리 모으기」 follows the 찬스1 / 찬스2 tab. */
+export declare const OFFERWALL_FAST_COMBOS_TABS_MARK = "jcurve-offerwall-fast-combos-tabs:v1";
 /** Route name for pushes (`data.go`) and links. Apps use in-app actions, not a URL scheme. */
 export declare const COMBOS_ROUTE = "offerwall/combos";
 /** Server popups store their action in a 10-character column, so the popup action is this short form. */
@@ -106,7 +109,7 @@ export type ComboTapDiagnostic = {
     /** first names of the SDK list, to see why a name did not match */
     listSample?: string[];
     /** where the key we tried came from: the server (`campaignKey` / a numeric id), a name match, the row id found in the list, or none */
-    how: 'server_key' | 'name' | 'id_in_list' | 'none';
+    how: 'server_key' | 'name' | 'id_in_list' | 'none' | 'snapplay_id';
     key?: string;
     /** keys tried in all (the last one is described by `key` / `open`) */
     attempts: number;
@@ -171,6 +174,18 @@ export type ComboEntryProps = {
     /** Called after every 하러 가기 tap with what happened (see ComboTapDiagnostic). Sending it is the app's business. */
     onDiagnostic?: (diagnostic: ComboTapDiagnostic) => unknown;
     /**
+     * 0.6.2 — the 찬스2 (SnapPlay) tab's own list: the parsed body of `GET offerwall/combos?source=snapplay` (same shape as the 찬스1 body; a row's `campaignKey` is the SnapPlay
+     * `adv_id`). On the 찬스2 tab the chip, the sheet and the done marks use this list; a tap opens that ad through the SDK (`openAdItem`) and, when the SDK cannot, falls back to the
+     * 찬스2 tab. Without it, or when the answer has no rows, the 찬스2 tab has no chip (the 찬스1 list is never shown over SnapPlay); a build without SnapPlay has no 찬스2 tab at all.
+     * 찬스1 is not touched.
+     */
+    loadSnapPlay?: () => Promise<unknown>;
+    /**
+     * 0.6.2 — called each time the SnapPlay SDK's ad list is read from the phone (at most about once a minute; needs the server's `listPlacement`), with the normalized ads
+     * (`advId`, `title`, `points` = the SDK's `user_pnt`, …). For an app that sends the list to its server, and the way to compare `points` with what SnapPlay shows. Optional.
+     */
+    onSnapPlayAds?: (ads: SnapPlayAd[]) => unknown;
+    /**
      * Called (for every member, once per result and campaign key per visit) when the SDK would not open a campaign's detail page
      * (`open_failed`) or the page was closed again within 15 s (`closed_fast`): a sold-out campaign ends up here, but so can a slow load
      * or a quick participation, so the app only reports and never hides the row itself. The server decides (the `soldout` list in the
@@ -219,5 +234,5 @@ export type ComboEntryProps = {
  * server's id when it is a key) and its detail page opens. Otherwise, or when nothing is found, the name is shown at the
  * top (and copied when possible) and the plain list is revealed: the Chance tab closes the guide, Home opens the list.
  */
-export declare function ComboEntry({ placement, url, headers, load, loadKey, usn, theme, sample, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, onDetailSignal, onSheetShown, onTrialConsent, onTrialNotify, loadTrials, onTrialCancelled, chipTop, chipRight, sheetTop, popupArt, popupAd, }: ComboEntryProps): ReactElement | null;
+export declare function ComboEntry({ placement, url, headers, load, loadKey, usn, theme, sample, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, onDetailSignal, onSheetShown, onTrialConsent, onTrialNotify, loadTrials, onTrialCancelled, chipTop, chipRight, sheetTop, popupArt, popupAd, loadSnapPlay, onSnapPlayAds, }: ComboEntryProps): ReactElement | null;
 export {};

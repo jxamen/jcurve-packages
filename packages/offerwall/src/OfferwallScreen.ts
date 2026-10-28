@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { OfferwallView } from './index';
-import { notifyWallGone, notifyWallLoaded, setChanceTabInset } from './wallSignal';
+import { notifyWallGone, notifyWallLoaded, setChanceTab, setChanceTabInset } from './wallSignal';
 import { ADPOPCORN_PROVIDER_ID, useChanceProviders, type ChanceProvider } from './chanceProviders';
 
 /** 「찬스2」 같은 전체 화면 제공자 칸의 글. 앱이 `launcherCopy` 로 일부만 바꿀 수 있다. */
@@ -100,6 +100,10 @@ export function OfferwallScreen({ usn, onClose, onRetry, loadingColor, topInset 
   // Tell the combos chip how far down the tab row pushes the wall (the chip is drawn by the app beside this screen).
   React.useEffect(() => { setChanceTabInset(tabs ? tabHeight || CHANCE_TAB_FALLBACK_HEIGHT : 0); }, [tabs, tabHeight]);
   React.useEffect(() => () => setChanceTabInset(0), []);
+  // 0.6.2: tell 「포인트 빨리 모으기」 (ComboEntry, drawn by the app beside this screen) which tab is up, so each tab shows its own list.
+  const tabId = tabs && current ? current.id : ADPOPCORN_PROVIDER_ID;
+  React.useEffect(() => { setChanceTab(tabId); }, [tabId]);
+  React.useEffect(() => () => setChanceTab(ADPOPCORN_PROVIDER_ID), []);
 
   // Warm the launchers up (SDK init, member) while the member is still on 찬스1, so 찬스2 opens at once. A failure here changes nothing on screen.
   React.useEffect(() => {

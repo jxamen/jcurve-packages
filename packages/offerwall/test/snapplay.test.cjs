@@ -43,8 +43,8 @@ beforeEach(() => { env = { os: 'ios', native: true, sdk: fakeSdk(), requires: 0 
 
 test('config: the documented shape, plain strings, mediaKey spelling, placement and enabled — and what is refused', () => {
   const { snap } = fresh();
-  assert.deepEqual(snap.parseSnapPlayConfig(CONFIG), { android: 'AND-APP-ID', ios: 'IOS-APP-ID', placement: 'main', enabled: true, embed: true });
-  assert.deepEqual(snap.parseSnapPlayConfig({ android: 'AAAA-1', ios: 'BBBB-2', placementName: 'chance_2', enabled: false }), { android: 'AAAA-1', ios: 'BBBB-2', placement: 'chance_2', enabled: false, embed: true });
+  assert.deepEqual(snap.parseSnapPlayConfig(CONFIG), { android: 'AND-APP-ID', ios: 'IOS-APP-ID', placement: 'main', enabled: true, embed: true, listPlacement: '' });
+  assert.deepEqual(snap.parseSnapPlayConfig({ android: 'AAAA-1', ios: 'BBBB-2', placementName: 'chance_2', enabled: false }), { android: 'AAAA-1', ios: 'BBBB-2', placement: 'chance_2', enabled: false, embed: true, listPlacement: '' });
   assert.equal(snap.parseSnapPlayConfig({ config: { ios: { mediaKey: ' MK-12345 ' } } }).ios, 'MK-12345');
   assert.equal(snap.parseSnapPlayConfig({ config: { ios: { appId: 'X1' } } }), null, 'too short to be an id');
   assert.equal(snap.parseSnapPlayConfig({ ok: false, config: CONFIG.config }), null);

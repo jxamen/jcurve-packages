@@ -22,7 +22,16 @@ export const SNAPPLAY_INIT_TIMEOUT_MS = 10_000;
 export const SNAPPLAY_VIEW_NAME = 'JCurveSnapPlayView';
 
 /** 서버가 앱마다 · OS 마다 주는 값. 앱 ID 가 없는 OS 에서는 제공자가 꺼진다. */
-export type SnapPlayServerConfig = { android: string; ios: string; placement: string; enabled: boolean; /** 0.6.0 — `false` 면 탭 안에 끼우지 않고 전체 화면(모달)으로 연다(서버에서 끄는 스위치; 기본 true) */ embed: boolean };
+export type SnapPlayServerConfig = {
+  android: string; ios: string; placement: string; enabled: boolean;
+  /** 0.6.0 — `false` 면 탭 안에 끼우지 않고 전체 화면(모달)으로 연다(서버에서 끄는 스위치; 기본 true) */
+  embed: boolean;
+  /**
+   * 0.6.2 — 광고 목록 읽기 · 추천 미션 직접 열기에 쓰는 플레이스먼트. 스냅플레이 문서가 목록용으로 "main" 을 못 쓰게 해서, 콘솔에서 따로 만든 이름을 서버가 `listPlacement` 로 준다.
+   * 비어 있으면 직접 열기는 꺼지고(찬스2 탭으로만 보냄) 목록도 읽지 않는다.
+   */
+  listPlacement: string;
+};
 
 const ID_PATTERN = /^[^\s\u0000-\u001f]{4,200}$/;
 const PLACEMENT_PATTERN = /^[A-Za-z0-9_.-]{1,64}$/;
@@ -32,6 +41,12 @@ function pickId(value: unknown): string {
     ? ((value as Record<string, unknown>).appId ?? (value as Record<string, unknown>).mediaKey ?? (value as Record<string, unknown>).appKey) : '');
   const id = typeof raw === 'string' ? raw.trim() : '';
   return ID_PATTERN.test(id) ? id : '';
+}
+
+function pickListPlacement(root: Record<string, unknown>): string {
+  const raw = [root.listPlacement, root.list_placement, root.dataPlacement].find((value) => typeof value === 'string') as string | undefined;
+  const name = (raw ?? '').trim();
+  return PLACEMENT_PATTERN.test(name) && name !== SNAPPLAY_DEFAULT_PLACEMENT ? name : '';
 }
 
 /**
@@ -52,6 +67,7 @@ export function parseSnapPlayConfig(data: unknown): SnapPlayServerConfig | null 
     placement: PLACEMENT_PATTERN.test(placementRaw.trim()) ? placementRaw.trim() : SNAPPLAY_DEFAULT_PLACEMENT,
     enabled: root.enabled !== false,
     embed: root.embed !== false,
+    listPlacement: pickListPlacement(root),
   };
 }
 
@@ -67,6 +83,9 @@ type Api = {
   setAppIdForAndroid(id: string): Promise<void>; setAppIdForIOS(id: string): Promise<void>;
   initSdk(): Promise<void>; showOfferwall(placement: string): Promise<void>;
   setUserName(userName: string, displayName?: string): Promise<void>; resetUserName(): Promise<void>;
+  /** 0.6.2 — Data API(플러그인 1.0.38 에 있음). 옛 플러그인에 없으면 직접 열기가 꺼진다. */
+  requestOfferwallData?(placementName: string, isEmbeded: boolean): Promise<string>;
+  openAdItem?(advId: number, needDetail: boolean, placementFrom: string): Promise<void>;
   onInitCompleted(callback: (event: { flag?: boolean }) => void): unknown;
   onLoginRequested(callback: (event: unknown) => void): unknown;
 };
@@ -98,10 +117,10 @@ function appId(): string {
   return !config || !config.enabled || !os ? '' : config[os];
 }
 
-export type SnapPlayStatus = { native: boolean; configured: boolean; enabled: boolean; hasAppId: boolean; initialized: boolean; placement: string };
+export type SnapPlayStatus = { native: boolean; configured: boolean; enabled: boolean; hasAppId: boolean; initialized: boolean; placement: string; /** 0.6.2 — 목록 읽기 · 직접 열기가 가능한가(플러그인에 Data API 가 있고 서버가 `listPlacement` 를 줬다) */ directOpen: boolean };
 /** 진단용(값은 내보내지 않는다): 네이티브 모듈이 있는지 · 설정이 왔는지 · 이 OS 의 앱 ID 가 있는지 · 초기화가 끝났는지. */
 export function snapPlayStatus(): SnapPlayStatus {
-  return { native: hasSnapPlayNative(), configured: config !== null, enabled: config?.enabled === true, hasAppId: appId() !== '', initialized: inited, placement: config?.placement ?? SNAPPLAY_DEFAULT_PLACEMENT };
+  return { native: hasSnapPlayNative(), configured: config !== null, enabled: config?.enabled === true, hasAppId: appId() !== '', initialized: inited, placement: config?.placement ?? SNAPPLAY_DEFAULT_PLACEMENT, directOpen: directOpenAvailable() };
 }
 
 /**
@@ -177,11 +196,146 @@ async function open(context: ChanceContext): Promise<ChanceResult> {
 export function forgetSnapPlayUser(): void {
   latest = null;
   userKey = '';
+  adsCache = null;
   if (!inited) return;
   try { Promise.resolve(api()?.resetUserName()).catch(() => {}); } catch { /* 지우지 못해도 다음 열기에서 새 회원으로 다시 설정한다 */ }
 }
 /** 설정까지 모두 비운다(앱 바뀜 · 시험). SDK 초기화 상태는 프로세스가 사는 동안 유지된다. */
-export function resetSnapPlay(): void { forgetSnapPlayUser(); config = null; notifyChanceProviders(); }
+export function resetSnapPlay(): void { forgetSnapPlayUser(); config = null; adsFlight = null; notifyChanceProviders(); }
+
+/* ── 0.6.2: 광고 목록 읽기 · 추천 미션 직접 열기 ──────────────────────────────────────────────── */
+
+/** SDK 의 Data API 가 주는 광고 한 건(필요한 칸만). `advId` 가 캠페인 키이고 `openAdItem` 에 그대로 쓴다. */
+export type SnapPlayAd = {
+  advId: string; title: string; description: string;
+  /** 목록의 `user_pnt`(사용자 적립 포인트) — 전환 비율이 이미 반영된 값인지는 문서에 없다. 실기기에서 같은 광고의 화면 표시와 비교해 확인한다. */
+  points: number;
+  /** `org_user_pnt` — 2배 이벤트 같은 때의 원래 값(없으면 `points`) */
+  originalPoints: number;
+  unit: string; icon: string; feed: string;
+  advType: number; actionType: number; actions: number;
+  /** `detail_yn === 'Y'`: 상세 화면이 있다(`openAdItem` 의 `needDetail`) */
+  detail: boolean;
+  /** `adid_yn === 'Y'`: 광고 ID 가 있어야 참여할 수 있는 광고 */
+  needsAdid: boolean;
+};
+export const SNAPPLAY_LIST_TIMEOUT_MS = 6_000;
+/** 읽은 목록을 이만큼(ms) 다시 쓴다 — 미션을 연달아 누를 때마다 SDK 를 부르지 않게. */
+export const SNAPPLAY_LIST_TTL_MS = 60_000;
+const MAX_ADS = 500;
+
+const finiteNumber = (value: unknown): number => {
+  const n = typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;
+  return Number.isFinite(n) ? n : NaN;
+};
+const plain = (value: unknown, max: number): string => (typeof value === 'string' ? value.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, max) : '');
+const httpsUrl = (value: unknown): string => { const text = plain(value, 600); return /^https:\/\//i.test(text) ? text : ''; };
+
+/**
+ * `requestOfferwallData` 의 JSON 문자열(또는 이미 읽은 객체) → 광고 목록. `ret_cd` 가 0 이 아니거나 `ret_list` 가 배열이 아니면 null(= 목록을 못 읽음, 빈 목록과 다르다).
+ * 광고 번호가 없거나 제목이 없는 건은 버리고, 같은 번호는 한 번만, 최대 500건.
+ */
+export function parseSnapPlayAds(raw: unknown): SnapPlayAd[] | null {
+  let body: unknown = raw;
+  if (typeof raw === 'string') { try { body = JSON.parse(raw); } catch { return null; } }
+  if (!body || typeof body !== 'object') return null;
+  const top = body as Record<string, unknown>;
+  if (finiteNumber(top.ret_cd) !== 0 || !Array.isArray(top.ret_list)) return null;
+  const seen = new Set<string>();
+  const ads: SnapPlayAd[] = [];
+  for (const item of top.ret_list) {
+    if (ads.length >= MAX_ADS) break;
+    if (!item || typeof item !== 'object') continue;
+    const ad = item as Record<string, unknown>;
+    const id = finiteNumber(ad.adv_id);
+    const title = plain(ad.adv_title, 80);
+    if (!Number.isSafeInteger(id) || id <= 0 || !title || seen.has(String(id))) continue;
+    seen.add(String(id));
+    const points = finiteNumber(ad.user_pnt);
+    const original = finiteNumber(ad.org_user_pnt);
+    ads.push({
+      advId: String(id), title, description: plain(ad.adv_desc, 200),
+      points: points >= 0 ? points : 0, originalPoints: original >= 0 ? original : points >= 0 ? points : 0,
+      unit: plain(ad.pnt_unit, 12), icon: httpsUrl(ad.icon_img_url), feed: httpsUrl(ad.feed_img_url),
+      advType: finiteNumber(ad.adv_type) || 0, actionType: finiteNumber(ad.actn_type) || 0, actions: finiteNumber(ad.num_actions) || 1,
+      detail: ad.detail_yn === 'Y', needsAdid: ad.adid_yn === 'Y',
+    });
+  }
+  return ads;
+}
+
+/** 목록 읽기 · 직접 열기에 필요한 것이 다 있는가: 이 OS 의 앱 ID, 서버가 준 목록용 플레이스먼트, 플러그인의 Data API. */
+function directOpenAvailable(): boolean {
+  try {
+    const sdk = api();
+    return !!sdk && appId() !== '' && !!config?.listPlacement && typeof sdk.requestOfferwallData === 'function' && typeof sdk.openAdItem === 'function';
+  } catch { return false; }
+}
+
+let adsCache: { at: number; placement: string; ads: SnapPlayAd[] } | null = null;
+let adsFlight: Promise<SnapPlayAd[] | null> | null = null;
+
+export type SnapPlayAdsResult =
+  | { ok: true; ads: SnapPlayAd[]; cached: boolean }
+  | { ok: false; reason: 'unsupported' | 'not_ready' | 'invalid_usn' | 'list_failed' };
+
+/**
+ * 스냅플레이 SDK 에서 지금 참여할 수 있는 광고 목록을 읽는다(`requestOfferwallData(listPlacement, false)` = 전체 목록). 먼저 SDK 를 준비한다(앱 ID · 회원).
+ * 같은 목록을 `SNAPPLAY_LIST_TTL_MS` 동안 다시 쓰고, 동시에 부르면 한 번만 읽는다. 목록은 OS · 기기에 따라 다르다. 던지지 않는다.
+ */
+export async function readSnapPlayAds(context?: ChanceContext, opts: { fresh?: boolean } = {}): Promise<SnapPlayAdsResult> {
+  const sdk = api();
+  const placement = config?.listPlacement ?? '';
+  if (!sdk || !placement || !config?.enabled || appId() === '' || typeof sdk.requestOfferwallData !== 'function') return { ok: false, reason: 'unsupported' };
+  const who = context ?? latest;
+  if (!who) return { ok: false, reason: 'not_ready' };
+  const ready = await prepare(who);
+  if (!ready.ok) return { ok: false, reason: ready.reason === 'invalid_usn' ? 'invalid_usn' : 'not_ready' };
+  if (!opts.fresh && adsCache && adsCache.placement === placement && Date.now() - adsCache.at < SNAPPLAY_LIST_TTL_MS) return { ok: true, ads: adsCache.ads, cached: true };
+  const request = sdk.requestOfferwallData.bind(sdk);
+  if (!adsFlight) {
+    adsFlight = (async () => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const text = await Promise.race([request(placement, false), new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), SNAPPLAY_LIST_TIMEOUT_MS); })]);
+        const ads = text === null ? null : parseSnapPlayAds(text);
+        if (ads) adsCache = { at: Date.now(), placement, ads };
+        return ads;
+      } catch { return null; } finally { if (timer) clearTimeout(timer); adsFlight = null; }
+    })();
+  }
+  const ads = await adsFlight;
+  return ads ? { ok: true, ads, cached: false } : { ok: false, reason: 'list_failed' };
+}
+
+export type SnapPlayOpenResult =
+  | { ok: true; listCount: number }
+  /** `gone`: 방금 읽은 최신 목록에 그 광고가 없다(마감되었거나 이 기기에 해당 없음). `unsupported`/`list_failed`/`not_ready`/`invalid_usn`/`sdk_error`: 직접 열 수 없었다 — 앱은 찬스2 탭 목록으로 안내한다. */
+  | { ok: false; reason: 'unsupported' | 'not_ready' | 'invalid_usn' | 'list_failed' | 'gone' | 'sdk_error'; listCount: number };
+
+/**
+ * 추천 미션 → 그 광고의 SDK 화면(`openAdItem`). 광고 번호가 방금 읽은 목록에 있는지 먼저 본다 — 목록에서 상세 화면 여부(`detail_yn`)를 알아야 하고, 없으면 마감으로 본다.
+ * 캐시된 목록에 없으면 한 번 새로 읽고 나서 판단한다. SDK 가 화면을 열었는지는 돌려주지 않으므로 `ok` 는 「열기를 요청했다」까지다. 던지지 않는다.
+ */
+export async function openSnapPlayAd(advId: string | number, context?: ChanceContext): Promise<SnapPlayOpenResult> {
+  const id = typeof advId === 'number' ? advId : /^\d{1,16}$/.test(String(advId).trim()) ? Number(String(advId).trim()) : NaN;
+  const sdk = api();
+  const placement = config?.listPlacement ?? '';
+  if (!Number.isSafeInteger(id) || id <= 0 || !sdk || !placement || typeof sdk.openAdItem !== 'function') return { ok: false, reason: 'unsupported', listCount: 0 };
+  try {
+    let read = await readSnapPlayAds(context);
+    if (!read.ok) return { ok: false, reason: read.reason, listCount: 0 };
+    let ad = read.ads.find((item) => item.advId === String(id));
+    if (!ad && read.cached) {
+      read = await readSnapPlayAds(context, { fresh: true });
+      if (!read.ok) return { ok: false, reason: read.reason, listCount: 0 };
+      ad = read.ads.find((item) => item.advId === String(id));
+    }
+    if (!ad) return { ok: false, reason: 'gone', listCount: read.ads.length };
+    await sdk.openAdItem(id, ad.detail, placement);
+    return { ok: true, listCount: read.ads.length };
+  } catch { return { ok: false, reason: 'sdk_error', listCount: 0 }; }
+}
 
 /** 이 빌드에 스냅플레이 화면 뷰가 있는가 — `UIManager` 의 뷰 목록 조회뿐(없으면 false, 던지지 않음). */
 export function snapPlayViewAvailable(): boolean {

@@ -19,4 +19,13 @@ export declare function setChanceTabInset(px: number): void;
 export declare function getChanceTabInset(): number;
 /** Calls back whenever the tab row's height changes. Returns the unsubscribe function. */
 export declare function onChanceTabInset(listener: InsetListener): () => void;
+/**
+ * 0.6.2 — which 「찬스」 tab is up (`'adpopcorn'` = 찬스1, `'snapplay'` = 찬스2). `OfferwallScreen` sets it when the member picks a tab (and back to `'adpopcorn'` when there are no tabs or the
+ * screen goes away); `ComboEntry` follows it, so 「포인트 빨리 모으기」 shows each tab's own list.
+ */
+type TabListener = (id: string) => void;
+export declare function setChanceTab(id: string): void;
+export declare function getChanceTab(): string;
+/** Calls back whenever the picked 찬스 tab changes. Returns the unsubscribe function. */
+export declare function onChanceTab(listener: TabListener): () => void;
 export {};
