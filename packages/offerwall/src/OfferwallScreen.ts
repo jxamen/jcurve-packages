@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { OfferwallView } from './index';
-import { notifyWallGone, notifyWallLoaded } from './wallSignal';
+import { notifyWallGone, notifyWallLoaded, setChanceTabInset } from './wallSignal';
 import { ADPOPCORN_PROVIDER_ID, useChanceProviders, type ChanceProvider } from './chanceProviders';
 
 /** 「찬스2」 같은 전체 화면 제공자 칸의 글. 앱이 `launcherCopy` 로 일부만 바꿀 수 있다. */
@@ -30,6 +30,8 @@ export type OfferwallScreenProps = {
 export const OFFERWALL_SCREEN_MARK = 'jcurve-offerwall-screen:headerless-v1';
 /** 0.5.0 번들 표식 — 배포 검사가 「찬스1 · 찬스2 탭이 들어 있는 판」인지 문자열로 본다. */
 export const OFFERWALL_CHANCE_TABS_MARK = 'jcurve-offerwall-chance-tabs:v1';
+/** Until the tab row has been measured, its height is taken as this (44 minHeight + the 1px border + the 2px selected line fits inside the 44). */
+export const CHANCE_TAB_FALLBACK_HEIGHT = 45;
 
 type ClassicProps = Pick<OfferwallScreenProps, 'usn' | 'onClose' | 'onRetry' | 'loadingColor' | 'topInset'> & { hidden?: boolean };
 
@@ -85,6 +87,7 @@ export function OfferwallScreen({ usn, onClose, onRetry, loadingColor, topInset 
   const providers = useChanceProviders();
   const [picked, setPicked] = React.useState<string>(ADPOPCORN_PROVIDER_ID);
   const [launch, setLaunch] = React.useState<Launch>(IDLE);
+  const [tabHeight, setTabHeight] = React.useState(0);
   const alive = React.useRef(true);
   React.useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const copy: LauncherCopy = { ...DEFAULT_LAUNCHER_COPY, ...launcherCopy };
@@ -93,6 +96,10 @@ export function OfferwallScreen({ usn, onClose, onRetry, loadingColor, topInset 
   const current: ChanceProvider | undefined = providers.find((provider) => provider.id === picked) ?? providers[0];
   const launcher = tabs && current?.kind === 'launcher' ? current : undefined;
   const ids = providers.map((provider) => provider.id).join('|');
+
+  // Tell the combos chip how far down the tab row pushes the wall (the chip is drawn by the app beside this screen).
+  React.useEffect(() => { setChanceTabInset(tabs ? tabHeight || CHANCE_TAB_FALLBACK_HEIGHT : 0); }, [tabs, tabHeight]);
+  React.useEffect(() => () => setChanceTabInset(0), []);
 
   // Warm the launchers up (SDK init, member) while the member is still on 찬스1, so 찬스2 opens at once. A failure here changes nothing on screen.
   React.useEffect(() => {
@@ -114,7 +121,8 @@ export function OfferwallScreen({ usn, onClose, onRetry, loadingColor, topInset 
     if (provider.kind === 'launcher' && autoOpenLauncher) open(provider);
   };
 
-  const tabBar = !tabs ? null : h(View, { accessibilityRole: 'tablist', style: { flexDirection: 'row', backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' } },
+  const tabBar = !tabs ? null : h(View, { accessibilityRole: 'tablist', onLayout: (event: { nativeEvent?: { layout?: { height?: number } } }) => { const height = event?.nativeEvent?.layout?.height; if (typeof height === 'number' && height > 0) setTabHeight(Math.round(height)); },
+    style: { flexDirection: 'row', backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' } },
     providers.map((provider, index) => {
       const selected = provider.id === current?.id;
       const label = `찬스${index + 1}`;

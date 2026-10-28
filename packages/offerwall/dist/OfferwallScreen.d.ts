@@ -28,6 +28,8 @@ export type OfferwallScreenProps = {
 export declare const OFFERWALL_SCREEN_MARK = "jcurve-offerwall-screen:headerless-v1";
 /** 0.5.0 번들 표식 — 배포 검사가 「찬스1 · 찬스2 탭이 들어 있는 판」인지 문자열로 본다. */
 export declare const OFFERWALL_CHANCE_TABS_MARK = "jcurve-offerwall-chance-tabs:v1";
+/** Until the tab row has been measured, its height is taken as this (44 minHeight + the 1px border + the 2px selected line fits inside the 44). */
+export declare const CHANCE_TAB_FALLBACK_HEIGHT = 45;
 /**
  * Tab content: no host header. The host owns status-bar and bottom-tab safe areas.
  *

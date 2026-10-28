@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.OFFERWALL_CHANCE_TABS_MARK = exports.OFFERWALL_SCREEN_MARK = exports.DEFAULT_LAUNCHER_COPY = void 0;
+exports.CHANCE_TAB_FALLBACK_HEIGHT = exports.OFFERWALL_CHANCE_TABS_MARK = exports.OFFERWALL_SCREEN_MARK = exports.DEFAULT_LAUNCHER_COPY = void 0;
 exports.OfferwallScreen = OfferwallScreen;
 const index_1 = require("./index");
 const wallSignal_1 = require("./wallSignal");
@@ -11,6 +11,8 @@ exports.DEFAULT_LAUNCHER_COPY = {
 exports.OFFERWALL_SCREEN_MARK = 'jcurve-offerwall-screen:headerless-v1';
 /** 0.5.0 번들 표식 — 배포 검사가 「찬스1 · 찬스2 탭이 들어 있는 판」인지 문자열로 본다. */
 exports.OFFERWALL_CHANCE_TABS_MARK = 'jcurve-offerwall-chance-tabs:v1';
+/** Until the tab row has been measured, its height is taken as this (44 minHeight + the 1px border + the 2px selected line fits inside the 44). */
+exports.CHANCE_TAB_FALLBACK_HEIGHT = 45;
 /** The 0.2.3 screen (AdPopcorn wall) as it was. `hidden` only keeps it mounted but out of sight while another tab is up. */
 function ClassicScreen({ usn, onClose, onRetry, loadingColor = '#555', topInset = 0, hidden = false }) {
     const React = require('react');
@@ -61,6 +63,7 @@ function OfferwallScreen({ usn, onClose, onRetry, loadingColor, topInset = 0, ta
     const providers = (0, chanceProviders_1.useChanceProviders)();
     const [picked, setPicked] = React.useState(chanceProviders_1.ADPOPCORN_PROVIDER_ID);
     const [launch, setLaunch] = React.useState(IDLE);
+    const [tabHeight, setTabHeight] = React.useState(0);
     const alive = React.useRef(true);
     React.useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
     const copy = { ...exports.DEFAULT_LAUNCHER_COPY, ...launcherCopy };
@@ -68,6 +71,9 @@ function OfferwallScreen({ usn, onClose, onRetry, loadingColor, topInset = 0, ta
     const current = providers.find((provider) => provider.id === picked) ?? providers[0];
     const launcher = tabs && current?.kind === 'launcher' ? current : undefined;
     const ids = providers.map((provider) => provider.id).join('|');
+    // Tell the combos chip how far down the tab row pushes the wall (the chip is drawn by the app beside this screen).
+    React.useEffect(() => { (0, wallSignal_1.setChanceTabInset)(tabs ? tabHeight || exports.CHANCE_TAB_FALLBACK_HEIGHT : 0); }, [tabs, tabHeight]);
+    React.useEffect(() => () => (0, wallSignal_1.setChanceTabInset)(0), []);
     // Warm the launchers up (SDK init, member) while the member is still on 찬스1, so 찬스2 opens at once. A failure here changes nothing on screen.
     React.useEffect(() => {
         if (!usn || !tabs)
@@ -96,7 +102,9 @@ function OfferwallScreen({ usn, onClose, onRetry, loadingColor, topInset = 0, ta
         if (provider.kind === 'launcher' && autoOpenLauncher)
             open(provider);
     };
-    const tabBar = !tabs ? null : h(View, { accessibilityRole: 'tablist', style: { flexDirection: 'row', backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' } }, providers.map((provider, index) => {
+    const tabBar = !tabs ? null : h(View, { accessibilityRole: 'tablist', onLayout: (event) => { const height = event?.nativeEvent?.layout?.height; if (typeof height === 'number' && height > 0)
+            setTabHeight(Math.round(height)); },
+        style: { flexDirection: 'row', backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' } }, providers.map((provider, index) => {
         const selected = provider.id === current?.id;
         const label = `찬스${index + 1}`;
         return h(Pressable, { key: provider.id, accessibilityRole: 'tab', accessibilityState: { selected }, accessibilityLabel: label, onPress: () => pick(provider),

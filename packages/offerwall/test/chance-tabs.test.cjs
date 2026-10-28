@@ -22,7 +22,7 @@ Module._load = function (id, ...args) {
 };
 const { OfferwallScreen } = require('../dist/OfferwallScreen');
 const chance = require('../dist/chanceProviders');
-const { isWallLoaded } = require('../dist/wallSignal');
+const { isWallLoaded, getChanceTabInset } = require('../dist/wallSignal');
 
 const USN = 'a'.repeat(64);
 const base = { usn: USN, onClose() {}, onRetry() {} };
@@ -198,4 +198,21 @@ test('the bundle carries the marks the publish check looks for', () => {
   const screen = require('../dist/OfferwallScreen');
   assert.equal(screen.OFFERWALL_SCREEN_MARK, 'jcurve-offerwall-screen:headerless-v1');
   assert.equal(screen.OFFERWALL_CHANCE_TABS_MARK, 'jcurve-offerwall-chance-tabs:v1');
+});
+
+test('the tab row reports its height so the chip can move under it: fallback until measured, the measured height after, 0 when the tabs go away or the screen unmounts', async () => {
+  let on = true;
+  launcher({ provider: { available: () => on } });
+  assert.equal(getChanceTabInset(), 0);
+  await mount();
+  assert.equal(getChanceTabInset(), 45, 'fallback height before the first layout');
+  const list = tree.root.findAll((n) => n.props.accessibilityRole === 'tablist')[0];
+  await act(async () => { list.props.onLayout({ nativeEvent: { layout: { height: 46 } } }); });
+  assert.equal(getChanceTabInset(), 46);
+  await act(async () => { on = false; chance.notifyChanceProviders(); });
+  assert.equal(getChanceTabInset(), 0, 'one provider only: the screen is the old one, nothing is pushed down');
+  await act(async () => { on = true; chance.notifyChanceProviders(); });
+  assert.equal(getChanceTabInset(), 46, 'tabs again: the measured height is remembered');
+  await act(() => tree.unmount()); tree = undefined;
+  assert.equal(getChanceTabInset(), 0, 'screen gone');
 });

@@ -382,6 +382,10 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     const popupSeen = (0, comboSeen_1.useSeenToday)({ storage, scope: loadKey, date: state.combos?.date, keyOf: comboSeen_1.popupStorageKey });
     const [popup, setPopup] = React.useState(false);
     const [wallReady, setWallReady] = React.useState(wallSignal_1.isWallLoaded);
+    // 0.5.1: the 「찬스1 · 찬스2」 tab row above the wall pushes everything down by its height — the chip row, the sheet and the toast follow
+    const [tabInset, setTabInset] = React.useState(wallSignal_1.getChanceTabInset);
+    React.useEffect(() => (placement === 'chance' ? (0, wallSignal_1.onChanceTabInset)(setTabInset) : undefined), [placement]);
+    const inset = placement === 'chance' ? tabInset : 0;
     const everOpened = React.useRef(false);
     const popupGiven = React.useRef(false); // at most one popup per visit (entry mount), even when it is shown on every visit
     React.useEffect(() => (placement === 'chance' ? (0, wallSignal_1.onWallState)(setWallReady) : undefined), [placement]);
@@ -660,20 +664,20 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     return h(React.Fragment, null, open ? h(Pressable, {
         key: 'backdrop', accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: close,
         style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20, elevation: 20, backgroundColor: 'rgba(0,0,0,0.3)' },
-    }) : null, open ? h(ComboSheet, { key: 'sheet', top: sheetTop, theme }, guide('sheet')) : null, trialsOpen ? h(Pressable, {
+    }) : null, open ? h(ComboSheet, { key: 'sheet', top: sheetTop + inset, theme }, guide('sheet')) : null, trialsOpen ? h(Pressable, {
         key: 'trials-backdrop', accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: () => setTrialsOpen(false),
         style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20, elevation: 20, backgroundColor: 'rgba(0,0,0,0.3)' },
-    }) : null, trialsOpen ? h(ComboSheet, { key: 'trials-sheet', top: sheetTop, theme }, h(comboTrials_1.ComboTrialsScreen, {
+    }) : null, trialsOpen ? h(ComboSheet, { key: 'trials-sheet', top: sheetTop + inset, theme }, h(comboTrials_1.ComboTrialsScreen, {
         items: mine.items, loading: mine.loading, failed: mine.failed, theme, focusKey: trialsFocus, onRetry: loadMine,
         onClose: () => setTrialsOpen(false), onCancelled: markCancelled,
         // a row of my own list opens its campaign straight away (these were joined already: no consent question again)
         onOpen: (trial) => { void handleMission({ id: trial.campaignKey, name: trial.name, points: trial.points ?? 1, todo: '', level: 'easy', campaignKey: trial.campaignKey }, { goal: 0, missions: [], total: 0 }, { skipConsent: true }); },
     })) : null, popup && !open && !trialsOpen && state.combos ? h(ComboPopup, { combos: state.combos, theme, art: popupArt, ad: popupAd, onOpen: () => { setPopup(false); setOpen(true); }, onClose: () => setPopup(false) }) : null, shown ? h(ComboChip, {
-        key: 'chip', open, theme, top: chipTop, right: chipRight, opacity: blink, fit: chipFit ?? undefined,
+        key: 'chip', open, theme, top: (chipTop ?? exports.COMBO_CHIP_TOP) + inset, right: chipRight, opacity: blink, fit: chipFit ?? undefined,
         before: trialsChip && chipFit ? h(ComboTrialsChip, { open: trialsOpen, theme, fit: chipFit, onPress: () => { if (trialsOpen)
                 setTrialsOpen(false);
             else
                 openTrials(); } }) : null,
         onPress: () => { setTrialsOpen(false); setOpen(o => !o); },
-    }) : null, notice ? h(ComboToast, { key: 'notice', text: notice, top: sheetTop + 8, theme }) : null, consentView);
+    }) : null, notice ? h(ComboToast, { key: 'notice', text: notice, top: sheetTop + inset + 8, theme }) : null, consentView);
 }
