@@ -1,0 +1,5 @@
+jcurve-mission-0.4.16-mc1.tgz
+sha256 b38cb24e07b0d123f3a5d4bfd9e348f3c99df0186e28b6a8324ad426b3ca1a20
+integrity sha512-80kotoG0Tg8uZMe58J17sfwXHNQYMFUsOSLHDBuBtdOLHePuTrQa2MFRalYUfpnfbH8bTkHZWWI2+CBldOGQjQ==
+base: 영테크 a0506b20 vendor/jcurve-mission-0.4.16.tgz sha256 3ed54cb5c763552713854a8f9d67d2b4af3d40eb7e6e9a2beb74aa132f8e0244
+source: jcurve-packages feat/mission-0.4.16-merged-card (0.4.16 63a7097 + mergedCard)

@@ -1,0 +1,153 @@
+diff -ruN a/yt-mission-0.4.16/dist/pages/StepsPage.d.ts b/yt-mission-0.4.16/dist/pages/StepsPage.d.ts
+--- a/yt-mission-0.4.16/dist/pages/StepsPage.d.ts	1985-10-26 17:15:00
++++ b/yt-mission-0.4.16/dist/pages/StepsPage.d.ts	2026-10-28 21:37:42
+@@ -35,5 +35,10 @@
+     theme?: Partial<MissionPageTheme>;
+     /** 광고 자리 — 앱이 네이티브 광고를 넣는다(패키지는 광고를 모른다). 0.4.6 부터 「남은 횟수」 카드 아래 · 「만보기 안내사항」 위 */
+     footer?: ReactNode;
++    /**
++     * (0.4.16-mc1, 대표님 10-28 21:26~27) true 면 위쪽 큰 걸음 수 · 말풍선을 없애고 「남은 횟수」 카드 한 장 안에 합친다 — 「오늘 걸음 N걸음」 · 「남은 횟수 N번」 · 설명 한 줄 ·
++     * (받을 횟수가 0일 때만) 상태 줄(다음 걸음까지 / 다 받음) · 단추. 기본 false = 지금 모양 그대로(이 화면을 쓰는 다른 앱에 영향 없음).
++     */
++    mergedCard?: boolean;
+ };
+-export declare function StepsPage({ todaySteps, stages, earnedToday, stepsAvailable, onUpdate, onClaim, onBack, swipeBack, everySteps, guide, title, theme: themeIn, footer }: StepsPageProps): React.JSX.Element;
++export declare function StepsPage({ todaySteps, stages, earnedToday, stepsAvailable, onUpdate, onClaim, onBack, swipeBack, everySteps, guide, title, theme: themeIn, footer, mergedCard }: StepsPageProps): React.JSX.Element;
+diff -ruN a/yt-mission-0.4.16/dist/pages/StepsPage.js b/yt-mission-0.4.16/dist/pages/StepsPage.js
+--- a/yt-mission-0.4.16/dist/pages/StepsPage.js	1985-10-26 17:15:00
++++ b/yt-mission-0.4.16/dist/pages/StepsPage.js	2026-10-28 21:37:42
+@@ -22,7 +22,7 @@
+     '배터리 절약 모드 등에서는 걸음 수가 정확하지 않을 수 있어요.',
+     '만보기 보상과 조건은 사정에 따라 바뀔 수 있어요.',
+ ];
+-function StepsPage({ todaySteps, stages, earnedToday = 0, stepsAvailable, onUpdate, onClaim, onBack, swipeBack, everySteps = 1000, guide = DEFAULT_GUIDE, title = '만보기', theme: themeIn, footer }) {
++function StepsPage({ todaySteps, stages, earnedToday = 0, stepsAvailable, onUpdate, onClaim, onBack, swipeBack, everySteps = 1000, guide = DEFAULT_GUIDE, title = '만보기', theme: themeIn, footer, mergedCard = false }) {
+     const theme = (0, PageFrame_1.resolvePageTheme)(themeIn);
+     const [busy, setBusy] = (0, react_1.useState)(false);
+     const [failed, setFailed] = (0, react_1.useState)(false);
+@@ -30,6 +30,8 @@
+     const points = stages[0]?.points ?? 0;
+     const first = summary.claimable[0];
+     const canClaim = stepsAvailable && !!first && !busy;
++    // 합친 카드의 상태 줄: 옛 말풍선 중 「남은 횟수」와 겹치지 않는 것만(받을 횟수가 있으면 없음 · 업데이트 전이면 위 업데이트 안내가 대신함)
++    const status = mergedCard && stepsAvailable && summary.claimable.length === 0 ? (0, logic_1.stepsBubble)({ available: stepsAvailable, todaySteps, stages }) : null;
+     const claim = async () => {
+         // 옛 빌드는 받기 대신 업데이트 창으로(carrot ensureStepsVersion 과 같은 자리)
+         if (!stepsAvailable) {
+@@ -50,7 +52,7 @@
+             setBusy(false);
+         }
+     };
+-    return (0, jsx_runtime_1.jsxs)(PageFrame_1.PageFrame, { title: title, onBack: onBack, swipeBack: swipeBack, theme: theme, children: [(0, jsx_runtime_1.jsxs)(react_native_1.View, { style: s.top, children: [(0, jsx_runtime_1.jsxs)(react_native_1.Text, { style: [s.count, { color: theme.text }], children: [todaySteps.toLocaleString(), (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.unit, { color: theme.sub }], children: " \uAC78\uC74C" })] }), (0, jsx_runtime_1.jsx)(react_native_1.View, { style: [s.bubble, { backgroundColor: theme.card }], children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.bubbleText, { color: theme.text }], children: (0, logic_1.stepsBubble)({ available: stepsAvailable, todaySteps, stages }) }) })] }), !stepsAvailable ? (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: [s.notice, { backgroundColor: theme.card }], children: [(0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.noticeTitle, { color: theme.text }], children: logic_1.UPDATE_NOTICE }), (0, jsx_runtime_1.jsx)(PageFrame_1.PageButton, { big: true, label: "\uC5C5\uB370\uC774\uD2B8\uD558\uAE30", theme: theme, on: true, onPress: onUpdate })] }) : null, failed ? (0, jsx_runtime_1.jsx)(react_native_1.Text, { accessibilityLiveRegion: "polite", style: [s.message, { color: theme.sub }], children: "\uAD11\uACE0 \uD655\uC778\uC774 \uB2A6\uC5B4\uC9C0\uACE0 \uC788\uC5B4\uC694. \uC7A0\uC2DC \uD6C4 \uB2E4\uC2DC \uB20C\uB7EC \uC8FC\uC138\uC694" }) : null, (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: [s.claimCard, { backgroundColor: theme.card }], children: [(0, jsx_runtime_1.jsxs)(react_native_1.Text, { style: [s.claimLeft, { color: theme.text }], children: ["\uB0A8\uC740 \uD69F\uC218 ", (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.claimNum, { color: theme.accent }], children: `${stepsAvailable ? summary.claimable.length : 0}번` })] }), (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.claimSub, { color: theme.sub }], children: `${everySteps.toLocaleString()}걸음마다 광고 보고 ${points}P · 오늘 받은 포인트 ${earnedToday}P` }), (0, jsx_runtime_1.jsx)(PageFrame_1.PageButton, { big: true, label: busy ? '확인 중…' : `광고 보고 ${points}P 받기`, theme: theme, on: canClaim || !stepsAvailable, disabled: stepsAvailable && !canClaim, onPress: () => { void claim(); } })] }), footer != null ? (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.ad, children: footer }) : null, (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: [s.guide, { backgroundColor: theme.card }], children: [(0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.guideTitle, { color: theme.text }], children: "\uB9CC\uBCF4\uAE30 \uC548\uB0B4\uC0AC\uD56D" }), guide.map(line => (0, jsx_runtime_1.jsxs)(react_native_1.Text, { style: [s.guideLine, { color: theme.sub }], children: ["\u00B7 ", line] }, line))] })] });
++    return (0, jsx_runtime_1.jsxs)(PageFrame_1.PageFrame, { title: title, onBack: onBack, swipeBack: swipeBack, theme: theme, children: [mergedCard ? null : (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: s.top, children: [(0, jsx_runtime_1.jsxs)(react_native_1.Text, { style: [s.count, { color: theme.text }], children: [todaySteps.toLocaleString(), (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.unit, { color: theme.sub }], children: " \uAC78\uC74C" })] }), (0, jsx_runtime_1.jsx)(react_native_1.View, { style: [s.bubble, { backgroundColor: theme.card }], children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.bubbleText, { color: theme.text }], children: (0, logic_1.stepsBubble)({ available: stepsAvailable, todaySteps, stages }) }) })] }), !stepsAvailable ? (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: [s.notice, { backgroundColor: theme.card }], children: [(0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.noticeTitle, { color: theme.text }], children: logic_1.UPDATE_NOTICE }), (0, jsx_runtime_1.jsx)(PageFrame_1.PageButton, { big: true, label: "\uC5C5\uB370\uC774\uD2B8\uD558\uAE30", theme: theme, on: true, onPress: onUpdate })] }) : null, failed ? (0, jsx_runtime_1.jsx)(react_native_1.Text, { accessibilityLiveRegion: "polite", style: [s.message, { color: theme.sub }], children: "\uAD11\uACE0 \uD655\uC778\uC774 \uB2A6\uC5B4\uC9C0\uACE0 \uC788\uC5B4\uC694. \uC7A0\uC2DC \uD6C4 \uB2E4\uC2DC \uB20C\uB7EC \uC8FC\uC138\uC694" }) : null, (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: [s.claimCard, { backgroundColor: theme.card }], children: [mergedCard ? (0, jsx_runtime_1.jsxs)(react_native_1.Text, { style: [s.claimLeft, { color: theme.text }], children: ["\uC624\uB298 \uAC78\uC74C ", (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.claimNum, { color: theme.accent }], children: todaySteps.toLocaleString() }), "\uAC78\uC74C"] }) : null, (0, jsx_runtime_1.jsxs)(react_native_1.Text, { style: [s.claimLeft, { color: theme.text }], children: ["\uB0A8\uC740 \uD69F\uC218 ", (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.claimNum, { color: theme.accent }], children: `${stepsAvailable ? summary.claimable.length : 0}번` })] }), (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.claimSub, { color: theme.sub }], children: `${everySteps.toLocaleString()}걸음마다 광고 보고 ${points}P · 오늘 받은 포인트 ${earnedToday}P` }), status ? (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.claimSub, { color: theme.sub }], children: status }) : null, (0, jsx_runtime_1.jsx)(PageFrame_1.PageButton, { big: true, label: busy ? '확인 중…' : `광고 보고 ${points}P 받기`, theme: theme, on: canClaim || !stepsAvailable, disabled: stepsAvailable && !canClaim, onPress: () => { void claim(); } })] }), footer != null ? (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.ad, children: footer }) : null, (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: [s.guide, { backgroundColor: theme.card }], children: [(0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.guideTitle, { color: theme.text }], children: "\uB9CC\uBCF4\uAE30 \uC548\uB0B4\uC0AC\uD56D" }), guide.map(line => (0, jsx_runtime_1.jsxs)(react_native_1.Text, { style: [s.guideLine, { color: theme.sub }], children: ["\u00B7 ", line] }, line))] })] });
+ }
+ const s = react_native_1.StyleSheet.create({
+     top: { alignItems: 'center', paddingTop: 8 },
+diff -ruN a/yt-mission-0.4.16/package.json b/yt-mission-0.4.16/package.json
+--- a/yt-mission-0.4.16/package.json	1985-10-26 17:15:00
++++ b/yt-mission-0.4.16/package.json	2026-10-28 21:37:42
+@@ -1,6 +1,6 @@
+ {
+   "name": "@jcurve/mission",
+-  "version": "0.4.16",
++  "version": "0.4.16-mc1",
+   "description": "공용 미션 카드 페이지 · 쇼핑 미션 화면 · APIHUB 웹뷰와 브릿지",
+   "main": "dist/index.js",
+   "types": "dist/index.d.ts",
+diff -ruN a/yt-mission-0.4.16/src/pages/StepsPage.test.ts b/yt-mission-0.4.16/src/pages/StepsPage.test.ts
+--- a/yt-mission-0.4.16/src/pages/StepsPage.test.ts	1985-10-26 17:15:00
++++ b/yt-mission-0.4.16/src/pages/StepsPage.test.ts	2026-10-28 21:37:42
+@@ -59,3 +59,36 @@
+     expect(left).toBeLessThan(guide);
+   });
+ });
++
++describe('mergedCard — 오늘 걸음을 카드 하나로(0.4.16-mc1, 대표님 10-28 21:26~27)', () => {
++  const texts = (tree: any[]) => strings(tree).join('|');
++  it('기본(false)은 지금 모양 그대로 — 위 큰 걸음 수와 말풍선, 카드에는 「오늘 걸음」 줄이 없다', () => {
++    const tree = page();
++    expect(texts(tree)).toContain('포인트를 2번 받을 수 있어요');
++    expect(texts(tree)).not.toContain('오늘 걸음');
++    expect(texts(tree)).toContain('2,400');
++  });
++  it('true: 위 큰 걸음 수 · 말풍선이 없고, 카드 안에 「오늘 걸음 N걸음」 → 「남은 횟수」 → 설명 → 단추 순서', () => {
++    const tree = page({ mergedCard: true });
++    expect(texts(tree)).not.toContain('포인트를 2번 받을 수 있어요');   // 받을 횟수가 있으면 상태 줄도 없다(남은 횟수와 겹침)
++    const today = at(tree, n => n === '오늘 걸음 ');
++    const left = at(tree, n => typeof n === 'string' && n.includes('남은 횟수'));
++    const sub = at(tree, n => typeof n === 'string' && n.includes('걸음마다 광고 보고 5P'));
++    const button = at(tree, n => typeof n === 'string' && n.includes('광고 보고 5P 받기'));
++    expect([today, left, sub, button].every(i => i >= 0), JSON.stringify([today, left, sub, button])).toBe(true);
++    expect(today).toBeLessThan(left); expect(left).toBeLessThan(sub); expect(sub).toBeLessThan(button);
++    expect(strings(tree).filter(x => x === '2,400')).toHaveLength(1);                               // 걸음 수는 카드 안에 한 번만
++  });
++  it('true + 받을 횟수 0: 카드 안 작은 상태 줄(다음 걸음까지 / 다 받음)이 남는다', () => {
++    const none = page({ mergedCard: true, todaySteps: 400 });
++    expect(texts(none)).toContain('600걸음 더 걸으면 5P');
++    const done = page({ mergedCard: true, todaySteps: 5000, stages: stages.map(s => ({ ...s, claimed: true })) });
++    expect(texts(done)).toContain('오늘 걸음 보상을 다 받았어요');
++  });
++  it('true + 걸음 기능이 없는 옛 빌드: 상태 줄은 없고(업데이트 안내가 대신) 카드 모양만 바뀐다', () => {
++    const tree = page({ mergedCard: true, stepsAvailable: false });
++    expect(texts(tree)).not.toContain('업데이트하면 걸음 보상을 받을 수 있어요|업데이트하면');   // 말풍선이 카드로 새어 들어오지 않는다
++    expect(strings(tree).filter(x => typeof x === 'string' && x.includes('업데이트하면 걸음 보상을 받을 수 있어요'))).toHaveLength(1);
++  });
++});
++
+diff -ruN a/yt-mission-0.4.16/src/pages/StepsPage.tsx b/yt-mission-0.4.16/src/pages/StepsPage.tsx
+--- a/yt-mission-0.4.16/src/pages/StepsPage.tsx	1985-10-26 17:15:00
++++ b/yt-mission-0.4.16/src/pages/StepsPage.tsx	2026-10-28 21:37:42
+@@ -37,6 +37,11 @@
+   theme?: Partial<MissionPageTheme>;
+   /** 광고 자리 — 앱이 네이티브 광고를 넣는다(패키지는 광고를 모른다). 0.4.6 부터 「남은 횟수」 카드 아래 · 「만보기 안내사항」 위 */
+   footer?: ReactNode;
++  /**
++   * (0.4.16-mc1, 대표님 10-28 21:26~27) true 면 위쪽 큰 걸음 수 · 말풍선을 없애고 「남은 횟수」 카드 한 장 안에 합친다 — 「오늘 걸음 N걸음」 · 「남은 횟수 N번」 · 설명 한 줄 ·
++   * (받을 횟수가 0일 때만) 상태 줄(다음 걸음까지 / 다 받음) · 단추. 기본 false = 지금 모양 그대로(이 화면을 쓰는 다른 앱에 영향 없음).
++   */
++  mergedCard?: boolean;
+ };
+ 
+ const DEFAULT_GUIDE = [
+@@ -46,7 +51,7 @@
+   '만보기 보상과 조건은 사정에 따라 바뀔 수 있어요.',
+ ];
+ 
+-export function StepsPage({ todaySteps, stages, earnedToday = 0, stepsAvailable, onUpdate, onClaim, onBack, swipeBack, everySteps = 1000, guide = DEFAULT_GUIDE, title = '만보기', theme: themeIn, footer }: StepsPageProps) {
++export function StepsPage({ todaySteps, stages, earnedToday = 0, stepsAvailable, onUpdate, onClaim, onBack, swipeBack, everySteps = 1000, guide = DEFAULT_GUIDE, title = '만보기', theme: themeIn, footer, mergedCard = false }: StepsPageProps) {
+   const theme = resolvePageTheme(themeIn);
+   const [busy, setBusy] = useState(false);
+   const [failed, setFailed] = useState(false);
+@@ -54,6 +59,8 @@
+   const points = stages[0]?.points ?? 0;
+   const first = summary.claimable[0];
+   const canClaim = stepsAvailable && !!first && !busy;
++  // 합친 카드의 상태 줄: 옛 말풍선 중 「남은 횟수」와 겹치지 않는 것만(받을 횟수가 있으면 없음 · 업데이트 전이면 위 업데이트 안내가 대신함)
++  const status = mergedCard && stepsAvailable && summary.claimable.length === 0 ? stepsBubble({ available: stepsAvailable, todaySteps, stages }) : null;
+ 
+   const claim = async () => {
+     // 옛 빌드는 받기 대신 업데이트 창으로(carrot ensureStepsVersion 과 같은 자리)
+@@ -71,10 +78,10 @@
+   };
+ 
+   return <PageFrame title={title} onBack={onBack} swipeBack={swipeBack} theme={theme}>
+-    <View style={s.top}>
++    {mergedCard ? null : <View style={s.top}>
+       <Text style={[s.count, { color: theme.text }]}>{todaySteps.toLocaleString()}<Text style={[s.unit, { color: theme.sub }]}> 걸음</Text></Text>
+       <View style={[s.bubble, { backgroundColor: theme.card }]}><Text style={[s.bubbleText, { color: theme.text }]}>{stepsBubble({ available: stepsAvailable, todaySteps, stages })}</Text></View>
+-    </View>
++    </View>}
+ 
+     {!stepsAvailable ? <View style={[s.notice, { backgroundColor: theme.card }]}>
+       <Text style={[s.noticeTitle, { color: theme.text }]}>{UPDATE_NOTICE}</Text>
+@@ -84,8 +91,10 @@
+     {failed ? <Text accessibilityLiveRegion="polite" style={[s.message, { color: theme.sub }]}>광고 확인이 늦어지고 있어요. 잠시 후 다시 눌러 주세요</Text> : null}
+ 
+     <View style={[s.claimCard, { backgroundColor: theme.card }]}>
++      {mergedCard ? <Text style={[s.claimLeft, { color: theme.text }]}>오늘 걸음 <Text style={[s.claimNum, { color: theme.accent }]}>{todaySteps.toLocaleString()}</Text>걸음</Text> : null}
+       <Text style={[s.claimLeft, { color: theme.text }]}>남은 횟수 <Text style={[s.claimNum, { color: theme.accent }]}>{`${stepsAvailable ? summary.claimable.length : 0}번`}</Text></Text>
+       <Text style={[s.claimSub, { color: theme.sub }]}>{`${everySteps.toLocaleString()}걸음마다 광고 보고 ${points}P · 오늘 받은 포인트 ${earnedToday}P`}</Text>
++      {status ? <Text style={[s.claimSub, { color: theme.sub }]}>{status}</Text> : null}
+       <PageButton big label={busy ? '확인 중…' : `광고 보고 ${points}P 받기`} theme={theme} on={canClaim || !stepsAvailable} disabled={stepsAvailable && !canClaim} onPress={() => { void claim(); }} />
+     </View>
+ 
