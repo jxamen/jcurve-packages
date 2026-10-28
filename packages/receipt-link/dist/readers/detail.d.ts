@@ -5,7 +5,7 @@
  * 배송지 · 수령인 · 연락처 같은 라벨은 값을 읽지 않고 「여기서 멈춘다」는 표시로만 쓴다.
  * 주문번호는 주소의 orderNo=… 나 마지막 숫자 경로도 대신 받고, 결제 일시는 화면 어디든 `20xx.MM.DD HH:mm(:ss)` 모양 첫 글자열도 대신 받는다. 금액은 라벨이 있을 때만 읽는다(추측하지 않음).
  */
-export declare const DETAIL_BODY: (defaultSeller?: string) => string;
+export declare const DETAIL_BODY: (defaultSeller?: string, amountLabels?: string[]) => string;
 export declare const NAVER_SHOP_DETAIL_SCRIPT: string;
 export declare const NAVER_PAY_DETAIL_SCRIPT: string;
 export declare const MUSINSA_DETAIL_SCRIPT: string;

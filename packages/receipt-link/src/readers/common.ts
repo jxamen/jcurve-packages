@@ -11,7 +11,8 @@
 export const ORDER_SITES = ['naver_shop', 'naver_pay', 'musinsa', 'kurly'] as const;
 export type OrderSite = (typeof ORDER_SITES)[number];
 /** 앱으로 가는 주문 한 건 — 이 여섯 칸이 전부 */
-export type ReaderOrder = { orderNo: string; orderedAt: string; amount: number; seller?: string; title?: string; payment?: string; detailUrl?: string };
+/** `amount` 가 없고 `needsDetail:true` 이면 목록에 금액이 없어 상세(`detailScript`)로 채워야 하는 주문이다(앱은 그 값을 서버에 올리기 전에 상세를 읽는다). */
+export type ReaderOrder = { orderNo: string; orderedAt: string; amount?: number; needsDetail?: true; seller?: string; title?: string; payment?: string; detailUrl?: string };
 /** 상세 화면 읽기 결과(`detailScript`) — 한 건. 초까지(`orderedAt` 'YYYY-MM-DD HH:mm:ss')가 필요하다(중복 판정이 주문번호 + 금액 + 결제 일시(초)). 화면에 초가 없으면 `secKnown:false` 이고 초는 00. 못 읽으면 `ok:false` + note. */
 export type DetailMessage =
   | { type: 'detail'; site: OrderSite; ok: true; orderNo: string; orderedAt: string; secKnown: boolean; amount: number; seller?: string; title?: string; payment?: string }
@@ -108,9 +109,10 @@ function clean(o){
   if(!o||typeof o!=='object')return null;
   var no=clip(o.orderNo==null?'':String(o.orderNo),60);
   var at=typeof o.orderedAt==='string'&&/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(o.orderedAt)?o.orderedAt:null;
-  var amt=H.money(o.amount);
-  if(!no||!at||amt==null||amt>1000000000||!H.recent(at))return null;
-  var out={orderNo:no,orderedAt:at,amount:amt};
+  var amt=H.money(o.amount);var need=o.needsDetail===true&&amt==null;
+  if(!no||!at||(amt==null&&!need)||(amt!=null&&amt>1000000000)||!H.recent(at))return null;
+  var out={orderNo:no,orderedAt:at};
+  if(amt!=null)out.amount=amt;else out.needsDetail=true;
   var du=cleanUrl(o.detailUrl);if(du)out.detailUrl=du;
   var s=safeText(o.seller,80);if(s)out.seller=s;var t=safeText(o.title,200);if(t)out.title=t;var p=safeText(o.payment,30);if(p)out.payment=p;
   return out;

@@ -11,10 +11,12 @@
 export declare const ORDER_SITES: readonly ["naver_shop", "naver_pay", "musinsa", "kurly"];
 export type OrderSite = (typeof ORDER_SITES)[number];
 /** 앱으로 가는 주문 한 건 — 이 여섯 칸이 전부 */
+/** `amount` 가 없고 `needsDetail:true` 이면 목록에 금액이 없어 상세(`detailScript`)로 채워야 하는 주문이다(앱은 그 값을 서버에 올리기 전에 상세를 읽는다). */
 export type ReaderOrder = {
     orderNo: string;
     orderedAt: string;
-    amount: number;
+    amount?: number;
+    needsDetail?: true;
     seller?: string;
     title?: string;
     payment?: string;

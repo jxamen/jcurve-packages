@@ -102,9 +102,10 @@ function clean(o){
   if(!o||typeof o!=='object')return null;
   var no=clip(o.orderNo==null?'':String(o.orderNo),60);
   var at=typeof o.orderedAt==='string'&&/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(o.orderedAt)?o.orderedAt:null;
-  var amt=H.money(o.amount);
-  if(!no||!at||amt==null||amt>1000000000||!H.recent(at))return null;
-  var out={orderNo:no,orderedAt:at,amount:amt};
+  var amt=H.money(o.amount);var need=o.needsDetail===true&&amt==null;
+  if(!no||!at||(amt==null&&!need)||(amt!=null&&amt>1000000000)||!H.recent(at))return null;
+  var out={orderNo:no,orderedAt:at};
+  if(amt!=null)out.amount=amt;else out.needsDetail=true;
   var du=cleanUrl(o.detailUrl);if(du)out.detailUrl=du;
   var s=safeText(o.seller,80);if(s)out.seller=s;var t=safeText(o.title,200);if(t)out.title=t;var p=safeText(o.payment,30);if(p)out.payment=p;
   return out;

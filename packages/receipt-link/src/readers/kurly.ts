@@ -21,7 +21,7 @@ import { buildScript } from './common';
 
 export const KURLY_URL = 'https://www.kurly.com/mypage/order';
 
-export const KURLY_BODY = String.raw`
+export const KURLY_BODY_V1 = String.raw`
 function rd(el){return H.text(el);}
 function cnt(t){var m=(t||'').match(/주문번호\s*[:：]?\s*[0-9A-Za-z-]{6,30}/g);return m?m.length:0;}
 // 「주문번호」 글자가 정확히 한 번 들어 있는 가장 작은 요소를 찾고, 그 위로 올라가며 주문번호가 하나인 가장 큰 상자를 카드로 본다.
@@ -96,4 +96,62 @@ if(findCards().length===0){
 return run();
 `;
 
+/**
+ * 2차(10-28 저녁): 대표님 캡처의 실제 글자로 읽는다(앱보조5 전달) — 제목 「주문 내역」 · 기간 「3년 ▾」 · 묶음 머리 「2025.09.28」(주문 날짜) 아래
+ * 「주문번호 13자리」(옆 「>」 로 상세) · 「배송완료 9.29(월) 03:08」 · 「총 7건 주문 펼쳐보기」. 목록에는 금액이 안 보이므로(확인 못 함) 각 주문은
+ * `needsDetail:true`(금액 없음)로 내고, 상세(`KURLY_DETAIL_SCRIPT`)가 결제금액 · 결제 일시(초)를 채운다. 읽은 게 없으면 1차(KURLY_BODY_V1, 가정 배치)로 넘어간다.
+ */
+export const KURLY_BODY = String.raw`
+function texts(){
+  var out=[];var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null),n;
+  while((n=w.nextNode())&&out.length<3000){
+    var p=n.parentElement;if(p&&/^(script|style|noscript|template)$/i.test(p.tagName))continue;
+    var t=(n.nodeValue||'').replace(/\s+/g,' ').trim();if(t&&t.length<=300)out.push(t);
+  }
+  return out;
+}
+var DATE_ONLY=/^20\d{2}[.\-]\s?\d{1,2}[.\-]\s?\d{1,2}$/;
+var STATUS=/^(배송\s?완료|배송\s?중|배송\s?준비|상품\s?준비\s?중|결제\s?완료|주문\s?완료|>|›|주문\s?취소|취소\s?완료|결제\s?취소|[0-9]+\s?건)/;
+function scan(){
+  var tx=texts();var date=null;var out=[];
+  for(var i=0;i<tx.length;i++){
+    var t=tx[i];
+    if(DATE_ONLY.test(t)){date=H.kst(t);continue;}
+    var om=t.match(/^주문\s?번호\s*[:：]?\s*(\d{10,16})$/);var no=om?om[1]:null;var from=i+1;
+    if(!no&&/^주문\s?번호$/.test(t)&&i+1<tx.length&&/^\d{10,16}$/.test(tx[i+1])){no=tx[i+1];from=i+2;}
+    if(!no||!date)continue;
+    var title=undefined,cancelled=false;   // var 는 함수 범위라 매번 비운다
+    for(var j=from;j<Math.min(from+14,tx.length);j++){
+      var u=tx[j];
+      if(DATE_ONLY.test(u)||/^주문\s?번호/.test(u))break;
+      if(/(주문|결제)\s?취소\s?(완료|됨)|취소\s?완료/.test(u))cancelled=true;
+      if(!title&&u.length>=2&&!/^\d{6,}$/.test(u)&&!STATUS.test(u)&&!/\d{1,2}:\d{2}/.test(u)&&!/펼쳐\s?보기|더\s?보기|주문\s?내역/.test(u))title=u;
+    }
+    if(cancelled)continue;
+    out.push({orderNo:no,orderedAt:date,seller:'마켓컬리',title:title,needsDetail:true});
+  }
+  return out;
+}
+function more(){
+  var b=H.qa('button,a,[role="button"]');
+  for(var i=0;i<b.length;i++){if(/펼쳐\s?보기|더\s?보기/.test(H.text(b[i]))&&!b[i].disabled)return b[i];}
+  return null;
+}
+function v1(state,H){
+${KURLY_BODY_V1}
+}
+return H.waitFor(function(){return scan().length||null;},2500).then(function(first){
+  var found=scan();
+  if(!found.length)return v1(state,H);
+  var btn=more();
+  var last=found[found.length-1].orderedAt;
+  if(btn&&H.recent(last)&&(state.clicks||0)<5){
+    state.clicks=(state.clicks||0)+1;var before=found.length;btn.click();
+    return H.waitFor(function(){return scan().length>before||null;},2500).then(function(){return {orders:scan(),done:false};});
+  }
+  return {orders:found,done:true};
+});
+`;
+
 export const KURLY_SCRIPT = buildScript('kurly', KURLY_BODY);
+

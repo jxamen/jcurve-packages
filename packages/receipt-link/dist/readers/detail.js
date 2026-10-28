@@ -9,8 +9,9 @@ const common_1 = require("./common");
  * 배송지 · 수령인 · 연락처 같은 라벨은 값을 읽지 않고 「여기서 멈춘다」는 표시로만 쓴다.
  * 주문번호는 주소의 orderNo=… 나 마지막 숫자 경로도 대신 받고, 결제 일시는 화면 어디든 `20xx.MM.DD HH:mm(:ss)` 모양 첫 글자열도 대신 받는다. 금액은 라벨이 있을 때만 읽는다(추측하지 않음).
  */
-const DETAIL_BODY = (defaultSeller) => String.raw `
+const DETAIL_BODY = (defaultSeller, amountLabels) => String.raw `
 var DEFAULT_SELLER=${JSON.stringify(defaultSeller ?? '')};
+var AMOUNT_LABELS=${JSON.stringify(amountLabels ?? null)};
 if(H.q('input[type="password"]')||/login|signin/i.test(String(location.pathname||'')))return {order:null,note:'login_needed'};
 var L={
  orderNo:['주문번호','주문 번호'],
@@ -21,6 +22,7 @@ var L={
  title:['상품명','주문상품','주문 상품','상품정보','상품 정보']
 };
 var STOP=/^(주문\s?번호|주문\s?일시|주문\s?일자|주문일|결제\s?일시|결제\s?완료\s?일시|결제일|결제\s?수단|결제\s?방법|결제\s?금액|최종\s?결제\s?금액|실\s?결제\s?금액|총\s?결제\s?금액|판매자|판매처|스토어명?|상호|가맹점|판매업체|브랜드|상품명|주문\s?상품|상품\s?정보|배송지|배송\s?정보|수령인|받는\s?분|받는\s?사람|수취인|연락처|휴대폰|전화번호|주소|배송\s?메모|요청\s?사항)\s*[:：]?$/;
+if(AMOUNT_LABELS)L.amount=AMOUNT_LABELS;
 function collect(){
   var out=[];var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null),n;
   while((n=w.nextNode())&&out.length<2000){
@@ -64,8 +66,9 @@ return H.waitFor(hasContent,4000).then(function(){
 });
 `;
 exports.DETAIL_BODY = DETAIL_BODY;
-const detail = (site, defaultSeller) => (0, common_1.buildDetailScript)(site, (0, exports.DETAIL_BODY)(defaultSeller));
+const detail = (site, defaultSeller, amountLabels) => (0, common_1.buildDetailScript)(site, (0, exports.DETAIL_BODY)(defaultSeller, amountLabels));
 exports.NAVER_SHOP_DETAIL_SCRIPT = detail('naver_shop');
 exports.NAVER_PAY_DETAIL_SCRIPT = detail('naver_pay');
 exports.MUSINSA_DETAIL_SCRIPT = detail('musinsa');
-exports.KURLY_DETAIL_SCRIPT = detail('kurly', '마켓컬리');
+// 컬리 상세(대표님 캡처, 앱보조5 전달): 「결제 정보」의 「결제금액 N원」 · 「결제방법」, 「주문 정보」의 「주문번호」 · 「결제 일시 YYYY.MM.DD HH:mm:ss」(초까지), 「배송 정보」는 읽지 않는다 → 「결제금액」을 먼저 본다
+exports.KURLY_DETAIL_SCRIPT = detail('kurly', '마켓컬리', ['결제금액', '결제 금액', '최종결제금액', '최종 결제금액', '실결제금액', '총 결제금액', '총결제금액']);

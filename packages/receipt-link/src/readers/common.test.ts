@@ -108,6 +108,18 @@ describe('readers common frame', () => {
       const msg = (await runReader(script))!;
       expect(msg.orders[0].detailUrl).toMatch(/\/pay\/receipt\/abc$/);
     });
+    it('needsDetail: a list order without an amount is kept only when it says needsDetail (and carries no amount), never guessed', async () => {
+      const script = buildScript('kurly', `return {orders:[
+        {orderNo:'N1',orderedAt:'2026-10-27 10:00',needsDetail:true},
+        {orderNo:'N2',orderedAt:'2026-10-27 10:00'},
+        {orderNo:'N3',orderedAt:'2026-10-27 10:00',needsDetail:true,amount:'4,000원'},
+        {orderNo:'N4',orderedAt:'2026-08-01 10:00',needsDetail:true}], done:true};`);
+      const msg = (await runReader(script))!;
+      expect(msg.orders).toEqual([
+        { orderNo: 'N1', orderedAt: '2026-10-27 10:00', needsDetail: true },
+        { orderNo: 'N3', orderedAt: '2026-10-27 10:00', amount: 4000 },
+      ]);
+    });
     it('kstSec / secOf keep seconds from ISO, epoch and text, and default to 00', () => {
       const H = new Function(`${HELPERS_JS}; return H;`)() as Record<string, (...a: unknown[]) => unknown>;
       expect(H.kstSec('2026.10.27 18:30:45')).toBe('2026-10-27 18:30:45');
