@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createAdRecovery, createPendingAds, MAX_PENDING_AGE, parseStepsStagePurpose, resolvePurpose, undeclaredPurposes, type PurposeTable } from './recovery';
+import { createAdRecovery, createPendingAds, MAX_PENDING_AGE, parseStepsStagePurpose, resolvePurpose, stepsStageRule, undeclaredPurposes, type PurposeTable } from './recovery';
 
 const memory = () => { const store = new Map<string, string>(); return { store, storage: { get: async (k: string) => store.get(k) ?? null, set: async (k: string, v: string) => { store.set(k, v); } } }; };
 const setup = () => createPendingAds(memory().storage, 'test.pendingAds');
@@ -113,5 +113,58 @@ describe('0.2.1 — only 과 걷기 용도 해석', () => {
       await createAdRecovery()({ pending, memberId: '7', seen: async () => true, purposes: { 'steps_stage:*': claimRule(async () => { throw { code }; }) }, refresh: async () => {}, say: vi.fn() });
       expect((await pending.list()).length, code).toBe(kept);
     }
+  });
+});
+
+describe('0.2.2 — 캐시팡팡 10-23 「대기 뿌리 뽑기」 줄 (30분 · settled) 을 패키지로', () => {
+  const run = (o: Record<string, unknown>) => createAdRecovery()({ memberId: '7', refresh: async () => {}, say: vi.fn(), ...o } as never);
+  it('maxAgeMs: 30분 줄은 30분 넘은 기록을 목록에서 정리한다 (기본 24시간은 그대로)', async () => {
+    const short = createPendingAds(memory().storage, 'k', { maxAgeMs: 30 * 60 * 1000 }); await short.add(row);
+    expect(short.maxAgeMs).toBe(1_800_000); expect(await short.list(row.openedAt + 31 * 60 * 1000)).toEqual([]);
+    expect(setup().maxAgeMs).toBe(MAX_PENDING_AGE);
+  });
+  it.each(['claimed', 'expired'])('settled(%s) 는 청구 · 0P 안내 없이 기록만 지운다', async (settledBy) => {
+    const pending = setup(); await pending.add(row); const claim = vi.fn(); const say = vi.fn(); const refresh = vi.fn(async () => {});
+    await run({ pending, seen: async () => ({ seen: false, settled: true, settledPoints: 0, settledBy }), purposes: { ticket: claimRule(claim) }, say, refresh });
+    expect(claim).not.toHaveBeenCalled(); expect(say).not.toHaveBeenCalled(); expect(refresh).not.toHaveBeenCalled(); expect(await pending.list()).toEqual([]);
+  });
+  it('settledPoints > 0 이면 청구 없이 기존 안내만 낸다', async () => {
+    const pending = setup(); await pending.add(row); const claim = vi.fn(); const say = vi.fn(); const refresh = vi.fn(async () => {});
+    await run({ pending, seen: async () => ({ settled: true, settledPoints: 3 }), purposes: { ticket: claimRule(claim) }, say, refresh });
+    expect(claim).not.toHaveBeenCalled(); expect(say).toHaveBeenCalledTimes(1); expect(refresh).toHaveBeenCalledTimes(1); expect(await pending.list()).toEqual([]);
+  });
+  it('객체 응답: seen:true 면 청구, seen 이 true 가 아니면(false · 없음) 남긴다', async () => {
+    for (const [status, claims] of [[{ seen: true }, 1], [{ seen: false }, 0], [{}, 0]] as const) {
+      const pending = setup(); await pending.add(row); const claim = vi.fn(async () => ({}));
+      await run({ pending, seen: async () => status, purposes: { ticket: claimRule(claim) } });
+      expect(claim).toHaveBeenCalledTimes(claims); expect((await pending.list()).length).toBe(claims ? 0 : 1);
+    }
+  });
+  it('저장소 나이가 맞지 않아도 복구 루프에서 한 번 더 30분 넘은 기록을 지운다', async () => {
+    const pending = createPendingAds(memory().storage, 'k', { maxAgeMs: 60_000 }); await pending.add({ ...row, openedAt: Date.now() - 30_000 });
+    const claim = vi.fn(async () => ({}));
+    await run({ pending, seen: async () => false, purposes: { ticket: claimRule(claim) } });
+    expect(claim).not.toHaveBeenCalled(); expect((await pending.list()).length).toBe(1);   // 아직 60초 안 — 확인 안 왔으니 남김
+  });
+  it('extraSettledCodes: 앱이 쓰던 「이미 처리됨」 코드로 거절되면 기록을 지운다 (꿀꿀 8개), 목록에 없으면 남긴다', async () => {
+    for (const [code, kept] of [['basket_full', 0], ['daily_max', 0], ['network', 1]] as const) {
+      const pending = setup(); await pending.add(row);
+      await run({ pending, seen: async () => true, purposes: { ticket: claimRule(async () => { throw { code }; }) }, extraSettledCodes: ['basket_full', 'daily_max', 'already_opened', 'not_full', 'ssv_pending', 'not_ready', 'not_reached', 'off'] });
+      expect((await pending.list()).length, code).toBe(kept);
+    }
+  });
+  it('stepsStageRule: 받았을 때만(gained>0) 안내가 나가고, 이미 받은 단계(0P)의 남은 SSV 행은 조용히 지운다', async () => {
+    for (const [gained, said] of [[5, 1], [0, 0]] as const) {
+      const pending = setup(); await pending.add({ ...row, purpose: 'steps_stage:2026-10-28:stage_2' }); const say = vi.fn();
+      const claimStage = vi.fn(async () => ({ gained }));
+      await run({ pending, seen: async () => true, purposes: { 'steps_stage:*': stepsStageRule(claimStage) }, say, message: '지난 광고 보상이에요!' });
+      expect(claimStage).toHaveBeenCalledWith('stage_2', '2026-10-28'); expect(say).toHaveBeenCalledTimes(said); expect(await pending.list()).toEqual([]);
+      if (said) expect(say).toHaveBeenCalledWith('지난 광고 보상이에요!');
+    }
+  });
+  it('stepsStageRule: 모양이 다른 용도는 던지지 않고 조용히 지운다', async () => {
+    const pending = setup(); await pending.add({ ...row, purpose: 'steps_stage:oops' }); const claimStage = vi.fn(); const say = vi.fn();
+    await run({ pending, seen: async () => true, purposes: { 'steps_stage:*': stepsStageRule(claimStage) }, say });
+    expect(claimStage).not.toHaveBeenCalled(); expect(say).not.toHaveBeenCalled(); expect(await pending.list()).toEqual([]);
   });
 });
