@@ -1,0 +1,5 @@
+jcurve-offerwall-0.6.6.tgz
+sha256 e83080d05511173f8da3054b84313dd213f47fb523850cecc4efb70401211e69
+integrity sha512-Htbi4N9h0FWZo9hmR7/STKneZ2kZkcdPoT0qhJvh43ImOfsOgB87FzgmQrwk2hmiEKCEWyrlzO43J286g+QNsg==
+commit jcurve-packages feat/offerwall-050 ff86f3f (0.6.5 0d10e00 + 0.6.6)
+base 0.6.5 tgz (offerwall-065) — 멤버 80 → 83: 새 JS 멤버 3개(dist/comboSheetFrame.js · dist/comboSheetFrame.d.ts · src/comboSheetFrame.ts), 다른 멤버 14개(README · dist/OfferwallScreen.js · dist/comboEntry.js · dist/comboSheetProbe.js · dist/combos.d.ts · dist/combos.js · dist/wallSignal.d.ts · dist/wallSignal.js · src/OfferwallScreen.ts · src/comboEntry.ts · src/comboSheetProbe.ts · src/combos.ts · src/wallSignal.ts · package.json), 네이티브 관련 15개 멤버(android · ios · podspec · gradle · app.plugin.js · react-native.config.js) 바이트 동일
