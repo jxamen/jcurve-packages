@@ -18,7 +18,29 @@ export type ReaderOrder = {
     seller?: string;
     title?: string;
     payment?: string;
+    detailUrl?: string;
 };
+/** 상세 화면 읽기 결과(`detailScript`) — 한 건. 초까지(`orderedAt` 'YYYY-MM-DD HH:mm:ss')가 필요하다(중복 판정이 주문번호 + 금액 + 결제 일시(초)). 화면에 초가 없으면 `secKnown:false` 이고 초는 00. 못 읽으면 `ok:false` + note. */
+export type DetailMessage = {
+    type: 'detail';
+    site: OrderSite;
+    ok: true;
+    orderNo: string;
+    orderedAt: string;
+    secKnown: boolean;
+    amount: number;
+    seller?: string;
+    title?: string;
+    payment?: string;
+} | {
+    type: 'detail';
+    site: OrderSite;
+    ok: false;
+    note: string;
+    shape?: ReaderShape;
+};
+/** 목록 주문의 `detailUrl` 로 허용하는 주소(사이트별 도메인) — 이 밖의 주소는 버린다 */
+export declare const SITE_HOSTS: Record<OrderSite, RegExp>;
 /** `shape` 는 목록을 못 읽었을 때(note 가 no_list_found · wrong_page · error) 한 번만 붙는 진단용 화면 모양(요소 이름 · 클래스 · data- 이름 · 날짜/금액/긴 숫자 글자가 몇 개인지 — 글자 내용은 없음). 앱이 모르는 칸은 무시해도 된다. */
 export type ReaderShape = {
     host: string;
@@ -50,3 +72,11 @@ export declare const READER_BATCH = 50;
 export declare const HELPERS_JS: string;
 /** 사이트 본문을 틀에 끼워 웹뷰에서 돌릴 스크립트 문자열을 만든다. */
 export declare function buildScript(site: OrderSite, body: string): string;
+/**
+ * 주문 상세 화면 읽기 틀 — 앱이 목록 주문의 `detailUrl` 을 하나씩 열고 이 스크립트를 돌린다. 한 화면 = 영수증 한 장.
+ * 본문은 `(state, H)` 를 받아 `{ order: { orderNo, orderedAt, amount, seller?, title?, payment? } | null, note? }` 또는 그 Promise 를 돌려준다.
+ * 앱으로 가는 것: `{ type:'detail', site, ok:true, orderNo, orderedAt('YYYY-MM-DD HH:mm:ss'), secKnown, amount, seller?, title?, payment? }` 또는
+ * `{ type:'detail', site, ok:false, note, shape? }`(주문번호 · 결제 일시 · 금액 중 하나라도 못 읽으면 실패 — 목록 값을 그대로 쓸지는 앱이 정한다).
+ * 수취인 · 주소 · 전화 · 카드번호는 읽지도 보내지도 않는다(여섯 칸 밖은 버리고, 판매처/상품/결제수단에 섞인 개인 정보 모양 글자는 지운다).
+ */
+export declare function buildDetailScript(site: OrderSite, body: string): string;

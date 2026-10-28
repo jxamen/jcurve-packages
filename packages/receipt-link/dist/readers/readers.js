@@ -10,15 +10,17 @@ exports.ORDER_PAGES = void 0;
  *
  * 스크립트가 앱으로 보내는 것(window.ReactNativeWebView.postMessage):
  *   { type:'orders', site, orders:[{ orderNo, orderedAt('YYYY-MM-DD HH:mm' KST), amount(정수 원), seller, title, payment? }], done, note? }
- * 한 번에 최대 50건 · 최근 30일 · 여섯 칸 밖은 틀(common.ts)이 버린다. 못 읽으면 orders:[] 와 note(login_needed · wrong_page · no_list_found · fetch_failed · error).
+ * 한 번에 최대 50건 · 최근 30일 · 여섯 칸 밖은 틀(common.ts)이 버린다. 목록 주문에는 선택으로 `detailUrl`(목록에서 주문 상세로 가는 같은 사이트 https 주소)이 붙고, 앱이 그 주소를 하나씩 열어
+ * `detailScript` 를 돌리면 `{type:'detail', site, ok, orderNo, orderedAt('YYYY-MM-DD HH:mm:ss'), secKnown, amount, seller?, title?, payment?}` 한 건(영수증 한 장)이 온다. 모든 스크립트는 처음에 `{type:'hello'}` 를 한 번 보낸다(진단). 못 읽으면 orders:[] 와 note(login_needed · wrong_page · no_list_found · fetch_failed · error).
  */
 const musinsa_1 = require("./musinsa");
 const kurly_1 = require("./kurly");
 const naver_pay_1 = require("./naver_pay");
 const naver_shop_1 = require("./naver_shop");
+const detail_1 = require("./detail");
 exports.ORDER_PAGES = {
-    naver_shop: { url: naver_shop_1.NAVER_SHOP_URL, script: naver_shop_1.NAVER_SHOP_SCRIPT },
-    naver_pay: { url: naver_pay_1.NAVER_PAY_URL, script: naver_pay_1.NAVER_PAY_SCRIPT },
-    musinsa: { url: musinsa_1.MUSINSA_URL, script: musinsa_1.MUSINSA_SCRIPT },
-    kurly: { url: kurly_1.KURLY_URL, script: kurly_1.KURLY_SCRIPT },
+    naver_shop: { url: naver_shop_1.NAVER_SHOP_URL, script: naver_shop_1.NAVER_SHOP_SCRIPT, detailScript: detail_1.NAVER_SHOP_DETAIL_SCRIPT },
+    naver_pay: { url: naver_pay_1.NAVER_PAY_URL, script: naver_pay_1.NAVER_PAY_SCRIPT, detailScript: detail_1.NAVER_PAY_DETAIL_SCRIPT },
+    musinsa: { url: musinsa_1.MUSINSA_URL, script: musinsa_1.MUSINSA_SCRIPT, detailScript: detail_1.MUSINSA_DETAIL_SCRIPT },
+    kurly: { url: kurly_1.KURLY_URL, script: kurly_1.KURLY_SCRIPT, detailScript: detail_1.KURLY_DETAIL_SCRIPT },
 };

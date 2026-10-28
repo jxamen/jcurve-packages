@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
+// @vitest-environment-options {"url": "https://www.kurly.com/mypage/order"}
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildScript, HELPERS_JS } from './common';
-import { resetReaders, runReader, setNow } from './testkit';
+import { allPosted, resetReaders, runReader, setNow } from './testkit';
 
 beforeEach(() => { vi.restoreAllMocks(); resetReaders(); setNow('2026-10-28 12:00'); });
 
@@ -73,6 +74,49 @@ describe('readers common frame', () => {
       resetReaders();
       const ok = (await runReader(buildScript('kurly', `return {orders:[{orderNo:'A1',orderedAt:'2026-10-27 10:00',amount:5000}],done:true};`)))!;
       expect(ok.shape).toBeUndefined();
+    });
+  });
+
+  describe('0.3 additions: hello, detailUrl, seconds', () => {
+    it('hello comes first, once per page load, before the orders message — with a shaped path and no query', async () => {
+      window.history.replaceState({}, '', '/my/order/12345678?token=secret');   // https://www.kurly.com (see the options line on top)
+      const script = buildScript('musinsa', `return {orders:[{orderNo:'A1',orderedAt:'2026-10-27 10:00',amount:1000}],done:true};`);
+      await runReader(script);
+      expect(allPosted[0]).toMatchObject({ type: 'hello', kind: 'list', site: 'musinsa', path: '/my/order/:n' });
+      expect(JSON.stringify(allPosted[0])).not.toContain('secret');
+      expect(allPosted.filter((m) => m.type === 'hello')).toHaveLength(1);
+    });
+    it('detailUrl: the anchor whose href holds the order number is found; other hosts, javascript: and login links are refused', async () => {
+      document.body.innerHTML = `<ul>
+        <li><a href="javascript:void(0)">x</a><a href="/mypage/order/view/2026102700000001?tab=1#top">보기</a><span>2026102700000001</span></li>
+        <li><a href="https://evil.example.com/order/2026102700000002">x</a><span>2026102700000002</span></li>
+        <li><a href="/login?next=/order/2026102700000003">x</a><span>2026102700000003</span></li></ul>`;
+      window.history.replaceState({}, '', '/');
+      const script = buildScript('kurly', `return {orders:[
+        {orderNo:'2026102700000001',orderedAt:'2026-10-27 10:00',amount:1000},
+        {orderNo:'2026102700000002',orderedAt:'2026-10-27 10:00',amount:2000},
+        {orderNo:'2026102700000003',orderedAt:'2026-10-27 10:00',amount:3000}], done:true};`);
+      const msg = (await runReader(script))!;
+      const by = Object.fromEntries(msg.orders.map((o) => [o.orderNo, o.detailUrl]));
+      expect(by['2026102700000001']).toMatch(/^https:\/\/[^/]+\/mypage\/order\/view\/2026102700000001\?tab=1$/);   // hash removed
+      expect(by['2026102700000002']).toBeUndefined();
+      expect(by['2026102700000003']).toBeUndefined();
+    });
+    it('detailUrl: when no href holds the number, the nearest row link that looks like an order/detail link is used (bounded climb)', async () => {
+      document.body.innerHTML = `<div><div class="row"><a href="/pay/receipt/abc">영수증</a><b>주문번호 2026102700000044</b></div></div>`;
+      const script = buildScript('kurly', `return {orders:[{orderNo:'2026102700000044',orderedAt:'2026-10-27 10:00',amount:1000}],done:true};`);
+      const msg = (await runReader(script))!;
+      expect(msg.orders[0].detailUrl).toMatch(/\/pay\/receipt\/abc$/);
+    });
+    it('kstSec / secOf keep seconds from ISO, epoch and text, and default to 00', () => {
+      const H = new Function(`${HELPERS_JS}; return H;`)() as Record<string, (...a: unknown[]) => unknown>;
+      expect(H.kstSec('2026.10.27 18:30:45')).toBe('2026-10-27 18:30:45');
+      expect(H.kstSec('2026-10-27T09:30:45Z')).toBe('2026-10-27 18:30:45');
+      expect(H.kstSec(Date.parse('2026-10-27T18:30:45+09:00'))).toBe('2026-10-27 18:30:45');
+      expect(H.kstSec('2026-10-27 18:30')).toBe('2026-10-27 18:30:00');
+      expect(H.secOf('2026-10-27 18:30')).toBeNull();
+      expect(H.secOf('2026.10.27 18:30:05')).toBe(5);
+      expect(H.kstSec('주문일')).toBeNull();
     });
   });
   describe('helpers', () => {

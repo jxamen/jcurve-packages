@@ -11,7 +11,15 @@
 export const ORDER_SITES = ['naver_shop', 'naver_pay', 'musinsa', 'kurly'] as const;
 export type OrderSite = (typeof ORDER_SITES)[number];
 /** 앱으로 가는 주문 한 건 — 이 여섯 칸이 전부 */
-export type ReaderOrder = { orderNo: string; orderedAt: string; amount: number; seller?: string; title?: string; payment?: string };
+export type ReaderOrder = { orderNo: string; orderedAt: string; amount: number; seller?: string; title?: string; payment?: string; detailUrl?: string };
+/** 상세 화면 읽기 결과(`detailScript`) — 한 건. 초까지(`orderedAt` 'YYYY-MM-DD HH:mm:ss')가 필요하다(중복 판정이 주문번호 + 금액 + 결제 일시(초)). 화면에 초가 없으면 `secKnown:false` 이고 초는 00. 못 읽으면 `ok:false` + note. */
+export type DetailMessage =
+  | { type: 'detail'; site: OrderSite; ok: true; orderNo: string; orderedAt: string; secKnown: boolean; amount: number; seller?: string; title?: string; payment?: string }
+  | { type: 'detail'; site: OrderSite; ok: false; note: string; shape?: ReaderShape };
+/** 목록 주문의 `detailUrl` 로 허용하는 주소(사이트별 도메인) — 이 밖의 주소는 버린다 */
+export const SITE_HOSTS: Record<OrderSite, RegExp> = {
+  naver_shop: /(^|\.)naver\.com$/, naver_pay: /(^|\.)naver\.com$/, musinsa: /(^|\.)musinsa\.com$/, kurly: /(^|\.)kurly\.com$/,
+};
 /** `shape` 는 목록을 못 읽었을 때(note 가 no_list_found · wrong_page · error) 한 번만 붙는 진단용 화면 모양(요소 이름 · 클래스 · data- 이름 · 날짜/금액/긴 숫자 글자가 몇 개인지 — 글자 내용은 없음). 앱이 모르는 칸은 무시해도 된다. */
 export type ReaderShape = { host: string; path: string; outline: string[]; hits: { date: number; money: number; longNumber: number } };
 export type OrdersMessage = { type: 'orders'; site: OrderSite; orders: ReaderOrder[]; done: boolean; note?: string; shape?: ReaderShape };
@@ -53,6 +61,15 @@ H.kst=function(v){
   if(mo<1||mo>12||d<1||d>31||hh>23||mi>59)return null;
   return y+'-'+p2(mo)+'-'+p2(d)+' '+p2(hh)+':'+p2(mi);
 };
+H.secOf=function(v){
+  if(v instanceof Date)return isNaN(v.getTime())?null:v.getUTCSeconds();
+  if(typeof v==='number')return v>1e11?new Date(v).getUTCSeconds():null;
+  if(typeof v!=='string')return null;
+  var s=v.trim();
+  if(/^\d{12,13}$/.test(s))return new Date(parseInt(s,10)).getUTCSeconds();
+  var m=s.match(/\d{1,2}\s*:\s*\d{2}\s*:\s*(\d{2})/);return m?parseInt(m[1],10):null;
+};
+H.kstSec=function(v){var b=H.kst(v);if(b==null)return null;var sc=H.secOf(v);return b+':'+p2(sc==null?0:sc);};
 H.recent=function(at){if(typeof at!=='string')return false;var m=at.match(/^(\d{4})-(\d{2})-(\d{2})/);if(!m)return false;
   var t=Date.UTC(+m[1],+m[2]-1,+m[3])-9*3600000; var nowMs=H.now(); return t<=nowMs+86400000 && t>=nowMs-(WINDOW_DAYS+1)*86400000;};
 H.sleep=function(ms){return new Promise(function(r){setTimeout(r,ms);});};
@@ -62,6 +79,31 @@ H.qa=function(sel,root){try{return Array.prototype.slice.call((root||document).q
 function clip(v,max){if(typeof v!=='string')return undefined;var t=v.replace(/\s+/g,' ').trim();return t?t.slice(0,max):undefined;}
 var PII=/(\d{2,4}[-. ]\d{3,4}[-. ]\d{4})|\d{9,}|@|(수령|받는\s?분|배송지|연락처|휴대폰\s?번호|주소|전화)|([가-힣]{1,6}(시|도)\s?[가-힣]{1,6}(구|군|시)\s?[가-힣0-9]{1,8}(동|읍|면|로|길))|(\d{1,4}동\s?\d{1,4}호)/;
 function safeText(v,max){var s=clip(v,max);return s&&!PII.test(s)?s:undefined;}
+var HOSTMAP={naver_shop:/(^|\.)naver\.com$/,naver_pay:/(^|\.)naver\.com$/,musinsa:/(^|\.)musinsa\.com$/,kurly:/(^|\.)kurly\.com$/};
+function cleanUrl(h){
+  if(typeof h!=='string'||!h||h.length>400)return undefined;
+  var u;try{u=new URL(h,location.href);}catch(e){return undefined;}
+  var HOSTRE=HOSTMAP[typeof SITE==='string'?SITE:''];
+  if(u.protocol!=='https:'||(HOSTRE&&!HOSTRE.test(u.hostname))||/login|logout|signin|signup/i.test(u.pathname))return undefined;
+  u.hash='';return u.href.length<=400?u.href:undefined;
+}
+H.detailUrl=function(no){try{
+  var as=H.qa('a[href]');
+  for(var i=0;i<as.length;i++){var h=as[i].getAttribute('href')||'';if(h.indexOf(no)>=0){var r=cleanUrl(h);if(r)return r;}}
+  var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null),n;
+  while((n=w.nextNode())){
+    if((n.nodeValue||'').indexOf(no)<0)continue;
+    var el=n.parentElement;
+    for(var up=0;el&&up<6;up++,el=el.parentElement){
+      var tx=String(el.textContent||'');
+      if(tx.length>600||(tx.match(/\d{12,20}/g)||[]).some(function(x){return x!==no;}))break;   // 이웃 주문이 섞인 칸까지는 올라가지 않는다 — 남의 영수증 주소를 붙이면 안 된다
+      var links=el.querySelectorAll?el.querySelectorAll('a[href]'):[];
+      if(links.length>12)break;
+      for(var k=0;k<links.length;k++){var hr=links[k].getAttribute('href')||'';if(/order|detail|receipt|view|status|history|pay/i.test(hr)){var r2=cleanUrl(hr);if(r2)return r2;}}
+    }
+    break;
+  }
+  return undefined;}catch(e){return undefined;}};
 function clean(o){
   if(!o||typeof o!=='object')return null;
   var no=clip(o.orderNo==null?'':String(o.orderNo),60);
@@ -69,6 +111,7 @@ function clean(o){
   var amt=H.money(o.amount);
   if(!no||!at||amt==null||amt>1000000000||!H.recent(at))return null;
   var out={orderNo:no,orderedAt:at,amount:amt};
+  var du=cleanUrl(o.detailUrl);if(du)out.detailUrl=du;
   var s=safeText(o.seller,80);if(s)out.seller=s;var t=safeText(o.title,200);if(t)out.title=t;var p=safeText(o.payment,30);if(p)out.payment=p;
   return out;
 }
@@ -82,6 +125,11 @@ H.shape=function(){try{
   var txt=body.textContent||'';
   return {host:String(location.host||'').slice(0,60),path:String(location.pathname||'').replace(/\d{5,}/g,':n').slice(0,100),outline:out,hits:{date:(txt.match(/20\d{2}[.\-]\d{1,2}[.\-]\d{1,2}/g)||[]).length,money:(txt.match(/\d[\d,]*\s*원/g)||[]).length,longNumber:(txt.match(/\d{12,20}/g)||[]).length}};
 }catch(e){return null;}};
+function postRaw(m){try{window.ReactNativeWebView.postMessage(JSON.stringify(m));}catch(e){}}
+function hello(kind){
+  var path='';try{path=String(location.pathname||'').replace(/\d{5,}/g,':n').slice(0,100);}catch(e){}
+  postRaw({type:'hello',kind:kind,site:SITE,host:String(location.host||'').slice(0,60),path:path,ready:String(document.readyState||'')});
+}
 function post(site,orders,done,note,shape){
   var m={type:'orders',site:site,orders:orders,done:done};if(note)m.note=String(note).replace(/[^A-Za-z0-9_]/g,'').slice(0,40);
   if(shape)m.shape=shape;
@@ -95,8 +143,9 @@ export function buildScript(site: OrderSite, body: string): string {
 var SITE=${JSON.stringify(site)};
 ${HELPERS_JS}
 var G=(window.__ytOrders=window.__ytOrders||{});var state=(G[SITE]=G[SITE]||{queue:[],finished:false,seen:{}});
+if(!state.helloSent){state.helloSent=true;hello('list');}
 function emit(res){
-  var rows=[];(res&&res.orders||[]).forEach(function(o){var c=clean(o);if(c&&!state.seen[c.orderNo]){state.seen[c.orderNo]=1;rows.push(c);}});
+  var rows=[];(res&&res.orders||[]).forEach(function(o){if(o&&typeof o==='object'&&o.detailUrl==null&&o.orderNo!=null){o.detailUrl=H.detailUrl(String(o.orderNo));}var c=clean(o);if(c&&!state.seen[c.orderNo]){state.seen[c.orderNo]=1;rows.push(c);}});
   state.queue=state.queue.concat(rows);
   if(res&&res.done===true)state.finished=true;
   var send=state.queue.slice(0,BATCH);state.queue=state.queue.slice(BATCH);
@@ -111,4 +160,42 @@ ${body}
 var r;try{r=run(state,H);}catch(e){emit({orders:[],done:true,note:'error'});return;}
 Promise.resolve(r).then(emit,function(){emit({orders:[],done:true,note:'error'});});
 }catch(e){try{window.ReactNativeWebView.postMessage(JSON.stringify({type:'orders',site:${JSON.stringify(site)},orders:[],done:true,note:'error'}));}catch(_){}}})(); true;`;
+}
+
+/**
+ * 주문 상세 화면 읽기 틀 — 앱이 목록 주문의 `detailUrl` 을 하나씩 열고 이 스크립트를 돌린다. 한 화면 = 영수증 한 장.
+ * 본문은 `(state, H)` 를 받아 `{ order: { orderNo, orderedAt, amount, seller?, title?, payment? } | null, note? }` 또는 그 Promise 를 돌려준다.
+ * 앱으로 가는 것: `{ type:'detail', site, ok:true, orderNo, orderedAt('YYYY-MM-DD HH:mm:ss'), secKnown, amount, seller?, title?, payment? }` 또는
+ * `{ type:'detail', site, ok:false, note, shape? }`(주문번호 · 결제 일시 · 금액 중 하나라도 못 읽으면 실패 — 목록 값을 그대로 쓸지는 앱이 정한다).
+ * 수취인 · 주소 · 전화 · 카드번호는 읽지도 보내지도 않는다(여섯 칸 밖은 버리고, 판매처/상품/결제수단에 섞인 개인 정보 모양 글자는 지운다).
+ */
+export function buildDetailScript(site: OrderSite, body: string): string {
+  return `(function(){try{
+var SITE=${JSON.stringify(site)};
+${HELPERS_JS}
+var G=(window.__ytDetail=window.__ytDetail||{});var state=(G[SITE]=G[SITE]||{});
+if(!state.helloSent){state.helloSent=true;hello('detail');}
+function fin(res){
+  var o=res&&res.order,out=null,note=res&&res.note;
+  if(o&&typeof o==='object'){
+    var no=clip(o.orderNo==null?'':String(o.orderNo),60);
+    var at=H.kstSec(o.orderedAt);
+    var amt=H.money(o.amount);
+    if(no&&at&&amt!=null&&amt<=1000000000){
+      out={type:'detail',site:SITE,ok:true,orderNo:no,orderedAt:at,secKnown:H.secOf(o.orderedAt)!=null,amount:amt};
+      var s=safeText(o.seller,80);if(s)out.seller=s;var t=safeText(o.title,200);if(t)out.title=t;var p=safeText(o.payment,30);if(p)out.payment=p;
+    }else{note=note||(!no?'no_order_no':!at?'no_date':'no_amount');}
+  }
+  if(!out){
+    out={type:'detail',site:SITE,ok:false,note:String(note||'no_detail_found').replace(/[^A-Za-z0-9_]/g,'').slice(0,40)};
+    if(!state.shapeSent&&/^(no_detail_found|no_order_no|no_date|no_amount|error)$/.test(out.note)){state.shapeSent=true;var sh=H.shape();if(sh)out.shape=sh;}
+  }
+  postRaw(out);
+}
+var run=function(state,H){
+${body}
+};
+var r;try{r=run(state,H);}catch(e){fin({order:null,note:'error'});return;}
+Promise.resolve(r).then(fin,function(){fin({order:null,note:'error'});});
+}catch(e){try{window.ReactNativeWebView.postMessage(JSON.stringify({type:'detail',site:${JSON.stringify(site)},ok:false,note:'error'}));}catch(_){}}})(); true;`;
 }

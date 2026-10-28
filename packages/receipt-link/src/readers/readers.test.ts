@@ -7,6 +7,10 @@ import { resetReaders, runReader, setNow } from './testkit';
 beforeEach(() => { vi.restoreAllMocks(); resetReaders(); setNow('2026-10-28 12:00'); });
 
 describe('ORDER_PAGES — what the app harness receives', () => {
+  it('the Naver Shopping list address is the one 대표님 gave (shopping.naver.com/my/order)', () => {
+    expect(ORDER_PAGES.naver_shop.url).toBe('https://shopping.naver.com/my/order');
+  });
+
   it('has exactly the four sites, each with an https url and a self-invoking script that ends with true;', () => {
     expect(Object.keys(ORDER_PAGES).sort()).toEqual([...ORDER_SITES].sort());
     for (const site of ORDER_SITES) {
@@ -15,12 +19,15 @@ describe('ORDER_PAGES — what the app harness receives', () => {
       expect(page.script.startsWith('(function(){'), site).toBe(true);
       expect(page.script.trimEnd().endsWith('true;'), site).toBe(true);
       expect(() => new Function(page.script), `${site} script must parse`).not.toThrow();
+      expect(page.detailScript.startsWith('(function(){'), site).toBe(true);
+      expect(page.detailScript.trimEnd().endsWith('true;'), site).toBe(true);
+      expect(() => new Function(page.detailScript), `${site} detailScript must parse`).not.toThrow();
     }
   });
 
   it('no script reads cookies, storage, tokens or form values (static guard — the frame also keeps only six fields)', () => {
     const banned = [/document\.cookie/, /localStorage/, /sessionStorage/, /indexedDB/, /getItem\s*\(/, /[Aa]uthorization/, /\.value\b/];   // a selector that only DETECTS a password field (login check) is fine; reading any input's value is not
-    for (const site of ORDER_SITES) for (const pattern of banned) expect(ORDER_PAGES[site].script, `${site} ${pattern}`).not.toMatch(pattern);
+    for (const site of ORDER_SITES) for (const pattern of banned) for (const key of ['script', 'detailScript'] as const) expect(ORDER_PAGES[site][key], `${site} ${key} ${pattern}`).not.toMatch(pattern);
   });
 
   it('on an empty page every script answers once with orders:[] and a code-shaped note (never silence, never a throw)', async () => {

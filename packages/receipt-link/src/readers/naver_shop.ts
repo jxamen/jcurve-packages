@@ -11,7 +11,7 @@ import { buildScript } from './common';
  * 개인정보: 여섯 칸(orderNo, orderedAt, amount, seller, title, payment)만 골라 돌려준다.
  * 수령인 · 주소 · 전화 · 카드번호 칸은 읽지도 않는다(클래스 이름에 recei/addr/phone/card 등이 있으면 건너뜀).
  */
-export const NAVER_SHOP_URL = 'https://order.pay.naver.com/orderStatus'; // assumed — 주문목록 주소 추정. 실제 확인 못 함
+export const NAVER_SHOP_URL = 'https://shopping.naver.com/my/order'; // 대표님 제공(10-28 19:4x, 앱보조5 전달) — 네이버 쇼핑 주문목록 주소
 
 /**
  * 본문. 웹뷰 안에서 `(state, H)` 를 받아 실행된다. 사이트 전용 상수는 여기 안에 둔다.

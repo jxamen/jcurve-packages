@@ -7,18 +7,20 @@
  *
  * 스크립트가 앱으로 보내는 것(window.ReactNativeWebView.postMessage):
  *   { type:'orders', site, orders:[{ orderNo, orderedAt('YYYY-MM-DD HH:mm' KST), amount(정수 원), seller, title, payment? }], done, note? }
- * 한 번에 최대 50건 · 최근 30일 · 여섯 칸 밖은 틀(common.ts)이 버린다. 못 읽으면 orders:[] 와 note(login_needed · wrong_page · no_list_found · fetch_failed · error).
+ * 한 번에 최대 50건 · 최근 30일 · 여섯 칸 밖은 틀(common.ts)이 버린다. 목록 주문에는 선택으로 `detailUrl`(목록에서 주문 상세로 가는 같은 사이트 https 주소)이 붙고, 앱이 그 주소를 하나씩 열어
+ * `detailScript` 를 돌리면 `{type:'detail', site, ok, orderNo, orderedAt('YYYY-MM-DD HH:mm:ss'), secKnown, amount, seller?, title?, payment?}` 한 건(영수증 한 장)이 온다. 모든 스크립트는 처음에 `{type:'hello'}` 를 한 번 보낸다(진단). 못 읽으면 orders:[] 와 note(login_needed · wrong_page · no_list_found · fetch_failed · error).
  */
 import { MUSINSA_SCRIPT, MUSINSA_URL } from './musinsa';
 import { KURLY_SCRIPT, KURLY_URL } from './kurly';
 import { NAVER_PAY_SCRIPT, NAVER_PAY_URL } from './naver_pay';
 import { NAVER_SHOP_SCRIPT, NAVER_SHOP_URL } from './naver_shop';
 import type { OrderSite } from './common';
+import { KURLY_DETAIL_SCRIPT, MUSINSA_DETAIL_SCRIPT, NAVER_PAY_DETAIL_SCRIPT, NAVER_SHOP_DETAIL_SCRIPT } from './detail';
 
-export const ORDER_PAGES: Record<OrderSite, { url: string; script: string }> = {
-  naver_shop: { url: NAVER_SHOP_URL, script: NAVER_SHOP_SCRIPT },
-  naver_pay: { url: NAVER_PAY_URL, script: NAVER_PAY_SCRIPT },
-  musinsa: { url: MUSINSA_URL, script: MUSINSA_SCRIPT },
-  kurly: { url: KURLY_URL, script: KURLY_SCRIPT },
+export const ORDER_PAGES: Record<OrderSite, { url: string; script: string; detailScript: string }> = {
+  naver_shop: { url: NAVER_SHOP_URL, script: NAVER_SHOP_SCRIPT, detailScript: NAVER_SHOP_DETAIL_SCRIPT },
+  naver_pay: { url: NAVER_PAY_URL, script: NAVER_PAY_SCRIPT, detailScript: NAVER_PAY_DETAIL_SCRIPT },
+  musinsa: { url: MUSINSA_URL, script: MUSINSA_SCRIPT, detailScript: MUSINSA_DETAIL_SCRIPT },
+  kurly: { url: KURLY_URL, script: KURLY_SCRIPT, detailScript: KURLY_DETAIL_SCRIPT },
 };
 export type { OrderSite, OrdersMessage, ReaderOrder } from './common';
