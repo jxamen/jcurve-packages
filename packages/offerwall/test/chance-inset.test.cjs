@@ -53,3 +53,18 @@ test('tab inset: non-numeric, negative or zero values mean "no tabs", and listen
   assert.deepEqual(heard, [45, 0, 46]);
   assert.equal(api.getChanceTabInset(), 0);
 });
+
+// 0.6.4: the screen sets the tab inset in its own effect, which can run before this entry has subscribed. The entry must still end up under the tab row
+// (A32: the chip sat at top 6 over the 「찬스2」 tab because the first notification was missed and the measured 45 equalled the fallback 45).
+test('tab inset: a value set after the entry rendered but before its subscription ran is still picked up (the screen\'s effect runs first)', () => withReact(async (ctx) => {
+  api.setChanceTabInset(0);
+  const host = ctx.make();
+  const load = async () => ({ok: true, combos: combos()});
+  const mount = () => host.render(() => api.ComboEntry({placement: 'chance', load, loadKey: 1, usn: 'a'.repeat(64), campaigns: {list: async () => [], open: async () => true}}));
+  mount();                       // first render: the inset reads 0
+  api.setChanceTabInset(45);     // the screen's effect, before this entry's effects
+  host.flush(); await tick();    // the entry subscribes now
+  mount(); host.flush(); await tick();
+  assert.equal(chipBox(mount()).props.style.top, 51, 'under the tab row');
+  api.setChanceTabInset(0);
+}));

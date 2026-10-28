@@ -319,3 +319,16 @@ test('<OfferwallCombos> forwards every ComboEntry prop except the ones it delibe
   assert.deepEqual(missing, [], 'ComboEntry props the wrapper does not hand on');
   assert.equal(typeof seen.loadSnapPlay, 'function'); assert.equal(typeof seen.onSnapPlayAds, 'function');
 }));
+
+test('0.6.4: a tab picked after the entry rendered but before its subscription ran is still followed (찬스2 list, not 찬스1)', () => run(async ({make}) => {
+  const host = make();
+  const mount = () => host.render(() => api.ComboEntry({placement: 'chance', load: async () => adpopBody(), loadSnapPlay: async () => snapBody(['18547', '218047']), loadKey: 1, usn: USN, campaigns: {list: async () => [], open: async () => true}}));
+  mount();                              // first render: 찬스1
+  api.setChanceTab('snapplay');         // the screen's effect runs before this entry subscribes
+  host.flush(); await tick();
+  mount(); host.flush(); await tick();
+  mount(); host.flush();
+  assert.equal(api.requestOpenCombos(), true);
+  const sheet = flat(mount());
+  assert.ok(sheet.includes('스냅 18547') && !sheet.includes('애드팝콘 미션'), sheet);
+}));

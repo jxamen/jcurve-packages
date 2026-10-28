@@ -1,6 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CHANCE_TAB_FALLBACK_HEIGHT = exports.OFFERWALL_CHANCE_TABS_MARK = exports.OFFERWALL_SCREEN_MARK = exports.DEFAULT_LAUNCHER_COPY = void 0;
+exports.CLASSIC_WALL_TIMEOUT_MS = exports.CHANCE_TAB_FALLBACK_HEIGHT = exports.OFFERWALL_CHANCE_TABS_MARK = exports.OFFERWALL_SCREEN_MARK = exports.DEFAULT_LAUNCHER_COPY = void 0;
+exports.wallTimerShouldRun = wallTimerShouldRun;
+exports.wallAutoRetryOnShow = wallAutoRetryOnShow;
 exports.OfferwallScreen = OfferwallScreen;
 const index_1 = require("./index");
 const wallSignal_1 = require("./wallSignal");
@@ -13,6 +15,23 @@ exports.OFFERWALL_SCREEN_MARK = 'jcurve-offerwall-screen:headerless-v1';
 exports.OFFERWALL_CHANCE_TABS_MARK = 'jcurve-offerwall-chance-tabs:v1';
 /** Until the tab row has been measured, its height is taken as this (44 minHeight + the 1px border + the 2px selected line fits inside the 44). */
 exports.CHANCE_TAB_FALLBACK_HEIGHT = 45;
+/** How long the AdPopcorn wall may take to report that it has loaded before the screen says 「찬스를 불러오지 못했어요」. */
+exports.CLASSIC_WALL_TIMEOUT_MS = 20000;
+/**
+ * 0.6.4 — when the 20 s load timer may run: only with a member (`usn`) to load for, only while the wall is on screen (not behind the other 찬스 tab), only while it has neither
+ * loaded nor failed. With no member yet, or while the wall is hidden, nothing is wrong with the wall, so the clock is stopped; it starts again from zero when the member arrives
+ * or the wall is shown. (Before, the clock ran through both and the error screen could appear before the wall ever had a chance.)
+ */
+function wallTimerShouldRun({ usn, hidden, loaded, error }) {
+    return !!usn && !hidden && !loaded && !error;
+}
+/**
+ * 0.6.4 — the wall is shown again and is in the error state (it failed, or its load could not be told while it was hidden): try once on its own. At most one automatic
+ * try per error (`retried`: set by it and by the 「다시 시도」 button, cleared by a successful load or a new member); after that only the button retries.
+ */
+function wallAutoRetryOnShow({ wasHidden, hidden, error, retried }) {
+    return wasHidden && !hidden && error && !retried;
+}
 /** The 0.2.3 screen (AdPopcorn wall) as it was. `hidden` only keeps it mounted but out of sight while another tab is up. */
 function ClassicScreen({ usn, onClose, onRetry, loadingColor = '#555', topInset = 0, hidden = false }) {
     const React = require('react');
@@ -23,6 +42,9 @@ function ClassicScreen({ usn, onClose, onRetry, loadingColor = '#555', topInset 
     const [attempt, setAttempt] = React.useState(0);
     const hiddenNow = React.useRef(hidden);
     hiddenNow.current = hidden;
+    const wasHidden = React.useRef(hidden);
+    const retried = React.useRef(false); // 0.6.4: the one automatic try for this error has been used (or the button was pressed)
+    React.useEffect(() => { retried.current = false; }, [usn]);
     React.useEffect(() => { setLoaded(false); setError(false); (0, wallSignal_1.notifyWallGone)(); }, [usn, attempt]);
     React.useEffect(() => () => (0, wallSignal_1.notifyWallGone)(), []);
     // The wall sits beside 「포인트 빨리 모으기」(OfferwallCombos), which follows this signal: while another tab is up, the wall is "gone".
@@ -30,21 +52,33 @@ function ClassicScreen({ usn, onClose, onRetry, loadingColor = '#555', topInset 
         (0, wallSignal_1.notifyWallGone)();
     else if (loaded)
         (0, wallSignal_1.notifyWallLoaded)(); }, [hidden, loaded]);
+    // 0.6.4: the load timer runs only with a member and while the wall is shown (see wallTimerShouldRun); hiding it or losing the member stops it, showing it starts it over.
     React.useEffect(() => {
-        if (loaded)
+        if (!wallTimerShouldRun({ usn, hidden, loaded, error }))
             return;
-        const timer = setTimeout(() => setError(true), 20000);
+        const timer = setTimeout(() => setError(true), exports.CLASSIC_WALL_TIMEOUT_MS);
         return () => clearTimeout(timer);
-    }, [loaded, usn, attempt]);
-    React.useEffect(() => { if (loaded)
-        setError(false); }, [loaded]);
+    }, [loaded, usn, attempt, hidden, error]);
+    React.useEffect(() => { if (loaded) {
+        setError(false);
+        retried.current = false;
+    } }, [loaded]);
+    // 0.6.4: back from the other tab onto a failed wall: one automatic try (a loaded wall is left alone: it is never reloaded for being hidden).
+    React.useEffect(() => {
+        const again = wallAutoRetryOnShow({ wasHidden: wasHidden.current, hidden, error, retried: retried.current });
+        wasHidden.current = hidden;
+        if (again) {
+            retried.current = true;
+            setAttempt(n => n + 1);
+        }
+    }, [hidden]);
     React.useEffect(() => {
         const subscription = BackHandler.addEventListener('hardwareBackPress', () => { onClose(); return true; });
         return () => subscription.remove();
     }, [onClose]);
     const status = { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', gap: 16 };
     return h(View, { style: { flex: 1, backgroundColor: '#fff', paddingTop: Math.max(0, topInset), ...(hidden ? { display: 'none' } : {}) } }, h(View, { style: { flex: 1, overflow: 'hidden' } }, usn && !error ? h(index_1.OfferwallView, { key: `${usn}:${attempt}`, usn, onLoaded: () => { setLoaded(true); if (!hiddenNow.current)
-            (0, wallSignal_1.notifyWallLoaded)(); }, onError: () => setError(true) }) : null, error ? h(View, { style: [status, { backgroundColor: '#fff' }] }, h(Text, null, '찬스를 불러오지 못했어요'), h(Pressable, { accessibilityRole: 'button', onPress: () => { setAttempt(n => n + 1); onRetry(); },
+            (0, wallSignal_1.notifyWallLoaded)(); }, onError: () => setError(true) }) : null, error ? h(View, { style: [status, { backgroundColor: '#fff' }] }, h(Text, null, '찬스를 불러오지 못했어요'), h(Pressable, { accessibilityRole: 'button', onPress: () => { retried.current = true; setAttempt(n => n + 1); onRetry(); },
         style: { paddingHorizontal: 24, paddingVertical: 12, backgroundColor: '#f1f1f1', borderRadius: 12 } }, h(Text, null, '다시 시도')))
         : !loaded ? h(View, { style: status, pointerEvents: 'none' }, h(ActivityIndicator, { color: loadingColor })) : null));
 }

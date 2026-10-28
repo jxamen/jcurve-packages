@@ -290,7 +290,14 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     const providers = (0, chanceProviders_1.useChanceProviders)();
     const snapUsable = placement === 'chance' && providers.some(provider => provider.id === snapPlay_1.SNAPPLAY_PROVIDER_ID);
     const [chanceTab, setChanceTabState] = React.useState(wallSignal_1.getChanceTab);
-    React.useEffect(() => (placement === 'chance' ? (0, wallSignal_1.onChanceTab)(setChanceTabState) : undefined), [placement]);
+    // 0.6.4: subscribe, then read the current value at once — the screen next to this entry sets these signals in its own effects, which can run before this subscription exists
+    // (the first notification is then missed, and an equal value later notifies nobody). Reading what is already there closes that gap.
+    React.useEffect(() => {
+        if (placement !== 'chance')
+            return undefined;
+        setChanceTabState((0, wallSignal_1.getChanceTab)());
+        return (0, wallSignal_1.onChanceTab)(setChanceTabState);
+    }, [placement]);
     const snapActive = snapUsable && chanceTab === snapPlay_1.SNAPPLAY_PROVIDER_ID;
     const adState = (0, combos_1.useTodayCombos)({ url, headers, load, loadKey, sample });
     const snapState = (0, combos_1.useTodayCombos)({ load: snapUsable ? loadSnapPlay : undefined, loadKey: `${loadKey ?? ''}:snapplay` });
@@ -400,11 +407,21 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     const [wallReady, setWallReady] = React.useState(wallSignal_1.isWallLoaded);
     // 0.5.1: the 「찬스1 · 찬스2」 tab row above the wall pushes everything down by its height — the chip row, the sheet and the toast follow
     const [tabInset, setTabInset] = React.useState(wallSignal_1.getChanceTabInset);
-    React.useEffect(() => (placement === 'chance' ? (0, wallSignal_1.onChanceTabInset)(setTabInset) : undefined), [placement]);
+    React.useEffect(() => {
+        if (placement !== 'chance')
+            return undefined;
+        setTabInset((0, wallSignal_1.getChanceTabInset)());
+        return (0, wallSignal_1.onChanceTabInset)(setTabInset);
+    }, [placement]);
     const inset = placement === 'chance' ? tabInset : 0;
     const everOpened = React.useRef(false);
     const popupGiven = React.useRef(false); // at most one popup per visit (entry mount), even when it is shown on every visit
-    React.useEffect(() => (placement === 'chance' ? (0, wallSignal_1.onWallState)(setWallReady) : undefined), [placement]);
+    React.useEffect(() => {
+        if (placement !== 'chance')
+            return undefined;
+        setWallReady((0, wallSignal_1.isWallLoaded)());
+        return (0, wallSignal_1.onWallState)(setWallReady);
+    }, [placement]);
     const popupMode = state.combos?.display.popup; // 'off' | 'always' | undefined (once a day)
     // (nothing to recommend while an iPhone list is being prepared with no rows: no popup, and the day's one popup is not used up)
     const popupDue = placement === 'chance' && !snapActive && shown && (0, combos_1.hasComboRows)(state.combos) && popupMode !== 'off' && !open && !popup && !everOpened.current && !popupGiven.current

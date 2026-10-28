@@ -30,6 +30,29 @@ export declare const OFFERWALL_SCREEN_MARK = "jcurve-offerwall-screen:headerless
 export declare const OFFERWALL_CHANCE_TABS_MARK = "jcurve-offerwall-chance-tabs:v1";
 /** Until the tab row has been measured, its height is taken as this (44 minHeight + the 1px border + the 2px selected line fits inside the 44). */
 export declare const CHANCE_TAB_FALLBACK_HEIGHT = 45;
+/** How long the AdPopcorn wall may take to report that it has loaded before the screen says 「찬스를 불러오지 못했어요」. */
+export declare const CLASSIC_WALL_TIMEOUT_MS = 20000;
+/**
+ * 0.6.4 — when the 20 s load timer may run: only with a member (`usn`) to load for, only while the wall is on screen (not behind the other 찬스 tab), only while it has neither
+ * loaded nor failed. With no member yet, or while the wall is hidden, nothing is wrong with the wall, so the clock is stopped; it starts again from zero when the member arrives
+ * or the wall is shown. (Before, the clock ran through both and the error screen could appear before the wall ever had a chance.)
+ */
+export declare function wallTimerShouldRun({ usn, hidden, loaded, error }: {
+    usn: string | null;
+    hidden: boolean;
+    loaded: boolean;
+    error: boolean;
+}): boolean;
+/**
+ * 0.6.4 — the wall is shown again and is in the error state (it failed, or its load could not be told while it was hidden): try once on its own. At most one automatic
+ * try per error (`retried`: set by it and by the 「다시 시도」 button, cleared by a successful load or a new member); after that only the button retries.
+ */
+export declare function wallAutoRetryOnShow({ wasHidden, hidden, error, retried }: {
+    wasHidden: boolean;
+    hidden: boolean;
+    error: boolean;
+    retried: boolean;
+}): boolean;
 /**
  * Tab content: no host header. The host owns status-bar and bottom-tab safe areas.
  *
