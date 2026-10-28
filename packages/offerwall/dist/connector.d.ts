@@ -58,6 +58,21 @@ export declare function campaignsBody(list: ReadonlyArray<CampaignInfo | TapCamp
 };
 /** `POST offerwall/combos/diag` body for one 「하러 가기」 tap. Fixed fields only, lengths cut; no member, device or advertising id. */
 export declare function diagBody(d: ComboTapDiagnostic): Record<string, unknown>;
+/** What the web tap saw on a test member's phone, for finding out why a list did not arrive (0.4.1). Counts and path names only — no campaign, member or device data. */
+export type WebTapSummary = {
+    started: boolean;
+    reason?: string;
+    hello: number;
+    helloHost?: string;
+    lists: number;
+    maxList: number;
+    details: number;
+    natives: number;
+    shapes: number;
+    paths: string[];
+};
+/** `POST offerwall/combos/diag` body for it — fixed fields, lengths cut. */
+export declare function webTapDiagBody(summary: WebTapSummary): Record<string, unknown>;
 declare const RESULTS: readonly ["open_failed", "closed_fast"];
 /** `POST offerwall/combos/diag` body for the detail-page signal: four fields only (result, campaignKey, platform, ms). */
 export declare function detailSignalBody(s: ComboDetailSignal): {

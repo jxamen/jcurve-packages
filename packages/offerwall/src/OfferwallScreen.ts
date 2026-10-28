@@ -16,7 +16,7 @@ export const OFFERWALL_SCREEN_MARK = 'jcurve-offerwall-screen:headerless-v1';
 /** Tab content: no host header. The host owns status-bar and bottom-tab safe areas. */
 export function OfferwallScreen({ usn, onClose, onRetry, loadingColor = '#555', topInset = 0 }: OfferwallScreenProps): ReactElement {
   const React = require('react') as typeof import('react');
-  const { View, Text, Pressable, ActivityIndicator, BackHandler, StyleSheet } = require('react-native') as typeof import('react-native');
+  const { View, Text, Pressable, ActivityIndicator, BackHandler } = require('react-native') as typeof import('react-native');
   const h = React.createElement;
   const [loaded, setLoaded] = React.useState(false);
   const [error, setError] = React.useState(false);
@@ -33,7 +33,7 @@ export function OfferwallScreen({ usn, onClose, onRetry, loadingColor = '#555', 
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => { onClose(); return true; });
     return () => subscription.remove();
   }, [onClose]);
-  const status = { ...StyleSheet.absoluteFill, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 16 };
+  const status = { position: 'absolute' as const, left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 16 };
   return h(View, { style: { flex: 1, backgroundColor: '#fff', paddingTop: Math.max(0, topInset) } },
     h(View, { style: { flex: 1, overflow: 'hidden' } },
       usn && !error ? h(OfferwallView, { key: `${usn}:${attempt}`, usn, onLoaded: () => { setLoaded(true); notifyWallLoaded(); }, onError: () => setError(true) }) : null,

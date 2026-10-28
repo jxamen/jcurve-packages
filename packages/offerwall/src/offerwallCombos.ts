@@ -16,7 +16,7 @@
  */
 import type { ReactElement } from 'react';
 import type { CampaignInfo } from './campaigns';
-import { campaignsBody, createOfferwallClient, detailSignalBody, diagBody, dropAlwaysPopup, hasAlwaysPopup, listTapSwitch, type OfferwallClient, type OfferwallClientOptions } from './connector';
+import { campaignsBody, createOfferwallClient, detailSignalBody, diagBody, dropAlwaysPopup, hasAlwaysPopup, listTapSwitch, webTapDiagBody, type OfferwallClient, type OfferwallClientOptions, type WebTapSummary } from './connector';
 import { ComboEntry, type ComboDetailSignal, type ComboEntryProps, type ComboSheetShown, type ComboTapDiagnostic } from './comboEntry';
 import type { ComboStorage } from './comboDone';
 import { comboThemeFromTokens, DEFAULT_COMBO_THEME, type ComboTheme } from './combos';
@@ -102,6 +102,15 @@ export function guardedBody(body: unknown): unknown {
   return key ? { ...b, [key]: { ...doc, display } } : { ...b, display };
 }
 
+/** The last explicit "on" the server gave for the iPhone list reading, kept on the device so the tap can start at mount, before the combos answer is back (0.4.1). */
+export const LIST_TAP_CACHE_MS = 7 * 24 * 3600_000;
+export const listTapCacheKey = (member: string | number): string => `jcurve.offerwall.listtap:${member}`;
+/** The cached value ('1700000000000' = when the server last said "on") is still usable. Anything else — nothing stored, "0", garbage, too old — is off. */
+export function listTapCached(raw: string | null | undefined, now: number = Date.now()): boolean {
+  const at = Number(raw);
+  return Number.isFinite(at) && at > 0 && now - at >= 0 && now - at < LIST_TAP_CACHE_MS;
+}
+
 export type ComboHandlerDeps = {
   client: () => OfferwallClient;
   memberId: () => number | string | null | undefined;
@@ -159,6 +168,13 @@ export function createComboHandlers({ client, memberId, askTestMember, onListTap
         await client().post('offerwall/combos/diag', diagBody(d));
       } catch { /* diagnostics are an extra */ }
     },
+    /** What the web tap saw (counts and path names only): test members only, quietly. */
+    async diagnoseWebTap(summary: WebTapSummary): Promise<void> {
+      try {
+        if (!(await isTestMember())) return;
+        await client().post('offerwall/combos/diag', webTapDiagBody(summary));
+      } catch { /* diagnostics are an extra */ }
+    },
     /** A detail page that did not open / closed at once: every member, four fields. */
     async signalDetail(s: ComboDetailSignal): Promise<void> {
       try { await client().post('offerwall/combos/diag', detailSignalBody(s)); } catch { /* a hint, nothing more */ }
@@ -211,7 +227,11 @@ export function OfferwallCombos(props: OfferwallCombosProps): ReactElement | nul
       client: clientFor,
       memberId: () => latest.current.memberId,
       askTestMember: () => latest.current.isTestMember?.() ?? false,
-      onListTap: on => { if (aliveRef.current) setListTap((prev: boolean) => (prev === on ? prev : on)); },
+      onListTap: on => {
+        // remember the server's answer for the next start (an explicit "on" with its time, an explicit "off" as "0")
+        try { const store = latest.current.storage ?? storageRef.current ?? undefined; const member = latest.current.memberId; if (store && member != null) void Promise.resolve(store.setItem(listTapCacheKey(member), on ? String(Date.now()) : '0')).catch(() => {}); } catch { /* the cache is an extra */ }
+        if (aliveRef.current) setListTap((prev: boolean) => (prev === on ? prev : on));
+      },
     });
   }
   const handlers = handlersRef.current;
@@ -225,11 +245,22 @@ export function OfferwallCombos(props: OfferwallCombosProps): ReactElement | nul
     ...(latest.current.notifications ?? {}),
   });
 
+  // iPhone: the last explicit "on" from the server starts the tap at mount, before the combos answer is back; the answer then confirms or switches it off
+  React.useEffect(() => {
+    if (memberId == null || platformOs() !== 'ios' || !storage) return;
+    let live = true;
+    void Promise.resolve(storage.getItem(listTapCacheKey(memberId))).then(raw => { if (live && listTapCached(raw)) setListTap((prev: boolean) => prev || true); }).catch(() => {});
+    return () => { live = false; };
+  }, [memberId]);
+
   // iPhone only, only while the server says "on": watch AdPopcorn's own list page, send what it shows (rarely), stop when the switch goes off
   React.useEffect(() => {
     if (!listTap || memberId == null || platformOs() !== 'ios') return;
     let live = true;
     let handle: WebTapHandle | null = null;
+    const seen: WebTapSummary = { started: false, hello: 0, lists: 0, maxList: 0, details: 0, natives: 0, shapes: 0, paths: [] };
+    const timers: Array<ReturnType<typeof setTimeout>> = [];
+    const report = () => { try { void handlers.diagnoseWebTap({ ...seen, paths: [...seen.paths] }); } catch { /* ignore */ } };
     const uploader: TapUploader = createTapUploader({
       upload: body => clientFor().post('offerwall/campaigns', body),
       storage, scope: String(memberId),
@@ -237,18 +268,30 @@ export function OfferwallCombos(props: OfferwallCombosProps): ReactElement | nul
     void startWebTap({
       onMessage: message => {
         if (!live) return;
+        if (message.type === 'hello') { seen.hello += 1; seen.helloHost = message.host; try { console.log('[combos] tap hello', message.host, message.ready); } catch { /* ignore */ } return; }
+        if (message.type === 'net') { if (seen.paths.length < 12 && !seen.paths.includes(message.path)) seen.paths.push(message.path); return; }
         if (message.type === 'shape') {
+          seen.shapes += 1;
           // key names only, to see the page's real shape on a device
           try { console.log('[combos] tap shape', message.path, message.keys.join(','), '|', message.itemKeys.join(',')); } catch { /* ignore */ }
           return;
         }
+        if (message.type === 'list') {
+          seen.lists += 1; seen.maxList = Math.max(seen.maxList, message.campaigns.length);
+          try { console.log('[combos] tap list', message.campaigns.length); } catch { /* ignore */ }
+        } else if (message.type === 'detail') seen.details += 1;
+        else if (message.type === 'native') seen.natives += 1;
         uploader.handle(message);
       },
     }).then(started => {
       if (!live) { started.stop(); return; }
       handle = started;
+      seen.started = started.ok;
+      if (!started.ok) { seen.reason = started.reason; report(); return; }
+      // test members only: a short summary of what the tap saw, after the wall had time to load and again later
+      timers.push(setTimeout(report, 25_000), setTimeout(report, 100_000));
     }).catch(() => undefined);
-    return () => { live = false; uploader.stop(); handle?.stop(); };
+    return () => { live = false; timers.forEach(t => clearTimeout(t)); uploader.stop(); handle?.stop(); };
   }, [listTap, memberId]);
 
   const adReady = popupAdOn !== false && popupAdAvailable({ adUnit, testMode: adTestMode });

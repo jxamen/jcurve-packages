@@ -5,6 +5,7 @@ exports.normalizeServerUrl = normalizeServerUrl;
 exports.createOfferwallClient = createOfferwallClient;
 exports.campaignsBody = campaignsBody;
 exports.diagBody = diagBody;
+exports.webTapDiagBody = webTapDiagBody;
 exports.detailSignalBody = detailSignalBody;
 exports.hasAlwaysPopup = hasAlwaysPopup;
 exports.dropAlwaysPopup = dropAlwaysPopup;
@@ -131,6 +132,19 @@ function diagBody(d) {
         body.openMs = count(d.openMs);
     if (typeof d.copied === 'boolean')
         body.copied = d.copied;
+    return body;
+}
+/** `POST offerwall/combos/diag` body for it — fixed fields, lengths cut. */
+function webTapDiagBody(summary) {
+    const body = {
+        t: 'webtap', started: summary.started === true, hello: count(summary.hello), lists: count(summary.lists), maxList: count(summary.maxList),
+        details: count(summary.details), natives: count(summary.natives), shapes: count(summary.shapes),
+        paths: Array.isArray(summary.paths) ? summary.paths.slice(0, 12).map(p => String(p).replace(/[?#].*$/, '').slice(0, 120)) : [],
+    };
+    if (summary.reason)
+        body.reason = String(summary.reason).slice(0, 40);
+    if (summary.helloHost)
+        body.helloHost = String(summary.helloHost).slice(0, 80);
     return body;
 }
 const RESULTS = ['open_failed', 'closed_fast'];

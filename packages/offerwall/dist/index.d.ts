@@ -97,6 +97,7 @@ export * from './comboCategories';
 export * from './campaigns';
 export * from './native';
 export * from './webTap';
+export * from './webTapGate';
 export * from './connector';
 export * from './trialNotify';
 export * from './popupAd';

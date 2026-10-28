@@ -130,6 +130,20 @@ export function diagBody(d: ComboTapDiagnostic): Record<string, unknown> {
   return body;
 }
 
+/** What the web tap saw on a test member's phone, for finding out why a list did not arrive (0.4.1). Counts and path names only — no campaign, member or device data. */
+export type WebTapSummary = { started: boolean; reason?: string; hello: number; helloHost?: string; lists: number; maxList: number; details: number; natives: number; shapes: number; paths: string[] };
+/** `POST offerwall/combos/diag` body for it — fixed fields, lengths cut. */
+export function webTapDiagBody(summary: WebTapSummary): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    t: 'webtap', started: summary.started === true, hello: count(summary.hello), lists: count(summary.lists), maxList: count(summary.maxList),
+    details: count(summary.details), natives: count(summary.natives), shapes: count(summary.shapes),
+    paths: Array.isArray(summary.paths) ? summary.paths.slice(0, 12).map(p => String(p).replace(/[?#].*$/, '').slice(0, 120)) : [],
+  };
+  if (summary.reason) body.reason = String(summary.reason).slice(0, 40);
+  if (summary.helloHost) body.helloHost = String(summary.helloHost).slice(0, 80);
+  return body;
+}
+
 const RESULTS = ['open_failed', 'closed_fast'] as const;
 /** `POST offerwall/combos/diag` body for the detail-page signal: four fields only (result, campaignKey, platform, ms). */
 export function detailSignalBody(s: ComboDetailSignal): { result: (typeof RESULTS)[number]; campaignKey: string; platform: 'ios' | 'android'; ms: number } {

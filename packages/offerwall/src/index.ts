@@ -1,4 +1,5 @@
 import { hasNativeBridge } from './native';
+import { subscribeTapGate, tapGateState, TAP_REMOUNT_WINDOW_MS } from './webTapGate';
 /** Native SDK is required lazily: importing this package works before keys/SDK exist. */
 export type OfferwallResult = { ok: true } | { ok: false; reason: 'not_ready' | 'invalid_usn' | 'sdk_error'; message: string };
 export type RewardInfo = { queryResult: boolean; totalCount: number; totalReward: string };
@@ -228,6 +229,19 @@ export function OfferwallView({ usn, style, onLoaded, onError, campaignKeys, det
   const [readyUsn, setReadyUsn] = React.useState<string | null>(null);
   const error = React.useRef(onError);
   error.current = onError;
+  // 0.4.1: the web tap only reaches web views created after it turned on; the wall's web view is made at the first layout, before the server's switch is known.
+  // So when the tap turns on shortly after this view mounted, mount the native view once more (new `key`) — its new web view gets the script.
+  const [generation, setGeneration] = React.useState(0);
+  React.useEffect(() => {
+    const mountedAt = Date.now();
+    const gate = tapGateState();
+    let seen = gate.active ? gate.epoch : -1;
+    return subscribeTapGate((epoch) => {
+      if (epoch === seen) return;
+      seen = epoch;
+      if (Date.now() - mountedAt <= TAP_REMOUNT_WINDOW_MS) setGeneration((g) => g + 1);
+    });
+  }, []);
   React.useEffect(() => {
     setReadyUsn(null);
     try {
@@ -256,7 +270,7 @@ export function OfferwallView({ usn, style, onLoaded, onError, campaignKeys, det
       if (onDetailClosed && 'onDetailClosed' in nativeProps) extra.onDetailClosed = onDetailClosed;
     } catch { /* an older binary: the props are simply not passed */ }
   }
-  return React.createElement(embeddedView, { usn, style: [{ flex: 1 }, style], onLoaded, ...extra });
+  return React.createElement(embeddedView, { key: generation, usn, style: [{ flex: 1 }, style], onLoaded, ...extra });
 }
 
 export { OfferwallScreen, OFFERWALL_SCREEN_MARK } from './OfferwallScreen';
@@ -268,6 +282,7 @@ export * from './comboCategories';
 export * from './campaigns';
 export * from './native';
 export * from './webTap';
+export * from './webTapGate';
 export * from './connector';
 export * from './trialNotify';
 export * from './popupAd';

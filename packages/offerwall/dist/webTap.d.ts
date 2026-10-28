@@ -36,6 +36,17 @@ export type TapMessage = {
     path: string;
     keys: string[];
     itemKeys: string[];
+}
+/** 0.4.1: the script started on the wall page */
+ | {
+    type: 'hello';
+    host: string;
+    ready: string;
+}
+/** 0.4.1: a path the page requested (no query) */
+ | {
+    type: 'net';
+    path: string;
 };
 /** A message from the native module (a JSON string or an object) → a checked `TapMessage`, or null for anything else. */
 export declare function parseTapMessage(raw: unknown): TapMessage | null;

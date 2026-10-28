@@ -10,6 +10,7 @@
  * (`startWebTap` returns `{ ok: false }`) — nothing breaks on a 0.2.x / 0.3.0 binary.
  */
 import { addTapListener, getOfferwallNativeCapabilities, hasNativeBridge, setWebTap as setNativeWebTap } from './native';
+import { tapGateActivated, tapGateDeactivated } from './webTapGate';
 
 /** Name of the script message handler the native module registers in the SDK's web view (the page posts nothing to it by itself). */
 export const WEB_TAP_HANDLER = 'JCurveOfferwallTap';
@@ -29,6 +30,8 @@ export const WEB_TAP_SCRIPT = `(function () {
   var NATIVE_EVENTS = /^(normalDialog|showDetailPage|requestJoinCampaign|refreshCampaignList|campaignCompleted|cpmCampaignCompleted|rcpcCampaignCompleted|newsCampaignCompleted|webtoonCampaignCompleted|executeAppAndReward|rewardSuccess|checkCampaignPackageTargetList)$/;
   var INFO_KEY = /(Step|Condition|Guide|Caution|Notice|Info|Description)$/;
   var shapes = {};
+  var netSeen = {};
+  var netCount = 0;
   function post(obj) {
     try { window.webkit.messageHandlers[HANDLER].postMessage(JSON.stringify(obj)); } catch (e) {}
   }
@@ -81,6 +84,8 @@ export const WEB_TAP_SCRIPT = `(function () {
   function handle(url, text) {
     var path = '';
     try { path = new URL(String(url), location.href).pathname; } catch (e) { path = String(url).split('?')[0]; }
+    // 0.4.1: which paths does the page call? (path only — no query, no values) so a list that comes by another path can be found from a device
+    if (!netSeen[path] && netCount < 12) { netSeen[path] = 1; netCount += 1; post({ type: 'net', path: path.slice(0, 120) }); }
     if (!/\\/sdk\\/media\\/campaign(s)?\\/?$/i.test(path)) return;
     var data;
     try { data = JSON.parse(text); } catch (e) { return; }
@@ -120,6 +125,10 @@ export const WEB_TAP_SCRIPT = `(function () {
       return result;
     };
   }
+  // 0.4.1: the script is alive on this page (host only)
+  var ready = '';
+  try { ready = String(document.readyState).slice(0, 20); } catch (e) {}
+  post({ type: 'hello', host: String(location.hostname).slice(0, 80), ready: ready });
   window.addEventListener('NativeEvent', function (event) {
     try {
       var data = event && event.detail && event.detail.data;
@@ -137,7 +146,11 @@ export type TapMessage =
   /** an event the SDK handed to the page: normalDialog (its message is the dialog text, e.g. a campaign that is full), showDetailPage, requestJoinCampaign … */
   | { type: 'native'; event: string; ok: boolean; message: string }
   /** the key names (never values) of a response the script could not read, to learn its shape */
-  | { type: 'shape'; path: string; keys: string[]; itemKeys: string[] };
+  | { type: 'shape'; path: string; keys: string[]; itemKeys: string[] }
+  /** 0.4.1: the script started on the wall page */
+  | { type: 'hello'; host: string; ready: string }
+  /** 0.4.1: a path the page requested (no query) */
+  | { type: 'net'; path: string };
 
 const text = (v: unknown, max: number): string => (typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, max) : '');
 const whole = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(10_000_000, Math.round(v))) : 0);
@@ -184,6 +197,8 @@ export function parseTapMessage(raw: unknown): TapMessage | null {
     const event = text(m.event, 60);
     return event ? { type: 'native', event, ok: m.ok === true, message: text(m.message, 200) } : null;
   }
+  if (m.type === 'hello') return { type: 'hello', host: text(m.host, 80), ready: text(m.ready, 20) };
+  if (m.type === 'net') { const path = text(m.path, 120); return path ? { type: 'net', path } : null; }
   if (m.type === 'shape') {
     const names = (v: unknown): string[] => (Array.isArray(v) ? v.slice(0, 30).map(k => text(k, 40)).filter(Boolean) : []);
     return { type: 'shape', path: text(m.path, 120), keys: names(m.keys), itemKeys: names(m.itemKeys) };
@@ -218,5 +233,6 @@ export async function startWebTap({ onMessage, enabled = true }: WebTapOptions):
     const on = await setNativeWebTap(enabled ? { enabled: true, script: WEB_TAP_SCRIPT, handler: WEB_TAP_HANDLER, hostPattern: WEB_TAP_HOST_PATTERN } : { enabled: false });
     if (!on && enabled) { unsubscribe(); return none('failed'); }
   } catch { unsubscribe(); return none('failed'); }
-  return { ok: true, stop: () => { unsubscribe(); void setNativeWebTap({ enabled: false }).catch(() => {}); } };
+  if (enabled) tapGateActivated();
+  return { ok: true, stop: () => { unsubscribe(); tapGateDeactivated(); void setNativeWebTap({ enabled: false }).catch(() => {}); } };
 }

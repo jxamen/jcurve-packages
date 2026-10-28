@@ -16,7 +16,7 @@
  */
 import type { ReactElement } from 'react';
 import type { CampaignInfo } from './campaigns';
-import { type OfferwallClient, type OfferwallClientOptions } from './connector';
+import { type OfferwallClient, type OfferwallClientOptions, type WebTapSummary } from './connector';
 import { type ComboDetailSignal, type ComboEntryProps, type ComboSheetShown, type ComboTapDiagnostic } from './comboEntry';
 import type { ComboStorage } from './comboDone';
 import { comboThemeFromTokens, type ComboTheme } from './combos';
@@ -74,6 +74,11 @@ export type OfferwallCombosProps = {
  * and the `always` popup survives only for test members. The original body is not touched.
  */
 export declare function guardedBody(body: unknown): unknown;
+/** The last explicit "on" the server gave for the iPhone list reading, kept on the device so the tap can start at mount, before the combos answer is back (0.4.1). */
+export declare const LIST_TAP_CACHE_MS: number;
+export declare const listTapCacheKey: (member: string | number) => string;
+/** The cached value ('1700000000000' = when the server last said "on") is still usable. Anything else — nothing stored, "0", garbage, too old — is off. */
+export declare function listTapCached(raw: string | null | undefined, now?: number): boolean;
 export type ComboHandlerDeps = {
     client: () => OfferwallClient;
     memberId: () => number | string | null | undefined;
@@ -94,6 +99,8 @@ export declare function createComboHandlers({ client, memberId, askTestMember, o
     report(list: CampaignInfo[]): Promise<void>;
     /** One line per 하러 가기 tap: test members only. */
     diagnose(d: ComboTapDiagnostic): Promise<void>;
+    /** What the web tap saw (counts and path names only): test members only, quietly. */
+    diagnoseWebTap(summary: WebTapSummary): Promise<void>;
     /** A detail page that did not open / closed at once: every member, four fields. */
     signalDetail(s: ComboDetailSignal): Promise<void>;
     /** A failure is thrown on purpose: the entry knows what to do with it (the consent still opens the page, the list says it could not load, a cancel mark reloads the list). */

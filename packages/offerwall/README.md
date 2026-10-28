@@ -473,3 +473,13 @@ iOS 의 애드팝콘 오퍼월 목록(「전체 미션」)은 SDK 안의 웹 화
 - **동작이 바뀐 것**: (1) 복사할 수단이 없으면 복사를 시도하지 않고 「…찾아 주세요 · 이름을 기억해 두세요」(이전엔 「…찾아 주세요」만). (2) `display` 에 `list_tap:"on"` 만 있는 문서도 받는다(칩은 끈 채). (3) `OfferwallCombos` 로 쓰면 `display.chance` 가 없는 응답은 칩을 켜지 않는다(`ComboEntry` 를 직접 쓰는 옛 방식은 예전 기본값 `chip` 그대로).
 - **선택 peer(없어도 import 가 깨지지 않는다)**: `react-native-google-mobile-ads`(팝업 광고) · `expo-notifications`(알림 권한) · `@react-native-async-storage/async-storage`(체크 · 오늘 봤음 표시 저장).
 - **확인 상태**: 단위 테스트 275개(손으로 만든 React 대역 위) 통과, `tsc` 통과. **네이티브(ObjC · Java)는 아직 컴파일해 본 적이 없다** — 첫 컴파일은 맥북16 빌드 잡(에그머니 iOS)이고, 웹 탭 스크립트는 Node `vm` 의 가짜 페이지에서만 돌려 봤다. 실기기 · 시뮬레이터 확인 전이다.
+
+## 0.4.1 — iPhone 목록 읽기가 실제로 돌게 (JS만 · 네이티브 변경 없음 · 0.4.0 새 빌드 위에 OTA 가능)
+
+**원인(에그머니 iOS 1.1.7 실기기, 10/28 대표님 아이폰)**: 웹 탭의 스크립트는 `setWebTap(enabled:true)` 뒤에 **새로 만들어지는** 웹뷰에만 들어간다. 그런데 오퍼월 웹뷰는 `OfferwallView` 의 첫 레이아웃에서 바로 만들어지고, 서버의 `display.list_tap:"on"` 은 `GET offerwall/combos` 응답 뒤에야 알게 되므로, 평소 첫 방문에서는 **웹뷰가 탭보다 먼저 있었고 스크립트가 한 번도 들어가지 못했다.** 그래서 업로드는 옛 방식(SDK 목록의 키 · 이름뿐)만 갔다.
+
+고친 것
+- **웹뷰 다시 만들기**: 탭이 켜진 뒤 `OfferwallView` 가 **마운트된 지 30초 안**이면 네이티브 뷰를 한 번 더 마운트한다(`key` 변경) → 새 웹뷰에 스크립트가 들어간다. 탭이 이미 켜진 채 마운트되었거나, 보고 있던 지 30초가 넘었으면 건드리지 않는다. (`webTapGate.ts`)
+- **일찍 시작**: 서버가 마지막으로 준 명시적 「켜짐」을 기기에 7일간 기억해(`jcurve.offerwall.listtap:<회원>`) 다음에는 마운트 때 응답을 기다리지 않고 탭을 시작한다. 서버가 「꺼짐」이나 404 를 주면 바로 끄고 「꺼짐」을 기억한다. 「서버가 말해야 켜진다」 규칙은 그대로다(기억도 서버의 명시적 응답이 만든 값).
+- **진단**: 스크립트가 시작하면 `hello`(호스트 · 문서 상태)를, 페이지가 부르는 경로를 `net`(경로만, 쿼리 없음, 최대 12개)으로 알린다. 시험 회원 기기는 시작 25초 · 100초 뒤에 `POST offerwall/combos/diag` 로 요약 `{t:'webtap', started, reason, hello, lists, maxList, details, natives, shapes, paths[]}`(개수 · 경로 이름뿐)를 올린다 — 목록이 안 올 때 어디서 막혔는지(시작 실패 / 스크립트가 안 뜸 / 다른 경로) 서버에서 읽을 수 있다. 콘솔에는 `[combos] tap hello|list|shape` 로 남는다.
+- 기타: `OfferwallScreen` 의 `StyleSheet.absoluteFill` 펼침을 같은 값의 객체로 바꿨다(새 RN 타입 호환, 동작 같음).

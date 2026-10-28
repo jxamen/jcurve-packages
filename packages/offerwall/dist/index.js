@@ -26,6 +26,7 @@ exports.onOfferwallClosed = onOfferwallClosed;
 exports.useOfferwallClosed = useOfferwallClosed;
 exports.OfferwallView = OfferwallView;
 const native_1 = require("./native");
+const webTapGate_1 = require("./webTapGate");
 const pending = () => ({ ok: false, reason: 'not_ready', message: '준비 중' });
 let config;
 let serverConfig;
@@ -277,6 +278,21 @@ function OfferwallView({ usn, style, onLoaded, onError, campaignKeys, detailCamp
     const [readyUsn, setReadyUsn] = React.useState(null);
     const error = React.useRef(onError);
     error.current = onError;
+    // 0.4.1: the web tap only reaches web views created after it turned on; the wall's web view is made at the first layout, before the server's switch is known.
+    // So when the tap turns on shortly after this view mounted, mount the native view once more (new `key`) — its new web view gets the script.
+    const [generation, setGeneration] = React.useState(0);
+    React.useEffect(() => {
+        const mountedAt = Date.now();
+        const gate = (0, webTapGate_1.tapGateState)();
+        let seen = gate.active ? gate.epoch : -1;
+        return (0, webTapGate_1.subscribeTapGate)((epoch) => {
+            if (epoch === seen)
+                return;
+            seen = epoch;
+            if (Date.now() - mountedAt <= webTapGate_1.TAP_REMOUNT_WINDOW_MS)
+                setGeneration((g) => g + 1);
+        });
+    }, []);
     React.useEffect(() => {
         setReadyUsn(null);
         try {
@@ -316,7 +332,7 @@ function OfferwallView({ usn, style, onLoaded, onError, campaignKeys, detailCamp
         }
         catch { /* an older binary: the props are simply not passed */ }
     }
-    return React.createElement(embeddedView, { usn, style: [{ flex: 1 }, style], onLoaded, ...extra });
+    return React.createElement(embeddedView, { key: generation, usn, style: [{ flex: 1 }, style], onLoaded, ...extra });
 }
 var OfferwallScreen_1 = require("./OfferwallScreen");
 Object.defineProperty(exports, "OfferwallScreen", { enumerable: true, get: function () { return OfferwallScreen_1.OfferwallScreen; } });
@@ -328,6 +344,7 @@ __exportStar(require("./comboCategories"), exports);
 __exportStar(require("./campaigns"), exports);
 __exportStar(require("./native"), exports);
 __exportStar(require("./webTap"), exports);
+__exportStar(require("./webTapGate"), exports);
 __exportStar(require("./connector"), exports);
 __exportStar(require("./trialNotify"), exports);
 __exportStar(require("./popupAd"), exports);
