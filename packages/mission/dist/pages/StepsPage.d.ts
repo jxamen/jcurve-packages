@@ -35,5 +35,10 @@ export type StepsPageProps = {
     theme?: Partial<MissionPageTheme>;
     /** 광고 자리 — 앱이 네이티브 광고를 넣는다(패키지는 광고를 모른다). 0.4.6 부터 「남은 횟수」 카드 아래 · 「만보기 안내사항」 위 */
     footer?: ReactNode;
+    /**
+     * (0.7.18 · 0.4.16-mc2, 대표님 10-28 21:26~27 · 전 앱 같은 모양) **기본 true**: 위쪽 큰 걸음 수 · 말풍선을 없애고 「남은 횟수」 카드 한 장 안에 합친다 — 「오늘 걸음 N걸음」 · 「남은 횟수 N번」 · 설명 한 줄 ·
+     * (받을 횟수가 0일 때만) 상태 줄(다음 걸음까지 / 다 받음) · 단추. `false` 를 주면 예전 모양(위 큰 걸음 수 + 말풍선, 카드에는 남은 횟수부터)으로 되돌린다.
+     */
+    mergedCard?: boolean;
 };
-export declare function StepsPage({ todaySteps, stages, earnedToday, stepsAvailable, onUpdate, onClaim, onBack, swipeBack, everySteps, guide, title, theme: themeIn, footer }: StepsPageProps): React.JSX.Element;
+export declare function StepsPage({ todaySteps, stages, earnedToday, stepsAvailable, onUpdate, onClaim, onBack, swipeBack, everySteps, guide, title, theme: themeIn, footer, mergedCard }: StepsPageProps): React.JSX.Element;
