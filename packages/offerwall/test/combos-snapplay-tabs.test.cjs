@@ -332,3 +332,75 @@ test('0.6.4: a tab picked after the entry rendered but before its subscription r
   const sheet = flat(mount());
   assert.ok(sheet.includes('스냅 18547') && !sheet.includes('애드팝콘 미션'), sheet);
 }));
+
+/* ── 0.6.6: the embedded 찬스2 view is shielded from touches while a sheet is open (display.sheet_embed_block "off" turns that off) ───────────────────────────────── */
+
+const snapDocWith = (keys, display) => ({ok: true, combos: {...snapDoc(keys), ...(display ? {display} : {})}});
+const withLines = async (run) => {
+  const real = console.log; const lines = [];
+  console.log = (...args) => { lines.push(args.join(' ')); };
+  try { await run(lines); } finally { console.log = real; }
+};
+const startSnap = async ({make}, display) => {
+  const host = make();
+  const mount = () => host.render(() => api.ComboEntry({placement: 'chance', load: async () => adpopBody(), loadSnapPlay: async () => snapDocWith(['18547', '218047'], display), loadKey: 1, usn: USN, campaigns: {list: async () => [], open: async () => true}}));
+  mount(); host.flush(); await tick(); mount(); host.flush(); await tick(); mount(); host.flush();
+  return {again: () => { host.flush(); return mount(); }};
+};
+
+test('0.6.6: a sheet opened over 찬스2 raises the shield signal (the embedded view stops getting touches) and says embed=blocked; closing it lowers the signal', () => run(async (ctx) => {
+  api.setChanceSheetOpen(false);
+  await withLines(async (lines) => {
+    const s = await startSnap(ctx);
+    switchTab(s, 'snapplay');
+    assert.equal(api.getChanceSheetOpen(), false, 'nothing open yet');
+    assert.equal(api.requestOpenCombos(), true);
+    s.again(); s.again();
+    assert.equal(api.getChanceSheetOpen(), true);
+    assert.ok(lines.includes('[combos-sheet] embed=blocked'), lines.join('\n'));
+    const close = byLabel(s.again(), '닫기');
+    close.props.onPress();
+    s.again(); s.again();
+    assert.equal(api.getChanceSheetOpen(), false);
+  });
+}));
+
+test('0.6.6: with display.sheet_embed_block "off" the signal stays down over 찬스2 and the log says embed=none', () => run(async (ctx) => {
+  api.setChanceSheetOpen(false);
+  await withLines(async (lines) => {
+    const s = await startSnap(ctx, {sheet_embed_block: 'off'});
+    switchTab(s, 'snapplay');
+    assert.equal(api.requestOpenCombos(), true);
+    s.again(); s.again();
+    assert.equal(api.getChanceSheetOpen(), false, 'switched off by the server');
+    assert.ok(lines.includes('[combos-sheet] embed=none'), lines.join('\n'));
+    assert.ok(!lines.includes('[combos-sheet] embed=blocked'));
+  });
+}));
+
+test('0.6.6: the "not found" toast shows inside the Modal (the one in the tree would be hidden under the Modal)', () => run(async (ctx) => {
+  const {make} = ctx;
+  const host = make();
+  const box = (x, y, w, h) => ({measureInWindow: (cb) => cb(x, y, w, h)});
+  const mount = () => host.render(() => api.ComboEntry({placement: 'chance', load: async () => adpopBody(), loadSnapPlay: async () => snapBody(['18547', '777777']), loadKey: 'toast-in-modal', usn: USN, campaigns: {list: async () => [], open: async () => true}})); // (its own member: the in-memory done marks are shared across tests by member)
+  mount(); host.flush(); await tick(); mount(); host.flush(); await tick();
+  let tree = mount(); host.flush();
+  const anchor = walk(tree).find((n) => n.props && n.props.testID === 'jcurve-combo-anchor');
+  anchor.props.ref(box(0, 100, 400, 700)); anchor.props.onLayout();
+  const again = () => { host.flush(); return mount(); };
+  switchTab({again}, 'snapplay');
+  assert.equal(api.requestOpenCombos(), true);
+  tree = again();
+  const modalAnchor = walk(tree).find((n) => n.props && n.props.testID === 'jcurve-combo-modal-anchor');
+  modalAnchor.props.ref(box(0, 0, 1, 1)); modalAnchor.props.onLayout();
+  tree = again();
+  assert.ok(walk(tree).some((n) => n.type === 'Modal'), 'in a Modal');
+  byLabel(tree, '2번 ', true).props.onPress();
+  await tick(40);
+  tree = again();
+  const inModal = texts(walk(tree).find((n) => n.type === 'Modal'));
+  const outside = texts({children: walk(tree).filter((n) => n.type !== 'Modal' && !walk(tree).find((m) => m.type === 'Modal').children.includes(n))});
+  assert.ok(inModal.some((x) => String(x).includes('마감됐어요')), inModal.join('|'));
+  assert.equal(texts(tree).filter((x) => String(x).includes('마감됐어요')).length, 1, 'said once, not also in the tree');
+  void outside;
+}, {ads: [ad(18547)]}));

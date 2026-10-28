@@ -98,6 +98,10 @@ function OfferwallScreen({ usn, onClose, onRetry, loadingColor, topInset = 0, ta
     const [picked, setPicked] = React.useState(chanceProviders_1.ADPOPCORN_PROVIDER_ID);
     const [launch, setLaunch] = React.useState(IDLE);
     const [tabHeight, setTabHeight] = React.useState(0);
+    // 0.6.6: while a 「포인트 빨리 모으기」 sheet is open the 찬스2 panel (the embedded SnapPlay view) is shielded from touches. Subscribe, then read what is already there — the entry
+    // next to this screen may have set it before this subscription existed.
+    const [sheetUp, setSheetUp] = React.useState(wallSignal_1.getChanceSheetOpen);
+    React.useEffect(() => { setSheetUp((0, wallSignal_1.getChanceSheetOpen)()); return (0, wallSignal_1.onChanceSheetOpen)(setSheetUp); }, []);
     const alive = React.useRef(true);
     React.useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
     const copy = { ...exports.DEFAULT_LAUNCHER_COPY, ...launcherCopy };
@@ -159,7 +163,8 @@ function OfferwallScreen({ usn, onClose, onRetry, loadingColor, topInset = 0, ta
     }));
     const backToFirst = () => { setPicked(chanceProviders_1.ADPOPCORN_PROVIDER_ID); setLaunch(IDLE); };
     const embedded = launcher && launch.state === 'embedded' && launcher.embed ? launcher.embed({ onClose: backToFirst }) : null;
-    const panel = !launcher ? null : embedded ? h(View, { style: { flex: 1, backgroundColor: '#fff' } }, embedded) : h(View, { style: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12, backgroundColor: '#fff' } }, h(Text, { style: { fontSize: 18, fontWeight: '700', color: '#222', textAlign: 'center' } }, copy.title), h(Text, { style: { fontSize: 14, color: '#666', textAlign: 'center' } }, copy.body), launch.state === 'error' ? h(Text, { style: { fontSize: 13, color: '#c0392b', textAlign: 'center' } }, launch.message) : null, launch.state === 'opening' ? h(ActivityIndicator, { color: loadingColor ?? '#555' })
+    const shield = sheetUp ? { pointerEvents: 'none' } : {};
+    const panel = !launcher ? null : embedded ? h(View, { style: { flex: 1, backgroundColor: '#fff' }, ...shield }, embedded) : h(View, { style: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12, backgroundColor: '#fff' }, ...shield }, h(Text, { style: { fontSize: 18, fontWeight: '700', color: '#222', textAlign: 'center' } }, copy.title), h(Text, { style: { fontSize: 14, color: '#666', textAlign: 'center' } }, copy.body), launch.state === 'error' ? h(Text, { style: { fontSize: 13, color: '#c0392b', textAlign: 'center' } }, launch.message) : null, launch.state === 'opening' ? h(ActivityIndicator, { color: loadingColor ?? '#555' })
         : h(Pressable, { accessibilityRole: 'button', accessibilityLabel: launch.state === 'error' ? copy.retry : copy.open, onPress: () => open(launcher),
             style: { paddingHorizontal: 28, paddingVertical: 13, backgroundColor: tabColor, borderRadius: 12 } }, h(Text, { style: { fontSize: 15, fontWeight: '700', color: '#fff' } }, launch.state === 'error' ? copy.retry : copy.open)));
     return h(View, { style: { flex: 1, backgroundColor: '#fff', paddingTop: Math.max(0, topInset) } }, tabBar, h(ClassicScreen, { usn, onClose, onRetry, loadingColor, topInset: 0, hidden: launcher !== undefined }), panel);

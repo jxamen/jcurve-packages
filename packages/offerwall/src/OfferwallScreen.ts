@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { OfferwallView } from './index';
-import { notifyWallGone, notifyWallLoaded, setChanceTab, setChanceTabInset } from './wallSignal';
+import { getChanceSheetOpen, notifyWallGone, notifyWallLoaded, onChanceSheetOpen, setChanceTab, setChanceTabInset } from './wallSignal';
 import { ADPOPCORN_PROVIDER_ID, useChanceProviders, type ChanceProvider } from './chanceProviders';
 
 /** 「찬스2」 같은 전체 화면 제공자 칸의 글. 앱이 `launcherCopy` 로 일부만 바꿀 수 있다. */
@@ -116,6 +116,10 @@ export function OfferwallScreen({ usn, onClose, onRetry, loadingColor, topInset 
   const [picked, setPicked] = React.useState<string>(ADPOPCORN_PROVIDER_ID);
   const [launch, setLaunch] = React.useState<Launch>(IDLE);
   const [tabHeight, setTabHeight] = React.useState(0);
+  // 0.6.6: while a 「포인트 빨리 모으기」 sheet is open the 찬스2 panel (the embedded SnapPlay view) is shielded from touches. Subscribe, then read what is already there — the entry
+  // next to this screen may have set it before this subscription existed.
+  const [sheetUp, setSheetUp] = React.useState(getChanceSheetOpen);
+  React.useEffect(() => { setSheetUp(getChanceSheetOpen()); return onChanceSheetOpen(setSheetUp); }, []);
   const alive = React.useRef(true);
   React.useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const copy: LauncherCopy = { ...DEFAULT_LAUNCHER_COPY, ...launcherCopy };
@@ -173,7 +177,8 @@ export function OfferwallScreen({ usn, onClose, onRetry, loadingColor, topInset 
 
   const backToFirst = () => { setPicked(ADPOPCORN_PROVIDER_ID); setLaunch(IDLE); };
   const embedded = launcher && launch.state === 'embedded' && launcher.embed ? launcher.embed({ onClose: backToFirst }) : null;
-  const panel = !launcher ? null : embedded ? h(View, { style: { flex: 1, backgroundColor: '#fff' } }, embedded) : h(View, { style: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12, backgroundColor: '#fff' } },
+  const shield = sheetUp ? { pointerEvents: 'none' as const } : {};
+  const panel = !launcher ? null : embedded ? h(View, { style: { flex: 1, backgroundColor: '#fff' }, ...shield }, embedded) : h(View, { style: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12, backgroundColor: '#fff' }, ...shield },
     h(Text, { style: { fontSize: 18, fontWeight: '700', color: '#222', textAlign: 'center' } }, copy.title),
     h(Text, { style: { fontSize: 14, color: '#666', textAlign: 'center' } }, copy.body),
     launch.state === 'error' ? h(Text, { style: { fontSize: 13, color: '#c0392b', textAlign: 'center' } }, launch.message) : null,

@@ -35,6 +35,16 @@ export type ComboDisplay = {
    * Answering never changes what a tap on a trial row does (that still follows the saved 「켜고 참여하기」).
    */
   trialNotice?: 'always' | 'daily';
+  /**
+   * 0.6.6: `sheet_modal` from the server — `'off'` draws the 「포인트 빨리 모으기」 sheet inside the Chance screen's own view tree (as 0.6.5 did) instead of in a `Modal` window above the whole app.
+   * Absent = in a Modal (with an automatic fall back to the tree when the sheet cannot be placed). Kept as `sheetModal` by normalizing.
+   */
+  sheetModal?: 'off';
+  /**
+   * 0.6.6: `sheet_embed_block` from the server — `'off'` stops shielding the 찬스2 embedded SnapPlay view from touches while a sheet is open. Absent = the view is shielded (its
+   * container gets `pointerEvents="none"`). Kept as `sheetEmbedBlock` by normalizing.
+   */
+  sheetEmbedBlock?: 'off';
 };
 /** 「쉽게 모으기」: short, easy missions (follow, subscribe, install and open) with no goal; `total` is the sum of their points. */
 export type ComboEasy = { missions: ComboMission[]; total: number };
@@ -185,6 +195,9 @@ export function normalizeTodayCombos(raw: unknown): TodayCombos | null {
       const rule = data.display?.trial_notice ?? data.display?.trialNotice;
       return rule === 'always' || rule === 'daily' ? { trialNotice: rule as 'always' | 'daily' } : {};
     })(),
+    // 0.6.6 switches: only an explicit 'off' is kept (the server's spelling `sheet_modal` / `sheet_embed_block`, or the kept `sheetModal` / `sheetEmbedBlock`)
+    ...(data.display?.sheet_modal === 'off' || data.display?.sheetModal === 'off' ? { sheetModal: 'off' as const } : {}),
+    ...(data.display?.sheet_embed_block === 'off' || data.display?.sheetEmbedBlock === 'off' ? { sheetEmbedBlock: 'off' as const } : {}),
     // `chance_popup` is the server's spelling; `popup` is what normalizing keeps, so running this twice gives the same result
     ...(() => {
       const mode = data.display?.chance_popup ?? data.display?.popup;

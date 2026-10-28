@@ -10,6 +10,9 @@ exports.onChanceTabInset = onChanceTabInset;
 exports.setChanceTab = setChanceTab;
 exports.getChanceTab = getChanceTab;
 exports.onChanceTab = onChanceTab;
+exports.setChanceSheetOpen = setChanceSheetOpen;
+exports.getChanceSheetOpen = getChanceSheetOpen;
+exports.onChanceSheetOpen = onChanceSheetOpen;
 const listeners = new Set();
 let loaded = false;
 function set(value) {
@@ -71,4 +74,24 @@ function getChanceTab() { return chanceTab; }
 function onChanceTab(listener) {
     tabListeners.add(listener);
     return () => { tabListeners.delete(listener); };
+}
+const sheetListeners = new Set();
+let sheetOpen = false;
+function setChanceSheetOpen(open) {
+    const next = open === true;
+    if (next === sheetOpen)
+        return;
+    sheetOpen = next;
+    for (const listener of [...sheetListeners]) {
+        try {
+            listener(next);
+        }
+        catch { /* one bad listener must not stop the rest */ }
+    }
+}
+function getChanceSheetOpen() { return sheetOpen; }
+/** Calls back whenever the value changes. Returns the unsubscribe function. */
+function onChanceSheetOpen(listener) {
+    sheetListeners.add(listener);
+    return () => { sheetListeners.delete(listener); };
 }

@@ -133,6 +133,9 @@ function normalizeTodayCombos(raw) {
             const rule = data.display?.trial_notice ?? data.display?.trialNotice;
             return rule === 'always' || rule === 'daily' ? { trialNotice: rule } : {};
         })(),
+        // 0.6.6 switches: only an explicit 'off' is kept (the server's spelling `sheet_modal` / `sheet_embed_block`, or the kept `sheetModal` / `sheetEmbedBlock`)
+        ...(data.display?.sheet_modal === 'off' || data.display?.sheetModal === 'off' ? { sheetModal: 'off' } : {}),
+        ...(data.display?.sheet_embed_block === 'off' || data.display?.sheetEmbedBlock === 'off' ? { sheetEmbedBlock: 'off' } : {}),
         // `chance_popup` is the server's spelling; `popup` is what normalizing keeps, so running this twice gives the same result
         ...(() => {
             const mode = data.display?.chance_popup ?? data.display?.popup;

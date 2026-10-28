@@ -22,7 +22,7 @@ Module._load = function (id, ...args) {
 };
 const { OfferwallScreen } = require('../dist/OfferwallScreen');
 const chance = require('../dist/chanceProviders');
-const { isWallLoaded, getChanceTabInset, getChanceTab, onChanceTab } = require('../dist/wallSignal');
+const { isWallLoaded, getChanceTabInset, getChanceTab, onChanceTab, setChanceSheetOpen, getChanceSheetOpen, onChanceSheetOpen } = require('../dist/wallSignal');
 
 const USN = 'a'.repeat(64);
 const base = { usn: USN, onClose() {}, onRetry() {} };
@@ -276,4 +276,51 @@ test('0.6.2: a screen with a single provider never leaves the tab signal on anot
 
 test('0.6.2: the bundle carries the per-tab 「포인트 빨리 모으기」 mark', () => {
   assert.equal(require('../dist/comboEntry').OFFERWALL_FAST_COMBOS_TABS_MARK, 'jcurve-offerwall-fast-combos-tabs:v1');
+});
+
+// 0.6.6: while a 「포인트 빨리 모으기」 sheet is open the embedded 찬스2 view is shielded from touches (the panel's container gets pointerEvents none).
+const embedPanel = () => tree.root.findByType('EmbeddedSnap').parent;
+const embedLauncher = () => launcher({ provider: { canEmbed: () => true, embed: () => React.createElement('EmbeddedSnap', {}) } });
+
+test('0.6.6: the 찬스2 embed container gets pointerEvents none while a sheet is open and goes back when it closes', async () => {
+  embedLauncher();
+  await mount();
+  await press(tabs()[1]);
+  assert.equal(embedPanel().props.pointerEvents, undefined, 'untouched before');
+  await act(async () => { setChanceSheetOpen(true); });
+  assert.equal(embedPanel().props.pointerEvents, 'none', 'shielded while the sheet is up');
+  await act(async () => { setChanceSheetOpen(false); });
+  assert.equal(embedPanel().props.pointerEvents, undefined, 'back to normal');
+});
+
+test('0.6.6: a value set before the screen mounted, or between its render and its subscription, is still honoured (subscribe, then read what is there)', async () => {
+  embedLauncher();
+  setChanceSheetOpen(true);             // before the screen exists
+  try {
+    await mount();
+    await press(tabs()[1]);
+    assert.equal(embedPanel().props.pointerEvents, 'none', 'read at mount');
+  } finally { setChanceSheetOpen(false); }
+  // between render and subscription: render without flushing effects, change the signal, then let the effects run
+  await act(() => tree.unmount()); tree = undefined;
+  wall = { mounts: 0, unmounts: 0 };
+  let renderer;
+  await act(async () => {
+    renderer = create(React.createElement(OfferwallScreen, { ...base }), { createNodeMock: () => ({}) });
+    setChanceSheetOpen(true);           // a listener not yet subscribed would miss this
+  });
+  tree = renderer;
+  try {
+    await press(tabs()[1]);
+    assert.equal(embedPanel().props.pointerEvents, 'none');
+  } finally { setChanceSheetOpen(false); }
+});
+
+test('0.6.6: the sheet signal only notifies real changes, ignores non-booleans as false, and unsubscribes', () => {
+  const heard = [];
+  const stop = onChanceSheetOpen((v) => heard.push(v));
+  setChanceSheetOpen(true); setChanceSheetOpen(true); setChanceSheetOpen('yes'); setChanceSheetOpen(false); setChanceSheetOpen(undefined);
+  stop(); setChanceSheetOpen(true); setChanceSheetOpen(false);
+  assert.deepEqual(heard, [true, false]);
+  assert.equal(getChanceSheetOpen(), false);
 });

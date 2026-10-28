@@ -102,6 +102,7 @@ test('diagnostic lines (temporary): container touch, list touch, drag start and 
     list.props.onScrollBeginDrag(); list.props.onScrollBeginDrag();
     list.props.onScroll({nativeEvent: {contentOffset: {y: 0}}});
     assert.deepEqual(lines.filter((l) => l.startsWith('[combos-sheet]')), [
+      '[combos-sheet] mode=tree', '[combos-sheet] embed=none', // (0.6.6: how the sheet was drawn, said when it opens)
       '[combos-sheet] container touchStart', '[combos-sheet] list touchStart', '[combos-sheet] list scrollBeginDrag',
     ]);
     list.props.onScroll({nativeEvent: {contentOffset: {y: 120.4}}});
@@ -133,9 +134,9 @@ test('opening the sheet starts a new round of diagnostics (the sheet resets them
   await withLog(async (lines) => {
     const s = await start(ctx);
     probe.comboSheetProbe('list touchStart'); // said before this opening
-    const before = lines.length;
     open(s);
     const list = verticalLists(s.again())[0];
+    const before = lines.length;
     list.props.onTouchStart();
     assert.equal(lines.length, before + 1, 'said again after the sheet opened');
   });

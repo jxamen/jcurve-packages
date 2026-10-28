@@ -45,6 +45,16 @@ export type ComboDisplay = {
      * Answering never changes what a tap on a trial row does (that still follows the saved 「켜고 참여하기」).
      */
     trialNotice?: 'always' | 'daily';
+    /**
+     * 0.6.6: `sheet_modal` from the server — `'off'` draws the 「포인트 빨리 모으기」 sheet inside the Chance screen's own view tree (as 0.6.5 did) instead of in a `Modal` window above the whole app.
+     * Absent = in a Modal (with an automatic fall back to the tree when the sheet cannot be placed). Kept as `sheetModal` by normalizing.
+     */
+    sheetModal?: 'off';
+    /**
+     * 0.6.6: `sheet_embed_block` from the server — `'off'` stops shielding the 찬스2 embedded SnapPlay view from touches while a sheet is open. Absent = the view is shielded (its
+     * container gets `pointerEvents="none"`). Kept as `sheetEmbedBlock` by normalizing.
+     */
+    sheetEmbedBlock?: 'off';
 };
 /** 「쉽게 모으기」: short, easy missions (follow, subscribe, install and open) with no goal; `total` is the sum of their points. */
 export type ComboEasy = {

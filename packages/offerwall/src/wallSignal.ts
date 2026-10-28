@@ -63,3 +63,24 @@ export function onChanceTab(listener: TabListener): () => void {
   tabListeners.add(listener);
   return () => { tabListeners.delete(listener); };
 }
+
+/**
+ * 0.6.6 — whether a 「포인트 빨리 모으기」 sheet is open **and** the 찬스2 embedded SnapPlay view should be shielded from touches meanwhile. `ComboEntry` sets it (it is the one that knows the
+ * sheet is open and what the server's `display.sheet_embed_block` says); `OfferwallScreen` follows it and gives the 찬스2 panel `pointerEvents="none"` while it is true. Subscribers should
+ * read the current value right after subscribing (`getChanceSheetOpen`), as with the other signals here.
+ */
+type SheetListener = (open: boolean) => void;
+const sheetListeners = new Set<SheetListener>();
+let sheetOpen = false;
+export function setChanceSheetOpen(open: boolean): void {
+  const next = open === true;
+  if (next === sheetOpen) return;
+  sheetOpen = next;
+  for (const listener of [...sheetListeners]) { try { listener(next); } catch { /* one bad listener must not stop the rest */ } }
+}
+export function getChanceSheetOpen(): boolean { return sheetOpen; }
+/** Calls back whenever the value changes. Returns the unsubscribe function. */
+export function onChanceSheetOpen(listener: SheetListener): () => void {
+  sheetListeners.add(listener);
+  return () => { sheetListeners.delete(listener); };
+}

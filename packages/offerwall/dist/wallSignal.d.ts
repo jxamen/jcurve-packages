@@ -28,4 +28,14 @@ export declare function setChanceTab(id: string): void;
 export declare function getChanceTab(): string;
 /** Calls back whenever the picked 찬스 tab changes. Returns the unsubscribe function. */
 export declare function onChanceTab(listener: TabListener): () => void;
+/**
+ * 0.6.6 — whether a 「포인트 빨리 모으기」 sheet is open **and** the 찬스2 embedded SnapPlay view should be shielded from touches meanwhile. `ComboEntry` sets it (it is the one that knows the
+ * sheet is open and what the server's `display.sheet_embed_block` says); `OfferwallScreen` follows it and gives the 찬스2 panel `pointerEvents="none"` while it is true. Subscribers should
+ * read the current value right after subscribing (`getChanceSheetOpen`), as with the other signals here.
+ */
+type SheetListener = (open: boolean) => void;
+export declare function setChanceSheetOpen(open: boolean): void;
+export declare function getChanceSheetOpen(): boolean;
+/** Calls back whenever the value changes. Returns the unsubscribe function. */
+export declare function onChanceSheetOpen(listener: SheetListener): () => void;
 export {};

@@ -10,10 +10,11 @@ import { useDoneMissions } from './comboDone';
 import { addOfferwallNativeListener } from './native';
 import type { ComboStorage } from './comboDone';
 import { popupStorageKey, usePulse, useSeenToday } from './comboSeen';
-import { getChanceTab, getChanceTabInset, isWallLoaded, onChanceTab, onChanceTabInset, onWallState } from './wallSignal';
+import { getChanceTab, getChanceTabInset, isWallLoaded, onChanceTab, onChanceTabInset, onWallState, setChanceSheetOpen } from './wallSignal';
 import { useChanceProviders } from './chanceProviders';
 import { SNAPPLAY_PROVIDER_ID, openSnapPlayAd, readSnapPlayAds } from './snapPlay';
 import { comboSheetProbe, resetComboSheetProbe } from './comboSheetProbe';
+import { useSheetPlacement } from './comboSheetFrame';
 import type { SnapPlayAd, SnapPlayOpenResult } from './snapPlay';
 import { openOfferwall } from './index';
 
@@ -176,7 +177,7 @@ export function ComboBanner({ combos, onPress, theme = DEFAULT_COMBO_THEME, opac
 }
 
 /** Panel that rises from the bottom over the wall. It starts below the chip row so the chip stays visible and clickable. */
-function ComboSheet({ top, theme, children }: { top: number; theme: ComboTheme; children?: ReactElement }): ReactElement {
+function ComboSheet({ top, theme, children, mode = 'tree', embed = 'none' }: { top: number; theme: ComboTheme; children?: ReactElement; /** TEMP-DIAG 0.6.6: how the sheet is drawn */ mode?: 'modal' | 'tree'; /** TEMP-DIAG 0.6.6: whether the embedded 찬스2 view is shielded from touches meanwhile */ embed?: 'blocked' | 'none' }): ReactElement {
   const React = require('react') as typeof import('react');
   const { Animated, Dimensions } = require('react-native') as typeof import('react-native');
   const slide = React.useRef<import('react-native').Animated.Value | null>(null);
@@ -185,7 +186,9 @@ function ComboSheet({ top, theme, children }: { top: number; theme: ComboTheme; 
   // did not react to swipes on an Android A32 (taps worked). The sheet is a state of its own (`settled`) that starts again each time the sheet opens (it is unmounted when closed).
   const [settled, setSettled] = React.useState(false);
   React.useEffect(() => {
-    resetComboSheetProbe(); // TEMP-DIAG 0.6.5 (0.6.6 removes it)
+    resetComboSheetProbe(); // TEMP-DIAG 0.6.5 (removed once the cause is settled)
+    comboSheetProbe('mode=' + mode); // TEMP-DIAG 0.6.6
+    comboSheetProbe('embed=' + embed); // TEMP-DIAG 0.6.6
     Animated.timing(slide.current!, { toValue: 1, duration: 220, useNativeDriver: false }).start((result?: { finished?: boolean }) => { if (!result || result.finished !== false) setSettled(true); });
   }, []);
   const translateY = slide.current.interpolate({ inputRange: [0, 1], outputRange: [Dimensions.get('window').height, 0] });
@@ -447,7 +450,7 @@ export function ComboEntry({
   loadSnapPlay, onSnapPlayAds,
 }: ComboEntryProps): ReactElement | null {
   const React = require('react') as typeof import('react');
-  const { Modal, Pressable, SafeAreaView, Dimensions } = require('react-native') as typeof import('react-native');
+  const { Modal, Pressable, SafeAreaView, Dimensions, View } = require('react-native') as typeof import('react-native');
   const h = React.createElement;
   // 0.6.2: the Chance tab has one list per tab. 찬스1 (AdPopcorn) is the list this entry always had; 찬스2 (SnapPlay) has its own, loaded only when the build has SnapPlay and the server
   // turned it on (the provider is then in the list), and used only while that tab is up. While 찬스2 is up the AdPopcorn list is never shown (its missions open in the other SDK):
@@ -773,6 +776,18 @@ export function ComboEntry({
     else if (latest.current.usn) { const wall = latest.current.usn; setTimeout(() => { openOfferwall({ usn: wall }); }, 700); }
   };
 
+  // 0.6.6: where the sheet is drawn. By default in a `Modal` (a window of its own above the app, out of the Chance screen's view tree, which is where a swipe on its list was lost on an
+  // Android A32); `display.sheet_modal: "off"` from the server, a container that cannot be measured, or a frame that does not make sense put it back in the tree as before.
+  // `display.sheet_embed_block: "off"` stops shielding the embedded 찬스2 view (its container gets pointerEvents none) while a sheet is open.
+  const sheetUp = open || trialsOpen;
+  const sheetModalOn = placement === 'chance' && state.combos?.display.sheetModal !== 'off';
+  const sheetPlace = useSheetPlacement({ enabled: sheetModalOn, sheetUp });
+  const embedShield = placement === 'chance' && sheetUp && state.combos?.display.sheetEmbedBlock !== 'off';
+  React.useEffect(() => {
+    setChanceSheetOpen(embedShield);
+    return () => { if (embedShield) setChanceSheetOpen(false); };
+  }, [embedShield]);
+  const closeSheets = () => { setOpen(false); setTrialsOpen(false); };
   const close = () => setOpen(false);
   const guide = (variant: 'page' | 'sheet') => h(ComboGuideScreen, {
     combos: state.combos, loading: state.status === 'loading', onClose: close, onPressMission: handleMission, usn, theme, variant,
@@ -803,29 +818,43 @@ export function ComboEntry({
           consentView)) : null,
       !open ? consentView : null);
   }
+  // the 「무료체험 확인」 sheet's body (the same screen in either drawing mode)
+  const trialsBody = () => h(ComboTrialsScreen, {
+    items: mine.items, loading: mine.loading, failed: mine.failed, theme, focusKey: trialsFocus, onRetry: loadMine,
+    onClose: () => setTrialsOpen(false), onCancelled: markCancelled,
+    // a row of my own list opens its campaign straight away (these were joined already: no consent question again)
+    onOpen: (trial: MyTrial) => { void handleMission({ id: trial.campaignKey, name: trial.name, points: trial.points ?? 1, todo: '', level: 'easy', campaignKey: trial.campaignKey }, { goal: 0, missions: [], total: 0 }, { skipConsent: true }); },
+  });
+  const modalMode = sheetUp && sheetPlace.mode === 'modal';
+  const embedState: 'blocked' | 'none' = embedShield && snapActive ? 'blocked' : 'none'; // TEMP-DIAG 0.6.6
+  const dim = 'rgba(0,0,0,0.3)';
+  // 0.6.6: the sheet in a Modal. The Modal is dimmed at once; the sheet follows as soon as the container's place inside it is known. Tapping outside the sheet or the system back closes it.
+  const sheetModal = modalMode ? h(Modal, { key: 'sheet-modal', visible: true, transparent: true, animationType: 'none', onRequestClose: closeSheets },
+    h(View, { style: { flex: 1 }, collapsable: false },
+      h(View, sheetPlace.modalAnchorProps),
+      h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: closeSheets, style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: dim } }),
+      sheetPlace.frame ? h(View, { pointerEvents: 'box-none', style: { position: 'absolute', left: sheetPlace.frame.left, top: sheetPlace.frame.top, width: sheetPlace.frame.width, height: sheetPlace.frame.height } },
+        h(ComboSheet, { top: sheetTop + inset, theme, mode: 'modal', embed: embedState }, open ? guide('sheet') : trialsBody()),
+        notice ? h(ComboToast, { text: notice, top: sheetTop + inset + 8, theme }) : null) : null)) : null;
   return h(React.Fragment, null,
-    open ? h(Pressable, {
+    sheetModalOn ? h(View, { key: 'sheet-anchor', ...sheetPlace.anchorProps }) : null,
+    sheetModal,
+    !modalMode && open ? h(Pressable, {
       key: 'backdrop', accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: close,
-      style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20, elevation: 20, backgroundColor: 'rgba(0,0,0,0.3)' },
+      style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20, elevation: 20, backgroundColor: dim },
     }) : null,
-    open ? h(ComboSheet, { key: 'sheet', top: sheetTop + inset, theme }, guide('sheet')) : null,
-    trialsOpen ? h(Pressable, {
+    !modalMode && open ? h(ComboSheet, { key: 'sheet', top: sheetTop + inset, theme, mode: 'tree', embed: embedState }, guide('sheet')) : null,
+    !modalMode && trialsOpen ? h(Pressable, {
       key: 'trials-backdrop', accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: () => setTrialsOpen(false),
-      style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20, elevation: 20, backgroundColor: 'rgba(0,0,0,0.3)' },
+      style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20, elevation: 20, backgroundColor: dim },
     }) : null,
-    trialsOpen ? h(ComboSheet, { key: 'trials-sheet', top: sheetTop + inset, theme },
-      h(ComboTrialsScreen, {
-        items: mine.items, loading: mine.loading, failed: mine.failed, theme, focusKey: trialsFocus, onRetry: loadMine,
-        onClose: () => setTrialsOpen(false), onCancelled: markCancelled,
-        // a row of my own list opens its campaign straight away (these were joined already: no consent question again)
-        onOpen: (trial: MyTrial) => { void handleMission({ id: trial.campaignKey, name: trial.name, points: trial.points ?? 1, todo: '', level: 'easy', campaignKey: trial.campaignKey }, { goal: 0, missions: [], total: 0 }, { skipConsent: true }); },
-      })) : null,
+    !modalMode && trialsOpen ? h(ComboSheet, { key: 'trials-sheet', top: sheetTop + inset, theme, mode: 'tree', embed: embedState }, trialsBody()) : null,
     popup && !open && !trialsOpen && state.combos ? h(ComboPopup, { combos: state.combos, theme, art: popupArt, ad: popupAd, onOpen: () => { setPopup(false); setOpen(true); }, onClose: () => setPopup(false) }) : null,
     shown ? h(ComboChip, {
       key: 'chip', open, theme, top: (chipTop ?? COMBO_CHIP_TOP) + inset, right: chipRight, opacity: blink, fit: chipFit ?? undefined,
       before: trialsChip && chipFit ? h(ComboTrialsChip, { open: trialsOpen, theme, fit: chipFit, onPress: () => { if (trialsOpen) setTrialsOpen(false); else openTrials(); } }) : null,
       onPress: () => { setTrialsOpen(false); setOpen(o => !o); },
     }) : null,
-    notice ? h(ComboToast, { key: 'notice', text: notice, top: sheetTop + inset + 8, theme }) : null,
+    notice && !modalMode ? h(ComboToast, { key: 'notice', text: notice, top: sheetTop + inset + 8, theme }) : null,
     consentView);
 }
