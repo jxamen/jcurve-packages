@@ -14,7 +14,7 @@ function OfferwallScreen({ usn, onClose, onRetry, loadingColor = '#555', topInse
     const [attempt, setAttempt] = React.useState(0);
     React.useEffect(() => { setLoaded(false); setError(false); }, [usn, attempt]);
     React.useEffect(() => {
-        if (loaded)
+        if (loaded || !usn)
             return;
         const timer = setTimeout(() => setError(true), 20000);
         return () => clearTimeout(timer);
