@@ -1,0 +1,4 @@
+jcurve-offerwall-0.6.1.tgz
+sha256 ff02ca42219b4bc130c96261babe6b49346ca4dc610d7305f3d709921e372b51
+integrity sha512-biN7oL5gsEfFZV14io+cyPuSNLOsVUfS3Q4+T1OnZ1BwQnEUVm/GON5L2hQhR0+ow+bwv1ysr1ujlOXOLIxxYA==
+commit jcurve-packages feat/offerwall-050 5f37253 (0.6.0 9a39302 + 0.6.1)
