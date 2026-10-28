@@ -93,3 +93,74 @@ describe('StepsScreen', () => {
  it('disables claim at zero steps', async () => { const s = await screen({ state: { ...sample, today_steps: 0, earned_today: 0, stages: sample.stages.map(s => ({ ...s, claimed: false })) } }); expect(s.text()).toContain('1,000걸음 더 걸으면 5P'); await s.press(); expect(s.props.showRewardedAd).not.toHaveBeenCalled(); await act(async () => s.root.unmount()); });
  it('disables claim and offers settings without permission', async () => { vi.mocked(readToday).mockResolvedValue({ status: 'denied', steps: null, days: [], sensorOnly: false }); const s = await screen(); expect(s.text()).toContain('걸음 수 권한이 꺼져 있어요'); await s.press(); expect(s.props.showRewardedAd).not.toHaveBeenCalled(); await act(async () => s.root.unmount()); });
 });
+describe('StepsScreen 0.3.2 — 놓친 광고 보상 되찾기 (adSeen)', () => {
+ const withSeen = (adSeen?: any, extra: any = {}) => ({ fetchStages: vi.fn(async () => extra.state ?? sample), sync: vi.fn(async () => ({})), claimStage: extra.claimStage ?? vi.fn(async () => ({ ...sample, stages: sample.stages.map((s, i) => ({ ...s, claimed: s.claimed || i === 2 })), gained: 5, balance: 40 })), ...(adSeen ? { adSeen } : {}) });
+ it('a stage with an unclaimed ad confirmation on the server is claimed once, without opening an ad', async () => {
+  const adSeen = vi.fn(async () => true); const api = withSeen(adSeen); const showRewardedAd = vi.fn(async () => ({ earned: true }));
+  const s = await screen({ api, showRewardedAd });
+  expect(adSeen).toHaveBeenCalledTimes(1);
+  expect(adSeen).toHaveBeenCalledWith('steps_2', Math.floor(Date.parse(sample.day + 'T00:00:00+09:00') / 1000));
+  expect(api.claimStage).toHaveBeenCalledTimes(1); expect(api.claimStage).toHaveBeenCalledWith('2', sample.day, true);
+  expect(showRewardedAd).not.toHaveBeenCalled();
+  expect(s.text()).toContain('지난 광고 보상 5P 받았어요'); expect(s.props.onBalance).toHaveBeenCalled();
+  await act(async () => s.root.unmount());
+ });
+ it('without api.adSeen nothing changes (no extra call, no message)', async () => {
+  const api = withSeen(undefined); const s = await screen({ api });
+  expect(api.claimStage).not.toHaveBeenCalled(); expect(s.text()).not.toContain('지난 광고 보상'); expect(s.text()).toContain('포인트를 1번 받을 수 있어요');
+  await act(async () => s.root.unmount());
+ });
+ it('no confirmation (false), an unknown answer (null) and a throwing adSeen leave the screen as it was — no claim, no message', async () => {
+  for (const answer of [async () => false, async () => null, async () => { throw new Error('offline'); }]) {
+   const api = withSeen(vi.fn(answer)); const s = await screen({ api });
+   expect(api.claimStage).not.toHaveBeenCalled(); expect(s.text()).not.toContain('지난 광고 보상'); expect(s.text()).toContain('포인트를 1번 받을 수 있어요');
+   await act(async () => s.root.unmount());
+  }
+ });
+ it('a claim the server refuses (no_ad / day_changed / network) is swallowed silently and the normal button stays', async () => {
+  for (const err of [{ code: 'no_ad' }, { code: 'day_changed' }, new Error('offline')]) {
+   const api = withSeen(vi.fn(async () => true), { claimStage: vi.fn(async () => { throw err; }) }); const s = await screen({ api });
+   expect(api.claimStage).toHaveBeenCalledTimes(1); expect(s.text()).not.toContain('지난 광고 보상'); expect(s.text()).not.toContain('날짜가 바뀌었어요'); expect(s.text()).toContain('포인트를 1번 받을 수 있어요');
+   await act(async () => s.root.unmount());
+  }
+ });
+ it('only claimable stages are asked: already claimed, unavailable and not-enough-steps stages are skipped without a call', async () => {
+  const none: StepsState = { ...sample, stages: sample.stages.map(x => ({ ...x, claimed: true })) };
+  const unavailable: StepsState = { ...sample, stages: sample.stages.map(x => ({ ...x, available: false })) };
+  const fewSteps: StepsState = { ...sample, today_steps: 500, stages: sample.stages.map(x => ({ ...x, claimed: false })) };
+  for (const state of [none, unavailable, fewSteps]) {
+   const adSeen = vi.fn(async () => true); const api = withSeen(adSeen, { state }); const s = await screen({ api });
+   expect(adSeen).not.toHaveBeenCalled(); expect(api.claimStage).not.toHaveBeenCalled();
+   await act(async () => s.root.unmount());
+  }
+ });
+ it('an answered stage is not asked again on the next refresh of the same screen', async () => {
+  vi.useFakeTimers(); 
+  try {
+   const adSeen = vi.fn(async () => false); const api = withSeen(adSeen); const s = await screen({ api });
+   expect(adSeen).toHaveBeenCalledTimes(1);
+   await act(async () => { vi.advanceTimersByTime(16000); }); await act(async () => {});
+   expect(adSeen).toHaveBeenCalledTimes(1);
+   await act(async () => s.root.unmount());
+  } finally { vi.useRealTimers(); }
+ });
+ it('yesterday\'s unclaimed stage is healed with yesterday\'s date and its own ad purpose', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-20T07:00:00Z'));
+  try {
+   const adSeen = vi.fn(async (purpose: string) => purpose.startsWith('steps_stage:2026-10-19'));
+   const claimStage = vi.fn(async (_id: string, day: string) => ({ ...(day === yesterdayState.day ? yesterdayState : sample), gained: 5, balance: 40 }));
+   const api = { ...withYesterday(), adSeen, claimStage };
+   const s = await screen({ api });
+   expect(claimStage).toHaveBeenCalledTimes(1); expect(claimStage).toHaveBeenCalledWith('stage_2', '2026-10-19', true);
+   expect(adSeen).toHaveBeenCalledWith('steps_stage:2026-10-19:stage_2', Math.floor(Date.parse('2026-10-19T00:00:00+09:00') / 1000));
+   await act(async () => s.root.unmount());
+  } finally { vi.useRealTimers(); }
+ });
+});
+describe('kstDayStartSec', () => {
+ it('is the unix second of the KST midnight, and 0 for a bad day', async () => {
+  const { kstDayStartSec } = await import('./days');
+  expect(kstDayStartSec('2026-10-20')).toBe(Date.parse('2026-10-19T15:00:00Z') / 1000);
+  expect(kstDayStartSec('nope')).toBe(0);
+ });
+});

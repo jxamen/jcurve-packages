@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState, createContext, useCont
 import { AppState, BackHandler, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { canClaimStage, yesterdayView, type StepsState, type StepsStage } from './stages';
 import { yesterdayKst } from './days';
+import { healUnclaimedStages } from './heal';
 import { StepsYesterdayCard } from './StepsYesterdayCard';
 import { readToday, requestStepsPermission, watchSteps, type TodayReading } from './source';
 import { syncToday } from './sync';
@@ -9,7 +10,9 @@ export type StepsTheme = { bg: string; card: string; text: string; sub: string; 
 export const defaultStepsTheme: StepsTheme = { bg: '#FFF6EC', card: '#FFFFFF', text: '#2B2118', sub: '#8A7A6B', line: '#F6EEE6', dim: '#C4B7A9', primary: '#F5A3B8', primarySoft: '#FFEDF2', primaryDeep: '#D9738E', bgSoft: '#FFFBF5', onPrimary: '#fff', radius: 20 };
 export type PendingStepsClaim = { stage_id: string; day: string; purpose: string; key: string; earned: boolean };
 export type StepsScreenProps = {
- api: { fetchStages(): Promise<StepsState>; /** 0.3.0: `GET steps/stages?day=YYYY-MM-DD`(서버는 오늘 · 어제만). 안 주면 「어제 걸음」 카드가 없다 */ fetchStagesOn?(day: string): Promise<StepsState>; claimStage(stageId: string, day: string, earned?: boolean): Promise<StepsState & { gained: number; balance: number }>; sync: Parameters<typeof syncToday>[1] };
+ api: { fetchStages(): Promise<StepsState>; /** 0.3.0: `GET steps/stages?day=YYYY-MM-DD`(서버는 오늘 · 어제만). 안 주면 「어제 걸음」 카드가 없다 */ fetchStagesOn?(day: string): Promise<StepsState>; claimStage(stageId: string, day: string, earned?: boolean): Promise<StepsState & { gained: number; balance: number }>; sync: Parameters<typeof syncToday>[1];
+ /** 0.3.2: `GET ads/seen?purpose=&since=`(읽기만, 지급 없음) — 이 광고의 구글 확인이 서버에 와 있고 **아직 청구 안 됐으면** true, 없으면 false, 모르면 null/오류. 주면 열려 있는 단계마다 한 번 물어 놓친 광고 보상을 받아 준다. 안 주면 예전 그대로 */
+ adSeen?(purpose: string, sinceSec: number): Promise<boolean | null> };
  showRewardedAd(purpose: string): Promise<{ earned: boolean; opened?: boolean; noAd?: boolean; message?: string }>;
  onPendingClaim?(claim: PendingStepsClaim): void; onBalance?(): void | Promise<unknown>;
  theme?: Partial<StepsTheme>; strings?: Record<string, string>; header?: React.ReactNode; adSlot?: React.ReactNode;
@@ -41,6 +44,7 @@ export function StepsScreen({ api, showRewardedAd, onPendingClaim, onBalance, th
   const [message, setMessage] = useState('');
   const [pending, setPending] = useState<{ id: string; day: string; purpose: string } | null>(null);
   const active = useRef(true); const loading = useRef(false);
+  const healed = useRef(new Map<string, number>()); const healing = useRef(false);   // 0.3.2: 단계마다 한 번(모르면 최대 3번) 묻는다 — `heal.ts`
   const stop = useRef<() => void>(() => {});
   const error = (e: unknown) => { if (active.current) setMessage(isApiError(e) && e.code === 'day_changed' ? '날짜가 바뀌었어요. 오늘 단계를 다시 확인해 주세요.' : isApiError(e) ? t(errorCopy[e.code] ?? '잠시 후 다시 시도해 주세요') : '걸음 수를 읽지 못했어요. 다시 시도해 주세요.'); };
   // 어제 걸음(0.3.0) — 어제 상태는 서버 응답(steps/stages?day=어제)을 그대로 본다. 실패해도 오늘 화면은 그대로 둔다(어제 카드만 안 보인다)
@@ -105,6 +109,36 @@ export function StepsScreen({ api, showRewardedAd, onPendingClaim, onBalance, th
   const [busy, setBusy] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const lock = useRef(false);
+  /**
+   * 0.3.2 — 놓친 광고 보상 되찾기. 받을 수 있는 단계마다 서버에 「이 단계 광고의 구글 확인이 와 있나(아직 청구 안 된 것)」를 한 번 묻고, 있으면 받는다.
+   * 서버는 확인(SSV) 한 줄을 한 번만 쓰고(`consumeAd` 의 claimed_at 비교 갱신) 같은 단계를 두 번 주지 않는다(단계 청구 유일 키 · 원장 유일 키) → 중복 지급 0.
+   * `adSeen` 이 없으면 아무것도 안 한다. 이미 받은 단계 · 날짜가 지난 단계 · 실패는 조용히 건너뛴다(사용자에게 아무 안내도 안 한다, 받았을 때만 한 줄).
+   */
+  const latest = useRef<{ sources: Array<StepsState | null>; pending: boolean }>({ sources: [], pending: false });
+  latest.current = { sources: [state, yState], pending: !!pending };
+  const again = useRef(false);
+  const heal = useCallback(async () => {
+    if (!api.adSeen) return;
+    if (healing.current) { again.current = true; return; }   // 도는 중에 새 상태가 오면 끝난 뒤 한 번 더(건너뛰지 않는다)
+    healing.current = true;
+    try {
+      await healUnclaimedStages({ adSeen: api.adSeen, claimStage: claimStepsStage }, latest.current.sources, {
+        memory: healed.current,
+        canRun: () => active.current && !lock.current && !latest.current.pending,
+        onClaimed: async (next) => {
+          if (!active.current) return;
+          if (next.day === latest.current.sources[1]?.day && next.day !== latest.current.sources[0]?.day) setYState(next); else setState(next);
+          if (next.gained) setMessage(`지난 광고 보상 ${next.gained}P 받았어요`);
+          await refresh();
+        },
+      });
+    } finally {
+      healing.current = false;
+      if (again.current) { again.current = false; void heal(); }
+    }
+  }, [api]);
+  useEffect(() => { void heal(); }, [state, yState, pending, heal]);
+
   async function open(stage: StepsStage, which: 'today' | 'yesterday' = 'today') {
     const src = which === 'today' ? state : yState;
     // 오늘 몫은 걸음 센서가 읽힐 때만, 어제 몫은 서버가 이미 아는 걸음이라 센서 상태와 무관하다

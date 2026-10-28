@@ -71,3 +71,5 @@ export declare function parseReply(json: unknown): SyncReply;
 export declare function addSensorSteps(counts: Record<string, number>, date: string, delta: number): Record<string, number>;
 /** 웹 전용 가짜 걸음 — 한국시간 자정부터 분당 7보(하루 약 1만 보) */
 export declare function fakeSteps(now: number, date: string): number;
+/** `YYYY-MM-DD`(한국 날짜)의 시작 시각(유닉스 초) — `ads/seen?since=` 용. 모양이 틀리면 0 */
+export declare function kstDayStartSec(day: string): number;

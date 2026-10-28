@@ -84,3 +84,13 @@ compare-pig-vs-package.png는 좌 꿀꿀 원본/우 패키지 각 390×844이다
 ## 0.3.1 — 큰 글씨(접근성 2.0)에서 버튼 글자가 잘리지 않게 (앱보조6 지적)
 
 `StepsYesterdayCard` 의 받기 버튼과 공용 `StepsScreen` 의 받기 · 안내 버튼이 고정 `height` 48 + 한 줄 제한(`numberOfLines={1}`)이라 큰 글씨에서 글자가 잘렸다. 고정 `height` → `minHeight`(+ 위아래 여백), 글자는 줄바꿈을 허용하고 가운데 정렬로 바꿨다(머리줄도 `minHeight`). 동작 · API 는 0.3.0 과 같다.
+
+## 0.3.2 — 놓친 걷기 단계 광고 보상 되찾기 `healUnclaimedStages` (JS만 · 네이티브 없음 · 앱이 `adSeen` 을 줄 때만 동작)
+
+**원인(서버 7일 숫자 + 꿀꿀 코드, 10/28)**: 걷기 단계 광고(`steps_stage:<날짜>:<단계>`)가 전 앱에서 가장 많이 새는 용도다 — 24시간 기준 열림+건너뜀: 꾹테크 31.8%(7/22, 표본 작음) · 꼬꼬 8.3% · 당근 8.3% · 꿀꿀 6.9%(17/248) · 감자밭 2.7% · 머니트리 0.6%. 꿀꿀의 재시작 복구는 `claims[row.purpose]` 로 **정확히 같은 이름**을 찾고 없으면 기록을 조용히 지우는데(`pendingAd.ts`), 걷기 단계 용도는 접미사가 붙어 표에 이름이 없다.
+그리고 꿀꿀 · 꾹테크 · 당근 · 꼬꼬는 이 패키지의 `<StepsScreen>` 을 쓰지 않고 각자 `src/screens/StepsScreen.tsx` 를 갖고 있어(헬퍼만 가져다 씀), 화면 안에 고침을 넣으면 닿지 않는다 → **화면 없는 함수**로 낸다.
+
+- `healUnclaimedStages(api, [오늘 상태, 어제 상태], { memory, canRun?, onClaimed? })` — 받을 수 있는 단계(`canClaimStage`)마다 `api.adSeen(단계의 ad_purpose, 그 날 한국 자정 초)` 를 **한 번** 묻고, `true`(구글 확인이 와 있고 아직 청구 안 됨)이면 `api.claimStage(stage_id, day, true)` 로 받는다. 이미 받은 단계 · 걸음 모자람 · 하루 최대 · 날짜 지난 단계는 묻지도 않고, 모든 실패는 조용히 삼킨다. `adSeen` 이 없으면 아무것도 안 한다(예전 그대로). 답을 받은 단계는 같은 화면에서 다시 묻지 않고(`memory`), 모른다(null · 오류)는 최대 3번.
+- **중복 지급 0 (서버 코드 근거 — `StepsStageController::claim`, `TreeController::consumeAd`, `StepsStageSchema`)**: 회원 행을 `lockForUpdate` 한 트랜잭션 안에서 ① 이미 받은 단계면 `replayed` + 0P ② 광고 확인 한 줄을 `claimed_at IS NULL` 비교 갱신(`update … === 1`)으로 **한 번만** 소비 ③ `steps_stage_claims` 유일 키 `(app_id, member_id, day, stage_id)` 와 원장 `ledger_ref`(유일) — 같은 단계를 두 번 받아도 포인트는 한 번이다. `ads/seen` 은 읽기만(지급 없음).
+- 패키지 `<StepsScreen>` 은 `api.adSeen` 이 있으면 단계 상태가 바뀔 때마다 자동으로 부른다(받았으면 「지난 광고 보상 5P 받았어요」 한 줄). 앱 자체 걷기 화면은 상태를 불러온 직후 한 줄: `void healUnclaimedStages({ adSeen, claimStage }, [state, yesterday], { memory: healed.current, canRun: () => mounted && !busy, onClaimed: (next) => { setState(next); } })`.
+- 앱이 주는 것: `adSeen(purpose, sinceSec): Promise<boolean | null>` = 앱이 이미 가진 `ads/seen` 호출(응답 `seen` 불리언, 길이 없으면 null).

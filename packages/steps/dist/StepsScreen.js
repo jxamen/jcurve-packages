@@ -40,6 +40,7 @@ const react_1 = __importStar(require("react"));
 const react_native_1 = require("react-native");
 const stages_1 = require("./stages");
 const days_1 = require("./days");
+const heal_1 = require("./heal");
 const StepsYesterdayCard_1 = require("./StepsYesterdayCard");
 const source_1 = require("./source");
 const sync_1 = require("./sync");
@@ -70,6 +71,8 @@ function StepsScreen({ api, showRewardedAd, onPendingClaim, onBalance, theme, st
     const [pending, setPending] = (0, react_1.useState)(null);
     const active = (0, react_1.useRef)(true);
     const loading = (0, react_1.useRef)(false);
+    const healed = (0, react_1.useRef)(new Map());
+    const healing = (0, react_1.useRef)(false); // 0.3.2: 단계마다 한 번(모르면 최대 3번) 묻는다 — `heal.ts`
     const stop = (0, react_1.useRef)(() => { });
     const error = (e) => { if (active.current)
         setMessage(isApiError(e) && e.code === 'day_changed' ? '날짜가 바뀌었어요. 오늘 단계를 다시 확인해 주세요.' : isApiError(e) ? t(errorCopy[e.code] ?? '잠시 후 다시 시도해 주세요') : '걸음 수를 읽지 못했어요. 다시 시도해 주세요.'); };
@@ -180,6 +183,48 @@ function StepsScreen({ api, showRewardedAd, onPendingClaim, onBalance, theme, st
     const [busy, setBusy] = (0, react_1.useState)(null);
     const [refreshing, setRefreshing] = (0, react_1.useState)(false);
     const lock = (0, react_1.useRef)(false);
+    /**
+     * 0.3.2 — 놓친 광고 보상 되찾기. 받을 수 있는 단계마다 서버에 「이 단계 광고의 구글 확인이 와 있나(아직 청구 안 된 것)」를 한 번 묻고, 있으면 받는다.
+     * 서버는 확인(SSV) 한 줄을 한 번만 쓰고(`consumeAd` 의 claimed_at 비교 갱신) 같은 단계를 두 번 주지 않는다(단계 청구 유일 키 · 원장 유일 키) → 중복 지급 0.
+     * `adSeen` 이 없으면 아무것도 안 한다. 이미 받은 단계 · 날짜가 지난 단계 · 실패는 조용히 건너뛴다(사용자에게 아무 안내도 안 한다, 받았을 때만 한 줄).
+     */
+    const latest = (0, react_1.useRef)({ sources: [], pending: false });
+    latest.current = { sources: [state, yState], pending: !!pending };
+    const again = (0, react_1.useRef)(false);
+    const heal = (0, react_1.useCallback)(async () => {
+        if (!api.adSeen)
+            return;
+        if (healing.current) {
+            again.current = true;
+            return;
+        } // 도는 중에 새 상태가 오면 끝난 뒤 한 번 더(건너뛰지 않는다)
+        healing.current = true;
+        try {
+            await (0, heal_1.healUnclaimedStages)({ adSeen: api.adSeen, claimStage: claimStepsStage }, latest.current.sources, {
+                memory: healed.current,
+                canRun: () => active.current && !lock.current && !latest.current.pending,
+                onClaimed: async (next) => {
+                    if (!active.current)
+                        return;
+                    if (next.day === latest.current.sources[1]?.day && next.day !== latest.current.sources[0]?.day)
+                        setYState(next);
+                    else
+                        setState(next);
+                    if (next.gained)
+                        setMessage(`지난 광고 보상 ${next.gained}P 받았어요`);
+                    await refresh();
+                },
+            });
+        }
+        finally {
+            healing.current = false;
+            if (again.current) {
+                again.current = false;
+                void heal();
+            }
+        }
+    }, [api]);
+    (0, react_1.useEffect)(() => { void heal(); }, [state, yState, pending, heal]);
     async function open(stage, which = 'today') {
         const src = which === 'today' ? state : yState;
         // 오늘 몫은 걸음 센서가 읽힐 때만, 어제 몫은 서버가 이미 아는 걸음이라 센서 상태와 무관하다

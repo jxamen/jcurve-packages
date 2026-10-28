@@ -27,6 +27,7 @@ exports.unsentCount = unsentCount;
 exports.parseReply = parseReply;
 exports.addSensorSteps = addSensorSteps;
 exports.fakeSteps = fakeSteps;
+exports.kstDayStartSec = kstDayStartSec;
 const emptyBook = () => ({ days: {}, acked: {} });
 exports.emptyBook = emptyBook;
 const KST_MS = 9 * 3600000;
@@ -138,4 +139,9 @@ function fakeSteps(now, date) {
     const start = kstStart(date);
     const end = Math.min(now, start + DAY_MS);
     return end <= start ? 0 : Math.floor(((end - start) / 60000) * 7);
+}
+/** `YYYY-MM-DD`(한국 날짜)의 시작 시각(유닉스 초) — `ads/seen?since=` 용. 모양이 틀리면 0 */
+function kstDayStartSec(day) {
+    const ms = Date.parse(day + 'T00:00:00+09:00');
+    return Number.isFinite(ms) ? Math.floor(ms / 1000) : 0;
 }

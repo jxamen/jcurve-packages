@@ -32,6 +32,8 @@ export type StepsScreenProps = {
             balance: number;
         }>;
         sync: Parameters<typeof syncToday>[1];
+        /** 0.3.2: `GET ads/seen?purpose=&since=`(읽기만, 지급 없음) — 이 광고의 구글 확인이 서버에 와 있고 **아직 청구 안 됐으면** true, 없으면 false, 모르면 null/오류. 주면 열려 있는 단계마다 한 번 물어 놓친 광고 보상을 받아 준다. 안 주면 예전 그대로 */
+        adSeen?(purpose: string, sinceSec: number): Promise<boolean | null>;
     };
     showRewardedAd(purpose: string): Promise<{
         earned: boolean;

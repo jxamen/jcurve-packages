@@ -18,6 +18,7 @@ __exportStar(require("./days"), exports);
 __exportStar(require("./source"), exports);
 __exportStar(require("./storage"), exports);
 __exportStar(require("./stages"), exports);
+__exportStar(require("./heal"), exports);
 __exportStar(require("./sync"), exports);
 __exportStar(require("./StepsStageCard"), exports);
 __exportStar(require("./StepsYesterdayCard"), exports);

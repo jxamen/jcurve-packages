@@ -163,3 +163,10 @@ export function fakeSteps(now: number, date: string): number {
 
   return end <= start ? 0 : Math.floor(((end - start) / 60_000) * 7);
 }
+
+/** `YYYY-MM-DD`(한국 날짜)의 시작 시각(유닉스 초) — `ads/seen?since=` 용. 모양이 틀리면 0 */
+export function kstDayStartSec(day: string): number {
+  const ms = Date.parse(day + 'T00:00:00+09:00');
+
+  return Number.isFinite(ms) ? Math.floor(ms / 1000) : 0;
+}
