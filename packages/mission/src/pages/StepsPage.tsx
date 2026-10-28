@@ -37,6 +37,11 @@ export type StepsPageProps = {
   theme?: Partial<MissionPageTheme>;
   /** 광고 자리 — 앱이 네이티브 광고를 넣는다(패키지는 광고를 모른다). 0.4.6 부터 「남은 횟수」 카드 아래 · 「만보기 안내사항」 위 */
   footer?: ReactNode;
+  /**
+   * (0.4.16-mc1, 대표님 10-28 21:26~27) true 면 위쪽 큰 걸음 수 · 말풍선을 없애고 「남은 횟수」 카드 한 장 안에 합친다 — 「오늘 걸음 N걸음」 · 「남은 횟수 N번」 · 설명 한 줄 ·
+   * (받을 횟수가 0일 때만) 상태 줄(다음 걸음까지 / 다 받음) · 단추. 기본 false = 지금 모양 그대로(이 화면을 쓰는 다른 앱에 영향 없음).
+   */
+  mergedCard?: boolean;
 };
 
 const DEFAULT_GUIDE = [
@@ -46,7 +51,7 @@ const DEFAULT_GUIDE = [
   '만보기 보상과 조건은 사정에 따라 바뀔 수 있어요.',
 ];
 
-export function StepsPage({ todaySteps, stages, earnedToday = 0, stepsAvailable, onUpdate, onClaim, onBack, swipeBack, everySteps = 1000, guide = DEFAULT_GUIDE, title = '만보기', theme: themeIn, footer }: StepsPageProps) {
+export function StepsPage({ todaySteps, stages, earnedToday = 0, stepsAvailable, onUpdate, onClaim, onBack, swipeBack, everySteps = 1000, guide = DEFAULT_GUIDE, title = '만보기', theme: themeIn, footer, mergedCard = false }: StepsPageProps) {
   const theme = resolvePageTheme(themeIn);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -54,6 +59,8 @@ export function StepsPage({ todaySteps, stages, earnedToday = 0, stepsAvailable,
   const points = stages[0]?.points ?? 0;
   const first = summary.claimable[0];
   const canClaim = stepsAvailable && !!first && !busy;
+  // 합친 카드의 상태 줄: 옛 말풍선 중 「남은 횟수」와 겹치지 않는 것만(받을 횟수가 있으면 없음 · 업데이트 전이면 위 업데이트 안내가 대신함)
+  const status = mergedCard && stepsAvailable && summary.claimable.length === 0 ? stepsBubble({ available: stepsAvailable, todaySteps, stages }) : null;
 
   const claim = async () => {
     // 옛 빌드는 받기 대신 업데이트 창으로(carrot ensureStepsVersion 과 같은 자리)
@@ -71,10 +78,10 @@ export function StepsPage({ todaySteps, stages, earnedToday = 0, stepsAvailable,
   };
 
   return <PageFrame title={title} onBack={onBack} swipeBack={swipeBack} theme={theme}>
-    <View style={s.top}>
+    {mergedCard ? null : <View style={s.top}>
       <Text style={[s.count, { color: theme.text }]}>{todaySteps.toLocaleString()}<Text style={[s.unit, { color: theme.sub }]}> 걸음</Text></Text>
       <View style={[s.bubble, { backgroundColor: theme.card }]}><Text style={[s.bubbleText, { color: theme.text }]}>{stepsBubble({ available: stepsAvailable, todaySteps, stages })}</Text></View>
-    </View>
+    </View>}
 
     {!stepsAvailable ? <View style={[s.notice, { backgroundColor: theme.card }]}>
       <Text style={[s.noticeTitle, { color: theme.text }]}>{UPDATE_NOTICE}</Text>
@@ -84,8 +91,10 @@ export function StepsPage({ todaySteps, stages, earnedToday = 0, stepsAvailable,
     {failed ? <Text accessibilityLiveRegion="polite" style={[s.message, { color: theme.sub }]}>광고 확인이 늦어지고 있어요. 잠시 후 다시 눌러 주세요</Text> : null}
 
     <View style={[s.claimCard, { backgroundColor: theme.card }]}>
+      {mergedCard ? <Text style={[s.claimLeft, { color: theme.text }]}>오늘 걸음 <Text style={[s.claimNum, { color: theme.accent }]}>{todaySteps.toLocaleString()}</Text>걸음</Text> : null}
       <Text style={[s.claimLeft, { color: theme.text }]}>남은 횟수 <Text style={[s.claimNum, { color: theme.accent }]}>{`${stepsAvailable ? summary.claimable.length : 0}번`}</Text></Text>
       <Text style={[s.claimSub, { color: theme.sub }]}>{`${everySteps.toLocaleString()}걸음마다 광고 보고 ${points}P · 오늘 받은 포인트 ${earnedToday}P`}</Text>
+      {status ? <Text style={[s.claimSub, { color: theme.sub }]}>{status}</Text> : null}
       <PageButton big label={busy ? '확인 중…' : `광고 보고 ${points}P 받기`} theme={theme} on={canClaim || !stepsAvailable} disabled={stepsAvailable && !canClaim} onPress={() => { void claim(); }} />
     </View>
 
