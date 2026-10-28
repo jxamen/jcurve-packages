@@ -1,0 +1,5 @@
+jcurve-offerwall-0.6.5.tgz
+sha256 ed99363e98c1654d84aa66d68b4a45620f4f443aaa019b1e715ca10b04e279ba
+integrity sha512-TSNy5hKCvh8gl+2FoWNUg9pIoUNtRkpugEPoSW+umXwtp3+VKUAAM0y4Uid5BTrrNaYY8K+AN5aoRMVPzyC9RQ==
+commit jcurve-packages feat/offerwall-050 0d10e00 (0.6.4 a412d7b + 0.6.5)
+base 0.6.4 tgz (offerwall-064) — 멤버 77 → 80: 새 멤버 3개(dist/comboSheetProbe.js · dist/comboSheetProbe.d.ts · src/comboSheetProbe.ts), 다른 멤버 10개(README · dist/comboCategories.js · dist/comboEntry.js · dist/comboTrials.js · dist/combos.js · src/comboCategories.ts · src/comboEntry.ts · src/comboTrials.ts · src/combos.ts · package.json), 네이티브 13개 멤버 바이트 동일
