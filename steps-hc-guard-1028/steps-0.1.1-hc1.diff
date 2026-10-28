@@ -1,0 +1,125 @@
+diff -ruN a/mt-steps011/dist/source.js b/mt-steps011/dist/source.js
+--- a/mt-steps011/dist/source.js	1985-10-26 17:15:00
++++ b/mt-steps011/dist/source.js	2026-10-28 19:20:59
+@@ -101,11 +101,50 @@
+     return sensorPermission(false);
+ }
+ /** 권한을 묻는다 — 안드로이드는 헬스 커넥트 먼저, 없거나 거부하면 걸음 센서 */
+-async function requestStepsPermission(explain) {
++let requestInFlight = null;
++/**
++ * 권한 요청은 한 번에 하나만 — 걷기 행을 두 번 누르거나 다른 화면(홈 · 걷기 · 미션)에서 동시에 눌러도 네이티브 권한 창 요청을 겹쳐 하지 않고, 뒤에 온 호출은 첫 요청의 결과를 같이 받는다.
++ * (10-28 Play 「HealthConnectPermissionDelegate NullPointerException」 보강: 스택은 라이브러리가 권한 창을 메인이 아닌 스레드에서 launch 해 화면 계층과 겹친 것 —
++ *  그 본수정은 patch-package 로 라이브러리를 고친다(다음 빌드). 이 JS 는 앱이 앞에 있고 화면 전환이 끝난 뒤에 한 번만 요청하게 해 겹칠 기회를 줄일 뿐이다.)
++ */
++function requestStepsPermission(explain) {
++    if (requestInFlight)
++        return requestInFlight;
++    requestInFlight = askStepsPermission(explain).finally(() => {
++        requestInFlight = null;
++    });
++    return requestInFlight;
++}
++/** 권한 창을 띄우기 직전 — 앱이 앞에 올 때까지(최대 0.8초) · 화면 전환이 끝날 때까지(최대 0.6초) 기다린다. 기다리지 못해도 요청은 계속한다. */
++async function settleBeforeDialog() {
++    try {
++        if (react_native_1.AppState.currentState !== 'active') {
++            await new Promise((resolve) => {
++                const timer = setTimeout(() => { sub.remove(); resolve(); }, 800);
++                const sub = react_native_1.AppState.addEventListener('change', (state) => {
++                    if (state === 'active') {
++                        clearTimeout(timer);
++                        sub.remove();
++                        resolve();
++                    }
++                });
++            });
++        }
++        await new Promise((resolve) => {
++            const timer = setTimeout(resolve, 600);
++            react_native_1.InteractionManager.runAfterInteractions(() => { clearTimeout(timer); resolve(); });
++        });
++    }
++    catch {
++        /* 기다리지 못해도 계속 */
++    }
++}
++async function askStepsPermission(explain) {
+     if (!(await explain()))
+         return stepsPermission();
+     const hc = await healthConnect();
+     if (hc) {
++        await settleBeforeDialog();
+         try {
+             await hc.requestPermission([
+                 { accessType: 'read', recordType: 'Steps' },
+diff -ruN a/mt-steps011/package.json b/mt-steps011/package.json
+--- a/mt-steps011/package.json	1985-10-26 17:15:00
++++ b/mt-steps011/package.json	2026-10-28 19:20:59
+@@ -1,6 +1,6 @@
+ {
+   "name": "@jcurve/steps",
+-  "version": "0.1.1",
++  "version": "0.1.1-hc1",
+   "main": "dist/index.js",
+   "types": "dist/index.d.ts",
+   "files": [
+diff -ruN a/mt-steps011/src/source.ts b/mt-steps011/src/source.ts
+--- a/mt-steps011/src/source.ts	1985-10-26 17:15:00
++++ b/mt-steps011/src/source.ts	2026-10-28 19:20:59
+@@ -1,5 +1,5 @@
+ /** iOS CoreMotion; Android Health Connect with foreground sensor fallback. Native modules load only when used. */
+-import { Platform } from 'react-native';
++import { AppState, InteractionManager, Platform } from 'react-native';
+ import { stepsStorage as storage, getStepsStorage } from './storage';
+ import { addSensorSteps, kstDay, recentDays, type DaySteps } from './days';
+ 
+@@ -113,10 +113,47 @@
+ }
+ 
+ /** 권한을 묻는다 — 안드로이드는 헬스 커넥트 먼저, 없거나 거부하면 걸음 센서 */
+-export async function requestStepsPermission(explain: () => Promise<boolean>): Promise<StepsPermission> {
++let requestInFlight: Promise<StepsPermission> | null = null;
++
++/**
++ * 권한 요청은 한 번에 하나만 — 걷기 행을 두 번 누르거나 다른 화면(홈 · 걷기 · 미션)에서 동시에 눌러도 네이티브 권한 창 요청을 겹쳐 하지 않고, 뒤에 온 호출은 첫 요청의 결과를 같이 받는다.
++ * (10-28 Play 「HealthConnectPermissionDelegate NullPointerException」 보강: 스택은 라이브러리가 권한 창을 메인이 아닌 스레드에서 launch 해 화면 계층과 겹친 것 —
++ *  그 본수정은 patch-package 로 라이브러리를 고친다(다음 빌드). 이 JS 는 앱이 앞에 있고 화면 전환이 끝난 뒤에 한 번만 요청하게 해 겹칠 기회를 줄일 뿐이다.)
++ */
++export function requestStepsPermission(explain: () => Promise<boolean>): Promise<StepsPermission> {
++  if (requestInFlight) return requestInFlight;
++  requestInFlight = askStepsPermission(explain).finally(() => {
++    requestInFlight = null;
++  });
++
++  return requestInFlight;
++}
++
++/** 권한 창을 띄우기 직전 — 앱이 앞에 올 때까지(최대 0.8초) · 화면 전환이 끝날 때까지(최대 0.6초) 기다린다. 기다리지 못해도 요청은 계속한다. */
++async function settleBeforeDialog(): Promise<void> {
++  try {
++    if (AppState.currentState !== 'active') {
++      await new Promise<void>((resolve) => {
++        const timer = setTimeout(() => { sub.remove(); resolve(); }, 800);
++        const sub = AppState.addEventListener('change', (state) => {
++          if (state === 'active') { clearTimeout(timer); sub.remove(); resolve(); }
++        });
++      });
++    }
++    await new Promise<void>((resolve) => {
++      const timer = setTimeout(resolve, 600);
++      InteractionManager.runAfterInteractions(() => { clearTimeout(timer); resolve(); });
++    });
++  } catch {
++    /* 기다리지 못해도 계속 */
++  }
++}
++
++async function askStepsPermission(explain: () => Promise<boolean>): Promise<StepsPermission> {
+   if (!(await explain())) return stepsPermission();
+   const hc = await healthConnect();
+   if (hc) {
++    await settleBeforeDialog();
+     try {
+       await hc.requestPermission([
+         { accessType: 'read', recordType: 'Steps' },

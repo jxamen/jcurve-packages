@@ -1,0 +1,74 @@
+diff --git a/node_modules/react-native-health-connect/android/src/main/java/dev/matinzd/healthconnect/HealthConnectManager.kt b/node_modules/react-native-health-connect/android/src/main/java/dev/matinzd/healthconnect/HealthConnectManager.kt
+index 40539fe..b89bd06 100644
+--- a/node_modules/react-native-health-connect/android/src/main/java/dev/matinzd/healthconnect/HealthConnectManager.kt
++++ b/node_modules/react-native-health-connect/android/src/main/java/dev/matinzd/healthconnect/HealthConnectManager.kt
+@@ -69,8 +69,13 @@ class HealthConnectManager(private val applicationContext: ReactApplicationConte
+   ) {
+     throwUnlessClientIsAvailable(promise) {
+       coroutineScope.launch {
+-        val granted = HealthConnectPermissionDelegate.launchPermissionsDialog(PermissionUtils.parsePermissions(reactPermissions))
+-        promise.resolve(PermissionUtils.mapPermissionResult(granted))
++        // jcurve patch (10-28): 여기서 예외가 나면 IO 코루틴에 잡는 곳이 없어 앱이 죽는다 → JS promise 를 reject 로 끝낸다
++        try {
++          val granted = HealthConnectPermissionDelegate.launchPermissionsDialog(PermissionUtils.parsePermissions(reactPermissions))
++          promise.resolve(PermissionUtils.mapPermissionResult(granted))
++        } catch (e: Exception) {
++          promise.rejectWithException(e)
++        }
+       }
+     }
+   }
+@@ -80,12 +85,16 @@ class HealthConnectManager(private val applicationContext: ReactApplicationConte
+   ) {
+     throwUnlessClientIsAvailable(promise) {
+       coroutineScope.launch {
+-        val exerciseRoute = HealthConnectPermissionDelegate.launchExerciseRouteAccessRequestDialog(recordId)
+-        if (exerciseRoute != null) {
+-          promise.resolve(ReactExerciseSessionRecord.parseExerciseRoute(exerciseRoute))
+-        }
+-        else{
+-          promise.rejectWithException(ExerciseRouteAccessDenied())
++        try {
++          val exerciseRoute = HealthConnectPermissionDelegate.launchExerciseRouteAccessRequestDialog(recordId)
++          if (exerciseRoute != null) {
++            promise.resolve(ReactExerciseSessionRecord.parseExerciseRoute(exerciseRoute))
++          }
++          else{
++            promise.rejectWithException(ExerciseRouteAccessDenied())
++          }
++        } catch (e: Exception) {
++          promise.rejectWithException(e)
+         }
+       }
+     }
+diff --git a/node_modules/react-native-health-connect/android/src/main/java/dev/matinzd/healthconnect/permissions/HealthConnectPermissionDelegate.kt b/node_modules/react-native-health-connect/android/src/main/java/dev/matinzd/healthconnect/permissions/HealthConnectPermissionDelegate.kt
+index 5ec3641..2f8ebb5 100644
+--- a/node_modules/react-native-health-connect/android/src/main/java/dev/matinzd/healthconnect/permissions/HealthConnectPermissionDelegate.kt
++++ b/node_modules/react-native-health-connect/android/src/main/java/dev/matinzd/healthconnect/permissions/HealthConnectPermissionDelegate.kt
+@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.cancel
+ import kotlinx.coroutines.channels.Channel
+ import kotlinx.coroutines.launch
++import kotlinx.coroutines.withContext
+ 
+ object HealthConnectPermissionDelegate {
+   private val coroutineScope = CoroutineScope(Dispatchers.IO)
+@@ -42,12 +43,16 @@ object HealthConnectPermissionDelegate {
+   }
+ 
+   suspend fun launchPermissionsDialog(permissions: Set<String>): Set<String> {
+-    requestPermission.launch(permissions)
++    // jcurve patch (10-28): 등록이 안 된 빌드/Activity 면 lateinit 접근으로 죽지 않고 이유가 있는 예외 → 호출한 쪽이 promise.reject
++    check(::requestPermission.isInitialized) { "HealthConnect permission delegate is not set (MainActivity not created yet or recreated without it)" }
++    // jcurve patch (10-28): ActivityResultLauncher.launch 는 메인 스레드에서 부른다(예전에는 IO 코루틴에서 바로 불렀다)
++    withContext(Dispatchers.Main) { requestPermission.launch(permissions) }
+     return permissionsChannel.receive()
+   }
+ 
+   suspend fun launchExerciseRouteAccessRequestDialog(recordId: String): ExerciseRoute? {
+-    requestRoutePermission.launch(recordId)
++    check(::requestRoutePermission.isInitialized) { "HealthConnect permission delegate is not set (MainActivity not created yet or recreated without it)" }
++    withContext(Dispatchers.Main) { requestRoutePermission.launch(recordId) }
+     return exerciseRouteChannel.receive()
+   }
+ }
