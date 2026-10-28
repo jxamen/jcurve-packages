@@ -253,3 +253,69 @@ test('the done marks are kept apart per tab: a tick on a 찬스2 row is stored u
   const back = walk(s.again()).find(n => n.type === 'Pressable' && n.props.accessibilityLabel === '애드팝콘 미션 완료 표시');
   assert.equal(back.props.accessibilityState.checked, false, '찬스1 row is not ticked');
 }));
+
+/* ── 0.6.3: <OfferwallCombos> hands the 0.6.2 props to ComboEntry (Egg Money uses the shared wrapper, not ComboEntry) ───────────────────────── */
+
+const snapDoc = (keys) => ({date: TODAY(), bundles: [{goal: 1000, missions: keys.map(k => ({id: k, name: `스냅 ${k}`, points: 600, todo: '하기', level: 'easy', campaignKey: k}))}]});
+// the app's request layer: offerwall/combos is the 찬스1 answer (the chip is on only when the server says so)
+const wrapperClient = () => ({
+  get: async (path) => { if (path === 'offerwall/combos') return {ok: true, combos: {...snapDoc(['352216486', '352216487']), display: {chance: 'chip'}}}; throw new Error('404 ' + path); },
+  post: async () => ({ok: true}),
+});
+const startWrapper = async ({make}, extra = {}) => {
+  const host = make();
+  const mount = () => host.render(() => api.OfferwallCombos({placement: 'chance', usn: USN, memberId: 42, client: wrapperClient(), storage: {getItem: async () => null, setItem: async () => {}}, ...extra}));
+  mount(); host.flush(); await tick(); mount(); host.flush(); await tick(); mount(); host.flush();
+  return {host, again: () => { host.flush(); return mount(); }};
+};
+
+test('<OfferwallCombos> with loadSnapPlay: the 찬스2 chip and sheet show the SnapPlay list, a tap opens that ad; 찬스1 keeps its own', () => run(async (ctx) => {
+  const asked = [];
+  const s = await startWrapper(ctx, {loadSnapPlay: async () => { asked.push('snap'); return {ok: true, combos: snapDoc(['18547', '218047'])}; }});
+  assert.ok(chip(s.again()), '찬스1 chip');
+  const first = flat(openSheet(s));
+  assert.ok(first.includes('스냅 352216486') && !first.includes('스냅 18547'), 'the 찬스1 sheet shows the server\'s 찬스1 rows, not the SnapPlay ones');
+  assert.ok(chip(switchTab(s, 'snapplay')), '찬스2 chip comes from loadSnapPlay');
+  const tree = openSheet(s);
+  assert.ok(flat(tree).includes('스냅 18547'), flat(tree));
+  byLabel(tree, '1번 ', true).props.onPress();
+  await tick(30);
+  assert.deepEqual(env.opened, [[18547, false, 'list']]);
+  assert.deepEqual(asked, ['snap']);
+}));
+
+test('<OfferwallCombos> without loadSnapPlay: no chip on 찬스2 (as before for the app, and never the 찬스1 list over SnapPlay)', () => run(async (ctx) => {
+  const s = await startWrapper(ctx);
+  assert.ok(chip(s.again()));
+  assert.equal(chip(switchTab(s, 'snapplay')), undefined);
+}));
+
+test('<OfferwallCombos> passes onSnapPlayAds on: the phone-read list reaches the app', () => run(async (ctx) => {
+  const got = [];
+  const s = await startWrapper(ctx, {loadSnapPlay: async () => ({ok: true, combos: snapDoc(['18547', '218047'])}), onSnapPlayAds: (ads) => got.push(ads.map(a => a.advId))});
+  await tick(30); s.again(); await tick(10);
+  assert.deepEqual(got, [['18547', '218047']]);
+}));
+
+test('<OfferwallCombos> forwards every ComboEntry prop except the ones it deliberately builds itself (a new entry prop must be decided on, not dropped)', () => withReact(async ({make}) => {
+  // ComboEntryProps keys, read from the published typings
+  const fs = require('node:fs');
+  const dts = fs.readFileSync(require.resolve('../dist/comboEntry.d.ts'), 'utf8');
+  const body = dts.slice(dts.indexOf('export type ComboEntryProps = {'));
+  const declared = [...body.slice(0, body.indexOf('\n};')).matchAll(/^    (\w+)\??:/gm)].map(m => m[1]);
+  assert.ok(declared.includes('loadSnapPlay') && declared.includes('placement'), declared.join());
+  // the entry's own sources and overrides, which the wrapper replaces with its own calls or never offers
+  const notForwarded = ['url', 'headers', 'sample', 'onPressMission', 'copyText', 'campaigns'];
+  const entryModule = require('../dist/comboEntry');
+  const real = entryModule.ComboEntry;
+  let seen;
+  entryModule.ComboEntry = (p) => { seen = p; return null; };
+  try {
+    const host = make();
+    host.render(() => api.OfferwallCombos({placement: 'chance', usn: USN, memberId: 42, client: wrapperClient(), sheetTop: 60, loadSnapPlay: async () => null, onSnapPlayAds: () => {}}));
+  } finally { entryModule.ComboEntry = real; }
+  assert.ok(seen, 'the wrapper rendered the entry');
+  const missing = declared.filter(k => !notForwarded.includes(k) && !(k in seen));
+  assert.deepEqual(missing, [], 'ComboEntry props the wrapper does not hand on');
+  assert.equal(typeof seen.loadSnapPlay, 'function'); assert.equal(typeof seen.onSnapPlayAds, 'function');
+}));

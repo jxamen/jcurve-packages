@@ -69,6 +69,14 @@ export type OfferwallCombosProps = {
   notifications?: Partial<TrialNotifyDeps>;
   /** Where the log of the sheet's opening time goes (default `console.log('[combos] sheet', …)`). */
   onSheetShown?: (info: ComboSheetShown) => void;
+  /**
+   * 0.6.3 (the 0.6.2 entry props, handed to `ComboEntry` as they are) — the 찬스2 (SnapPlay) tab's own list: the app's call for `GET offerwall/combos?source=snapplay` (the parsed body,
+   * same shape as the 찬스1 answer; a row's `campaignKey` is the SnapPlay `adv_id`). It is **not** run through the 찬스1 guard (the chip needs no `display.chance`: rows are what turn it on).
+   * Without it the 찬스2 tab has no chip.
+   */
+  loadSnapPlay?: ComboEntryProps['loadSnapPlay'];
+  /** 0.6.3 — each time the phone reads the SnapPlay ad list (see `ComboEntryProps.onSnapPlayAds`): to send it to the server, or to compare `points` with SnapPlay's own screen. */
+  onSnapPlayAds?: ComboEntryProps['onSnapPlayAds'];
   chipTop?: number;
   chipRight?: number;
   sheetTop?: number;
@@ -190,7 +198,7 @@ export function createComboHandlers({ client, memberId, askTestMember, onListTap
 
 export function OfferwallCombos(props: OfferwallCombosProps): ReactElement | null {
   const React = require('react') as typeof import('react');
-  const { placement, usn, memberId, serverUrl = '', tokens, theme: themeOverride, popupArt, adUnit, adTestMode = false, adTestDevices, popupAd: popupAdOn = true, chipTop, chipRight, sheetTop } = props;
+  const { placement, usn, memberId, serverUrl = '', tokens, theme: themeOverride, popupArt, adUnit, adTestMode = false, adTestDevices, popupAd: popupAdOn = true, chipTop, chipRight, sheetTop, loadSnapPlay, onSnapPlayAds } = props;
 
   // the latest props for the callbacks below (they are created once; the entry keeps asking them what to do)
   const latest = React.useRef(props);
@@ -307,6 +315,7 @@ export function OfferwallCombos(props: OfferwallCombosProps): ReactElement | nul
     placement, load: handlers.load, loadKey: String(memberId), usn, theme, popupArt, popupAd, storage,
     reportCampaigns: handlers.report, onDiagnostic: handlers.diagnose, onDetailSignal: handlers.signalDetail,
     onTrialConsent: handlers.trialConsent, onTrialNotify: trialNotify, onSheetShown: sheetShown, loadTrials: handlers.loadTrials, onTrialCancelled: handlers.trialCancelled,
+    loadSnapPlay, onSnapPlayAds,
     chipTop, chipRight, ...(sheetTop === undefined ? {} : { sheetTop }),
   } as ComboEntryProps);
 }

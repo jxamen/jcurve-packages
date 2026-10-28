@@ -577,3 +577,11 @@ iOS 의 애드팝콘 오퍼월 목록(「전체 미션」)은 SDK 안의 웹 화
 **선택 — 폰이 읽은 목록을 앱에 준다**: `ComboEntry` 의 `onSnapPlayAds(ads)`(찬스2 가 쓸 수 있을 때 목록을 읽을 때마다, 약 한 시간에 한 번까지). 서버로 올리고 싶을 때, 그리고 `ads[].points`(= SDK 의 `user_pnt`) 를 스냅플레이 화면에 보이는 P 와 비교해 **전환 비율이 이미 반영된 값인지** 실기기에서 확인하는 데 쓴다(문서에는 「사용자 적립 포인트」라고만 나온다). 서버가 스냅플레이 S2S API(`GET https://ads.snapplay.io/api/main/offer/v1`, 등록된 매체 서버 IP 에서만)로 직접 받으면 이 콜백은 필요 없다.
 
 앱 연결(한 줄): `<ComboEntry … loadSnapPlay={() => api.get('offerwall/combos', { source: 'snapplay' })} />`. 새 서버 칸은 `listPlacement`(+ 위 combos 응답) 뿐이고 새 네이티브는 없다. `snapPlayStatus().directOpen` 이 지금 이 기기에서 직접 열기가 가능한지 알려 준다. 시험 19개 추가.
+
+## 0.6.3 — `<OfferwallCombos>` 가 0.6.2 의 `loadSnapPlay` · `onSnapPlayAds` 를 `ComboEntry` 로 넘긴다 (JS만 · 0.6.2 와 네이티브 바이트 동일)
+
+**배경(앱보조4, 에그머니 연결 중)**: 에그머니는 `ComboEntry` 를 직접 쓰지 않고 공용 `<OfferwallCombos>` 를 쓰는데, 이 래퍼가 `ComboEntry` 로 넘기는 prop 을 하나씩 적어 두는 방식이라 0.6.2 에서 새로 생긴 `loadSnapPlay` · `onSnapPlayAds` 가 앱이 줘도 도중에 사라져 찬스2 칩이 영영 나오지 않았다.
+- `OfferwallCombosProps` 에 `loadSnapPlay` · `onSnapPlayAds` 가 생겼고, 받은 그대로 `ComboEntry` 로 넘긴다. `loadSnapPlay` 는 찬스1 용 「칩은 서버가 `display.chance` 를 말해야 켜진다」 가드를 **거치지 않는다**(찬스2 는 행이 있으면 칩이 켜진다). 주지 않으면 찬스2 에는 칩이 없다.
+- 연결 한 줄(래퍼를 쓰는 앱): `<OfferwallCombos … loadSnapPlay={() => <offerwall/combos?source=snapplay 를 부르는 함수>} />`.
+- 다시 이런 일이 없게: 시험이 `ComboEntryProps` 타입 선언에서 모든 prop 이름을 읽어, 래퍼가 `ComboEntry` 로 넘기지 않는 것이 의도한 목록(`url` · `headers` · `sample` · `onPressMission` · `copyText` · `campaigns` — 래퍼가 자기 호출로 바꾸거나 내놓지 않는 것)뿐인지 확인한다. 새 `ComboEntry` prop 을 만들고 래퍼에 안 넘기면 이 시험이 깨진다.
+시험 4개 추가(래퍼에서 `loadSnapPlay` 로 찬스2 칩 · 시트 · 탭 → 광고 열기, 없으면 칩 없음, `onSnapPlayAds` 전달, prop 누락 방지).
