@@ -1,0 +1,25 @@
+{
+  "name": "@jcurve/receipt-link",
+  "version": "0.1.0",
+  "description": "주문내역 연동(로그인 창 · 구조 기록 · 불러오기)의 공용 부분 — core(순수 TS): 모델 · 서버 호출 클라이언트(request 주입) · 동의 문구 · 구조 기록",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "license": "UNLICENSED"
+}
