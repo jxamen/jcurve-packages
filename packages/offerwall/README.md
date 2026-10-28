@@ -551,3 +551,13 @@ iOS 의 애드팝콘 오퍼월 목록(「전체 미션」)은 SDK 안의 웹 화
 
 **확인 못 한 것(이 PC 는 네이티브 컴파일 불가 — 첫 빌드가 처음 확인한다)**: ① Android: `S2OfferwallView(Context, null)` · `load(String)` · `S2Offerwall.EventListener` 3개 메서드는 SDK 문서 · RN 플러그인 소스와 AAR 클래스 이름에서 옮겼고, 컴파일 오류가 나면 이 파일 하나뿐이다. ② iOS: `S2OfferwallView` 를 `[[S2OfferwallView alloc] init]` 으로 만들고 문서의 4방향 제약으로 붙임(`useFrameworks: static` 에서 `<s2offerwall/s2offerwall-Swift.h>` 가 잡히는지는 첫 빌드). ③ 실기기: 뷰 안 스냅플레이 화면의 높이 · 스크롤 · 검색 · 사진 권한 · 칩과 겹침(칩 줄이 스냅플레이 화면 오른쪽 위 아이콘을 가릴 수 있음). 문제가 생기면 서버의 `embed:false` 로 바로 모달로 돌릴 수 있다.
 
+## 0.6.1 — 「무료체험」 탭의 해지 알림 팝업을 서버가 언제 물을지 고른다 (JS만 · 0.6.0 빌드에 OTA 가능 · 기본 동작 그대로)
+
+**배경(에그머니 TF 1.1.8, 대표님 21:24)**: 0.3.13 부터 「무료체험」 탭에 **들어올 때** 「해지 알림 켜고 참여하기」 팝업이 뜨지만, 한 번 「켜고 참여하기」를 누르면 그 기기 · 회원에서는 영구로 다시 안 묻는다(`jcurve.combos.trialNotice:<회원>`), 「괜찮아요」는 그날(KST)만 안 묻는다(`jcurve.combos.trialNoticeNo:<회원>`). 이미 누르신 기기에서는 팝업이 안 뜨는 게 설계대로였다.
+
+새 서버 스위치 `GET offerwall/combos` 의 `display.trial_notice`:
+- 없음(또는 모르는 값) = 지금 규칙 그대로.
+- `"always"` = 탭에 들어올 때마다 묻는다(「켜고 참여하기」를 이미 눌렀어도, 오늘 「괜찮아요」를 눌렀어도).
+- `"daily"` = 하루(KST) 첫 진입에 한 번만 묻는다(이미 켰어도). 어떤 답이든 그날은 다시 안 묻고 다음 날 다시 묻는다.
+묻는 시점만 바뀐다 — 체험 줄을 눌렀을 때의 동작(저장된 「켜고 참여하기」에 따라 팝업 없이 바로 상세)은 그대로다. 앱 코드 변경 없음, `normalizeTodayCombos` 가 `display.trialNotice` 로 읽는다. 시험 6개 추가.
+

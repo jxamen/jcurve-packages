@@ -127,6 +127,11 @@ function normalizeTodayCombos(raw) {
         chance: data.display?.chance === 'off' ? 'off' : 'chip',
         home: data.display?.home === 'banner' ? 'banner' : 'off',
         ...(listTap ? { listTap: 'on' } : {}),
+        // `trial_notice` is the server's spelling; `trialNotice` is what normalizing keeps (running it twice gives the same result)
+        ...(() => {
+            const rule = data.display?.trial_notice ?? data.display?.trialNotice;
+            return rule === 'always' || rule === 'daily' ? { trialNotice: rule } : {};
+        })(),
         // `chance_popup` is the server's spelling; `popup` is what normalizing keeps, so running this twice gives the same result
         ...(() => {
             const mode = data.display?.chance_popup ?? data.display?.popup;

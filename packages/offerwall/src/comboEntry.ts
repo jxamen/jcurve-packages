@@ -572,10 +572,14 @@ export function ComboEntry({
   const noticeDeclined = useSeenToday({ storage, scope: loadKey, date: state.combos?.date, keyOf: trialNoticeDeclineKey });
   const [tabPopup, setTabPopup] = React.useState(false);
   const trialGate = React.useRef({ ask: false, agreed: false });
-  trialGate.current = { ask: !!onTrialConsent && noticeAgreed.agreed === false && noticeDeclined.seen === false, agreed: noticeAgreed.agreed === true };
+  // 0.6.1: the server can choose when the tab asks (display.trial_notice): 'always' = on every walk-in, 'daily' = the first walk-in of each Korean day, absent = as in 0.3.13.
+  const noticeRule = state.combos?.display.trialNotice;
+  const askNow = noticeRule === 'always' ? true : noticeRule === 'daily' ? noticeDeclined.seen === false : noticeAgreed.agreed === false && noticeDeclined.seen === false;
+  trialGate.current = { ask: !!onTrialConsent && askNow, agreed: noticeAgreed.agreed === true };
   const onTrialTab = () => { if (trialGate.current.ask) setTabPopup(true); };
   const answerTabPopup = async (answer: ConsentAnswer) => {
     setTabPopup(false);
+    if (noticeRule === 'daily') noticeDeclined.markSeen();   // once a day, whatever the answer
     if (answer !== 'agree') { noticeDeclined.markSeen(); return; }
     // first make sure the phone can show the notices (the app asks for the permission / opens the settings / registers the push token), then keep the choice
     let notify: TrialNotifyResult = 'on';

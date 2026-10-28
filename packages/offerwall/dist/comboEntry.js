@@ -470,11 +470,16 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     const noticeDeclined = (0, comboSeen_1.useSeenToday)({ storage, scope: loadKey, date: state.combos?.date, keyOf: comboTrials_1.trialNoticeDeclineKey });
     const [tabPopup, setTabPopup] = React.useState(false);
     const trialGate = React.useRef({ ask: false, agreed: false });
-    trialGate.current = { ask: !!onTrialConsent && noticeAgreed.agreed === false && noticeDeclined.seen === false, agreed: noticeAgreed.agreed === true };
+    // 0.6.1: the server can choose when the tab asks (display.trial_notice): 'always' = on every walk-in, 'daily' = the first walk-in of each Korean day, absent = as in 0.3.13.
+    const noticeRule = state.combos?.display.trialNotice;
+    const askNow = noticeRule === 'always' ? true : noticeRule === 'daily' ? noticeDeclined.seen === false : noticeAgreed.agreed === false && noticeDeclined.seen === false;
+    trialGate.current = { ask: !!onTrialConsent && askNow, agreed: noticeAgreed.agreed === true };
     const onTrialTab = () => { if (trialGate.current.ask)
         setTabPopup(true); };
     const answerTabPopup = async (answer) => {
         setTabPopup(false);
+        if (noticeRule === 'daily')
+            noticeDeclined.markSeen(); // once a day, whatever the answer
         if (answer !== 'agree') {
             noticeDeclined.markSeen();
             return;

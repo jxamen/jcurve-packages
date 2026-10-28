@@ -39,6 +39,12 @@ export type ComboDisplay = {
      * (see `startWebTap`). Absent = off. It is a switch of its own: a document may carry it with the chip switched off and no rows at all.
      */
     listTap?: 'on';
+    /**
+     * 0.6.1: `trial_notice` from the server — when the 「무료체험」 tab asks 「해지 알림 켜고 참여하기」. Absent = as before (until the member pressed it once on this device; 「괜찮아요」 = not again today).
+     * 'always' = every time the member walks into the tab (even after 「켜고 참여하기」 or a 「괜찮아요」 today). 'daily' = the first walk-in of each Korean day (even after 「켜고 참여하기」).
+     * Answering never changes what a tap on a trial row does (that still follows the saved 「켜고 참여하기」).
+     */
+    trialNotice?: 'always' | 'daily';
 };
 /** 「쉽게 모으기」: short, easy missions (follow, subscribe, install and open) with no goal; `total` is the sum of their points. */
 export type ComboEasy = {
