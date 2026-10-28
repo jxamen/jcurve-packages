@@ -1,0 +1,38 @@
+# @jcurve/mission StepsPage 「오늘 걸음 카드 하나」 기본 모양 (-mc2) — 해시는 파일에서 계산한 값. 락은 npm install 이 만든 값을 쓰고 손으로 적지 말 것.
+# -mc1(옵션, 기본 false)은 이 판들로 대체됨 — 쓰지 말 것.
+
+jcurve-mission-0.4.16-mc2.tgz
+  version  0.4.16-mc2
+  size     168659
+  sha256   912dec9d361900a209f2e1c6e42a527141371ceccd0698110237394c189c7262
+  integrity sha512-dVFAE6SMSKEOIG/9io93sO/g7IByLo0v8ek8SSjzOGD+zH0i4ihUYgW0nw9sxPr1/vSetpqo0N0N4VJljT9Vbw==
+  base     0.4.16 (벤더 tgz sha256 시작 3ed54cb5c7635527) — 영테크 · 캐시팡팡 · 머니트리 안드(옛 0.4.16 줄) — 벤더 tgz CRLF
+
+jcurve-mission-0.4.19-mc2.tgz
+  version  0.4.19-mc2
+  size     183244
+  sha256   1979f21c9e84a6bd8939aa475cf35a0838a07afeab38fce260c0570b96a391ca
+  integrity sha512-NzRF0Ij4Idr1zlJDbBNCUsfibsCupoSF3bWnLEF/P+4lQhy2Yhc3r2AinBZVkOvu+NxW1LOHNxnXUlRaUohorg==
+  base     0.4.19 (벤더 tgz sha256 시작 4359944dab2e9f40) — 머니트리 iOS
+
+jcurve-mission-0.7.13-mc2.tgz
+  version  0.7.13-mc2
+  size     168099
+  sha256   5dc222092c488f310b4964ba34f10613739810db4d639da04323adc8b1e286f5
+  integrity sha512-6h6WCn8nOouT3K652AxB262ENLbLhJpVzKgwQ9ny+LmySh2feT/d1IcvybLdTVCYRESU9YpEBHm9fwCQYs0V5g==
+  base     0.7.13 (벤더 tgz sha256 시작 704558bd2c37e32b) — 감자밭(0.7.13 줄) — 벤더 tgz CRLF
+
+jcurve-mission-0.7.14-mc2.tgz
+  version  0.7.14-mc2
+  size     175734
+  sha256   66b1aed2df66000ad4afd3dc48e8884ab8f1ff22ea9c53d4ad3e6b097bf50f31
+  integrity sha512-ye70dXnShYt+F0z1q5OIJwfhIefTA/I7e97Iw53XzcHSv4z5lf3AC+oNVdN4TnFGqTDsds0SHcpQOP7+rmh1cg==
+  base     0.7.14 (벤더 tgz sha256 시작 0ec4880abbe31105) — 감자밭(0.7.14 줄)
+
+jcurve-mission-0.7.18.tgz
+  version  0.7.18
+  size     183255
+  sha256   7d2c4d86f79a3b7c6a85c168607fd1330b7ac264456926f08829c7fe2e58de9b
+  integrity sha512-UyIDHkecQlQQOHxSFCuLFAt62bSWMbQJr9J0ZzaWukFz/uxi9heqd/q+U6rIGFePcKIMCAS6toGsu3pnZYFDtw==
+  base     0.7.17 → 0.7.18 (벤더 tgz sha256 시작 (최신 줄 — npm pack)) — 새 최신 판
+
