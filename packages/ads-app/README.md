@@ -60,3 +60,6 @@ await recover({
 - `seen` 이 `ads/seen` 응답 객체(`{ seen?, settled?, settledPoints?, settledBy? }`)를 그대로 돌려줘도 된다: `settled === true` 면 **청구 없이 기록만 지우고**, `settledPoints > 0` 이면 기존 안내(`say`)만 낸다. 객체는 `seen === true` 일 때만 청구, 아니면 남긴다(10-23 판과 같음).
 - `extraSettledCodes: string[]` — 앱이 「이미 처리됨」으로 쓰던 거절 코드를 더한다(꿀꿀 8개). 목록에 없는 오류는 남겨 다음 실행에 다시.
 - `stepsStageRule(claimStage)` — `purposes['steps_stage:*']` 에 그대로 넣는 걷기 칸: 용도에서 날짜 · 단계를 풀어 청구하고 **`gained > 0` 일 때만** 안내(`message`)가 나간다. 이미 받은 단계(0P)의 남은 SSV 행은 조용히 지워 **가짜 「보상 받았어요」가 뜨지 않는다**(서버 대조: 꿀꿀 걷기 열림 17건이 전부 이미 지급된 단계의 남은 행).
+
+### 0.2.3 — 「이미 지급했다」({ replayed: true }) 응답은 조용히 지운다
+청구 함수가 `{ replayed: true }` 를 돌려주면(서버가 같은 키를 이미 처리했다는 답) 안내 · 새로고침 없이 기록만 지운다 — `{ ok: false }` 와 같은 취급. 앱이 청구 결과를 `{ ok: false }` 로 바꿔 주던 한 줄(용돈캡슐 recoveryPurposes 의 quiet)을 지울 수 있다. 그 밖의 동작은 0.2.2 와 같다.

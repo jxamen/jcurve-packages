@@ -49,6 +49,18 @@ describe('createAdRecovery', () => {
     await createAdRecovery()({ pending, memberId: '7', seen: async () => true, purposes: { draw: claimRule(async () => ({ ok: false })) }, refresh, say });
     expect(say).not.toHaveBeenCalled(); expect(refresh).not.toHaveBeenCalled(); expect(await pending.list()).toEqual([]);
   });
+  it('0.2.3 — 서버가 「이미 지급했다」({ replayed: true })고 답하면 안내 · 새로고침 없이 조용히 지운다 (용돈캡슐 옛 동작)', async () => {
+    const pending = setup(); await pending.add(row); const say = vi.fn(); const refresh = vi.fn(async () => {});
+    await createAdRecovery()({ pending, memberId: '7', seen: async () => true, purposes: { ticket: claimRule(async () => ({ replayed: true, gained: 0 })) }, refresh, say });
+    expect(say).not.toHaveBeenCalled(); expect(refresh).not.toHaveBeenCalled(); expect(await pending.list()).toEqual([]);
+  });
+  it('0.2.3 — replayed:false 이거나 replayed 가 없는 정상 응답은 그대로 안내한다', async () => {
+    for (const reply of [{ replayed: false }, { gained: 5 }, {}]) {
+      const pending = setup(); await pending.add(row); const say = vi.fn(); const refresh = vi.fn(async () => {});
+      await createAdRecovery()({ pending, memberId: '7', seen: async () => true, purposes: { ticket: claimRule(async () => reply) }, refresh, say });
+      expect(say).toHaveBeenCalledTimes(1); expect(refresh).toHaveBeenCalledTimes(1); expect(await pending.list()).toEqual([]);
+    }
+  });
   it('다른 회원의 기록은 건드리지 않는다', async () => {
     const pending = setup(); await pending.add({ ...row, memberId: '9' }); const claim = vi.fn();
     await createAdRecovery()({ pending, memberId: '7', seen: async () => true, purposes: { ticket: claimRule(claim) }, refresh: async () => {}, say: vi.fn() });

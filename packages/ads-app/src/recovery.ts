@@ -130,8 +130,9 @@ export function createAdRecovery(): (o: RecoveryOptions) => Promise<void> {
         if (!claimNow) continue;
         const result = await rule.claim('ad-recovery:' + row.id, row);
         await o.pending.remove(row.id);
-        // 청구가 던지지 않고 { ok: false } 로 거절하는 경우(예: 뽑기) — 받은 것이 아니므로 안내하지 않고 조용히 지운다
-        if ((result as { ok?: boolean } | null | undefined)?.ok === false) continue;
+        // 청구가 던지지 않고 { ok: false } 로 거절하는 경우(예: 뽑기), 또는 서버가 「이미 지급했다」({ replayed: true })고 답한 경우(0.2.3) — 새로 받은 것이 아니므로 안내하지 않고 조용히 지운다
+        const outcome = result as { ok?: boolean; replayed?: boolean } | null | undefined;
+        if (outcome?.ok === false || outcome?.replayed === true) continue;
         rewarded = true;
       } catch (e) {
         const code = (e as { code?: string } | null)?.code ?? '';
