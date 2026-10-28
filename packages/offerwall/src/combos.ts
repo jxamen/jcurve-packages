@@ -1,6 +1,7 @@
 /** 「포인트 빨리 모으기」 — daily point combos. Pure JS (OTA-safe); it only shows server data and never grants points. */
 import type { ReactElement } from 'react';
 import { openOfferwall } from './index';
+import { comboListProps } from './comboSheetProbe';
 
 /** The one place the feature's name lives (chip, Home banner, guide title, labels, popup text). */
 export const COMBO_NAME = '포인트 빨리 모으기';
@@ -963,7 +964,7 @@ export function ComboStepsScreen({ combos, loading = false, onClose, onPressMiss
         h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 12, style: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' } },
           h(Text, { style: { fontSize: 28, color: t.text } }, '‹')),
         h(Text, { style: { fontSize: 18, fontWeight: '700', color: t.text } }, COMBO_NAME))) : null,
-    h(ScrollView, { contentContainerStyle: { paddingBottom: 32 }, keyboardShouldPersistTaps: 'handled' },
+    h(ScrollView, { contentContainerStyle: { paddingBottom: 32 }, keyboardShouldPersistTaps: 'handled', ...comboListProps() },
       // the iPhone list while it is prepared (the server's `notice`): one calm line at the top
       comboNoticeOf(combos) ? h(View, { style: { marginHorizontal: side, marginTop: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, backgroundColor: chipBg } },
         h(Text, { style: { fontSize: 13, lineHeight: 18, color: t.sub } }, comboNoticeOf(combos))) : null,

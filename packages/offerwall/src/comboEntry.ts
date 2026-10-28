@@ -13,6 +13,7 @@ import { popupStorageKey, usePulse, useSeenToday } from './comboSeen';
 import { getChanceTab, getChanceTabInset, isWallLoaded, onChanceTab, onChanceTabInset, onWallState } from './wallSignal';
 import { useChanceProviders } from './chanceProviders';
 import { SNAPPLAY_PROVIDER_ID, openSnapPlayAd, readSnapPlayAds } from './snapPlay';
+import { comboSheetProbe, resetComboSheetProbe } from './comboSheetProbe';
 import type { SnapPlayAd, SnapPlayOpenResult } from './snapPlay';
 import { openOfferwall } from './index';
 
@@ -180,13 +181,20 @@ function ComboSheet({ top, theme, children }: { top: number; theme: ComboTheme; 
   const { Animated, Dimensions } = require('react-native') as typeof import('react-native');
   const slide = React.useRef<import('react-native').Animated.Value | null>(null);
   if (!slide.current) slide.current = new Animated.Value(0);
-  React.useEffect(() => { Animated.timing(slide.current!, { toValue: 1, duration: 220, useNativeDriver: true }).start(); }, []);
+  // 0.6.5: the slide is driven from JS and, once it has finished, the transform is taken off the sheet altogether — a list inside a view that a native-driver animation has moved
+  // did not react to swipes on an Android A32 (taps worked). The sheet is a state of its own (`settled`) that starts again each time the sheet opens (it is unmounted when closed).
+  const [settled, setSettled] = React.useState(false);
+  React.useEffect(() => {
+    resetComboSheetProbe(); // TEMP-DIAG 0.6.5 (0.6.6 removes it)
+    Animated.timing(slide.current!, { toValue: 1, duration: 220, useNativeDriver: false }).start((result?: { finished?: boolean }) => { if (!result || result.finished !== false) setSettled(true); });
+  }, []);
   const translateY = slide.current.interpolate({ inputRange: [0, 1], outputRange: [Dimensions.get('window').height, 0] });
   return React.createElement(Animated.View, {
+    onTouchStart: () => comboSheetProbe('container touchStart'), // TEMP-DIAG 0.6.5
     style: {
       position: 'absolute', left: 0, right: 0, bottom: 0, top, zIndex: 25, elevation: 25, overflow: 'hidden',
       borderTopLeftRadius: theme.radius.card, borderTopRightRadius: theme.radius.card, backgroundColor: theme.bg,
-      transform: [{ translateY }], ...theme.shadow,
+      ...(settled ? {} : { transform: [{ translateY }] }), ...theme.shadow,
     },
   }, children);
 }

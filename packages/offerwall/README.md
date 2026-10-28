@@ -595,3 +595,12 @@ iOS 의 애드팝콘 오퍼월 목록(「전체 미션」)은 SDK 안의 웹 화
 **칩이 탭 줄을 덮던 것(A32 2p1-r2 캡처, 앱보조4)**: 에그머니의 「무료체험 · 빨리 모으기」 칩이 위쪽 「찬스1 · 찬스2」 탭 줄을 덮어 「찬스2」 글자가 안 보였다(칩 top 6 + inset **0**; 탭 줄 높이 45 만큼 내려가야 한다). 원인: `OfferwallScreen` 이 자기 `useEffect` 에서 탭 줄 높이(`setChanceTabInset`)를 알리는데, 앱에서 그 다음 형제로 붙은 `ComboEntry` 가 구독을 하는 `useEffect` 보다 먼저 돌아 첫 알림(45)을 놓쳤고(`useState(getChanceTabInset)` 은 렌더 때 0 을 읽음), 이어서 실측이 폴백과 같은 45 라 `next === tabInset` 으로 다시 알림도 없었다(그래서 폴백과 실측이 같은 기기에서 항상 0). 이제 `ComboEntry` 는 **구독하고 바로 현재 값을 읽어 맞춘다** — 탭 inset 뿐 아니라 같은 모양인 0.6.2 의 고른 탭(`getChanceTab`)과 월 로드 신호(`isWallLoaded`)도. 시험 2개 추가(구독 전에 알림이 와도 칩 top = 6+45, 찬스2 목록을 따라감; 고치기 전 코드로는 둘 다 실패하는 것을 확인했다).
 
 시험 9개 추가(`test/classic-timer.test.cjs` — 가짜 타이머: 회원 없이 25초 · 숨겨진 채 2분 · 보이면 처음부터 · 오류 뒤 자동 재시도 1회와 그 뒤 단추 · 단추도 재시도로 침 · 성공하면 다시 자격 · 로드된 월 재마운트 없음 · 숨김 중 onError). 타이머 규칙을 일부러 깨 보니 시험이 실패하는 것도 확인했다.
+
+## 0.6.5 — 「포인트 빨리 모으기」 시트 안 목록이 스와이프로 안 움직이던 것: 후보 수정 + 임시 진단 (JS만 · 0.6.4 와 네이티브 바이트 동일)
+
+**증상(A32 실측, 에그머니 vc41, 앱보조4)**: 시트(`ComboSheet`) 안의 세로 목록 · 분류 가로 줄이 스와이프로 안 움직인다(탭은 정상). 같은 앱의 다른 화면은 같은 `adb input swipe` 로 움직이고, uiautomator 로 시트의 `ScrollView` 는 `scrollable=true`, 높이 정상, 행은 계층 10개 · 화면 7개라 스크롤 범위는 있다. 새 아키텍처 · Reanimated · 화면 전체를 감싼 제스처 감지기가 있는 앱.
+**원인은 아직 확정하지 못했다**(정적 코드로는 막는 곳이 없다). 그래서 이 판은 **후보 수정**과 **임시 진단**을 함께 넣어 A32 에서 가려 보는 용도다. 후보 수정이 맞는지는 실기기에서 확인되기 전에는 모른다.
+- **후보 수정 1 — 시트의 슬라이드**: `useNativeDriver: true` 였던 `translateY` 슬라이드를 JS 구동(`useNativeDriver: false`)으로 바꾸고, **슬라이드가 끝나면(`finished`) `transform` 을 시트에서 아예 뺀다**(`settled` 상태; 시트는 닫히면 언마운트되어 다음에 열 때 다시 처음부터). 끝난 뒤에는 애니메이션 변환이 시트 트리에 남지 않는다. 모양 · 위치 · zIndex · 둥근 모서리는 그대로. 도중에 끊겨 `finished: false` 면 그대로 둔다.
+- **후보 수정 2 — 세로 목록**: 세 화면(`ComboCategoryScreen` · `ComboStepsScreen` · `ComboTrialsScreen`)의 세로 `ScrollView` 에 `nestedScrollEnabled: true` · `style: { flex: 1 }`(`comboListProps()`). 분류 가로 줄은 그대로(이미 nested). 시트 뒤 backdrop 은 그대로.
+- **임시 진단(0.6.6 에서 뺀다 — `src/comboSheetProbe.ts` 와 `TEMP-DIAG 0.6.5` 표시된 줄들)**: logcat `ReactNativeJS` 에 시트가 열릴 때마다 단계별로 **각 한 번만**: `[combos-sheet] container touchStart`(시트가 터치를 받음) → `list touchStart`(목록이 받음) → `list scrollBeginDrag`(목록이 드래그를 시작) → `list scroll y=<n>`(실제로 움직여 처음 바뀐 오프셋; 0 은 안 찍음, `scrollEventThrottle: 100`). 어디서 끊기는지 가르는 용도이며 회원 정보는 없고 단계 이름과 오프셋 숫자뿐이다.
+시험 8개 추가(`test/combos-sheet-scroll.test.cjs`): 슬라이드가 JS 구동이고 끝나면 `transform` 이 빠지는 것 · 끊긴 슬라이드는 그대로 · 세 화면의 세로 목록 props 와 가로 줄 불변 · 진단 줄이 열 때마다 단계별 한 번 · 0 오프셋은 안 찍음 · 열 때 초기화 · `console.log` 가 던져도 시트가 안 깨짐. 기존 시험은 그대로 통과.

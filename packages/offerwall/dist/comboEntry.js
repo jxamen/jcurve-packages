@@ -18,6 +18,7 @@ const comboSeen_1 = require("./comboSeen");
 const wallSignal_1 = require("./wallSignal");
 const chanceProviders_1 = require("./chanceProviders");
 const snapPlay_1 = require("./snapPlay");
+const comboSheetProbe_1 = require("./comboSheetProbe");
 const index_1 = require("./index");
 /** 0.6.2 bundle mark — a deploy check can look for it to tell a build whose 「포인트 빨리 모으기」 follows the 찬스1 / 찬스2 tab. */
 exports.OFFERWALL_FAST_COMBOS_TABS_MARK = 'jcurve-offerwall-fast-combos-tabs:v1';
@@ -163,13 +164,21 @@ function ComboSheet({ top, theme, children }) {
     const slide = React.useRef(null);
     if (!slide.current)
         slide.current = new Animated.Value(0);
-    React.useEffect(() => { Animated.timing(slide.current, { toValue: 1, duration: 220, useNativeDriver: true }).start(); }, []);
+    // 0.6.5: the slide is driven from JS and, once it has finished, the transform is taken off the sheet altogether — a list inside a view that a native-driver animation has moved
+    // did not react to swipes on an Android A32 (taps worked). The sheet is a state of its own (`settled`) that starts again each time the sheet opens (it is unmounted when closed).
+    const [settled, setSettled] = React.useState(false);
+    React.useEffect(() => {
+        (0, comboSheetProbe_1.resetComboSheetProbe)(); // TEMP-DIAG 0.6.5 (0.6.6 removes it)
+        Animated.timing(slide.current, { toValue: 1, duration: 220, useNativeDriver: false }).start((result) => { if (!result || result.finished !== false)
+            setSettled(true); });
+    }, []);
     const translateY = slide.current.interpolate({ inputRange: [0, 1], outputRange: [Dimensions.get('window').height, 0] });
     return React.createElement(Animated.View, {
+        onTouchStart: () => (0, comboSheetProbe_1.comboSheetProbe)('container touchStart'), // TEMP-DIAG 0.6.5
         style: {
             position: 'absolute', left: 0, right: 0, bottom: 0, top, zIndex: 25, elevation: 25, overflow: 'hidden',
             borderTopLeftRadius: theme.radius.card, borderTopRightRadius: theme.radius.card, backgroundColor: theme.bg,
-            transform: [{ translateY }], ...theme.shadow,
+            ...(settled ? {} : { transform: [{ translateY }] }), ...theme.shadow,
         },
     }, children);
 }

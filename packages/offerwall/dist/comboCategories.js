@@ -5,6 +5,7 @@ exports.categoryItemMission = categoryItemMission;
 exports.categoryRemaining = categoryRemaining;
 exports.ComboCategoryScreen = ComboCategoryScreen;
 const combos_1 = require("./combos");
+const comboSheetProbe_1 = require("./comboSheetProbe");
 /** Rows shown at first in a tab, and added by each 「더 보기」 (a tab can have a few hundred rows: games, and the server's midnight reset made 「쉬운 미션」 186). */
 exports.COMBO_CATEGORY_PAGE = combos_1.COMBO_PAGE_ROWS;
 /** The tab with free trials: no total, the cancel note instead. */
@@ -95,7 +96,7 @@ function ComboCategoryScreen({ combos, loading = false, onClose, onPressMission,
     const closeText = (label) => h(Text, { style: { fontSize: 14, fontWeight: '600', color: t.sub } }, label);
     return h(View, { style: { flex: 1, backgroundColor: t.bg, paddingTop: Math.max(0, topInset) } }, showHeader ? (variant === 'sheet'
         ? h(View, { style: { height: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: side } }, h(Text, { style: { fontSize: 18, fontWeight: '700', color: t.text } }, combos_1.COMBO_NAME), h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 12, style: { paddingVertical: 8, paddingLeft: 8 } }, closeText('닫기')))
-        : h(View, { style: { height: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8 } }, h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 12, style: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' } }, h(Text, { style: { fontSize: 28, color: t.text } }, '‹')), h(Text, { style: { fontSize: 18, fontWeight: '700', color: t.text } }, combos_1.COMBO_NAME))) : null, h(ScrollView, { contentContainerStyle: { paddingBottom: 32 }, keyboardShouldPersistTaps: 'handled' }, 
+        : h(View, { style: { height: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8 } }, h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 12, style: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' } }, h(Text, { style: { fontSize: 28, color: t.text } }, '‹')), h(Text, { style: { fontSize: 18, fontWeight: '700', color: t.text } }, combos_1.COMBO_NAME))) : null, h(ScrollView, { contentContainerStyle: { paddingBottom: 32 }, keyboardShouldPersistTaps: 'handled', ...(0, comboSheetProbe_1.comboListProps)() }, 
     // the iPhone list while it is prepared (the server's `notice`): one calm line at the top
     (0, combos_1.comboNoticeOf)(combos) ? h(View, { style: { marginHorizontal: side, marginTop: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, backgroundColor: chipBg } }, h(Text, { style: { fontSize: 13, lineHeight: 18, color: t.sub } }, (0, combos_1.comboNoticeOf)(combos))) : null, 
     // many tabs: the row scrolls sideways

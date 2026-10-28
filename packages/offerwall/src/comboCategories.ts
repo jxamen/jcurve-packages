@@ -8,6 +8,7 @@
 import type { ReactElement } from 'react';
 import { COMBO_NAME, COMBO_PAGE_ROWS, COMBO_TAB_HIT_SLOP, COMBO_TAB_ROW_PROPS, COMBO_TRIAL_NOTE, DEFAULT_COMBO_THEME, afterFirstPaint, comboNoticeOf, formatPoints, autoDoneIds } from './combos';
 import type { ComboCategory, ComboCategoryItem, ComboGuideScreenProps, ComboMission } from './combos';
+import { comboListProps } from './comboSheetProbe';
 
 /** Rows shown at first in a tab, and added by each 「더 보기」 (a tab can have a few hundred rows: games, and the server's midnight reset made 「쉬운 미션」 186). */
 export const COMBO_CATEGORY_PAGE = COMBO_PAGE_ROWS;
@@ -113,7 +114,7 @@ export function ComboCategoryScreen({
         h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 12, style: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' } },
           h(Text, { style: { fontSize: 28, color: t.text } }, '‹')),
         h(Text, { style: { fontSize: 18, fontWeight: '700', color: t.text } }, COMBO_NAME))) : null,
-    h(ScrollView, { contentContainerStyle: { paddingBottom: 32 }, keyboardShouldPersistTaps: 'handled' },
+    h(ScrollView, { contentContainerStyle: { paddingBottom: 32 }, keyboardShouldPersistTaps: 'handled', ...comboListProps() },
       // the iPhone list while it is prepared (the server's `notice`): one calm line at the top
       comboNoticeOf(combos) ? h(View, { style: { marginHorizontal: side, marginTop: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, backgroundColor: chipBg } },
         h(Text, { style: { fontSize: 13, lineHeight: 18, color: t.sub } }, comboNoticeOf(combos))) : null,
