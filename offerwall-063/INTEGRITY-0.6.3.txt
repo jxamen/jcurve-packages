@@ -1,0 +1,4 @@
+jcurve-offerwall-0.6.3.tgz
+sha256 1cdbe7615f6886bf9d2c6b3798fe4cd726f66983d522c3046235ce85eec8949a
+integrity sha512-zWy5iAdOJPZvctiIYo3tj6A4MGffSZjy5sR/BywBxbYqglcafaP2MmtloAtg8AiQrositeaVD18IPbwmyWQ+Dw==
+commit jcurve-packages feat/offerwall-050 cff6052 (0.6.2 8b2c175 + 0.6.3) — 베이스 0.6.2 tgz 와 5개 멤버만 다름(README · dist/offerwallCombos.js · dist/offerwallCombos.d.ts · src/offerwallCombos.ts · package.json), 네이티브 13개 멤버 바이트 동일
