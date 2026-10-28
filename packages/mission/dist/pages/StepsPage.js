@@ -22,7 +22,7 @@ const DEFAULT_GUIDE = [
     '배터리 절약 모드 등에서는 걸음 수가 정확하지 않을 수 있어요.',
     '만보기 보상과 조건은 사정에 따라 바뀔 수 있어요.',
 ];
-function StepsPage({ todaySteps, stages, earnedToday = 0, stepsAvailable, onUpdate, onClaim, onBack, swipeBack, everySteps = 1000, guide = DEFAULT_GUIDE, title = '만보기', theme: themeIn, footer, mergedCard = false }) {
+function StepsPage({ todaySteps, stages, earnedToday = 0, stepsAvailable, onUpdate, onClaim, onBack, swipeBack, everySteps = 1000, guide = DEFAULT_GUIDE, title = '만보기', theme: themeIn, footer, mergedCard = true }) {
     const theme = (0, PageFrame_1.resolvePageTheme)(themeIn);
     const [busy, setBusy] = (0, react_1.useState)(false);
     const [failed, setFailed] = (0, react_1.useState)(false);
