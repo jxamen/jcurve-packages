@@ -14,6 +14,7 @@ exports.pushCampaignKey = pushCampaignKey;
 exports.isTrialsRoute = isTrialsRoute;
 exports.comboPushTarget = comboPushTarget;
 const comboEntry_1 = require("./comboEntry");
+const webTap_1 = require("./webTap");
 /** A failed request: `status` 0 = no answer (network, timeout), else the HTTP status. */
 class OfferwallRequestError extends Error {
     constructor(message, status) { super(message); this.name = 'OfferwallRequestError'; this.status = status; }
@@ -145,6 +146,10 @@ function webTapDiagBody(summary) {
         body.reason = String(summary.reason).slice(0, 40);
     if (summary.helloHost)
         body.helloHost = String(summary.helloHost).slice(0, 80);
+    // 0.4.2: the shape of the responses the page got — names and numbers only (see `cleanResp`)
+    const resp = Array.isArray(summary.resp) ? summary.resp.slice(0, 22).map(webTap_1.cleanResp).filter((r) => !!r) : [];
+    if (resp.length)
+        body.resp = resp;
     return body;
 }
 const RESULTS = ['open_failed', 'closed_fast'];

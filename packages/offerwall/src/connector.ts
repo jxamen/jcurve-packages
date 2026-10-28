@@ -7,7 +7,7 @@
 import type { CampaignInfo } from './campaigns';
 import type { ComboDetailSignal, ComboTapDiagnostic } from './comboEntry';
 import { isCombosRoute } from './comboEntry';
-import type { TapCampaign } from './webTap';
+import { cleanResp, type TapCampaign, type TapResp } from './webTap';
 
 /* ── request client ───────────────────────────────────────────────────────────────────────── */
 
@@ -131,7 +131,7 @@ export function diagBody(d: ComboTapDiagnostic): Record<string, unknown> {
 }
 
 /** What the web tap saw on a test member's phone, for finding out why a list did not arrive (0.4.1). Counts and path names only — no campaign, member or device data. */
-export type WebTapSummary = { started: boolean; reason?: string; hello: number; helloHost?: string; lists: number; maxList: number; details: number; natives: number; shapes: number; paths: string[] };
+export type WebTapSummary = { started: boolean; reason?: string; hello: number; helloHost?: string; lists: number; maxList: number; details: number; natives: number; shapes: number; paths: string[]; resp?: TapResp[] };
 /** `POST offerwall/combos/diag` body for it — fixed fields, lengths cut. */
 export function webTapDiagBody(summary: WebTapSummary): Record<string, unknown> {
   const body: Record<string, unknown> = {
@@ -141,6 +141,9 @@ export function webTapDiagBody(summary: WebTapSummary): Record<string, unknown> 
   };
   if (summary.reason) body.reason = String(summary.reason).slice(0, 40);
   if (summary.helloHost) body.helloHost = String(summary.helloHost).slice(0, 80);
+  // 0.4.2: the shape of the responses the page got — names and numbers only (see `cleanResp`)
+  const resp = Array.isArray(summary.resp) ? summary.resp.slice(0, 22).map(cleanResp).filter((r): r is TapResp => !!r) : [];
+  if (resp.length) body.resp = resp;
   return body;
 }
 

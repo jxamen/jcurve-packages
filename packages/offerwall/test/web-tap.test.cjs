@@ -17,8 +17,8 @@ const page = (hostname = 'offerwall.adpopcorn.com') => {
     reply(body) { this.responseText = typeof body === 'string' ? body : JSON.stringify(body); this.listeners.load && this.listeners.load(); }
   }
   const window = {
-    // hello and net are the 0.4.1 diagnostics (tested in tap-gate.test.cjs); these tests look at the campaign messages
-    webkit: {messageHandlers: {JCurveOfferwallTap: {postMessage: s => { const m = JSON.parse(s); if (m.type !== 'hello' && m.type !== 'net') posts.push(m); }}}},
+    // hello and net are the 0.4.1 diagnostics (tested in tap-gate.test.cjs), resp the 0.4.2 one (web-tap-real.test.cjs); these tests look at the campaign messages
+    webkit: {messageHandlers: {JCurveOfferwallTap: {postMessage: s => { const m = JSON.parse(s); if (m.type !== 'hello' && m.type !== 'net' && m.type !== 'resp') posts.push(m); }}}},
     addEventListener: (type, fn) => { listeners[type] = fn; },
     fetch: async () => ({clone: () => ({text: async () => window.__fetchBody})}),
   };

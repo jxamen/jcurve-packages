@@ -77,8 +77,12 @@ function createTapUploader({ upload, storage, scope, now = Date.now, minGapMs = 
             if (message.type === 'list') {
                 if (!message.campaigns.length)
                     return;
-                list = message.campaigns;
-                for (const c of list) {
+                // 0.4.2: the page loads the list per tab (and the script splits a very big one), so every campaign seen while the wall is watched counts — a newer row replaces its older copy
+                const merged = new Map(list.map(c => [c.campaignKey, c]));
+                for (const c of message.campaigns)
+                    merged.set(c.campaignKey, c);
+                list = [...merged.values()].slice(0, 800);
+                for (const c of message.campaigns) {
                     const text = c.info ?? '';
                     if (text)
                         info.set(c.campaignKey, text);

@@ -6,7 +6,7 @@
  */
 import type { CampaignInfo } from './campaigns';
 import type { ComboDetailSignal, ComboTapDiagnostic } from './comboEntry';
-import type { TapCampaign } from './webTap';
+import { type TapCampaign, type TapResp } from './webTap';
 export type OfferwallClientOptions = {
     /** The app's server address, the part before `offerwall/…` (for example `https://api.example.com/v1/myapp`). http(s) only. */
     serverUrl: string;
@@ -70,6 +70,7 @@ export type WebTapSummary = {
     natives: number;
     shapes: number;
     paths: string[];
+    resp?: TapResp[];
 };
 /** `POST offerwall/combos/diag` body for it — fixed fields, lengths cut. */
 export declare function webTapDiagBody(summary: WebTapSummary): Record<string, unknown>;

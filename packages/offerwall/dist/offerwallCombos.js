@@ -232,10 +232,10 @@ function OfferwallCombos(props) {
             return;
         let live = true;
         let handle = null;
-        const seen = { started: false, hello: 0, lists: 0, maxList: 0, details: 0, natives: 0, shapes: 0, paths: [] };
+        const seen = { started: false, hello: 0, lists: 0, maxList: 0, details: 0, natives: 0, shapes: 0, paths: [], resp: [] };
         const timers = [];
         const report = () => { try {
-            void handlers.diagnoseWebTap({ ...seen, paths: [...seen.paths] });
+            void handlers.diagnoseWebTap({ ...seen, paths: [...seen.paths], resp: [...seen.resp] });
         }
         catch { /* ignore */ } };
         const uploader = (0, tapUpload_1.createTapUploader)({
@@ -258,6 +258,15 @@ function OfferwallCombos(props) {
                 if (message.type === 'net') {
                     if (seen.paths.length < 12 && !seen.paths.includes(message.path))
                         seen.paths.push(message.path);
+                    return;
+                }
+                if (message.type === 'resp') {
+                    if (seen.resp.length < 22)
+                        seen.resp.push(message);
+                    try {
+                        console.log('[combos] tap resp', message.path, message.status, message.kind, message.len, (message.keys ?? []).join(','), message.arrays.map(a => `${a.k}[${a.n}]`).join(','));
+                    }
+                    catch { /* ignore */ }
                     return;
                 }
                 if (message.type === 'shape') {

@@ -483,3 +483,15 @@ iOS 의 애드팝콘 오퍼월 목록(「전체 미션」)은 SDK 안의 웹 화
 - **일찍 시작**: 서버가 마지막으로 준 명시적 「켜짐」을 기기에 7일간 기억해(`jcurve.offerwall.listtap:<회원>`) 다음에는 마운트 때 응답을 기다리지 않고 탭을 시작한다. 서버가 「꺼짐」이나 404 를 주면 바로 끄고 「꺼짐」을 기억한다. 「서버가 말해야 켜진다」 규칙은 그대로다(기억도 서버의 명시적 응답이 만든 값).
 - **진단**: 스크립트가 시작하면 `hello`(호스트 · 문서 상태)를, 페이지가 부르는 경로를 `net`(경로만, 쿼리 없음, 최대 12개)으로 알린다. 시험 회원 기기는 시작 25초 · 100초 뒤에 `POST offerwall/combos/diag` 로 요약 `{t:'webtap', started, reason, hello, lists, maxList, details, natives, shapes, paths[]}`(개수 · 경로 이름뿐)를 올린다 — 목록이 안 올 때 어디서 막혔는지(시작 실패 / 스크립트가 안 뜸 / 다른 경로) 서버에서 읽을 수 있다. 콘솔에는 `[combos] tap hello|list|shape` 로 남는다.
 - 기타: `OfferwallScreen` 의 `StyleSheet.absoluteFill` 펼침을 같은 값의 객체로 바꿨다(새 RN 타입 호환, 동작 같음).
+
+## 0.4.2 — 목록을 실제 필드 이름으로 읽기 (JS만 · 네이티브 변경 없음 · 0.4.0 새 빌드 위에 OTA 가능)
+
+**원인(에그머니 iOS 1.1.7 실기기, 10/28 13:32 대표님 아이폰)**: 0.4.1 로 스크립트는 들어갔다(`hello` 1 · 경로 11개) 그런데 `lists 0 · shapes 1`. 0.4.0/0.4.1 의 파서는 미션 줄을 `CampaignKey` · 숫자 `Reward` 로 찾았고, 애드팝콘 오퍼월 페이지의 실제 줄은 그렇지 않다. 페이지의 공개 코드(`offerwall.adpopcorn.com/assets/*.js`)와 안드로이드 A32 실응답(키 이름 · 형식만 받음)이 같다:
+`POST /ap/v3/sdk/media/campaigns` → `{ Result, IsTest, ResultCode, ResultMsg, CampaignList: [ { Key, Title, Description, IconImage, MainImage, Reward: { Quantity, Unit }, ParticipationStep: [..], RewardCondition: [..], Auth, … 33칸 } ] }` (안드 456줄 · 약 1.4MB). `CampaignKey` · `IconUrl` · 숫자 `Reward` 는 라이브커머스 줄의 이름이고 그 줄은 `PartiTypeCode` · 방송 시간도 가진다 — 미션이 아니다. `/api/v1/list/adpopcornof` 는 오퍼월 코드에 없다(광고 SSP 웹 SDK 호출).
+
+고친 것
+- **읽는 이름**: `Key` · `Title` · `Description`(400자) · `Reward.Quantity` · `IconImage`(없으면 `IconUrl` · `MainImage`, https 만) · `ParticipationStep` + `RewardCondition` 문장 → `info`(1500자). 이전 이름(`CampaignKey`)은 라이브커머스 모양이 아닐 때만 받는다. `CPMCampaignList` 는 건너뛴다.
+- **큰 목록**: 응답은 1.4MB 지만 밖으로 나가는 건 화이트리스트 필드뿐이다. 그래도 네이티브 메시지 상한(1,500,000자)을 넘지 않도록 한 메시지가 60만 자를 넘으면 나눠 보낸다(보통 한 메시지, 456줄 약 20만 자).
+- **업로드 합치기**: 페이지가 탭(영역)마다 따로 목록을 부르므로, 업로더가 마지막 메시지만 쓰지 않고 읽는 동안 본 캠페인을 키로 합친다(새 줄이 옛 줄을 바꿈, 800줄까지).
+- **진단 `resp`**: 페이지가 받은 응답마다(경로당 3번, 미션 목록은 6번, 모두 16개까지) 종류(`json|html|jsonp|text|empty|big`) · 상태 · 길이 · 최상위 키 이름 · 배열 이름/길이/첫 줄의 키 이름 · 첫 줄 안 객체의 키 이름을 올린다 — **값은 한 글자도 안 나간다**(`cleanResp` 가 30자 이름과 숫자만 남김). 시험 회원의 `webtap` 요약(`resp: [...]`)에 실린다. 콘솔: `[combos] tap resp`.
+- 상세 응답(`{ Campaign: { Key … } }`)의 참여 문장은 목록 줄에서 이미 만든 `info` 가 있으면 그것을 지키고, 없을 때만 상세에서 모은다.

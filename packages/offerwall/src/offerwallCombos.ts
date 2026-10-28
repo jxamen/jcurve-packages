@@ -23,7 +23,7 @@ import { comboThemeFromTokens, DEFAULT_COMBO_THEME, type ComboTheme } from './co
 import { OfferwallPopupAd, popupAdAvailable, popupAdUnit, type OfferwallAdUnits } from './popupAd';
 import { createTapUploader, type TapUploader } from './tapUpload';
 import { defaultTrialNotifyDeps, ensureTrialNotify, type TrialNotifyDeps, type TrialNotifyHooks } from './trialNotify';
-import { startWebTap, type WebTapHandle } from './webTap';
+import { startWebTap, type TapResp, type WebTapHandle } from './webTap';
 
 /** The app's `C` / `R` / `F` / `shadow` token objects (see `comboThemeFromTokens`). */
 export type OfferwallTokens = Parameters<typeof comboThemeFromTokens>[0];
@@ -258,9 +258,9 @@ export function OfferwallCombos(props: OfferwallCombosProps): ReactElement | nul
     if (!listTap || memberId == null || platformOs() !== 'ios') return;
     let live = true;
     let handle: WebTapHandle | null = null;
-    const seen: WebTapSummary = { started: false, hello: 0, lists: 0, maxList: 0, details: 0, natives: 0, shapes: 0, paths: [] };
+    const seen: WebTapSummary & { resp: TapResp[] } = { started: false, hello: 0, lists: 0, maxList: 0, details: 0, natives: 0, shapes: 0, paths: [], resp: [] };
     const timers: Array<ReturnType<typeof setTimeout>> = [];
-    const report = () => { try { void handlers.diagnoseWebTap({ ...seen, paths: [...seen.paths] }); } catch { /* ignore */ } };
+    const report = () => { try { void handlers.diagnoseWebTap({ ...seen, paths: [...seen.paths], resp: [...seen.resp] }); } catch { /* ignore */ } };
     const uploader: TapUploader = createTapUploader({
       upload: body => clientFor().post('offerwall/campaigns', body),
       storage, scope: String(memberId),
@@ -270,6 +270,11 @@ export function OfferwallCombos(props: OfferwallCombosProps): ReactElement | nul
         if (!live) return;
         if (message.type === 'hello') { seen.hello += 1; seen.helloHost = message.host; try { console.log('[combos] tap hello', message.host, message.ready); } catch { /* ignore */ } return; }
         if (message.type === 'net') { if (seen.paths.length < 12 && !seen.paths.includes(message.path)) seen.paths.push(message.path); return; }
+        if (message.type === 'resp') {
+          if (seen.resp.length < 22) seen.resp.push(message);
+          try { console.log('[combos] tap resp', message.path, message.status, message.kind, message.len, (message.keys ?? []).join(','), message.arrays.map(a => `${a.k}[${a.n}]`).join(',')); } catch { /* ignore */ }
+          return;
+        }
         if (message.type === 'shape') {
           seen.shapes += 1;
           // key names only, to see the page's real shape on a device
