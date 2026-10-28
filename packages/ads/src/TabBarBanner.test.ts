@@ -821,3 +821,104 @@ describe('prefetchTabBarBanner — the first native creative is asked for before
     expect(requestsOf(h)).toBe(2);
   });
 });
+
+// ---- 1.9.16: headline guard (was the postinstall patch of one app) and the fixed 320x50 banner ----
+describe('TabBarBanner 1.9.16 — native creative needs a headline', () => {
+  const run = async (creative: any) => {
+    const h = harness(Promise.resolve(creative));
+    const states: any[] = [];
+    h.mount({ enabled: true, unitId: 'existing-native', format: 'native', onState: (s: any) => states.push(s) });
+    h.render();                      // the first render registers the effect that start() runs
+    h.start(); await flush();
+    return { h, states };
+  };
+  it('a creative with no / blank / non-string headline is dropped, destroyed and reported as no-fill "no headline" — the 40dp slot stays empty', async () => {
+    for (const headline of [undefined, '', '   ', 7, null]) {
+      const ad = { headline, mediaContent: { hasVideoContent: false }, destroy: vi.fn() };
+      const { h, states } = await run(ad);
+      expect(inner(h), String(headline)).toBeNull();
+      expect(outer(h), String(headline)).toBe(40);
+      expect(ad.destroy, String(headline)).toHaveBeenCalledOnce();
+      expect(states.at(-1), String(headline)).toEqual({ state: 'no-fill', tries: 1, error: 'no headline' });
+    }
+  });
+  it('a creative with a headline is shown exactly as before (headline, CTA, 40dp) — nothing else about the row changed', async () => {
+    const ad = { headline: '  광고 제목  ', callToAction: '설치', icon: { url: 'https://x/i.png' }, mediaContent: { hasVideoContent: false }, destroy: vi.fn() };
+    const { h, states } = await run(ad);
+    expect(outer(h)).toBe(40);
+    expect(inner(h).type).toBe('NativeAdView');
+    expect(JSON.stringify(inner(h))).toContain('광고 제목');
+    expect(states.map((s) => s.state)).toEqual(['requesting', 'loaded']);
+    expect(ad.destroy).not.toHaveBeenCalled();
+  });
+  it('a video creative is still reported as video-dropped (not "no headline")', async () => {
+    const ad = { headline: 'video ad', mediaContent: { hasVideoContent: true }, destroy: vi.fn() };
+    const { states } = await run(ad);
+    expect(states.at(-1)).toEqual({ state: 'video-dropped', tries: 1 });
+  });
+  it('the native slot is 40dp on a phone and on a tablet window, with or without a bannerHeight', async () => {
+    for (const [w, hgt] of [[390, 844], [768, 1024]]) {
+      const h = harness(Promise.resolve(null));
+      h.rn.Dimensions.get = () => ({ width: w, height: hgt });
+      h.mount({ enabled: true, unitId: 'n', format: 'native', bannerHeight: 72 });
+      expect(outer(h)).toBe(40);
+    }
+  });
+});
+
+describe('TabBarBanner 1.9.16 — format="banner" is the fixed 320x50, "adaptive-banner" / no format keep the old adaptive slot', () => {
+  const fixed = async (win: [number, number], extra: any = {}, constant: string | null = 'SDK_BANNER') => {
+    const h = harness(Promise.resolve(null));
+    h.rn.Dimensions.get = () => ({ width: win[0], height: win[1] });
+    if (constant === null) delete (h.sdk as any).BannerAdSize.BANNER; else (h.sdk as any).BannerAdSize.BANNER = constant;
+    h.mount({ enabled: true, unitId: 'existing-banner', format: 'banner', ...extra });
+    h.render();                      // the first render registers the effect that start() runs
+    return h;
+  };
+  it('the outer View is exactly 50dp on every window (phone, small phone, tablet) and the BannerAd asks for BannerAdSize.BANNER', async () => {
+    for (const win of [[390, 844], [320, 568], [412, 915], [768, 1024]] as Array<[number, number]>) {
+      const h = await fixed(win);
+      const reserved = outer(h);
+      expect(reserved, win.join('x')).toBe(50);
+      expect(inner(h)).toBeNull();
+      h.start(); await flush();
+      expect(outer(h), win.join('x')).toBe(50);
+      const banner = inner(h);
+      expect(banner.type).toBe('BannerAd');
+      expect(banner.props.size).toBe('SDK_BANNER');
+      expect(h.render().props.style).toMatchObject({ height: 50, width: '100%', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' });
+    }
+  });
+  it('bannerHeight is ignored for the fixed banner (a smaller slot would clip the ad); a failed load keeps the 50dp slot', async () => {
+    const h = await fixed([390, 844], { bannerHeight: 30 });
+    h.start(); await flush();
+    expect(outer(h)).toBe(50);
+    inner(h).props.onAdFailedToLoad();
+    expect(outer(h)).toBe(50); expect(inner(h)).toBeNull();
+  });
+  it('an SDK build without the BANNER constant gets the size as the string "320x50"', async () => {
+    const h = await fixed([390, 844], {}, null);
+    h.start(); await flush();
+    expect(inner(h).props.size).toBe('320x50');
+  });
+  it('no format and format="adaptive-banner" are the old adaptive banner: ANCHORED_ADAPTIVE_BANNER, 61dp at 390 wide, bannerHeight honored', async () => {
+    for (const props of [{}, { format: 'adaptive-banner' }]) {
+      const h = harness(Promise.resolve(null));
+      h.mount({ enabled: true, unitId: 'existing-banner', ...props });
+      expect(outer(h)).toBe(61);
+      h.start(); await flush();
+      expect(inner(h).props.size).toBe('adaptive');
+      const tall = harness(Promise.resolve(null));
+      tall.mount({ enabled: true, unitId: 'b', bannerHeight: 72, ...props });
+      expect(outer(tall)).toBe(72);
+    }
+  });
+  it('switching format remounts the slot (the key carries the format), and the fixed banner never starts the native request loop', async () => {
+    const h = await fixed([390, 844]);
+    expect(h.mount({ enabled: true, unitId: 'u', format: 'banner' }).props.key).toBe('banner:u');
+    expect(h.mount({ enabled: true, unitId: 'u', format: 'adaptive-banner' }).props.key).toBe('adaptive-banner:u');
+    h.mount({ enabled: true, unitId: 'existing-banner', format: 'banner' });
+    h.start(); await flush();
+    expect(h.sdk.NativeAd.createForAdRequest).not.toHaveBeenCalled();
+  });
+});

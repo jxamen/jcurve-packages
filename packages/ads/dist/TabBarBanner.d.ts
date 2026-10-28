@@ -18,15 +18,23 @@ export type TabBarBannerState = {
 export type TabBarBannerProps = {
     unitId?: string;
     enabled: boolean;
-    /** Match the existing unit's AdMob format. Never send a native unit to BannerAd. */
-    format?: 'banner' | 'native';
+    /**
+     * Match the existing unit's AdMob format. Never send a native unit to BannerAd.
+     * - `native`: the 40dp one-line native row (unchanged).
+     * - `banner` (1.9.16): the standard 320x50 banner (`BannerAdSize.BANNER`) in a slot that is exactly 50dp high, on every device.
+     *   (The anchored adaptive banner is about 61-68dp on an iPhone, taller than the 40dp native row of the other apps. Cutting an adaptive
+     *   creative to a smaller slot clips the ad, which AdMob policy forbids, so the request size itself is 320x50.)
+     * - `adaptive-banner`: the anchored adaptive banner, outer height `bannerHeight` or the window-size estimate — **what a call without
+     *   `format` has always got** (before 1.9.16 it was called `banner`; the default is unchanged so no existing call site moves).
+     */
+    format?: 'banner' | 'native' | 'adaptive-banner';
     /**
      * (1.9.8) Color of the reserved slot while no creative is on screen (before load, no fill, retries exhausted, between creatives).
      * Pass the app's tab-bar color so the empty slot is invisible. Default '#fff'.
      */
     backgroundColor?: string;
     /**
-     * (1.9.8) Optional measured outer height (dp) for format="banner". Default: an estimate from the window size (`bannerSlotHeight`).
+     * (1.9.8) Optional measured outer height (dp) for the adaptive banner (no `format`, or "adaptive-banner"); format="banner" is always 50dp. Default: an estimate from the window size (`bannerSlotHeight`).
      * The outer height never changes after mount; if the SDK's real banner is a few dp different it is centered and clipped inside the slot.
      */
     bannerHeight?: number;
@@ -37,6 +45,8 @@ export type TabBarBannerProps = {
 };
 /** Outer height of a native slot (dp). Reserved from the first render. */
 export declare const NATIVE_SLOT_HEIGHT = 40;
+/** (1.9.16) Outer height of a `format="banner"` slot (dp): the 320x50 banner, the same on every device. */
+export declare const BANNER_SLOT_HEIGHT = 50;
 /**
  * Estimated height (dp) of an anchored adaptive banner for a window, used to reserve the slot **before** the ad loads (1.9.8).
  * Google documents only the limits — at least 50 and at most 15% of the device height (the Unity guide adds a 90 dp cap) — not the formula.

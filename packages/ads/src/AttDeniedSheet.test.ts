@@ -531,3 +531,43 @@ describe('renderPopup — 앱이 자기 팝업 모양으로 그린다 (1.9.14, �
     expect(calls.length).toBe(before);
   });
 });
+
+// ---- 1.9.16: an empty override never makes an invisible action (was the postinstall patch of one app) ----
+describe('AttDeniedSheet 1.9.16 — blank button labels fall back to the package default for that button', () => {
+  it('denied popup: blank proceed / openSettings overrides show 그냥 보기 / 설정 열기, a real override is kept', async () => {
+    const h = harness();
+    const props = { appName: '꼬꼬농장', deniedTexts: { proceed: '   ', openSettings: '' } };
+    h.mount(props);
+    void ensure(h, tracking('denied'));
+    await flush();
+    expect(buttons(h.modal('denied', props)).map(labelOf)).toEqual(['그냥 보기', '설정 열기']);
+    const kept = harness();
+    const own = { appName: '꼬꼬농장', deniedTexts: { proceed: '닫기', openSettings: '설정으로' } };
+    kept.mount(own);
+    void ensure(kept, tracking('denied'));
+    await flush();
+    expect(buttons(kept.modal('denied', own)).map(labelOf)).toEqual(['닫기', '설정으로']);
+  });
+  it('primer popup: a blank button override shows 계속, a real one is kept; the other texts are untouched', async () => {
+    const h = harness();
+    const props = { appName: '꼬꼬농장', primerTexts: { button: '' } };
+    h.mount(props);
+    void ensure(h, tracking('undetermined', 'denied'));
+    await flush();
+    expect(buttons(h.modal('primer', props)).map(labelOf)).toEqual(['계속']);
+    const kept = harness();
+    const own = { appName: '꼬꼬농장', primerTexts: { button: '알겠어요' } };
+    kept.mount(own);
+    void ensure(kept, tracking('undetermined', 'denied'));
+    await flush();
+    expect(buttons(kept.modal('primer', own)).map(labelOf)).toEqual(['알겠어요']);
+    expect(strings(kept.modal('primer', own))).toContain('다음 화면에서 앱 추적 허용 여부를 물어봐요');
+  });
+  it('without overrides nothing changes (default labels)', async () => {
+    const h = harness();
+    h.mount();
+    void ensure(h, tracking('denied'));
+    await flush();
+    expect(buttons(h.modal('denied')).map(labelOf)).toEqual(['그냥 보기', '설정 열기']);
+  });
+});

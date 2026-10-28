@@ -58,6 +58,11 @@ function AttDeniedSheet({ theme, storage, primerTexts, deniedTexts, renderPopup 
     const th = { ...DEFAULT_THEME, ...(theme ?? {}) };
     const pr = { ...attSheet_1.ATT_PRIMER_TEXTS, ...(primerTexts ?? {}) };
     const dn = { ...attSheet_1.ATT_DENIED_TEXTS, ...(deniedTexts ?? {}) };
+    // (1.9.16) An empty override must never produce an invisible action: a blank button label falls back to the package default for that button.
+    const label = (value, fallback) => (typeof value === 'string' && value.trim() ? value : fallback);
+    pr.button = label(pr.button, attSheet_1.ATT_PRIMER_TEXTS.button);
+    dn.proceed = label(dn.proceed, attSheet_1.ATT_DENIED_TEXTS.proceed);
+    dn.openSettings = label(dn.openSettings, attSheet_1.ATT_DENIED_TEXTS.openSettings);
     const h = react_1.default.createElement;
     const finish = () => {
         const f = pending.current;

@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.NATIVE_HOLD_TTL_MS = exports.NATIVE_MIN_GAP_MS = exports.NATIVE_REFRESH_MS = exports.NATIVE_RETRY_MS = exports.NATIVE_SLOT_HEIGHT = void 0;
+exports.NATIVE_HOLD_TTL_MS = exports.NATIVE_MIN_GAP_MS = exports.NATIVE_REFRESH_MS = exports.NATIVE_RETRY_MS = exports.BANNER_SLOT_HEIGHT = exports.NATIVE_SLOT_HEIGHT = void 0;
 exports.bannerSlotHeight = bannerSlotHeight;
 exports.TabBarBanner = TabBarBanner;
 exports.nativeCtaLabel = nativeCtaLabel;
@@ -42,6 +42,12 @@ const react_1 = __importStar(require("react"));
 const i18n_1 = require("./i18n");
 /** Outer height of a native slot (dp). Reserved from the first render. */
 exports.NATIVE_SLOT_HEIGHT = 40;
+/** (1.9.16) Outer height of a `format="banner"` slot (dp): the 320x50 banner, the same on every device. */
+exports.BANNER_SLOT_HEIGHT = 50;
+/** (1.9.16) A native creative needs a non-empty headline: without one the row would show a blank line next to a button (AdMob: headline is required). */
+function hasHeadline(ad) {
+    return typeof ad?.headline === 'string' && ad.headline.trim() !== '';
+}
 /**
  * Estimated height (dp) of an anchored adaptive banner for a window, used to reserve the slot **before** the ad loads (1.9.8).
  * Google documents only the limits — at least 50 and at most 15% of the device height (the Unity guide adds a 90 dp cap) — not the formula.
@@ -61,7 +67,7 @@ function bannerSlotHeight(windowWidth, windowHeight) {
  * before load, no fill, exhausted retries, video filtered out and creative swaps all keep the same height (empty slot = `backgroundColor`).
  * Only `enabled=false`, a missing unit, web, or no ads SDK reserve nothing (0 height).
  */
-function TabBarBanner({ unitId, enabled, format = 'banner', backgroundColor = '#fff', bannerHeight, lang, onState }) {
+function TabBarBanner({ unitId, enabled, format = 'adaptive-banner', backgroundColor = '#fff', bannerHeight, lang, onState }) {
     if (!enabled || !unitId)
         return null;
     // Optional native peers: importing this package must remain safe on web/Expo Go.
@@ -191,7 +197,8 @@ function createNativeFeed(sdk, rn, unitId, onGone) {
             next?.destroy();
             return;
         }
-        if (next && !next.mediaContent?.hasVideoContent) {
+        const video = !!next?.mediaContent?.hasVideoContent;
+        if (next && !video && hasHeadline(next)) {
             const old = shown;
             shown = next;
             loadedRequests = requests;
@@ -208,7 +215,8 @@ function createNativeFeed(sdk, rn, unitId, onGone) {
             return;
         }
         next?.destroy();
-        report(next ? 'video-dropped' : 'no-fill', requests, error);
+        // (1.9.16) a creative without a headline is dropped like a video one; the report says why ('no headline' is not an SDK error)
+        report(video ? 'video-dropped' : 'no-fill', requests, next && !video ? 'no headline' : error);
         if (shown) {
             requests = 0;
             later(exports.NATIVE_REFRESH_MS);
@@ -325,8 +333,9 @@ function LoadedBanner({ sdk, rn, unitId, format, backgroundColor, bannerHeight, 
         }
         catch { /* diagnostics must never break the slot */ }
     };
+    const isBanner = format === 'banner' || format === 'adaptive-banner';
     (0, react_1.useEffect)(() => {
-        if (format === 'banner') {
+        if (isBanner) {
             // The BannerAd manages itself: start the SDK, then mount it (no request loop of ours).
             let alive = true;
             void Promise.resolve().then(() => sdk.default().initialize()).then(() => {
@@ -361,15 +370,19 @@ function LoadedBanner({ sdk, rn, unitId, format, backgroundColor, bannerHeight, 
     const h = react_1.default.createElement;
     // One outer View for every state — its height is decided here, once, and nothing below can change it.
     const win = rn.Dimensions?.get?.('window');
-    const slotHeight = format === 'native' ? exports.NATIVE_SLOT_HEIGHT : (typeof bannerHeight === 'number' && bannerHeight > 0 ? bannerHeight : bannerSlotHeight(win?.width, win?.height));
+    const slotHeight = format === 'native' ? exports.NATIVE_SLOT_HEIGHT
+        : format === 'banner' ? exports.BANNER_SLOT_HEIGHT
+            : (typeof bannerHeight === 'number' && bannerHeight > 0 ? bannerHeight : bannerSlotHeight(win?.width, win?.height));
     const slot = (child) => h(rn.View, { style: { height: slotHeight, width: '100%', overflow: 'hidden', backgroundColor, alignItems: 'center', justifyContent: 'center' } }, child);
-    if (format === 'banner') {
+    if (isBanner) {
         // The BannerAd renders nothing (0x0) until it loads; a failed request just leaves the empty slot.
-        return slot(ready && !failed ? h(sdk.BannerAd, { unitId, size: sdk.BannerAdSize.ANCHORED_ADAPTIVE_BANNER,
+        // `banner` asks for the 320x50 size itself (string form when the SDK build has no BANNER constant), `adaptive-banner` for the anchored adaptive one.
+        const size = format === 'banner' ? (sdk.BannerAdSize?.BANNER ?? '320x50') : sdk.BannerAdSize.ANCHORED_ADAPTIVE_BANNER;
+        return slot(ready && !failed ? h(sdk.BannerAd, { unitId, size,
             onAdLoaded: () => report('loaded', 1), onAdFailedToLoad: (e) => { setFailed(true); report('no-fill', 1, e); } }) : null);
     }
-    if (!ad || failed)
-        return slot(null);
+    if (!ad || failed || !hasHeadline(ad))
+        return slot(null); // (1.9.16) never draw a row without a headline — the slot keeps its 40dp
     // NativeAdView supplies AdChoices. Native attribution is required separately by AdMob.
     // Centered row (2026-10-19 owner 「가운데 정렬로」); side padding keeps clear of the AdChoices corner (top right by default).
     // (1.9.10) Only the registered assets — icon, headline, call to action — take taps: the badge, the row and the NativeAdView carry no

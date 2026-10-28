@@ -116,6 +116,16 @@ ads.setLang('en');   // 켠 뒤 바꿀 때 — 다음 광고부터
 둘 다 있으면 같은 이벤트가 두 번 나간다). `expo-build-properties` 의 JitPack 줄은 남겨도 된다(플러그인이 겹치면 건너뛴다).
 
 
+## 1.9.16 — 앱 안에서 몰래 고치던 것을 패키지로 + 고정 50 배너 (JS만 · 네이티브 파일 1.9.14 와 바이트 동일, OTA 가능)
+
+대표님 10-28 17:16 「다 합치라니까?」. 꼬꼬농장은 루트 `postinstall` 의 `scripts/patch-ads.cjs` 로 `@jcurve/ads` 1.9.14 의 `dist` 를 설치 때마다 고쳐 쓰고, 버전이 1.9.14 가 아니면 `throw` 해서 「버전을 올리면 광고가 끊겼다」. 그 세 곳을 정식으로 넣었다 — **이제 앱은 patch-ads 를 지우고 1.9.16 의 tgz 만 쓰면 된다.**
+
+- **TabBarBanner `native`**: 헤드라인이 없거나 공백인 광고는 받지 않는다 → 버리고(destroy) 다시 요청한다(영상 광고와 같은 길). `onState` 에는 `no-fill` + `error: 'no headline'`. 슬롯을 그릴 때도 헤드라인이 없으면 40dp 빈 자리(`slot(null)`)만 둔다. 헤드라인이 있는 광고는 전과 똑같다.
+- **AttDeniedSheet**: 앱이 빈 글자(`''` · 공백)로 덮어쓴 버튼 글자는 그 버튼의 패키지 기본 문구로 돌아간다(`계속` · `그냥 보기` · `설정 열기`) — 눈에 안 보이는 버튼이 생기지 않는다. 진짜 문구는 그대로 쓴다. (꼬꼬의 옛 패치는 세 버튼을 모두 「계속」으로 바꿨는데 「설정 열기」 자리에 「계속」은 틀려서 그 버튼의 기본 문구로 했다.)
+- **새 `format="banner"` = 표준 320x50 배너 · 바깥 높이 50dp 고정**(`BannerAdSize.BANNER`, 상수가 없는 SDK 는 `'320x50'`). 적응형 앵커 배너는 아이폰에서 61~68dp 가 되어 다른 앱의 40dp 한 줄보다 커 보인다(대표님 제보). 높이를 줄여 자르면 광고가 잘려 AdMob 정책 위반이라 요청 크기 자체를 320x50 으로 한다. `bannerHeight` 는 이 형식에서 무시한다.
+- **예전 동작은 그대로**: `format` 을 안 준 호출과 새 `format="adaptive-banner"` 는 지금까지의 적응형 앵커 배너(61dp 안팎 · `bannerHeight` 적용) 그대로다 — 기본값을 바꾸지 않았다. `format="native"`(40dp)도 그대로. 다른 앱 줄이 1.9.16 으로 올라가도 `native` 는 헤드라인 없는 광고만 다르게(버림) 처리된다.
+- 네이티브(`ios/` · `android/`) · `app.plugin.js` · `mediation.plugin.js` · `expo-module.config.json` 은 1.9.14 · 1.9.15 와 바이트 동일.
+
 ## TabBarBanner — 첫 광고를 더 빨리: 미리 요청 + 빠른 재시도 (1.9.14, 대표님 10-21 00:50 「광고 로딩이 너무 느려」)
 
 두 가지로 첫 표시까지의 시간을 줄인다. **화면 · 높이 · 광고 단위 · 영상은 버린다는 정책은 그대로.**
@@ -208,7 +218,7 @@ AdMob 네이티브 광고 정책 표(`support.google.com/admob/answer/6329638`, 
 
 Place `<TabBarBanner unitId={existingUnit} enabled={remoteOn} />` immediately after the tab row,
 inside a footer above the app's bottom safe-area inset. `enabled` should default to false.
-The default `format="banner"` uses the SDK anchored adaptive BannerAd, including SDK attribution.
+Without a `format` (and with `format="adaptive-banner"`) it uses the SDK anchored adaptive BannerAd, including SDK attribution; `format="banner"` (1.9.16) is the fixed 320x50 in a 50dp slot.
 For an existing **native** unit use `format="native"`: a 40dp single-line NativeAdView with icon/headline,
 SDK AdChoices, and the mandatory AD attribution (native SDK does not supply attribution text).
 Never send a native unit ID to BannerAd. Video-only native responses are destroyed without retries.
