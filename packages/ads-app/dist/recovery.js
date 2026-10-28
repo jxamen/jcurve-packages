@@ -4,6 +4,7 @@ exports.SETTLED_CODES = exports.MAX_PENDING_AGE = void 0;
 exports.createPendingAds = createPendingAds;
 exports.resolvePurpose = resolvePurpose;
 exports.undeclaredPurposes = undeclaredPurposes;
+exports.parseStepsStagePurpose = parseStepsStagePurpose;
 exports.createAdRecovery = createAdRecovery;
 exports.MAX_PENDING_AGE = 24 * 60 * 60 * 1000;
 /** 열린 광고 기록 저장소 — 같은 id 는 한 건만, 종료하면 지우고, 24시간 지난 것은 목록을 읽을 때 정리한다. 쓰기는 순서대로 한 줄로 선다. */
@@ -52,7 +53,12 @@ function undeclaredPurposes(purposes, table) {
     return purposes.filter((purpose) => resolvePurpose(table, purpose) === undefined);
 }
 /** 서버가 「이미 처리됨」이라고 답한 오류 코드 — 기록을 지운다. 그 밖의 오류(네트워크 · 시간 초과)는 남겨서 다음 실행에 다시 시도한다. */
-exports.SETTLED_CODES = /^(no_ad|duplicate|already|already_processed|already_claimed)$/;
+exports.SETTLED_CODES = /^(no_ad|duplicate|already|already_processed|already_claimed|day_changed|bad_day|bad_stage)$/; // 0.2.1: 걷기 단계 청구가 더는 받을 수 없는 날 · 단계(day_changed · bad_day · bad_stage)도 지운다
+/** 걷기 단계 용도 `steps_stage:<YYYY-MM-DD>:<stage_id>` → { day, stageId } (0.2.1). 모양이 다르면 null. 복구 표의 `'steps_stage:*'` 청구 함수가 `claimStepsStage(stageId, day)` 를 부를 때 쓴다. */
+function parseStepsStagePurpose(purpose) {
+    const m = /^steps_stage:(\d{4}-\d{2}-\d{2}):(stage_[1-9][0-9]?)$/.exec(purpose);
+    return m ? { day: m[1], stageId: m[2] } : null;
+}
 /** 앱당 한 번, 순차 실행. 실패한 네트워크 요청은 다음 실행에서 같은 키로 재시도한다. */
 function createAdRecovery() {
     let started = false;
@@ -64,6 +70,8 @@ function createAdRecovery() {
         const warned = new Set();
         for (const row of await o.pending.list()) {
             if (row.memberId !== o.memberId)
+                continue;
+            if (o.only && !o.only(row.purpose))
                 continue;
             const rule = resolvePurpose(o.purposes, row.purpose);
             if (!rule) {

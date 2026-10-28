@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createAdRecovery, createPendingAds, MAX_PENDING_AGE, resolvePurpose, undeclaredPurposes, type PurposeTable } from './recovery';
+import { createAdRecovery, createPendingAds, MAX_PENDING_AGE, parseStepsStagePurpose, resolvePurpose, undeclaredPurposes, type PurposeTable } from './recovery';
 
 const memory = () => { const store = new Map<string, string>(); return { store, storage: { get: async (k: string) => store.get(k) ?? null, set: async (k: string, v: string) => { store.set(k, v); } } }; };
 const setup = () => createPendingAds(memory().storage, 'test.pendingAds');
@@ -92,5 +92,26 @@ describe('용도 표 — 접두 일치 · 선언 (0.2.0 의 달라진 점)', () 
   it('undeclaredPurposes: 앱의 용도 목록에서 표에 빠진 이름을 찾아 준다 (앱 시험용)', () => {
     expect(undeclaredPurposes(['ticket', 'steps_stage:2026-10-28:stage_1', 'shake', 'meal'], table(async () => 1))).toEqual(['shake', 'meal']);
     expect(undeclaredPurposes([], {})).toEqual([]);
+  });
+});
+
+describe('0.2.1 — only 과 걷기 용도 해석', () => {
+  it('only 에 안 걸리는 용도의 기록은 건드리지도 알리지도 않는다 (꿀꿀의 복권 분리)', async () => {
+    const pending = setup(); await pending.add({ ...row, id: 'l1', purpose: 'lottery_basic' }); await pending.add(row);
+    const claim = vi.fn(async () => ({})); const seen = vi.fn(async () => true); const onUndeclared = vi.fn();
+    await createAdRecovery()({ pending, memberId: '7', only: (p) => p !== 'lottery_basic', seen, purposes: { ticket: claimRule(claim) }, refresh: async () => {}, say: vi.fn(), onUndeclared });
+    expect(claim).toHaveBeenCalledTimes(1); expect(seen).toHaveBeenCalledTimes(1); expect(onUndeclared).not.toHaveBeenCalled();
+    expect((await pending.list()).map((r) => r.id)).toEqual(['l1']);
+  });
+  it('parseStepsStagePurpose: steps_stage:<날짜>:<단계> 만 풀고 나머지는 null', () => {
+    expect(parseStepsStagePurpose('steps_stage:2026-10-28:stage_2')).toEqual({ day: '2026-10-28', stageId: 'stage_2' });
+    for (const bad of ['steps_stage:2026-10-28', 'steps_stage:28-10-2026:stage_2', 'steps_stage:2026-10-28:stage_0', 'steps_stage:2026-10-28:stage_99x', 'steps_2', '', 'steps_stage:2026-10-28:stage_2:x']) expect(parseStepsStagePurpose(bad), bad).toBeNull();
+  });
+  it('걷기 청구가 날짜 지남 · 없는 단계로 거절하면(day_changed · bad_day · bad_stage) 기록을 지우고, 네트워크 오류는 남긴다', async () => {
+    for (const [code, kept] of [['day_changed', 0], ['bad_day', 0], ['bad_stage', 0], ['network', 1]] as const) {
+      const pending = setup(); await pending.add({ ...row, purpose: 'steps_stage:2026-10-20:stage_2' });
+      await createAdRecovery()({ pending, memberId: '7', seen: async () => true, purposes: { 'steps_stage:*': claimRule(async () => { throw { code }; }) }, refresh: async () => {}, say: vi.fn() });
+      expect((await pending.list()).length, code).toBe(kept);
+    }
   });
 });

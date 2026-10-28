@@ -65,7 +65,14 @@ export function undeclaredPurposes(purposes: ReadonlyArray<string>, table: Purpo
 }
 
 /** 서버가 「이미 처리됨」이라고 답한 오류 코드 — 기록을 지운다. 그 밖의 오류(네트워크 · 시간 초과)는 남겨서 다음 실행에 다시 시도한다. */
-export const SETTLED_CODES = /^(no_ad|duplicate|already|already_processed|already_claimed)$/;
+export const SETTLED_CODES = /^(no_ad|duplicate|already|already_processed|already_claimed|day_changed|bad_day|bad_stage)$/;   // 0.2.1: 걷기 단계 청구가 더는 받을 수 없는 날 · 단계(day_changed · bad_day · bad_stage)도 지운다
+
+/** 걷기 단계 용도 `steps_stage:<YYYY-MM-DD>:<stage_id>` → { day, stageId } (0.2.1). 모양이 다르면 null. 복구 표의 `'steps_stage:*'` 청구 함수가 `claimStepsStage(stageId, day)` 를 부를 때 쓴다. */
+export function parseStepsStagePurpose(purpose: string): { day: string; stageId: string } | null {
+  const m = /^steps_stage:(\d{4}-\d{2}-\d{2}):(stage_[1-9][0-9]?)$/.exec(purpose);
+
+  return m ? { day: m[1], stageId: m[2] } : null;
+}
 
 export type RecoveryOptions = {
   pending: PendingAds;
@@ -75,6 +82,11 @@ export type RecoveryOptions = {
   purposes: PurposeTable;
   refresh: () => Promise<void>;
   say: (line: string) => void;
+  /**
+   * (0.2.1) 이 복구가 다룰 용도만 — 아니면 그 기록은 **건드리지도 알리지도 않는다**(예: 꿀꿀은 황금 복권을 복권 화면이 따로 되살리므로 `purpose !== 'lottery_basic'`).
+   * 표에 `skip` 으로 선언하는 것(지운다)과 다르다. 안 주면 모든 용도를 다룬다.
+   */
+  only?: (purpose: string) => boolean;
   /** 표에 없는 용도의 기록을 만났다(실행마다 용도당 한 번) — 지우지 않고 남겨 둔다. 앱은 여기서 로그/진단으로 알리고 표에 선언을 더한다. */
   onUndeclared?: (row: PendingAd) => void;
   message?: string;
@@ -90,6 +102,7 @@ export function createAdRecovery(): (o: RecoveryOptions) => Promise<void> {
     const warned = new Set<string>();
     for (const row of await o.pending.list()) {
       if (row.memberId !== o.memberId) continue;
+      if (o.only && !o.only(row.purpose)) continue;
       const rule = resolvePurpose(o.purposes, row.purpose);
       if (!rule) {
         if (!warned.has(row.purpose)) { warned.add(row.purpose); try { o.onUndeclared?.(row); } catch { /* 알림이 복구를 막지 않는다 */ } }

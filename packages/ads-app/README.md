@@ -47,3 +47,9 @@ await recover({
 
 ### 앱마다 바뀌는 것(코드로 확인한 것만)
 캐시팡팡 `pendingAd.ts`(`cp.pendingAds`) · 용돈캡슐 `pendingAd.ts`(`mc.pendingAds`) · 꿀꿀 `pendingAd.ts`(`pc.pendingAds`) 는 거의 같은 모양이라 파일을 지우고 이 패키지로 바꾸면 된다. 당근(`cc.openedAd.v1`) · 감자밭(`potatofarm.ad-pending.v1`) · 머니트리(`mt.openedAds.v1`) · 영테크(`yt.adOpened.v1`) · 꾹테크(`stamptech.openedAds.v1`) · 에그머니(청구 장부) · 꼬꼬(`@kkokko/opened-ad/v1`)는 **기록 모양이 달라**(청구 경로 · 인자를 기록에 같이 저장하는 방식 등) 어댑터가 더 필요하다 — 다음 판(0.3.0, 「기록형」/「청구 대기형」 어댑터). 기록 저장 키를 바꾸면 쌓인 기록이 끊기므로 키는 그대로 둔다.
+
+### 0.2.1 — 교체 전 맞춤 (캐시팡팡 → 용돈캡슐 → 꿀꿀)
+- `only?: (purpose) => boolean` — 이 복구가 다룰 용도만; 아닌 기록은 건드리지도 알리지도 않는다(꿀꿀: `purpose !== 'lottery_basic'`, 복권은 복권 화면이 따로 되살림). 표에 `skip` 으로 선언하는 것(지움)과 다르다.
+- `parseStepsStagePurpose('steps_stage:<날짜>:<단계>') → { day, stageId } | null` — 표의 `'steps_stage:*'` 청구 함수가 `claimStepsStage(stageId, day)` 를 부를 때 쓴다.
+- `SETTLED_CODES` 에 `day_changed` · `bad_day` · `bad_stage` 추가 — 걷기 청구가 더는 받을 수 없는 날 · 단계로 거절하면 기록을 지운다(서버는 오늘 · 어제 KST 만 받는다). 그 밖의 오류는 남겨 다음 실행에 다시 시도.
+- **동작 보존 규칙**: 교체하는 앱은 옛 코드가 조용히 지우던 용도(청구 함수 `undefined`)를 표에 `skip` 으로 선언하되, 로컬 지급 · 다른 곳이 되살림이 **코드로 확인된 것만** 한다. 확인 안 된 용도는 선언하지 않고 `onUndeclared` 로 드러낸다.
