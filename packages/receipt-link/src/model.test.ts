@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addTally, chunkOrders, cleanOrder, emptyTally, importMessage, isConnected, parseLinkState } from './model';
+import { addTally, chunkOrders, cleanOrder, emptyTally, importMessage, isConnected, LINK_LABEL, parseLinkState, TEST_LINK_PLATFORMS } from './model';
 
 describe('order link state', () => {
   it('reads the server state defensively', () => {
@@ -74,5 +74,13 @@ describe('server limits and import texts (0.1.0)', () => {
     expect(importMessage({ ...emptyTally(), new: 2 }, 0, texts)).toBe('2건 바로 적립했어요.');
     expect(importMessage({ ...emptyTally(), pouch_full: 4 }, 0, texts)).toContain('4건은 한도라 못 담았어요.');
     expect(importMessage({ ...emptyTally(), new: 1, pouch_full: 1 })).toContain('용돈 주머니');   // 기본 문구는 영테크 그대로
+  });
+});
+
+describe('platform order and names (영테크 28c41110 sync)', () => {
+  it('chips go 네이버 · 쿠팡 · 컬리 · 무신사 and the shown name is 「컬리」', () => {
+    expect(TEST_LINK_PLATFORMS).toEqual(['naver', 'coupang', 'kurly', 'musinsa']);
+    expect(LINK_LABEL.kurly).toBe('컬리');
+    expect(Object.values(LINK_LABEL)).not.toContain('마이컬리');
   });
 });

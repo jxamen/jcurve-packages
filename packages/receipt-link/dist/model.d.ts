@@ -5,7 +5,7 @@
 export type LinkPlatform = 'naver' | 'coupang' | 'musinsa' | 'kurly';
 /** 캡슐함 카드에 보이는 두 곳(모든 스위치 켜진 회원) */
 export declare const LINK_PLATFORMS: LinkPlatform[];
-/** 대표님 계정(probe)에게만 보이는 시험 곳 — 영수증 올리기 연동 줄 · 구조 기록 */
+/** 대표님 계정(probe)에게만 보이는 시험 곳 — 영수증 올리기 「전자 영수증」 칸 앞 연동 칩의 순서(대표님 10-28 17:56, 영테크 28c41110) · 구조 기록 */
 export declare const TEST_LINK_PLATFORMS: LinkPlatform[];
 /** 서버가 줄 수 있는 모든 곳 */
 export declare const ALL_LINK_PLATFORMS: LinkPlatform[];

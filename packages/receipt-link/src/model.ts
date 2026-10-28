@@ -5,11 +5,11 @@
 export type LinkPlatform = 'naver' | 'coupang' | 'musinsa' | 'kurly';
 /** 캡슐함 카드에 보이는 두 곳(모든 스위치 켜진 회원) */
 export const LINK_PLATFORMS: LinkPlatform[] = ['naver', 'coupang'];
-/** 대표님 계정(probe)에게만 보이는 시험 곳 — 영수증 올리기 연동 줄 · 구조 기록 */
-export const TEST_LINK_PLATFORMS: LinkPlatform[] = ['naver', 'musinsa', 'kurly'];
+/** 대표님 계정(probe)에게만 보이는 시험 곳 — 영수증 올리기 「전자 영수증」 칸 앞 연동 칩의 순서(대표님 10-28 17:56, 영테크 28c41110) · 구조 기록 */
+export const TEST_LINK_PLATFORMS: LinkPlatform[] = ['naver', 'coupang', 'kurly', 'musinsa'];
 /** 서버가 줄 수 있는 모든 곳 */
 export const ALL_LINK_PLATFORMS: LinkPlatform[] = ['naver', 'coupang', 'musinsa', 'kurly'];
-export const LINK_LABEL: Record<LinkPlatform, string> = { naver: '네이버', coupang: '쿠팡', musinsa: '무신사', kurly: '마이컬리' };
+export const LINK_LABEL: Record<LinkPlatform, string> = { naver: '네이버', coupang: '쿠팡', musinsa: '무신사', kurly: '컬리' };
 /** 서버가 한 번에 받는 주문 수 */
 export const ORDERS_PER_REQUEST = 50;
 

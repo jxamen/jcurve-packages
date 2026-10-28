@@ -1,6 +1,6 @@
 # @jcurve/receipt-link
 
-주문내역 연동(로그인 창 · 구조 기록 · 불러오기)의 공용 부분. 영테크 `20defd33` 의 `src/receiptLink` 에서 옮겼다.
+주문내역 연동(로그인 창 · 구조 기록 · 불러오기)의 공용 부분. 영테크 `20defd33` 의 `src/receiptLink` 에서 옮기고 `28c41110` 의 플랫폼 순서 · 이름(컬리)에 맞췄다(0.1.1).
 **0.1.0 = core(순수 TS) 뼈대.** 화면(UI)과 사이트별 읽기 규칙(`SiteRule`)은 다음 판 — 읽는 칸은 구조 기록 결과를 본 뒤에 정한다(추측해 넣지 않는다).
 JS 전용: `ios/` · `android/` · config plugin 이 없다(OTA 로만 올라간다). 화면 판이 쓸 네이티브는 `react-native-webview` 13.16.1 · `react-native-safe-area-context` 뿐(영테크 최초 커밋부터 있음).
 

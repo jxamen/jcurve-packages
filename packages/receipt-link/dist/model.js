@@ -8,11 +8,11 @@ exports.addTally = addTally;
 exports.importMessage = importMessage;
 /** 캡슐함 카드에 보이는 두 곳(모든 스위치 켜진 회원) */
 exports.LINK_PLATFORMS = ['naver', 'coupang'];
-/** 대표님 계정(probe)에게만 보이는 시험 곳 — 영수증 올리기 연동 줄 · 구조 기록 */
-exports.TEST_LINK_PLATFORMS = ['naver', 'musinsa', 'kurly'];
+/** 대표님 계정(probe)에게만 보이는 시험 곳 — 영수증 올리기 「전자 영수증」 칸 앞 연동 칩의 순서(대표님 10-28 17:56, 영테크 28c41110) · 구조 기록 */
+exports.TEST_LINK_PLATFORMS = ['naver', 'coupang', 'kurly', 'musinsa'];
 /** 서버가 줄 수 있는 모든 곳 */
 exports.ALL_LINK_PLATFORMS = ['naver', 'coupang', 'musinsa', 'kurly'];
-exports.LINK_LABEL = { naver: '네이버', coupang: '쿠팡', musinsa: '무신사', kurly: '마이컬리' };
+exports.LINK_LABEL = { naver: '네이버', coupang: '쿠팡', musinsa: '무신사', kurly: '컬리' };
 /** 서버가 한 번에 받는 주문 수 */
 exports.ORDERS_PER_REQUEST = 50;
 const object = (v) => v !== null && typeof v === 'object' && !Array.isArray(v) ? v : {};
