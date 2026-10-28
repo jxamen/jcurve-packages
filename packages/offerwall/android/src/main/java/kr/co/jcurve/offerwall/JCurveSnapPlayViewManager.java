@@ -76,10 +76,12 @@ public final class JCurveSnapPlayViewManager extends SimpleViewManager<JCurveSna
             layoutWall();
             post(relayout);
         }
+        // raw Event on purpose: the same shape as JCurveOfferwallViewManager's onLoaded event, which is known to compile against the app's React Native
+        @SuppressWarnings({"rawtypes", "unchecked"})
         private void emit(final String name) {
             EventDispatcher dispatcher = UIManagerHelper.getEventDispatcherForReactTag(context, getId());
             if (dispatcher == null) return;
-            dispatcher.dispatchEvent(new Event<Event<?>>(UIManagerHelper.getSurfaceId(Container.this), getId()) {
+            dispatcher.dispatchEvent(new Event(UIManagerHelper.getSurfaceId(Container.this), getId()) {
                 @Override public String getEventName() { return name; }
                 @Override protected WritableMap getEventData() { return Arguments.createMap(); }
             });
