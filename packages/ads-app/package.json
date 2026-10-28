@@ -1,0 +1,17 @@
+{
+  "name": "@jcurve/ads-app",
+  "version": "0.1.0",
+  "description": "앱 층 광고 접착의 공용 부분 — 앱 오프닝 판단 규칙 · 가드, 테스트 광고 단위 판정 (JS 전용, 네이티브 없음)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "license": "UNLICENSED"
+}
