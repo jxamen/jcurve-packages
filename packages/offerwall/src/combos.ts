@@ -1,7 +1,7 @@
 /** 「포인트 빨리 모으기」 — daily point combos. Pure JS (OTA-safe); it only shows server data and never grants points. */
 import type { ReactElement } from 'react';
 import { openOfferwall } from './index';
-import { comboListProps } from './comboSheetProbe';
+import { comboListProps } from './comboSheetFrame';
 
 /** The one place the feature's name lives (chip, Home banner, guide title, labels, popup text). */
 export const COMBO_NAME = '포인트 빨리 모으기';

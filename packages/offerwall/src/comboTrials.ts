@@ -5,7 +5,7 @@
  */
 import type { ReactElement } from 'react';
 import { ComboMissionIcon, DEFAULT_COMBO_THEME, formatWon, type ComboTheme } from './combos';
-import { comboListProps } from './comboSheetProbe';
+import { comboListProps } from './comboSheetFrame';
 
 export const COMBO_TRIALS_NAME = '무료체험 확인';
 /** What a row says once the member marked it cancelled. */

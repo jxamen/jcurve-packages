@@ -187,15 +187,13 @@ const withLog = async (run) => {
   try { await run(lines); } finally { console.log = real; }
 };
 
-test('diagnostics: the way the sheet was drawn is said once per opening — mode=modal when it is in a Modal, mode=tree otherwise — with the embed state', () => withReact(async (ctx) => {
+test('no diagnostic lines: opening a Modal sheet writes nothing to the console (0.6.7)', () => withReact(async (ctx) => {
   await withLog(async (lines) => {
     const s = await start(ctx, {containerNode: node(CONTAINER)});
     const opened = s.openNow();
     const ma = modalAnchor(opened); ma.props.ref(node(box(0, 0, 1, 1))); ma.props.onLayout();
     s.again(); s.again();
-    const said = lines.filter((l) => l.startsWith('[combos-sheet]'));
-    assert.deepEqual(said.slice(0, 2), ['[combos-sheet] mode=modal', '[combos-sheet] embed=none'], 'on 찬스1 there is no embedded view');
-    assert.equal(said.filter((l) => l.startsWith('[combos-sheet] mode=')).length, 1, 'once');
+    assert.deepEqual(lines.filter((l) => String(l).includes('[combos-sheet]')), []);
   });
 }));
 

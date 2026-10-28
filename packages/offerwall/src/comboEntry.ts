@@ -13,7 +13,6 @@ import { popupStorageKey, usePulse, useSeenToday } from './comboSeen';
 import { getChanceTab, getChanceTabInset, isWallLoaded, onChanceTab, onChanceTabInset, onWallState, setChanceSheetOpen } from './wallSignal';
 import { useChanceProviders } from './chanceProviders';
 import { SNAPPLAY_PROVIDER_ID, openSnapPlayAd, readSnapPlayAds } from './snapPlay';
-import { comboSheetProbe, resetComboSheetProbe } from './comboSheetProbe';
 import { useSheetPlacement } from './comboSheetFrame';
 import type { SnapPlayAd, SnapPlayOpenResult } from './snapPlay';
 import { openOfferwall } from './index';
@@ -177,7 +176,7 @@ export function ComboBanner({ combos, onPress, theme = DEFAULT_COMBO_THEME, opac
 }
 
 /** Panel that rises from the bottom over the wall. It starts below the chip row so the chip stays visible and clickable. */
-function ComboSheet({ top, theme, children, mode = 'tree', embed = 'none' }: { top: number; theme: ComboTheme; children?: ReactElement; /** TEMP-DIAG 0.6.6: how the sheet is drawn */ mode?: 'modal' | 'tree'; /** TEMP-DIAG 0.6.6: whether the embedded 찬스2 view is shielded from touches meanwhile */ embed?: 'blocked' | 'none' }): ReactElement {
+function ComboSheet({ top, theme, children }: { top: number; theme: ComboTheme; children?: ReactElement }): ReactElement {
   const React = require('react') as typeof import('react');
   const { Animated, Dimensions } = require('react-native') as typeof import('react-native');
   const slide = React.useRef<import('react-native').Animated.Value | null>(null);
@@ -186,14 +185,10 @@ function ComboSheet({ top, theme, children, mode = 'tree', embed = 'none' }: { t
   // did not react to swipes on an Android A32 (taps worked). The sheet is a state of its own (`settled`) that starts again each time the sheet opens (it is unmounted when closed).
   const [settled, setSettled] = React.useState(false);
   React.useEffect(() => {
-    resetComboSheetProbe(); // TEMP-DIAG 0.6.5 (removed once the cause is settled)
-    comboSheetProbe('mode=' + mode); // TEMP-DIAG 0.6.6
-    comboSheetProbe('embed=' + embed); // TEMP-DIAG 0.6.6
     Animated.timing(slide.current!, { toValue: 1, duration: 220, useNativeDriver: false }).start((result?: { finished?: boolean }) => { if (!result || result.finished !== false) setSettled(true); });
   }, []);
   const translateY = slide.current.interpolate({ inputRange: [0, 1], outputRange: [Dimensions.get('window').height, 0] });
   return React.createElement(Animated.View, {
-    onTouchStart: () => comboSheetProbe('container touchStart'), // TEMP-DIAG 0.6.5
     style: {
       position: 'absolute', left: 0, right: 0, bottom: 0, top, zIndex: 25, elevation: 25, overflow: 'hidden',
       borderTopLeftRadius: theme.radius.card, borderTopRightRadius: theme.radius.card, backgroundColor: theme.bg,
@@ -826,7 +821,6 @@ export function ComboEntry({
     onOpen: (trial: MyTrial) => { void handleMission({ id: trial.campaignKey, name: trial.name, points: trial.points ?? 1, todo: '', level: 'easy', campaignKey: trial.campaignKey }, { goal: 0, missions: [], total: 0 }, { skipConsent: true }); },
   });
   const modalMode = sheetUp && sheetPlace.mode === 'modal';
-  const embedState: 'blocked' | 'none' = embedShield && snapActive ? 'blocked' : 'none'; // TEMP-DIAG 0.6.6
   const dim = 'rgba(0,0,0,0.3)';
   // 0.6.6: the sheet in a Modal. The Modal is dimmed at once; the sheet follows as soon as the container's place inside it is known. Tapping outside the sheet or the system back closes it.
   const sheetModal = modalMode ? h(Modal, { key: 'sheet-modal', visible: true, transparent: true, animationType: 'none', onRequestClose: closeSheets },
@@ -834,7 +828,7 @@ export function ComboEntry({
       h(View, sheetPlace.modalAnchorProps),
       h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: closeSheets, style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: dim } }),
       sheetPlace.frame ? h(View, { pointerEvents: 'box-none', style: { position: 'absolute', left: sheetPlace.frame.left, top: sheetPlace.frame.top, width: sheetPlace.frame.width, height: sheetPlace.frame.height } },
-        h(ComboSheet, { top: sheetTop + inset, theme, mode: 'modal', embed: embedState }, open ? guide('sheet') : trialsBody()),
+        h(ComboSheet, { top: sheetTop + inset, theme }, open ? guide('sheet') : trialsBody()),
         notice ? h(ComboToast, { text: notice, top: sheetTop + inset + 8, theme }) : null) : null)) : null;
   return h(React.Fragment, null,
     sheetModalOn ? h(View, { key: 'sheet-anchor', ...sheetPlace.anchorProps }) : null,
@@ -843,12 +837,12 @@ export function ComboEntry({
       key: 'backdrop', accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: close,
       style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20, elevation: 20, backgroundColor: dim },
     }) : null,
-    !modalMode && open ? h(ComboSheet, { key: 'sheet', top: sheetTop + inset, theme, mode: 'tree', embed: embedState }, guide('sheet')) : null,
+    !modalMode && open ? h(ComboSheet, { key: 'sheet', top: sheetTop + inset, theme }, guide('sheet')) : null,
     !modalMode && trialsOpen ? h(Pressable, {
       key: 'trials-backdrop', accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: () => setTrialsOpen(false),
       style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20, elevation: 20, backgroundColor: dim },
     }) : null,
-    !modalMode && trialsOpen ? h(ComboSheet, { key: 'trials-sheet', top: sheetTop + inset, theme, mode: 'tree', embed: embedState }, trialsBody()) : null,
+    !modalMode && trialsOpen ? h(ComboSheet, { key: 'trials-sheet', top: sheetTop + inset, theme }, trialsBody()) : null,
     popup && !open && !trialsOpen && state.combos ? h(ComboPopup, { combos: state.combos, theme, art: popupArt, ad: popupAd, onOpen: () => { setPopup(false); setOpen(true); }, onClose: () => setPopup(false) }) : null,
     shown ? h(ComboChip, {
       key: 'chip', open, theme, top: (chipTop ?? COMBO_CHIP_TOP) + inset, right: chipRight, opacity: blink, fit: chipFit ?? undefined,

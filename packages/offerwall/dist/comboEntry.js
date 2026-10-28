@@ -18,7 +18,6 @@ const comboSeen_1 = require("./comboSeen");
 const wallSignal_1 = require("./wallSignal");
 const chanceProviders_1 = require("./chanceProviders");
 const snapPlay_1 = require("./snapPlay");
-const comboSheetProbe_1 = require("./comboSheetProbe");
 const comboSheetFrame_1 = require("./comboSheetFrame");
 const index_1 = require("./index");
 /** 0.6.2 bundle mark — a deploy check can look for it to tell a build whose 「포인트 빨리 모으기」 follows the 찬스1 / 찬스2 tab. */
@@ -159,7 +158,7 @@ function ComboBanner({ combos, onPress, theme = combos_1.DEFAULT_COMBO_THEME, op
     return opacity ? h(Animated.View, { style: { opacity } }, pressable) : pressable;
 }
 /** Panel that rises from the bottom over the wall. It starts below the chip row so the chip stays visible and clickable. */
-function ComboSheet({ top, theme, children, mode = 'tree', embed = 'none' }) {
+function ComboSheet({ top, theme, children }) {
     const React = require('react');
     const { Animated, Dimensions } = require('react-native');
     const slide = React.useRef(null);
@@ -169,15 +168,11 @@ function ComboSheet({ top, theme, children, mode = 'tree', embed = 'none' }) {
     // did not react to swipes on an Android A32 (taps worked). The sheet is a state of its own (`settled`) that starts again each time the sheet opens (it is unmounted when closed).
     const [settled, setSettled] = React.useState(false);
     React.useEffect(() => {
-        (0, comboSheetProbe_1.resetComboSheetProbe)(); // TEMP-DIAG 0.6.5 (removed once the cause is settled)
-        (0, comboSheetProbe_1.comboSheetProbe)('mode=' + mode); // TEMP-DIAG 0.6.6
-        (0, comboSheetProbe_1.comboSheetProbe)('embed=' + embed); // TEMP-DIAG 0.6.6
         Animated.timing(slide.current, { toValue: 1, duration: 220, useNativeDriver: false }).start((result) => { if (!result || result.finished !== false)
             setSettled(true); });
     }, []);
     const translateY = slide.current.interpolate({ inputRange: [0, 1], outputRange: [Dimensions.get('window').height, 0] });
     return React.createElement(Animated.View, {
-        onTouchStart: () => (0, comboSheetProbe_1.comboSheetProbe)('container touchStart'), // TEMP-DIAG 0.6.5
         style: {
             position: 'absolute', left: 0, right: 0, bottom: 0, top, zIndex: 25, elevation: 25, overflow: 'hidden',
             borderTopLeftRadius: theme.radius.card, borderTopRightRadius: theme.radius.card, backgroundColor: theme.bg,
@@ -798,17 +793,16 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
         onOpen: (trial) => { void handleMission({ id: trial.campaignKey, name: trial.name, points: trial.points ?? 1, todo: '', level: 'easy', campaignKey: trial.campaignKey }, { goal: 0, missions: [], total: 0 }, { skipConsent: true }); },
     });
     const modalMode = sheetUp && sheetPlace.mode === 'modal';
-    const embedState = embedShield && snapActive ? 'blocked' : 'none'; // TEMP-DIAG 0.6.6
     const dim = 'rgba(0,0,0,0.3)';
     // 0.6.6: the sheet in a Modal. The Modal is dimmed at once; the sheet follows as soon as the container's place inside it is known. Tapping outside the sheet or the system back closes it.
-    const sheetModal = modalMode ? h(Modal, { key: 'sheet-modal', visible: true, transparent: true, animationType: 'none', onRequestClose: closeSheets }, h(View, { style: { flex: 1 }, collapsable: false }, h(View, sheetPlace.modalAnchorProps), h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: closeSheets, style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: dim } }), sheetPlace.frame ? h(View, { pointerEvents: 'box-none', style: { position: 'absolute', left: sheetPlace.frame.left, top: sheetPlace.frame.top, width: sheetPlace.frame.width, height: sheetPlace.frame.height } }, h(ComboSheet, { top: sheetTop + inset, theme, mode: 'modal', embed: embedState }, open ? guide('sheet') : trialsBody()), notice ? h(ComboToast, { text: notice, top: sheetTop + inset + 8, theme }) : null) : null)) : null;
+    const sheetModal = modalMode ? h(Modal, { key: 'sheet-modal', visible: true, transparent: true, animationType: 'none', onRequestClose: closeSheets }, h(View, { style: { flex: 1 }, collapsable: false }, h(View, sheetPlace.modalAnchorProps), h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: closeSheets, style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: dim } }), sheetPlace.frame ? h(View, { pointerEvents: 'box-none', style: { position: 'absolute', left: sheetPlace.frame.left, top: sheetPlace.frame.top, width: sheetPlace.frame.width, height: sheetPlace.frame.height } }, h(ComboSheet, { top: sheetTop + inset, theme }, open ? guide('sheet') : trialsBody()), notice ? h(ComboToast, { text: notice, top: sheetTop + inset + 8, theme }) : null) : null)) : null;
     return h(React.Fragment, null, sheetModalOn ? h(View, { key: 'sheet-anchor', ...sheetPlace.anchorProps }) : null, sheetModal, !modalMode && open ? h(Pressable, {
         key: 'backdrop', accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: close,
         style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20, elevation: 20, backgroundColor: dim },
-    }) : null, !modalMode && open ? h(ComboSheet, { key: 'sheet', top: sheetTop + inset, theme, mode: 'tree', embed: embedState }, guide('sheet')) : null, !modalMode && trialsOpen ? h(Pressable, {
+    }) : null, !modalMode && open ? h(ComboSheet, { key: 'sheet', top: sheetTop + inset, theme }, guide('sheet')) : null, !modalMode && trialsOpen ? h(Pressable, {
         key: 'trials-backdrop', accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: () => setTrialsOpen(false),
         style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20, elevation: 20, backgroundColor: dim },
-    }) : null, !modalMode && trialsOpen ? h(ComboSheet, { key: 'trials-sheet', top: sheetTop + inset, theme, mode: 'tree', embed: embedState }, trialsBody()) : null, popup && !open && !trialsOpen && state.combos ? h(ComboPopup, { combos: state.combos, theme, art: popupArt, ad: popupAd, onOpen: () => { setPopup(false); setOpen(true); }, onClose: () => setPopup(false) }) : null, shown ? h(ComboChip, {
+    }) : null, !modalMode && trialsOpen ? h(ComboSheet, { key: 'trials-sheet', top: sheetTop + inset, theme }, trialsBody()) : null, popup && !open && !trialsOpen && state.combos ? h(ComboPopup, { combos: state.combos, theme, art: popupArt, ad: popupAd, onOpen: () => { setPopup(false); setOpen(true); }, onClose: () => setPopup(false) }) : null, shown ? h(ComboChip, {
         key: 'chip', open, theme, top: (chipTop ?? exports.COMBO_CHIP_TOP) + inset, right: chipRight, opacity: blink, fit: chipFit ?? undefined,
         before: trialsChip && chipFit ? h(ComboTrialsChip, { open: trialsOpen, theme, fit: chipFit, onPress: () => { if (trialsOpen)
                 setTrialsOpen(false);

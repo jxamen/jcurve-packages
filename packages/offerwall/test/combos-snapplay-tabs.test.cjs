@@ -348,7 +348,7 @@ const startSnap = async ({make}, display) => {
   return {again: () => { host.flush(); return mount(); }};
 };
 
-test('0.6.6: a sheet opened over 찬스2 raises the shield signal (the embedded view stops getting touches) and says embed=blocked; closing it lowers the signal', () => run(async (ctx) => {
+test('0.6.6: a sheet opened over 찬스2 raises the shield signal (the embedded view stops getting touches); closing it lowers the signal, and nothing is logged', () => run(async (ctx) => {
   api.setChanceSheetOpen(false);
   await withLines(async (lines) => {
     const s = await startSnap(ctx);
@@ -357,7 +357,7 @@ test('0.6.6: a sheet opened over 찬스2 raises the shield signal (the embedded 
     assert.equal(api.requestOpenCombos(), true);
     s.again(); s.again();
     assert.equal(api.getChanceSheetOpen(), true);
-    assert.ok(lines.includes('[combos-sheet] embed=blocked'), lines.join('\n'));
+    assert.deepEqual(lines.filter((l) => String(l).includes('[combos-sheet]')), [], 'no diagnostic lines');
     const close = byLabel(s.again(), '닫기');
     close.props.onPress();
     s.again(); s.again();
@@ -365,7 +365,7 @@ test('0.6.6: a sheet opened over 찬스2 raises the shield signal (the embedded 
   });
 }));
 
-test('0.6.6: with display.sheet_embed_block "off" the signal stays down over 찬스2 and the log says embed=none', () => run(async (ctx) => {
+test('0.6.6: with display.sheet_embed_block "off" the signal stays down over 찬스2', () => run(async (ctx) => {
   api.setChanceSheetOpen(false);
   await withLines(async (lines) => {
     const s = await startSnap(ctx, {sheet_embed_block: 'off'});
@@ -373,8 +373,7 @@ test('0.6.6: with display.sheet_embed_block "off" the signal stays down over 찬
     assert.equal(api.requestOpenCombos(), true);
     s.again(); s.again();
     assert.equal(api.getChanceSheetOpen(), false, 'switched off by the server');
-    assert.ok(lines.includes('[combos-sheet] embed=none'), lines.join('\n'));
-    assert.ok(!lines.includes('[combos-sheet] embed=blocked'));
+    assert.deepEqual(lines.filter((l) => String(l).includes('[combos-sheet]')), []);
   });
 }));
 

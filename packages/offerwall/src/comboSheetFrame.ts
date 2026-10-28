@@ -12,6 +12,14 @@ export const SHEET_MEASURE_TIMEOUT_MS = 800;
 /** A container smaller than this cannot hold the sheet: the measure is not believed. */
 export const SHEET_MIN_CONTAINER = { w: 100, h: 200 } as const;
 
+/**
+ * The props every vertical list in a sheet gets (merged into the ScrollView's own props by each screen): nested scrolling allowed (Android) and filling the sheet. On the A32 that showed
+ * the swipe problem these were part of the 0.6.5 candidate fix; with the sheet in a Modal (0.6.6) this exact set is the one confirmed to scroll.
+ */
+export function comboListProps(): Record<string, unknown> {
+  return { nestedScrollEnabled: true, style: { flex: 1 } };
+}
+
 const finite = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
 
 /** `node.measureInWindow` as a callback that is called exactly once with a box, or with null when the node cannot be measured or answers with numbers that are not numbers. Never throws. */

@@ -8,7 +8,7 @@
 import type { ReactElement } from 'react';
 import { COMBO_NAME, COMBO_PAGE_ROWS, COMBO_TAB_HIT_SLOP, COMBO_TAB_ROW_PROPS, COMBO_TRIAL_NOTE, DEFAULT_COMBO_THEME, afterFirstPaint, comboNoticeOf, formatPoints, autoDoneIds } from './combos';
 import type { ComboCategory, ComboCategoryItem, ComboGuideScreenProps, ComboMission } from './combos';
-import { comboListProps } from './comboSheetProbe';
+import { comboListProps } from './comboSheetFrame';
 
 /** Rows shown at first in a tab, and added by each 「더 보기」 (a tab can have a few hundred rows: games, and the server's midnight reset made 「쉬운 미션」 186). */
 export const COMBO_CATEGORY_PAGE = COMBO_PAGE_ROWS;
