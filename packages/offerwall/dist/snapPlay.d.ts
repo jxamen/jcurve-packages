@@ -3,12 +3,15 @@ export declare const SNAPPLAY_PROVIDER_ID = "snapplay";
 export declare const SNAPPLAY_NATIVE_MODULE = "S2OfferwallModule";
 export declare const SNAPPLAY_DEFAULT_PLACEMENT = "main";
 export declare const SNAPPLAY_INIT_TIMEOUT_MS = 10000;
+/** 0.6.0 — the native view (`JCurveSnapPlayViewManager`, Android + iOS) that shows SnapPlay's own screen inside the tab. Only in builds made with 0.6.0 and the SnapPlay SDK. */
+export declare const SNAPPLAY_VIEW_NAME = "JCurveSnapPlayView";
 /** 서버가 앱마다 · OS 마다 주는 값. 앱 ID 가 없는 OS 에서는 제공자가 꺼진다. */
 export type SnapPlayServerConfig = {
     android: string;
     ios: string;
     placement: string;
-    enabled: boolean;
+    enabled: boolean; /** 0.6.0 — `false` 면 탭 안에 끼우지 않고 전체 화면(모달)으로 연다(서버에서 끄는 스위치; 기본 true) */
+    embed: boolean;
 };
 /**
  * 서버 응답 → 설정. `{ ok: true, config: { android: { appId }, ios: { appId }, placement?, enabled? } }` 모양을 받고, `config` 없이 같은 칸이 바로 와도,
@@ -38,3 +41,10 @@ export declare function resolveSnapPlayConfig(fetcher: () => Promise<unknown>): 
 export declare function forgetSnapPlayUser(): void;
 /** 설정까지 모두 비운다(앱 바뀜 · 시험). SDK 초기화 상태는 프로세스가 사는 동안 유지된다. */
 export declare function resetSnapPlay(): void;
+/** 이 빌드에 스냅플레이 화면 뷰가 있는가 — `UIManager` 의 뷰 목록 조회뿐(없으면 false, 던지지 않음). */
+export declare function snapPlayViewAvailable(): boolean;
+/** 스냅플레이 화면을 끼워 넣는 네이티브 뷰. `prepare`(SDK 시작 · 회원 설정) 뒤에 그린다. */
+export declare function SnapPlayView({ onClose, style }: {
+    onClose?: () => void;
+    style?: unknown;
+}): import('react').ReactElement | null;

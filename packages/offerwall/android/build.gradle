@@ -2,7 +2,10 @@ apply plugin: 'com.android.library'
 android {
     namespace 'kr.co.jcurve.offerwall'
     compileSdkVersion rootProject.ext.has('compileSdkVersion') ? rootProject.ext.compileSdkVersion : 36
-    defaultConfig { minSdkVersion 24 }
+    defaultConfig {
+        minSdkVersion 24
+        consumerProguardFiles 'consumer-rules.pro'
+    }
 }
 repositories {
     google()
@@ -12,4 +15,6 @@ repositories {
 dependencies {
     implementation 'com.facebook.react:react-android:+'
     implementation 'com.igaworks.offerwall:AdPopcornOfferwall:9.2.6'
+    // 0.6.0: SnapPlay's S2OfferwallView. compileOnly — the app gets the SDK (and decides the version) from react-native-s2offerwall; the view manager is registered only when it is there.
+    compileOnly 'io.snapplay:s2offerwall-aos-sdk:1.0.38'
 }

@@ -5,7 +5,11 @@ const original = Module._load;
 
 let env;
 Module._load = function (id, ...rest) {
-  if (id === 'react-native') return { Platform: { OS: env.os }, NativeModules: env.native ? { S2OfferwallModule: {} } : {} };
+  if (id === 'react-native') return {
+    Platform: { OS: env.os }, NativeModules: env.native ? { S2OfferwallModule: {} } : {},
+    UIManager: { getViewManagerConfig: (name) => (env.views || []).includes(name) ? {} : null },
+    requireNativeComponent: (name) => 'Native:' + name,
+  };
   if (id === 'react-native-s2offerwall') { env.requires++; if (!env.sdk) throw new Error("Cannot find module 'react-native-s2offerwall'"); return { S2Offerwall: env.sdk }; }
   return original.call(this, id, ...rest);
 };
@@ -39,8 +43,8 @@ beforeEach(() => { env = { os: 'ios', native: true, sdk: fakeSdk(), requires: 0 
 
 test('config: the documented shape, plain strings, mediaKey spelling, placement and enabled — and what is refused', () => {
   const { snap } = fresh();
-  assert.deepEqual(snap.parseSnapPlayConfig(CONFIG), { android: 'AND-APP-ID', ios: 'IOS-APP-ID', placement: 'main', enabled: true });
-  assert.deepEqual(snap.parseSnapPlayConfig({ android: 'AAAA-1', ios: 'BBBB-2', placementName: 'chance_2', enabled: false }), { android: 'AAAA-1', ios: 'BBBB-2', placement: 'chance_2', enabled: false });
+  assert.deepEqual(snap.parseSnapPlayConfig(CONFIG), { android: 'AND-APP-ID', ios: 'IOS-APP-ID', placement: 'main', enabled: true, embed: true });
+  assert.deepEqual(snap.parseSnapPlayConfig({ android: 'AAAA-1', ios: 'BBBB-2', placementName: 'chance_2', enabled: false }), { android: 'AAAA-1', ios: 'BBBB-2', placement: 'chance_2', enabled: false, embed: true });
   assert.equal(snap.parseSnapPlayConfig({ config: { ios: { mediaKey: ' MK-12345 ' } } }).ios, 'MK-12345');
   assert.equal(snap.parseSnapPlayConfig({ config: { ios: { appId: 'X1' } } }), null, 'too short to be an id');
   assert.equal(snap.parseSnapPlayConfig({ ok: false, config: CONFIG.config }), null);
@@ -221,3 +225,53 @@ test('resetOfferwall() also forgets the SnapPlay member (wired in index.ts)', ()
   const index = fs.readFileSync(require.resolve('../src/index.ts'), 'utf8');
   assert.match(index, /export function resetOfferwall\(\): void \{[^}]*forgetSnapPlayUser\(\)/);
 });
+
+test('0.6.0 view: available only with the native module AND the registered JCurveSnapPlayView; a 0.5.0 binary (module, no view) keeps the modal path', () => {
+  const { snap, provider } = fresh();
+  snap.configureSnapPlay(CONFIG);
+  assert.equal(snap.SNAPPLAY_VIEW_NAME, 'JCurveSnapPlayView');
+  assert.equal(snap.snapPlayViewAvailable(), false);
+  assert.equal(provider().canEmbed(), false);
+  assert.equal(provider().embed({ onClose() {} }), null, 'no view in this build: nothing to embed');
+  env.views = ['JCurveSnapPlayView'];
+  assert.equal(snap.snapPlayViewAvailable(), true);
+  assert.equal(provider().canEmbed(), true);
+  env.native = false;
+  assert.equal(snap.snapPlayViewAvailable(), false, 'no SnapPlay module: no view either');
+});
+
+test('0.6.0 view: the embedded element carries the server placement, fills the tab, and its login / close events do the right thing', async () => {
+  env.views = ['JCurveSnapPlayView'];
+  const { snap, provider } = fresh();
+  snap.configureSnapPlay({ config: { ...CONFIG.config, placement: 'chance_2' } });
+  await provider().prepare({ usn: USN, displayName: 'N**' });
+  let closed = 0;
+  const element = provider().embed({ onClose: () => { closed++; } });
+  assert.equal(element.props.placement, undefined, 'the wrapper component renders the native view');
+  const React = require('react');
+  const rendered = element.type(element.props);
+  assert.equal(rendered.type, 'Native:JCurveSnapPlayView');
+  assert.equal(rendered.props.placement, 'chance_2');
+  assert.deepEqual(rendered.props.style[0], { flex: 1 });
+  env.sdk.log.length = 0;
+  rendered.props.onLoginRequested();
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(env.sdk.log, [['setUserName', USN, 'N**']], 'the view asked for a login: answered with the latest member');
+  rendered.props.onCloseRequested();
+  assert.equal(closed, 1);
+  void React;
+});
+
+test('0.6.0 kill switch: embed:false in the server config keeps the full-screen modal even when the build has the view', () => {
+  env.views = ['JCurveSnapPlayView'];
+  const { snap, provider } = fresh();
+  assert.equal(snap.parseSnapPlayConfig(CONFIG).embed, true);
+  snap.configureSnapPlay({ config: { ...CONFIG.config, embed: false } });
+  assert.equal(snap.parseSnapPlayConfig({ config: { ...CONFIG.config, embed: false } }).embed, false);
+  assert.equal(snap.snapPlayViewAvailable(), false);
+  assert.equal(provider().canEmbed(), false);
+  assert.equal(provider().embed({ onClose() {} }), null);
+  snap.configureSnapPlay(CONFIG);
+  assert.equal(provider().canEmbed(), true);
+});
+

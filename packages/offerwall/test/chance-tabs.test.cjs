@@ -216,3 +216,36 @@ test('the tab row reports its height so the chip can move under it: fallback unt
   await act(() => tree.unmount()); tree = undefined;
   assert.equal(getChanceTabInset(), 0, 'screen gone');
 });
+
+test('0.6.0: a provider that can embed is shown inside the tab (no modal open, no 「찬스 열기」 panel); its close request goes back to 찬스1; chips still sit under the tab row', async () => {
+  let embeds = 0;
+  const { calls } = launcher({ provider: { canEmbed: () => true, embed: ({ onClose }) => { embeds++; return React.createElement('EmbeddedSnap', { onClose }); } } });
+  await mount();
+  await press(tabs()[1]);
+  assert.equal(calls.open.length, 0, 'the full-screen modal is not used');
+  assert.ok(calls.prepare.length >= 1, 'the SDK is prepared before the view is shown');
+  assert.equal(tree.root.findAllByType('EmbeddedSnap').length, 1);
+  assert.equal(texts().includes('찬스 열기'), false);
+  assert.ok(embeds >= 1);
+  assert.equal(getChanceTabInset(), 45);
+  await act(async () => { tree.root.findByType('EmbeddedSnap').props.onClose(); });
+  assert.deepEqual(tabs().map((t) => t.props.accessibilityState.selected), [true, false]);
+  assert.equal(tree.root.findAllByType('EmbeddedSnap').length, 0);
+});
+
+test('0.6.0: when the build has no view (canEmbed false) the old full-screen modal path is used, exactly as in 0.5.x', async () => {
+  const { calls } = launcher({ provider: { canEmbed: () => false, embed: () => React.createElement('EmbeddedSnap') } });
+  await mount();
+  await press(tabs()[1]);
+  assert.equal(calls.open.length, 1);
+  assert.equal(tree.root.findAllByType('EmbeddedSnap').length, 0);
+});
+
+test('0.6.0: an embed whose prepare fails shows the retry message instead of an empty tab', async () => {
+  launcher({ provider: { canEmbed: () => true, embed: () => React.createElement('EmbeddedSnap'), prepare: async () => ({ ok: false, reason: 'not_ready', message: '잠시 후 다시 시도해 주세요' }) } });
+  await mount();
+  await press(tabs()[1]);
+  assert.equal(tree.root.findAllByType('EmbeddedSnap').length, 0);
+  assert.ok(texts().includes('잠시 후 다시 시도해 주세요'));
+});
+

@@ -88,6 +88,15 @@ function OfferwallScreen({ usn, onClose, onRetry, loadingColor, topInset = 0, ta
             return;
         }
         setLaunch({ state: 'opening', message: '' });
+        // 0.6.0: a build that has the provider's in-tab view shows it inside the tab (under the tab row, above the app's menu); older builds open the full-screen modal.
+        if (provider.embed && provider.canEmbed?.()) {
+            Promise.resolve(provider.prepare?.({ usn, displayName }))
+                .then((result) => { if (alive.current)
+                setLaunch(result && result.ok === false ? { state: 'error', message: result.message || copy.error } : { state: 'embedded', message: '' }); })
+                .catch(() => { if (alive.current)
+                setLaunch({ state: 'error', message: copy.error }); });
+            return;
+        }
         Promise.resolve(provider.open({ usn, displayName }))
             .then((result) => { if (alive.current)
             setLaunch(result.ok ? IDLE : { state: 'error', message: result.message || copy.error }); })
@@ -110,7 +119,9 @@ function OfferwallScreen({ usn, onClose, onRetry, loadingColor, topInset = 0, ta
         return h(Pressable, { key: provider.id, accessibilityRole: 'tab', accessibilityState: { selected }, accessibilityLabel: label, onPress: () => pick(provider),
             style: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderBottomWidth: 2, borderBottomColor: selected ? tabColor : 'transparent' } }, h(Text, { style: { fontSize: 15, fontWeight: selected ? '700' : '500', color: selected ? tabColor : '#999' } }, label), showProviderNames ? h(Text, { style: { fontSize: 11, color: selected ? tabColor : '#aaa' } }, provider.name) : null);
     }));
-    const panel = !launcher ? null : h(View, { style: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12, backgroundColor: '#fff' } }, h(Text, { style: { fontSize: 18, fontWeight: '700', color: '#222', textAlign: 'center' } }, copy.title), h(Text, { style: { fontSize: 14, color: '#666', textAlign: 'center' } }, copy.body), launch.state === 'error' ? h(Text, { style: { fontSize: 13, color: '#c0392b', textAlign: 'center' } }, launch.message) : null, launch.state === 'opening' ? h(ActivityIndicator, { color: loadingColor ?? '#555' })
+    const backToFirst = () => { setPicked(chanceProviders_1.ADPOPCORN_PROVIDER_ID); setLaunch(IDLE); };
+    const embedded = launcher && launch.state === 'embedded' && launcher.embed ? launcher.embed({ onClose: backToFirst }) : null;
+    const panel = !launcher ? null : embedded ? h(View, { style: { flex: 1, backgroundColor: '#fff' } }, embedded) : h(View, { style: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12, backgroundColor: '#fff' } }, h(Text, { style: { fontSize: 18, fontWeight: '700', color: '#222', textAlign: 'center' } }, copy.title), h(Text, { style: { fontSize: 14, color: '#666', textAlign: 'center' } }, copy.body), launch.state === 'error' ? h(Text, { style: { fontSize: 13, color: '#c0392b', textAlign: 'center' } }, launch.message) : null, launch.state === 'opening' ? h(ActivityIndicator, { color: loadingColor ?? '#555' })
         : h(Pressable, { accessibilityRole: 'button', accessibilityLabel: launch.state === 'error' ? copy.retry : copy.open, onPress: () => open(launcher),
             style: { paddingHorizontal: 28, paddingVertical: 13, backgroundColor: tabColor, borderRadius: 12 } }, h(Text, { style: { fontSize: 15, fontWeight: '700', color: '#fff' } }, launch.state === 'error' ? copy.retry : copy.open)));
     return h(View, { style: { flex: 1, backgroundColor: '#fff', paddingTop: Math.max(0, topInset) } }, tabBar, h(ClassicScreen, { usn, onClose, onRetry, loadingColor, topInset: 0, hidden: launcher !== undefined }), panel);

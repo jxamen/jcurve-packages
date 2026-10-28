@@ -18,9 +18,11 @@ export const SNAPPLAY_PROVIDER_ID = 'snapplay';
 export const SNAPPLAY_NATIVE_MODULE = 'S2OfferwallModule';
 export const SNAPPLAY_DEFAULT_PLACEMENT = 'main';
 export const SNAPPLAY_INIT_TIMEOUT_MS = 10_000;
+/** 0.6.0 — the native view (`JCurveSnapPlayViewManager`, Android + iOS) that shows SnapPlay's own screen inside the tab. Only in builds made with 0.6.0 and the SnapPlay SDK. */
+export const SNAPPLAY_VIEW_NAME = 'JCurveSnapPlayView';
 
 /** 서버가 앱마다 · OS 마다 주는 값. 앱 ID 가 없는 OS 에서는 제공자가 꺼진다. */
-export type SnapPlayServerConfig = { android: string; ios: string; placement: string; enabled: boolean };
+export type SnapPlayServerConfig = { android: string; ios: string; placement: string; enabled: boolean; /** 0.6.0 — `false` 면 탭 안에 끼우지 않고 전체 화면(모달)으로 연다(서버에서 끄는 스위치; 기본 true) */ embed: boolean };
 
 const ID_PATTERN = /^[^\s\u0000-\u001f]{4,200}$/;
 const PLACEMENT_PATTERN = /^[A-Za-z0-9_.-]{1,64}$/;
@@ -49,6 +51,7 @@ export function parseSnapPlayConfig(data: unknown): SnapPlayServerConfig | null 
     android, ios,
     placement: PLACEMENT_PATTERN.test(placementRaw.trim()) ? placementRaw.trim() : SNAPPLAY_DEFAULT_PLACEMENT,
     enabled: root.enabled !== false,
+    embed: root.embed !== false,
   };
 }
 
@@ -180,8 +183,37 @@ export function forgetSnapPlayUser(): void {
 /** 설정까지 모두 비운다(앱 바뀜 · 시험). SDK 초기화 상태는 프로세스가 사는 동안 유지된다. */
 export function resetSnapPlay(): void { forgetSnapPlayUser(); config = null; notifyChanceProviders(); }
 
+/** 이 빌드에 스냅플레이 화면 뷰가 있는가 — `UIManager` 의 뷰 목록 조회뿐(없으면 false, 던지지 않음). */
+export function snapPlayViewAvailable(): boolean {
+  if (!hasSnapPlayNative() || config?.embed === false) return false;
+  try {
+    const { UIManager } = require('react-native') as typeof import('react-native');
+    return !!UIManager?.getViewManagerConfig?.(SNAPPLAY_VIEW_NAME);
+  } catch { return false; }
+}
+// 뷰 안의 스냅플레이 화면이 「로그인이 필요해요」 라고 하면 가장 최근 회원으로 답한다(전체 화면일 때의 onLoginRequested 와 같다).
+function answerLogin(): void {
+  const sdk = api();
+  const who = latest;
+  if (sdk && who) Promise.resolve(sdk.setUserName(who.usn, who.displayName ?? '')).catch(() => {});
+}
+let nativeView: import('react').ComponentType<Record<string, unknown>> | undefined;
+/** 스냅플레이 화면을 끼워 넣는 네이티브 뷰. `prepare`(SDK 시작 · 회원 설정) 뒤에 그린다. */
+export function SnapPlayView({ onClose, style }: { onClose?: () => void; style?: unknown }): import('react').ReactElement | null {
+  const React = require('react') as typeof import('react');
+  if (!snapPlayViewAvailable()) return null;
+  const rn = require('react-native') as typeof import('react-native');
+  nativeView ??= rn.requireNativeComponent(SNAPPLAY_VIEW_NAME) as import('react').ComponentType<Record<string, unknown>>;
+  return React.createElement(nativeView, {
+    style: [{ flex: 1 }, style], placement: config?.placement ?? SNAPPLAY_DEFAULT_PLACEMENT,
+    onLoginRequested: () => answerLogin(), onCloseRequested: () => { try { onClose?.(); } catch { /* 닫기 처리가 화면을 깨지 않게 */ } },
+  });
+}
+
 registerChanceProvider({
   id: SNAPPLAY_PROVIDER_ID, name: '스냅플레이', kind: 'launcher',
   available: () => hasSnapPlayNative() && appId() !== '' && api() !== null,
   prepare, open,
+  canEmbed: snapPlayViewAvailable,
+  embed: ({ onClose }) => (snapPlayViewAvailable() ? (require('react') as typeof import('react')).createElement(SnapPlayView, { onClose }) : null),
 });

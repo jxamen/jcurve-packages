@@ -32,6 +32,12 @@ export type ChanceProvider = {
     prepare?(context: ChanceContext): Promise<ChanceResult>;
     /** launcher: 전체 화면을 연다. */
     open?(context: ChanceContext): Promise<ChanceResult>;
+    /** 0.6.0 launcher: 이 빌드가 제공자의 화면을 탭 안에 끼워 넣는 네이티브 뷰를 갖고 있는가(없는 옛 빌드면 false → `open` 의 전체 화면을 쓴다). */
+    canEmbed?(): boolean;
+    /** 0.6.0 launcher: 탭 안에 끼워 넣을 화면(`prepare` 가 끝난 뒤에 그린다). 못 그리면 null. `onClose` = 그 화면이 닫아 달라고 할 때(찬스1 로 돌아간다). */
+    embed?(handlers: {
+        onClose(): void;
+    }): import('react').ReactElement | null;
 };
 /** 같은 id 가 있으면 그 자리에서 바꾸고, 없으면 맨 뒤에 넣는다(= 탭 순서는 등록 순서). */
 export declare function registerChanceProvider(provider: ChanceProvider): void;

@@ -70,7 +70,7 @@ function ClassicScreen({ usn, onClose, onRetry, loadingColor = '#555', topInset 
         : !loaded ? h(View, { style: status, pointerEvents: 'none' }, h(ActivityIndicator, { color: loadingColor })) : null));
 }
 
-type Launch = { state: 'idle' | 'opening' | 'error'; message: string };
+type Launch = { state: 'idle' | 'opening' | 'embedded' | 'error'; message: string };
 const IDLE: Launch = { state: 'idle', message: '' };
 
 /**
@@ -110,6 +110,13 @@ export function OfferwallScreen({ usn, onClose, onRetry, loadingColor, topInset 
   const open = (provider: ChanceProvider) => {
     if (!usn || !provider.open) { setLaunch({ state: 'error', message: copy.error }); return; }
     setLaunch({ state: 'opening', message: '' });
+    // 0.6.0: a build that has the provider's in-tab view shows it inside the tab (under the tab row, above the app's menu); older builds open the full-screen modal.
+    if (provider.embed && provider.canEmbed?.()) {
+      Promise.resolve(provider.prepare?.({ usn, displayName }))
+        .then((result) => { if (alive.current) setLaunch(result && result.ok === false ? { state: 'error', message: result.message || copy.error } : { state: 'embedded', message: '' }); })
+        .catch(() => { if (alive.current) setLaunch({ state: 'error', message: copy.error }); });
+      return;
+    }
     Promise.resolve(provider.open({ usn, displayName }))
       .then((result) => { if (alive.current) setLaunch(result.ok ? IDLE : { state: 'error', message: result.message || copy.error }); })
       .catch(() => { if (alive.current) setLaunch({ state: 'error', message: copy.error }); });
@@ -132,7 +139,9 @@ export function OfferwallScreen({ usn, onClose, onRetry, loadingColor, topInset 
         showProviderNames ? h(Text, { style: { fontSize: 11, color: selected ? tabColor : '#aaa' } }, provider.name) : null);
     }));
 
-  const panel = !launcher ? null : h(View, { style: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12, backgroundColor: '#fff' } },
+  const backToFirst = () => { setPicked(ADPOPCORN_PROVIDER_ID); setLaunch(IDLE); };
+  const embedded = launcher && launch.state === 'embedded' && launcher.embed ? launcher.embed({ onClose: backToFirst }) : null;
+  const panel = !launcher ? null : embedded ? h(View, { style: { flex: 1, backgroundColor: '#fff' } }, embedded) : h(View, { style: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12, backgroundColor: '#fff' } },
     h(Text, { style: { fontSize: 18, fontWeight: '700', color: '#222', textAlign: 'center' } }, copy.title),
     h(Text, { style: { fontSize: 14, color: '#666', textAlign: 'center' } }, copy.body),
     launch.state === 'error' ? h(Text, { style: { fontSize: 13, color: '#c0392b', textAlign: 'center' } }, launch.message) : null,

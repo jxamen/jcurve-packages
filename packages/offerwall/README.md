@@ -537,3 +537,17 @@ iOS 의 애드팝콘 오퍼월 목록(「전체 미션」)은 SDK 안의 웹 화
 
 고친 것: `OfferwallScreen` 이 탭 줄의 높이(`onLayout` 로 잰 값, 재기 전에는 45)를 `setChanceTabInset()` 으로 알리고(탭이 없으면 0), `ComboEntry`(찬스 자리)가 칩 줄 · 안내 시트 · 토스트를 그만큼 아래로 민다 → 칩은 다시 제목 줄의 오른쪽(사람 아이콘 왼쪽)에, 탭 줄은 「찬스1 | 찬스2」 두 탭이 반반으로 다 보인다. 칩은 두 탭 모두에서 같은 자리(찬스2 에서는 그 화면 위쪽)에 있다 — 탭마다 화면 안에 하나씩. 앱 코드 변경 없음(`chipTop` 을 직접 준 앱은 그 값 위에 탭 높이가 더해진다). 시험 4 + 1 개 추가.
 
+## 0.6.0 — 스냅플레이 화면을 찬스2 탭 안에 그대로 (새 스토어 빌드 필요 · 0.5.1 칩 고침 포함)
+
+**무엇이 바뀌나**: 찬스2 를 누르면 스냅플레이가 전체 화면 모달(「혜택받기」 · 왼쪽 X · 검색 · ?)로 떠서 위 「찬스1 · 찬스2」 탭과 아래 앱 메뉴를 가렸다(대표님 10-28 20:07). 이제 SDK 의 `S2OfferwallView` 를 네이티브 뷰 `JCurveSnapPlayView` 로 감싸 **탭 줄 아래 · 앱 메뉴 위 영역 안에** 끼워 보여 준다(애드팝콘 찬스1 과 같은 자리). 「포인트 빨리 모으기」 칩은 0.5.1 대로 탭 줄 아래 각 탭 화면 안에 하나씩.
+
+| 부분 | 어디서 | 필요한 것 |
+|---|---|---|
+| Android `JCurveSnapPlayViewManager`(S2OfferwallView 를 FrameLayout 에 넣고 직접 measure/layout, 로그인 · 닫기 · 권한 요청 이벤트) | 이 패키지 `android/` | **새 빌드** — SDK 는 `compileOnly`(앱이 `react-native-s2offerwall` 로 가져옴), SDK 클래스가 있을 때만 등록, R8 은 `consumer-rules.pro` 로 `-dontwarn` |
+| iOS `JCurveSnapPlayView`(UIView 호스트 + `S2OfferwallView`, SDK 문서의 제약 방식) | 이 패키지 `ios/` | **새 빌드** — podspec 이 `s2offerwall ~> 1.0.38` 에 의존, `s2offerwall-Swift.h` 가 없으면 통째로 컴파일에서 빠진다 |
+| JS: 찬스2 탭이 뷰를 끼워 보임(`provider.canEmbed` / `embed`), 뷰가 없는 빌드(0.5.x)는 전체 화면(모달) 그대로 | `chanceProviders.ts` · `snapPlay.ts` · `OfferwallScreen.ts` | OTA 로도 나가지만 뷰는 0.6.0 빌드에서만 보인다 |
+
+**동작**: 찬스2 를 누르면 SDK 시작 · 회원 설정(`prepare`)을 마친 뒤에 뷰를 그린다(실패하면 「잠시 후 다시 시도해 주세요」 + 「다시 열기」). 뷰 안의 스냅플레이 화면이 로그인을 요청하면 가장 최근 회원(`usn`)으로 답하고, 닫기를 요청하면 찬스1 로 돌아간다. 앱 리워드 광고는 SDK 전역 리스너 그대로(연결 안 함). **서버에서 끄기**: `content/config/snapplay` 응답에 `"embed": false` 를 주면 뷰 대신 전체 화면(모달)으로 연다(앱 업데이트 없이).
+
+**확인 못 한 것(이 PC 는 네이티브 컴파일 불가 — 첫 빌드가 처음 확인한다)**: ① Android: `S2OfferwallView(Context, null)` · `load(String)` · `S2Offerwall.EventListener` 3개 메서드는 SDK 문서 · RN 플러그인 소스와 AAR 클래스 이름에서 옮겼고, 컴파일 오류가 나면 이 파일 하나뿐이다. ② iOS: `S2OfferwallView` 를 `[[S2OfferwallView alloc] init]` 으로 만들고 문서의 4방향 제약으로 붙임(`useFrameworks: static` 에서 `<s2offerwall/s2offerwall-Swift.h>` 가 잡히는지는 첫 빌드). ③ 실기기: 뷰 안 스냅플레이 화면의 높이 · 스크롤 · 검색 · 사진 권한 · 칩과 겹침(칩 줄이 스냅플레이 화면 오른쪽 위 아이콘을 가릴 수 있음). 문제가 생기면 서버의 `embed:false` 로 바로 모달로 돌릴 수 있다.
+

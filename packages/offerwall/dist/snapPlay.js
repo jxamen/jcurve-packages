@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SNAPPLAY_INIT_TIMEOUT_MS = exports.SNAPPLAY_DEFAULT_PLACEMENT = exports.SNAPPLAY_NATIVE_MODULE = exports.SNAPPLAY_PROVIDER_ID = void 0;
+exports.SNAPPLAY_VIEW_NAME = exports.SNAPPLAY_INIT_TIMEOUT_MS = exports.SNAPPLAY_DEFAULT_PLACEMENT = exports.SNAPPLAY_NATIVE_MODULE = exports.SNAPPLAY_PROVIDER_ID = void 0;
 exports.parseSnapPlayConfig = parseSnapPlayConfig;
 exports.configureSnapPlay = configureSnapPlay;
 exports.hasSnapPlayNative = hasSnapPlayNative;
@@ -8,6 +8,8 @@ exports.snapPlayStatus = snapPlayStatus;
 exports.resolveSnapPlayConfig = resolveSnapPlayConfig;
 exports.forgetSnapPlayUser = forgetSnapPlayUser;
 exports.resetSnapPlay = resetSnapPlay;
+exports.snapPlayViewAvailable = snapPlayViewAvailable;
+exports.SnapPlayView = SnapPlayView;
 /**
  * 0.5.0 — 스냅플레이(SnapPlay) 오퍼월 제공자. 찬스 화면의 「찬스2」 탭이 이것이다. SDK 는 `react-native-s2offerwall`(네이티브 모듈 `S2OfferwallModule`)이고
  * **스토어 빌드에 들어가야** 쓸 수 있다. 이 파일은 JS 라서 OTA 로 나가도 되고, 네이티브가 없는 옛 빌드에서는 제공자가 「쓸 수 없음」이라 탭이 나오지 않는다.
@@ -27,6 +29,8 @@ exports.SNAPPLAY_PROVIDER_ID = 'snapplay';
 exports.SNAPPLAY_NATIVE_MODULE = 'S2OfferwallModule';
 exports.SNAPPLAY_DEFAULT_PLACEMENT = 'main';
 exports.SNAPPLAY_INIT_TIMEOUT_MS = 10000;
+/** 0.6.0 — the native view (`JCurveSnapPlayViewManager`, Android + iOS) that shows SnapPlay's own screen inside the tab. Only in builds made with 0.6.0 and the SnapPlay SDK. */
+exports.SNAPPLAY_VIEW_NAME = 'JCurveSnapPlayView';
 const ID_PATTERN = /^[^\s\u0000-\u001f]{4,200}$/;
 const PLACEMENT_PATTERN = /^[A-Za-z0-9_.-]{1,64}$/;
 function pickId(value) {
@@ -55,6 +59,7 @@ function parseSnapPlayConfig(data) {
         android, ios,
         placement: PLACEMENT_PATTERN.test(placementRaw.trim()) ? placementRaw.trim() : exports.SNAPPLAY_DEFAULT_PLACEMENT,
         enabled: root.enabled !== false,
+        embed: root.embed !== false,
     };
 }
 let config = null;
@@ -209,8 +214,45 @@ function forgetSnapPlayUser() {
 }
 /** 설정까지 모두 비운다(앱 바뀜 · 시험). SDK 초기화 상태는 프로세스가 사는 동안 유지된다. */
 function resetSnapPlay() { forgetSnapPlayUser(); config = null; (0, chanceProviders_1.notifyChanceProviders)(); }
+/** 이 빌드에 스냅플레이 화면 뷰가 있는가 — `UIManager` 의 뷰 목록 조회뿐(없으면 false, 던지지 않음). */
+function snapPlayViewAvailable() {
+    if (!hasSnapPlayNative() || config?.embed === false)
+        return false;
+    try {
+        const { UIManager } = require('react-native');
+        return !!UIManager?.getViewManagerConfig?.(exports.SNAPPLAY_VIEW_NAME);
+    }
+    catch {
+        return false;
+    }
+}
+// 뷰 안의 스냅플레이 화면이 「로그인이 필요해요」 라고 하면 가장 최근 회원으로 답한다(전체 화면일 때의 onLoginRequested 와 같다).
+function answerLogin() {
+    const sdk = api();
+    const who = latest;
+    if (sdk && who)
+        Promise.resolve(sdk.setUserName(who.usn, who.displayName ?? '')).catch(() => { });
+}
+let nativeView;
+/** 스냅플레이 화면을 끼워 넣는 네이티브 뷰. `prepare`(SDK 시작 · 회원 설정) 뒤에 그린다. */
+function SnapPlayView({ onClose, style }) {
+    const React = require('react');
+    if (!snapPlayViewAvailable())
+        return null;
+    const rn = require('react-native');
+    nativeView ?? (nativeView = rn.requireNativeComponent(exports.SNAPPLAY_VIEW_NAME));
+    return React.createElement(nativeView, {
+        style: [{ flex: 1 }, style], placement: config?.placement ?? exports.SNAPPLAY_DEFAULT_PLACEMENT,
+        onLoginRequested: () => answerLogin(), onCloseRequested: () => { try {
+            onClose?.();
+        }
+        catch { /* 닫기 처리가 화면을 깨지 않게 */ } },
+    });
+}
 (0, chanceProviders_1.registerChanceProvider)({
     id: exports.SNAPPLAY_PROVIDER_ID, name: '스냅플레이', kind: 'launcher',
     available: () => hasSnapPlayNative() && appId() !== '' && api() !== null,
     prepare, open,
+    canEmbed: snapPlayViewAvailable,
+    embed: ({ onClose }) => (snapPlayViewAvailable() ? require('react').createElement(SnapPlayView, { onClose }) : null),
 });
