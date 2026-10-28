@@ -39,6 +39,11 @@ export type ComboDisplay = {
      * (see `startWebTap`). Absent = off. It is a switch of its own: a document may carry it with the chip switched off and no rows at all.
      */
     listTap?: 'on';
+    /**
+     * 0.4.4: `sheet_modal` from the server — `'off'` draws the 「포인트 빨리 모으기」 sheet inside the Chance screen's own view tree (as 0.4.3 did) instead of in a `Modal` window above the whole app.
+     * Absent = in a Modal (with an automatic fall back to the tree when the sheet cannot be placed). Kept as `sheetModal` by normalizing.
+     */
+    sheetModal?: 'off';
 };
 /** 「쉽게 모으기」: short, easy missions (follow, subscribe, install and open) with no goal; `total` is the sum of their points. */
 export type ComboEasy = {

@@ -5,6 +5,7 @@
  */
 import type { ReactElement } from 'react';
 import { ComboMissionIcon, DEFAULT_COMBO_THEME, formatWon, type ComboTheme } from './combos';
+import { comboListProps } from './comboSheetFrame';
 
 export const COMBO_TRIALS_NAME = '무료체험 확인';
 /** What a row says once the member marked it cancelled. */
@@ -282,7 +283,7 @@ export function ComboTrialsScreen({ items, loading = false, failed = false, them
       h(Text, { accessibilityRole: 'header', style: { fontSize: 18, fontWeight: '700', color: t.text } }, COMBO_TRIALS_NAME),
       h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 12, style: { paddingVertical: 8, paddingLeft: 8 } },
         h(Text, { style: { fontSize: 14, fontWeight: '600', color: t.sub } }, '닫기'))),
-    h(ScrollView, { contentContainerStyle: { paddingBottom: 32 } },
+    h(ScrollView, { contentContainerStyle: { paddingBottom: 32 }, ...comboListProps() },
       h(Text, { style: { paddingHorizontal: side, paddingTop: 4, paddingBottom: 10, fontSize: 13, lineHeight: 19, color: t.sub } },
         '참여한 무료체험이에요.\n해지할 때가 되면 해지했는지 물어봐요.'),
       loading && !rows.length ? h(Text, { style: { marginTop: 40, fontSize: 15, textAlign: 'center', color: t.sub } }, '불러오고 있어요') : null,

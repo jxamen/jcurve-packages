@@ -31,6 +31,7 @@ exports.ComboMissionIcon = ComboMissionIcon;
 exports.ComboGuideScreen = ComboGuideScreen;
 exports.ComboStepsScreen = ComboStepsScreen;
 const index_1 = require("./index");
+const comboSheetFrame_1 = require("./comboSheetFrame");
 /** The one place the feature's name lives (chip, Home banner, guide title, labels, popup text). */
 exports.COMBO_NAME = '포인트 빨리 모으기';
 /** Name of the tab that lists only easy missions, before the 1천 → 5천 → 1만P steps. */
@@ -127,6 +128,8 @@ function normalizeTodayCombos(raw) {
         chance: data.display?.chance === 'off' ? 'off' : 'chip',
         home: data.display?.home === 'banner' ? 'banner' : 'off',
         ...(listTap ? { listTap: 'on' } : {}),
+        // 0.4.4: only an explicit 'off' is kept (the server's spelling `sheet_modal`, or the kept `sheetModal`)
+        ...(data.display?.sheet_modal === 'off' || data.display?.sheetModal === 'off' ? { sheetModal: 'off' } : {}),
         // `chance_popup` is the server's spelling; `popup` is what normalizing keeps, so running this twice gives the same result
         ...(() => {
             const mode = data.display?.chance_popup ?? data.display?.popup;
@@ -879,7 +882,7 @@ function ComboStepsScreen({ combos, loading = false, onClose, onPressMission, us
     const closeText = (label) => h(Text, { style: { fontSize: 14, fontWeight: '600', color: t.sub } }, label);
     return h(View, { style: { flex: 1, backgroundColor: t.bg, paddingTop: Math.max(0, topInset) } }, showHeader ? (variant === 'sheet'
         ? h(View, { style: { height: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: side } }, h(Text, { style: { fontSize: 18, fontWeight: '700', color: t.text } }, exports.COMBO_NAME), h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 12, style: { paddingVertical: 8, paddingLeft: 8 } }, closeText('닫기')))
-        : h(View, { style: { height: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8 } }, h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 12, style: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' } }, h(Text, { style: { fontSize: 28, color: t.text } }, '‹')), h(Text, { style: { fontSize: 18, fontWeight: '700', color: t.text } }, exports.COMBO_NAME))) : null, h(ScrollView, { contentContainerStyle: { paddingBottom: 32 }, keyboardShouldPersistTaps: 'handled' }, 
+        : h(View, { style: { height: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8 } }, h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 12, style: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' } }, h(Text, { style: { fontSize: 28, color: t.text } }, '‹')), h(Text, { style: { fontSize: 18, fontWeight: '700', color: t.text } }, exports.COMBO_NAME))) : null, h(ScrollView, { contentContainerStyle: { paddingBottom: 32 }, keyboardShouldPersistTaps: 'handled', ...(0, comboSheetFrame_1.comboListProps)() }, 
     // the iPhone list while it is prepared (the server's `notice`): one calm line at the top
     comboNoticeOf(combos) ? h(View, { style: { marginHorizontal: side, marginTop: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, backgroundColor: chipBg } }, h(Text, { style: { fontSize: 13, lineHeight: 18, color: t.sub } }, comboNoticeOf(combos))) : null, tabCount > 1 ? h(ScrollView, { horizontal: true, showsHorizontalScrollIndicator: false, ...exports.COMBO_TAB_ROW_PROPS, style: { flexGrow: 0 }, contentContainerStyle: { paddingHorizontal: side, paddingVertical: 4, gap: 8, alignItems: 'center' } }, [...(easy ? [null] : []), ...bundles, ...(trials.length ? ['trials'] : [])].map((b, i) => {
         const on = i === index;

@@ -1,6 +1,7 @@
 /** 「포인트 빨리 모으기」 — daily point combos. Pure JS (OTA-safe); it only shows server data and never grants points. */
 import type { ReactElement } from 'react';
 import { openOfferwall } from './index';
+import { comboListProps } from './comboSheetFrame';
 
 /** The one place the feature's name lives (chip, Home banner, guide title, labels, popup text). */
 export const COMBO_NAME = '포인트 빨리 모으기';
@@ -28,6 +29,11 @@ export type ComboDisplay = {
    * (see `startWebTap`). Absent = off. It is a switch of its own: a document may carry it with the chip switched off and no rows at all.
    */
   listTap?: 'on';
+  /**
+   * 0.4.4: `sheet_modal` from the server — `'off'` draws the 「포인트 빨리 모으기」 sheet inside the Chance screen's own view tree (as 0.4.3 did) instead of in a `Modal` window above the whole app.
+   * Absent = in a Modal (with an automatic fall back to the tree when the sheet cannot be placed). Kept as `sheetModal` by normalizing.
+   */
+  sheetModal?: 'off';
 };
 /** 「쉽게 모으기」: short, easy missions (follow, subscribe, install and open) with no goal; `total` is the sum of their points. */
 export type ComboEasy = { missions: ComboMission[]; total: number };
@@ -173,6 +179,8 @@ export function normalizeTodayCombos(raw: unknown): TodayCombos | null {
     chance: data.display?.chance === 'off' ? 'off' : 'chip',
     home: data.display?.home === 'banner' ? 'banner' : 'off',
     ...(listTap ? { listTap: 'on' as const } : {}),
+    // 0.4.4: only an explicit 'off' is kept (the server's spelling `sheet_modal`, or the kept `sheetModal`)
+    ...(data.display?.sheet_modal === 'off' || data.display?.sheetModal === 'off' ? { sheetModal: 'off' as const } : {}),
     // `chance_popup` is the server's spelling; `popup` is what normalizing keeps, so running this twice gives the same result
     ...(() => {
       const mode = data.display?.chance_popup ?? data.display?.popup;
@@ -952,7 +960,7 @@ export function ComboStepsScreen({ combos, loading = false, onClose, onPressMiss
         h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 12, style: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' } },
           h(Text, { style: { fontSize: 28, color: t.text } }, '‹')),
         h(Text, { style: { fontSize: 18, fontWeight: '700', color: t.text } }, COMBO_NAME))) : null,
-    h(ScrollView, { contentContainerStyle: { paddingBottom: 32 }, keyboardShouldPersistTaps: 'handled' },
+    h(ScrollView, { contentContainerStyle: { paddingBottom: 32 }, keyboardShouldPersistTaps: 'handled', ...comboListProps() },
       // the iPhone list while it is prepared (the server's `notice`): one calm line at the top
       comboNoticeOf(combos) ? h(View, { style: { marginHorizontal: side, marginTop: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, backgroundColor: chipBg } },
         h(Text, { style: { fontSize: 13, lineHeight: 18, color: t.sub } }, comboNoticeOf(combos))) : null,
