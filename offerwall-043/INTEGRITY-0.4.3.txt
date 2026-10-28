@@ -1,0 +1,5 @@
+jcurve-offerwall-0.4.3.tgz
+sha256 ac78336caa772717c019111035230c22113851e890095a5a734eac8751f5a4fa
+integrity sha512-N2LJk+WWrpqgIhQzSUgockNpzQu7/CxtvofLOD5E68L9RhAPZNIL8gVKAkc/X/eVAqlY4mEMnqGrQV+Fg9d6oQ==
+commit jcurve-packages feat/offerwall-043 979bd1a (0.4.2 93b6b24 + 0.4.3)
+base 0.4.2 tgz (offerwall-040/jcurve-offerwall-0.4.2.tgz) — 다른 멤버 4개(README, dist/OfferwallScreen.js, src/OfferwallScreen.ts, package.json), 네이티브 10개 멤버 바이트 동일
