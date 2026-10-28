@@ -36,3 +36,19 @@ jcurve-mission-0.7.18.tgz
   integrity sha512-UyIDHkecQlQQOHxSFCuLFAt62bSWMbQJr9J0ZzaWukFz/uxi9heqd/q+U6rIGFePcKIMCAS6toGsu3pnZYFDtw==
   base     0.7.17 → 0.7.18 (벤더 tgz sha256 시작 (최신 줄 — npm pack)) — 새 최신 판
 
+# --- 추가분 (슬랙대표님요청 요청, 앱보조4 가 운영 맨 위 벤더 바이트로 확인한 두 줄) ---
+
+jcurve-mission-0.4.19-moneytree109.1-mc2.tgz
+  version  0.4.19-moneytree109.1-mc2
+  size     186225
+  sha256   a346e1bce3ac59c9f6fe4c9d9adf55cac3b491c3c6214303fd519144cdd59960
+  integrity sha512-rFOY4TbzDTXU3cer1Vrggy6LC1uvtvy/z+h3Ec823L4YxHu4iiIOhwZGZLbYlLrvrOFtO/L+sdiX75vOYsbHkw==
+  base     0.4.19-moneytree109.1 (sha256 2619e71cbf5c76c9… · 185247 bytes, 앱보조4 가 운영 맨 위 vendor 바이트로 확인) — 머니트리 안드 1.0.9 · 1.0.10 (머니트리 전용 변형)
+
+jcurve-mission-0.4.17-mc2.tgz
+  version  0.4.17-mc2
+  size     176262
+  sha256   6c19d12acfd3f7519a9f7ba1e396fe989684c954d8eb41024f932f0396c4614c
+  integrity sha512-aynuQGW1Kb8cRSD8fGOeDLrFSMGQLbuM+sCXkB2y3SipapRgAEsd12zCXOHIzz+QgY9tQtlwCLPrmrr4dO5pjA==
+  base     0.4.17 (sha256 ee014fd1c350a008… · 175065 bytes, 앱보조4 확인) — 캐시팡팡 iOS 1.0.5
+
