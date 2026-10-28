@@ -495,3 +495,38 @@ iOS 의 애드팝콘 오퍼월 목록(「전체 미션」)은 SDK 안의 웹 화
 - **업로드 합치기**: 페이지가 탭(영역)마다 따로 목록을 부르므로, 업로더가 마지막 메시지만 쓰지 않고 읽는 동안 본 캠페인을 키로 합친다(새 줄이 옛 줄을 바꿈, 800줄까지).
 - **진단 `resp`**: 페이지가 받은 응답마다(경로당 3번, 미션 목록은 6번, 모두 16개까지) 종류(`json|html|jsonp|text|empty|big`) · 상태 · 길이 · 최상위 키 이름 · 배열 이름/길이/첫 줄의 키 이름 · 첫 줄 안 객체의 키 이름을 올린다 — **값은 한 글자도 안 나간다**(`cleanResp` 가 30자 이름과 숫자만 남김). 시험 회원의 `webtap` 요약(`resp: [...]`)에 실린다. 콘솔: `[combos] tap resp`.
 - 상세 응답(`{ Campaign: { Key … } }`)의 참여 문장은 목록 줄에서 이미 만든 `info` 가 있으면 그것을 지키고, 없을 때만 상세에서 모은다.
+
+## 0.5.0 — 스냅플레이 오퍼월 · 찬스 화면 위 「찬스1 · 찬스2」 탭 (JS 는 OTA 가능 · 스냅플레이 SDK 는 새 스토어 빌드)
+
+**무엇이 바뀌나**: 찬스 탭(`OfferwallScreen`) 위쪽에 「찬스1 · 찬스2」 탭이 생긴다. 찬스1 = 지금의 애드팝콘 화면(그대로, 탭을 오가도 다시 불러오지 않고 숨기기만), 찬스2 = 스냅플레이(탭을 누르면 SDK 전체 화면이 열리고, 닫고 돌아오면 「찬스 열기」 칸). **쓸 수 있는 제공자가 하나뿐이면 탭도 오류도 없이 예전 화면 그대로**다 — 스냅플레이 네이티브가 없는 옛 빌드, 서버 설정(앱 ID)이 아직 없는 앱, 서버가 끈 앱이 모두 여기에 든다. 탭 이름은 「찬스1 · 찬스2」뿐이고 제공자 이름은 이용자에게 보이지 않는다(`showProviderNames` 를 켜면 작게 보인다).
+
+| 부분 | 어디서 | 옛 빌드(OTA) | 새 스토어 빌드 |
+|---|---|---|---|
+| 제공자 목록 · 탭 · 「찬스 열기」 칸 · 스냅플레이 제공자(JS) | 이 패키지 | OTA 가능 — 모듈이 없으면 찬스2 가 숨는다 | 같음 |
+| `react-native-s2offerwall` 1.0.38 (스냅플레이 SDK: iOS 포드 `s2offerwall ~> 1.0.38` · Android `io.snapplay:s2offerwall-aos-sdk:1.0.38`) | 앱 `package.json` | 없음 → 찬스2 숨김 | 들어감 → 찬스2 보임(앱 ID 가 있으면) |
+| iOS 사진 · 카메라 사용 문구 | 이 패키지의 Expo 플러그인 | — | 빌드 때 `Info.plist` 에 들어감 |
+
+### 앱이 하는 일
+
+1. `package.json` — `"@jcurve/offerwall": "file:vendor/jcurve-offerwall-0.5.0.tgz"` 와 `"react-native-s2offerwall": "1.0.38"`(정확히 이 판).
+2. `app.config.js` 의 `@jcurve/offerwall` 플러그인 옵션에 `snapPlay: true`(생략하면 패키지가 설치돼 있을 때 자동으로 켜짐; `false` 로 끔). 사진 · 카메라 문구는 앱에 이미 있으면 건드리지 않고, 없을 때만 `photoPermission` · `cameraPermission` 옵션(또는 기본 문구)을 넣는다. 플러그인은 `expo-build-properties` 의 `ios.deploymentTarget` 이 16.0 보다 낮거나 `android.minSdkVersion` 이 24 보다 낮으면 **프리빌드를 이유와 함께 멈춘다**(아무것도 안 적으면 Expo 57 / RN 0.86 기본값 16.4 · 24 라 괜찮다).
+3. 앱 ID 읽기 — 오퍼월 키를 읽는 자리(`initializeOfferwall` 성공 뒤, 회원 별칭 `usn` 을 받아 화면을 열기 전)에 한 줄:
+   ```ts
+   await resolveSnapPlayConfig(() => fetch(`${API_BASE}/content/config/snapplay`, { headers, cache: 'no-store' }).then((r) => r.json()));
+   ```
+   `headers` 는 `initializeOfferwall` 에 주는 것과 같은 앱 인증 헤더. 이 함수는 던지지 않는다(못 받으면 탭이 안 나올 뿐). 네이티브 모듈이 없는 빌드에서는 서버에 묻지도 않는다.
+4. 그 밖의 코드 변경 없음: `OfferwallScreen` 을 이미 쓰는 앱은 그대로 탭이 생긴다. 선택 props: `tabColor` · `showProviderNames` · `autoOpenLauncher`(기본 true) · `displayName`(닉네임, 가려서) · `launcherCopy`.
+
+### 서버 약속 (앱보조5)
+
+- `GET {앱 서버}/content/config/snapplay` → `{ ok: true, config: { android: { appId }, ios: { appId }, placement?: "main", enabled?: true } }`. `appId` 대신 `mediaKey` 라고 와도, OS 값이 문자열 하나여도, `config` 없이 같은 칸이 바로 와도 읽는다. 앱 ID 가 한 OS 만 오면 그 OS 만 켜진다. **콜백 키(`verify_cd` 검증용)는 이 응답에 넣지 않는다**(서버만 안다).
+- 콜백(스냅플레이 → 우리 서버): `pub_user_nm` = 앱이 SDK 에 준 사용자 이름 = 회원의 오퍼월 별칭 `usn`(64자 SHA256 hex) — 애드팝콘 별칭 표로 회원을 찾는다. `tr_id` 로 중복 처리, `verify_cd = SHA256(콜백키 + tr_id)` 검증, `test_yn` 처리는 서버 쪽 일.
+
+### SDK 를 부르는 순서 (`snapPlay.ts`)
+
+앱 ID(`setAppIdForIOS` / `setAppIdForAndroid`) → 이벤트 듣기(`onInitCompleted` · `onLoginRequested`) → `initSdk()` → 초기화 완료 이벤트(최대 10초, 안 오면 실패로 보고 다음 열기에서 다시) → `setUserName(usn, displayName)` → `showOfferwall(placement)`(기본 `"main"`). iOS 모듈은 JS 가 듣기 시작한 뒤에만 이벤트를 내보내므로 듣기가 `initSdk()` 보다 먼저다. `removeAllListeners()` 와 `presentATTPopup()` 은 부르지 않는다(ATT 창은 광고 패키지가 앱에서 이미 띄운다). 앱 리워드 광고 연결(`onRewardedAdRequested`)은 하지 않는다 — 안 달면 SDK 가 「광고 없음」으로 답하고 웹 광고로 넘어간다. 회원이 바뀌면(`resetOfferwall()` 이 `forgetSnapPlayUser()` 를 부른다) 다음 열기에서 새 회원으로 다시 설정한다.
+
+### 확인된 것 / 확인 못 한 것
+
+- 확인(이 PC, 시험 23 + 16 + 4): 레지스트리 · 제공자 순서 · 모듈 유무 판정(없으면 `require` 도 안 함) · 설정 파싱 · SDK 호출 순서 · 초기화 실패/시간 초과 · 회원 바뀜 · 탭이 나오고 사라질 때 애드팝콘 화면이 다시 마운트되지 않음 · 플러그인 문구/가드. 기존 298 개 시험 그대로 통과.
+- **이 PC 에서 확인하지 못한 것**: 네이티브 컴파일(`useFrameworks: static` 인 10앱에서 `s2offerwall`(Swift 바이너리 포드) + 플러그인 Objective-C 가 같이 빌드되는지 · `showOfferwall` 이 쓰는 `UIApplication.delegate.window.rootViewController` 가 Expo 57 AppDelegate 에서 잡히는지 · Android 첫 실행의 개인정보 동의 창) — 첫 빌드와 실기기에서 처음 확인된다. `showOfferwall` 이 실패하면 찬스2 칸에 「잠시 후 다시 시도해 주세요」 와 「다시 열기」 가 보이고 앱은 죽지 않는다.

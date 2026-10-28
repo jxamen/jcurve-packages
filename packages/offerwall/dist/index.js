@@ -14,7 +14,7 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.OFFERWALL_SCREEN_MARK = exports.OfferwallScreen = exports.OFFERWALL_KEYS_MARK = void 0;
+exports.DEFAULT_LAUNCHER_COPY = exports.OFFERWALL_CHANCE_TABS_MARK = exports.OFFERWALL_SCREEN_MARK = exports.OfferwallScreen = exports.OFFERWALL_KEYS_MARK = void 0;
 exports.resetOfferwall = resetOfferwall;
 exports.initializeOfferwall = initializeOfferwall;
 exports.configureOfferwall = configureOfferwall;
@@ -26,13 +26,14 @@ exports.onOfferwallClosed = onOfferwallClosed;
 exports.useOfferwallClosed = useOfferwallClosed;
 exports.OfferwallView = OfferwallView;
 const native_1 = require("./native");
+const snapPlay_1 = require("./snapPlay");
 const webTapGate_1 = require("./webTapGate");
 const pending = () => ({ ok: false, reason: 'not_ready', message: '준비 중' });
 let config;
 let serverConfig;
 let generation = 0;
 /** Call on logout/app switch before fetching the next app's settings. */
-function resetOfferwall() { generation++; config = undefined; serverConfig = undefined; }
+function resetOfferwall() { generation++; config = undefined; serverConfig = undefined; (0, snapPlay_1.forgetSnapPlayUser)(); }
 /** Fetch the authenticated app content API. Keys stay in memory and must never be logged. */
 async function initializeOfferwall({ configUrl, headers }) {
     resetOfferwall();
@@ -337,6 +338,10 @@ function OfferwallView({ usn, style, onLoaded, onError, campaignKeys, detailCamp
 var OfferwallScreen_1 = require("./OfferwallScreen");
 Object.defineProperty(exports, "OfferwallScreen", { enumerable: true, get: function () { return OfferwallScreen_1.OfferwallScreen; } });
 Object.defineProperty(exports, "OFFERWALL_SCREEN_MARK", { enumerable: true, get: function () { return OfferwallScreen_1.OFFERWALL_SCREEN_MARK; } });
+Object.defineProperty(exports, "OFFERWALL_CHANCE_TABS_MARK", { enumerable: true, get: function () { return OfferwallScreen_1.OFFERWALL_CHANCE_TABS_MARK; } });
+Object.defineProperty(exports, "DEFAULT_LAUNCHER_COPY", { enumerable: true, get: function () { return OfferwallScreen_1.DEFAULT_LAUNCHER_COPY; } });
+__exportStar(require("./chanceProviders"), exports);
+__exportStar(require("./snapPlay"), exports);
 __exportStar(require("./combos"), exports);
 __exportStar(require("./comboEntry"), exports);
 __exportStar(require("./comboTrials"), exports);

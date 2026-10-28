@@ -1,4 +1,5 @@
 import { hasNativeBridge } from './native';
+import { forgetSnapPlayUser } from './snapPlay';
 import { subscribeTapGate, tapGateState, TAP_REMOUNT_WINDOW_MS } from './webTapGate';
 /** Native SDK is required lazily: importing this package works before keys/SDK exist. */
 export type OfferwallResult = { ok: true } | { ok: false; reason: 'not_ready' | 'invalid_usn' | 'sdk_error'; message: string };
@@ -10,7 +11,7 @@ let config: OfferwallConfig | undefined;
 let serverConfig: OfferwallServerConfig | undefined;
 let generation = 0;
 /** Call on logout/app switch before fetching the next app's settings. */
-export function resetOfferwall(): void { generation++; config = undefined; serverConfig = undefined; }
+export function resetOfferwall(): void { generation++; config = undefined; serverConfig = undefined; forgetSnapPlayUser(); }
 /** Fetch the authenticated app content API. Keys stay in memory and must never be logged. */
 export async function initializeOfferwall({ configUrl, headers }: { configUrl: string; headers: Record<string, string> }): Promise<OfferwallResult> {
   resetOfferwall();
@@ -273,8 +274,10 @@ export function OfferwallView({ usn, style, onLoaded, onError, campaignKeys, det
   return React.createElement(embeddedView, { key: generation, usn, style: [{ flex: 1 }, style], onLoaded, ...extra });
 }
 
-export { OfferwallScreen, OFFERWALL_SCREEN_MARK } from './OfferwallScreen';
-export type { OfferwallScreenProps } from './OfferwallScreen';
+export { OfferwallScreen, OFFERWALL_SCREEN_MARK, OFFERWALL_CHANCE_TABS_MARK, DEFAULT_LAUNCHER_COPY } from './OfferwallScreen';
+export type { OfferwallScreenProps, LauncherCopy } from './OfferwallScreen';
+export * from './chanceProviders';
+export * from './snapPlay';
 export * from './combos';
 export * from './comboEntry';
 export * from './comboTrials';

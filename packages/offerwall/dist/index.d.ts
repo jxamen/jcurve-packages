@@ -88,8 +88,10 @@ export type OfferwallViewProps = {
 };
 /** SDK ViewType list. Mount only after initializeOfferwall succeeds; unmount on exit/logout. */
 export declare function OfferwallView({ usn, style, onLoaded, onError, campaignKeys, detailCampaignKey, onDetailOpened, onDetailClosed }: OfferwallViewProps): import('react').ReactElement | null;
-export { OfferwallScreen, OFFERWALL_SCREEN_MARK } from './OfferwallScreen';
-export type { OfferwallScreenProps } from './OfferwallScreen';
+export { OfferwallScreen, OFFERWALL_SCREEN_MARK, OFFERWALL_CHANCE_TABS_MARK, DEFAULT_LAUNCHER_COPY } from './OfferwallScreen';
+export type { OfferwallScreenProps, LauncherCopy } from './OfferwallScreen';
+export * from './chanceProviders';
+export * from './snapPlay';
 export * from './combos';
 export * from './comboEntry';
 export * from './comboTrials';
