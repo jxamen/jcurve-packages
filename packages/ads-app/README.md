@@ -17,3 +17,33 @@
 
 ## 다음(0.2.0)
 보상 흐름 `showAd`(+ 열린 광고 복구 · 대기 청구 · `ads/seen`) 를 요청 / 저장소 / 말하기 어댑터로 — 「기록형」과 「청구 대기형」 두 복구 어댑터와 용도별 재지급 분기. 앱 오프닝 훅 · 원격 스위치 · 탭 배너 유닛 선택은 그다음.
+
+## 0.2.0 — 열린 광고 복구 `recovery` (JS 전용 · OTA 가능 · 앱에 아직 안 넣음)
+
+광고가 열렸는데 결과를 못 받은 채 앱이 꺼져도 다음 실행에서 서버 `ads/seen` 으로 확인하고 그 자리의 청구를 다시 부른다. **10앱이 10가지로 갖고 있던 것**(`pendingAds`/`adPending`/`recoverOpened`/`openedRecovery`/`rememberOpened` …)을 캐시팡팡 `pendingAd.ts` 를 기준으로 하나로 맞췄다. 캐시팡팡의 기존 시험은 그대로 옮겨 통과한다.
+
+### 기존 구현에서 바뀐 세 가지
+1. **접두 일치**: 용도 표를 이름 정확 일치로만 찾지 않고 `'steps_stage:*'` 처럼 접두로도 찾는다(걷기 단계 용도는 `steps_stage:<날짜>:<단계>`). 정확한 이름이 먼저, 접두끼리는 더 긴 쪽이 먼저.
+2. **조용히 지우지 않는다**: 표에 없는 용도의 기록은 **남겨 두고**(24시간 뒤 정리) `onUndeclared(row)` 로 알린다(실행마다 용도당 한 번). 기록을 지우려면 `{ kind: 'skip', why }` 로 **선언**한다(앱이 로컬로 지급하는 용도 · 복권처럼 다른 곳이 되살리는 용도). 꿀꿀의 `if (!claim) { remove }` 가 이 함정이었다.
+3. **확인 경로 없음(null)**: `seen` 이 `null` 이면 청구 경로가 서버 확인을 대신해 바로 청구한다(꿀꿀 방식). `false` 는 아직 안 온 것이라 남긴다.
+
+### 쓰는 법
+```ts
+const pending = createPendingAds(AsyncStorageLike, 'cp.pendingAds');       // 앱의 기존 저장소 키를 그대로 쓰면 이미 쌓인 기록이 이어진다
+const recover = createAdRecovery();                                         // 앱 시작 때(홈 진입) 한 번
+await recover({
+  pending, memberId, refresh, say,
+  seen: (row) => adSeen(row.purpose, Math.floor(row.openedAt / 1000)),      // true / false / null — since 는 초 단위
+  purposes: {
+    ticket: { kind: 'claim', claim: (key) => receiveWind(key, key, 'ticket') },
+    'steps_stage:*': { kind: 'claim', claim: (key, row) => claimStepsByPurpose(row.purpose) },
+    lottery_basic: { kind: 'skip', why: '복권 쪽이 되살린다' },
+    scratch: { kind: 'skip', why: '앱이 로컬로 지급' },
+  },
+  onUndeclared: (row) => log('undeclared ad purpose', row.purpose),
+});
+```
+앱의 시험에 `expect(undeclaredPurposes(앱의 용도 이름 목록, purposes)).toEqual([])` 한 줄을 두면 **새 용도를 추가하면서 복구를 빼먹는 일**이 시험에서 걸린다.
+
+### 앱마다 바뀌는 것(코드로 확인한 것만)
+캐시팡팡 `pendingAd.ts`(`cp.pendingAds`) · 용돈캡슐 `pendingAd.ts`(`mc.pendingAds`) · 꿀꿀 `pendingAd.ts`(`pc.pendingAds`) 는 거의 같은 모양이라 파일을 지우고 이 패키지로 바꾸면 된다. 당근(`cc.openedAd.v1`) · 감자밭(`potatofarm.ad-pending.v1`) · 머니트리(`mt.openedAds.v1`) · 영테크(`yt.adOpened.v1`) · 꾹테크(`stamptech.openedAds.v1`) · 에그머니(청구 장부) · 꼬꼬(`@kkokko/opened-ad/v1`)는 **기록 모양이 달라**(청구 경로 · 인자를 기록에 같이 저장하는 방식 등) 어댑터가 더 필요하다 — 다음 판(0.3.0, 「기록형」/「청구 대기형」 어댑터). 기록 저장 키를 바꾸면 쌓인 기록이 끊기므로 키는 그대로 둔다.

@@ -1,0 +1,108 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.SETTLED_CODES = exports.MAX_PENDING_AGE = void 0;
+exports.createPendingAds = createPendingAds;
+exports.resolvePurpose = resolvePurpose;
+exports.undeclaredPurposes = undeclaredPurposes;
+exports.createAdRecovery = createAdRecovery;
+exports.MAX_PENDING_AGE = 24 * 60 * 60 * 1000;
+/** 열린 광고 기록 저장소 — 같은 id 는 한 건만, 종료하면 지우고, 24시간 지난 것은 목록을 읽을 때 정리한다. 쓰기는 순서대로 한 줄로 선다. */
+function createPendingAds(storage, key) {
+    let queue = Promise.resolve();
+    const serial = (f) => {
+        const p = queue.then(f);
+        queue = p.catch(() => undefined);
+        return p;
+    };
+    const read = async () => {
+        const raw = await storage.get(key);
+        try {
+            const rows = JSON.parse(raw ?? '[]');
+            return Array.isArray(rows)
+                ? rows.filter((r) => !!r && typeof r.id === 'string' && typeof r.purpose === 'string' && typeof r.memberId === 'string' && Number.isFinite(r.openedAt))
+                : [];
+        }
+        catch {
+            return [];
+        }
+    };
+    const write = (rows) => storage.set(key, JSON.stringify(rows));
+    return {
+        add: (row) => serial(async () => { const rows = await read(); if (!rows.some((r) => r.id === row.id))
+            await write([...rows, row]); }),
+        remove: (id) => serial(async () => write((await read()).filter((r) => r.id !== id))),
+        list: (now = Date.now()) => serial(async () => { const rows = (await read()).filter((r) => now - r.openedAt < exports.MAX_PENDING_AGE); await write(rows); return rows; }),
+    };
+}
+function resolvePurpose(table, purpose) {
+    if (Object.prototype.hasOwnProperty.call(table, purpose))
+        return table[purpose];
+    let best;
+    for (const name of Object.keys(table)) {
+        if (!name.endsWith('*') || name.length < 2)
+            continue;
+        const prefix = name.slice(0, -1);
+        if (purpose.startsWith(prefix) && (best === undefined || prefix.length > best.length - 1))
+            best = name;
+    }
+    return best === undefined ? undefined : table[best];
+}
+/** 앱의 시험용: 앱이 광고에 쓰는 용도 이름 목록 가운데 표에 선언되지 않은 것(예: 접미사 붙은 용도는 대표 이름 하나를 넣는다). 비어 있어야 한다. */
+function undeclaredPurposes(purposes, table) {
+    return purposes.filter((purpose) => resolvePurpose(table, purpose) === undefined);
+}
+/** 서버가 「이미 처리됨」이라고 답한 오류 코드 — 기록을 지운다. 그 밖의 오류(네트워크 · 시간 초과)는 남겨서 다음 실행에 다시 시도한다. */
+exports.SETTLED_CODES = /^(no_ad|duplicate|already|already_processed|already_claimed)$/;
+/** 앱당 한 번, 순차 실행. 실패한 네트워크 요청은 다음 실행에서 같은 키로 재시도한다. */
+function createAdRecovery() {
+    let started = false;
+    return async (o) => {
+        if (started)
+            return;
+        started = true;
+        let rewarded = false;
+        const warned = new Set();
+        for (const row of await o.pending.list()) {
+            if (row.memberId !== o.memberId)
+                continue;
+            const rule = resolvePurpose(o.purposes, row.purpose);
+            if (!rule) {
+                if (!warned.has(row.purpose)) {
+                    warned.add(row.purpose);
+                    try {
+                        o.onUndeclared?.(row);
+                    }
+                    catch { /* 알림이 복구를 막지 않는다 */ }
+                }
+                continue;
+            }
+            if (rule.kind === 'skip') {
+                await o.pending.remove(row.id);
+                continue;
+            }
+            try {
+                if ((await o.seen(row)) === false)
+                    continue;
+                const result = await rule.claim('ad-recovery:' + row.id, row);
+                await o.pending.remove(row.id);
+                // 청구가 던지지 않고 { ok: false } 로 거절하는 경우(예: 뽑기) — 받은 것이 아니므로 안내하지 않고 조용히 지운다
+                if (result?.ok === false)
+                    continue;
+                rewarded = true;
+            }
+            catch (e) {
+                const code = e?.code ?? '';
+                if (exports.SETTLED_CODES.test(code))
+                    await o.pending.remove(row.id);
+            }
+        }
+        if (rewarded) {
+            try {
+                await o.refresh();
+            }
+            finally {
+                o.say(o.message ?? '광고 보상을 받았어요');
+            }
+        }
+    };
+}

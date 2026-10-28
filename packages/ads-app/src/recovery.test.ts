@@ -1,0 +1,96 @@
+import { describe, expect, it, vi } from 'vitest';
+import { createAdRecovery, createPendingAds, MAX_PENDING_AGE, resolvePurpose, undeclaredPurposes, type PurposeTable } from './recovery';
+
+const memory = () => { const store = new Map<string, string>(); return { store, storage: { get: async (k: string) => store.get(k) ?? null, set: async (k: string, v: string) => { store.set(k, v); } } }; };
+const setup = () => createPendingAds(memory().storage, 'test.pendingAds');
+const row = { id: 'unique', purpose: 'ticket', memberId: '7', openedAt: Date.now() };
+const claimRule = (claim: (key: string) => Promise<unknown>) => ({ kind: 'claim' as const, claim });
+
+describe('pending ads store (캐시팡팡 pendingAd.ts 시험 이전)', () => {
+  it('같은 열림은 한 건만 저장하고 종료하면 삭제한다', async () => {
+    const p = setup(); await Promise.all([p.add(row), p.add(row)]);
+    expect(await p.list()).toEqual([row]); await p.remove(row.id); expect(await p.list()).toEqual([]);
+  });
+  it('24시간 지난 건을 정리한다', async () => {
+    const p = setup(); await p.add(row); expect(await p.list(row.openedAt + MAX_PENDING_AGE)).toEqual([]);
+  });
+  it('깨진 저장값은 빈 목록으로 읽는다', async () => {
+    const { store, storage } = memory(); store.set('k', '{not json'); expect(await createPendingAds(storage, 'k').list()).toEqual([]);
+  });
+});
+
+describe('createAdRecovery', () => {
+  it.each(['ticket', 'reroll', 'balloon_blow', 'cash', 'draw'])('%s: seen 이면 한 번 청구하고 삭제 · 갱신 · 안내한다 (같은 실행에서 두 번 불러도 한 번)', async (purpose) => {
+    const pending = setup(); await pending.add({ ...row, purpose });
+    const claim = vi.fn(async () => {}); const refresh = vi.fn(async () => {}); const say = vi.fn();
+    const run = createAdRecovery();
+    const o = { pending, memberId: '7', seen: async () => true, purposes: { [purpose]: claimRule(claim) }, refresh, say };
+    await Promise.all([run(o), run(o)]);
+    expect(claim).toHaveBeenCalledTimes(1); expect(claim).toHaveBeenCalledWith('ad-recovery:unique', expect.objectContaining({ id: 'unique' }));
+    expect(await pending.list()).toEqual([]); expect(refresh).toHaveBeenCalledTimes(1); expect(say).toHaveBeenCalledWith('광고 보상을 받았어요');
+  });
+  it.each(['no_ad', 'duplicate', 'already', 'already_claimed', 'network', 'timeout'])('오류 %s 의 보존 여부', async (code) => {
+    const pending = setup(); await pending.add(row); const say = vi.fn();
+    await createAdRecovery()({ pending, memberId: '7', seen: async () => true, purposes: { ticket: claimRule(async () => { throw { code }; }) }, refresh: async () => {}, say });
+    expect((await pending.list()).length).toBe(['network', 'timeout'].includes(code) ? 1 : 0); expect(say).not.toHaveBeenCalled();
+  });
+  it('SSV 가 아직 없으면(false) 청구하지 않고 보존한다', async () => {
+    const pending = setup(); await pending.add(row); const claim = vi.fn();
+    await createAdRecovery()({ pending, memberId: '7', seen: async () => false, purposes: { ticket: claimRule(claim) }, refresh: async () => {}, say: vi.fn() });
+    expect(claim).not.toHaveBeenCalled(); expect(await pending.list()).toEqual([row]);
+  });
+  it('확인 경로가 없으면(null) 청구 경로가 서버 확인을 대신해 바로 청구한다 (꿀꿀 방식)', async () => {
+    const pending = setup(); await pending.add(row); const claim = vi.fn(async () => ({}));
+    await createAdRecovery()({ pending, memberId: '7', seen: async () => null, purposes: { ticket: claimRule(claim) }, refresh: async () => {}, say: vi.fn() });
+    expect(claim).toHaveBeenCalledTimes(1); expect(await pending.list()).toEqual([]);
+  });
+  it('청구가 ok:false 로 거절하면(뽑기) 안내 · 새로고침 없이 조용히 지운다', async () => {
+    const pending = setup(); await pending.add({ ...row, purpose: 'draw' }); const say = vi.fn(); const refresh = vi.fn(async () => {});
+    await createAdRecovery()({ pending, memberId: '7', seen: async () => true, purposes: { draw: claimRule(async () => ({ ok: false })) }, refresh, say });
+    expect(say).not.toHaveBeenCalled(); expect(refresh).not.toHaveBeenCalled(); expect(await pending.list()).toEqual([]);
+  });
+  it('다른 회원의 기록은 건드리지 않는다', async () => {
+    const pending = setup(); await pending.add({ ...row, memberId: '9' }); const claim = vi.fn();
+    await createAdRecovery()({ pending, memberId: '7', seen: async () => true, purposes: { ticket: claimRule(claim) }, refresh: async () => {}, say: vi.fn() });
+    expect(claim).not.toHaveBeenCalled(); expect(await pending.list()).toHaveLength(1);
+  });
+});
+
+describe('용도 표 — 접두 일치 · 선언 (0.2.0 의 달라진 점)', () => {
+  const table = (claim: () => Promise<unknown>): PurposeTable => ({ 'steps_stage:*': claimRule(claim), 'steps_stage:2026-10-28:*': { kind: 'skip', why: 'x' }, ticket: claimRule(claim) });
+  it('이름 정확 일치가 접두보다 먼저, 접두끼리는 더 긴 쪽이 먼저', () => {
+    const t: PurposeTable = { 'a:*': claimRule(async () => 1), 'a:b:*': { kind: 'skip', why: 's' }, 'a:b:c': claimRule(async () => 2) };
+    expect(resolvePurpose(t, 'a:b:c')?.kind).toBe('claim');
+    expect(resolvePurpose(t, 'a:b:d')?.kind).toBe('skip');
+    expect(resolvePurpose(t, 'a:z')?.kind).toBe('claim');
+    expect(resolvePurpose(t, 'b:z')).toBeUndefined();
+    expect(resolvePurpose({ '*': claimRule(async () => 1) }, 'anything')).toBeUndefined();   // 접두가 비어 있는 별표는 쓰지 않는다
+  });
+  it('걷기 단계 용도 steps_stage:<날짜>:<단계> 가 접두 갈래로 청구된다 — 꿀꿀의 「이름이 없어 조용히 삭제」가 없다', async () => {
+    const pending = setup(); await pending.add({ ...row, id: 'w1', purpose: 'steps_stage:2026-10-27:stage_2' });
+    const claim = vi.fn(async () => ({}));
+    await createAdRecovery()({ pending, memberId: '7', seen: async () => true, purposes: { 'steps_stage:*': claimRule(claim) }, refresh: async () => {}, say: vi.fn() });
+    expect(claim).toHaveBeenCalledWith('ad-recovery:w1', expect.objectContaining({ purpose: 'steps_stage:2026-10-27:stage_2' })); expect(await pending.list()).toEqual([]);
+  });
+  it('선언 안 된 용도는 지우지 않고 남기며 실행마다 용도당 한 번 알린다 (청구 · 확인도 안 한다)', async () => {
+    const pending = setup(); await pending.add({ ...row, id: 'u1', purpose: 'mystery' }); await pending.add({ ...row, id: 'u2', purpose: 'mystery' });
+    const seen = vi.fn(async () => true); const onUndeclared = vi.fn();
+    await createAdRecovery()({ pending, memberId: '7', seen, purposes: {}, refresh: async () => {}, say: vi.fn(), onUndeclared });
+    expect(onUndeclared).toHaveBeenCalledTimes(1); expect(onUndeclared).toHaveBeenCalledWith(expect.objectContaining({ purpose: 'mystery' }));
+    expect(seen).not.toHaveBeenCalled(); expect((await pending.list()).map((r) => r.id)).toEqual(['u1', 'u2']);
+  });
+  it('onUndeclared 가 던져도 복구는 계속된다', async () => {
+    const pending = setup(); await pending.add({ ...row, id: 'u1', purpose: 'mystery' }); await pending.add(row); const claim = vi.fn(async () => ({}));
+    await createAdRecovery()({ pending, memberId: '7', seen: async () => true, purposes: { ticket: claimRule(claim) }, refresh: async () => {}, say: vi.fn(), onUndeclared: () => { throw new Error('log failed'); } });
+    expect(claim).toHaveBeenCalledTimes(1);
+  });
+  it('skip 으로 선언한 용도의 기록은 확인 · 청구 없이 지운다 (캐시팡팡 「미지원 용도」 시험의 선언판)', async () => {
+    const pending = setup(); await pending.add({ ...row, purpose: 'lottery_basic' }); const seen = vi.fn(); const onUndeclared = vi.fn();
+    await createAdRecovery()({ pending, memberId: '7', seen, purposes: { lottery_basic: { kind: 'skip', why: '복권 쪽이 되살린다' } }, refresh: async () => {}, say: vi.fn(), onUndeclared });
+    expect(seen).not.toHaveBeenCalled(); expect(onUndeclared).not.toHaveBeenCalled(); expect(await pending.list()).toEqual([]);
+  });
+  it('undeclaredPurposes: 앱의 용도 목록에서 표에 빠진 이름을 찾아 준다 (앱 시험용)', () => {
+    expect(undeclaredPurposes(['ticket', 'steps_stage:2026-10-28:stage_1', 'shake', 'meal'], table(async () => 1))).toEqual(['shake', 'meal']);
+    expect(undeclaredPurposes([], {})).toEqual([]);
+  });
+});
