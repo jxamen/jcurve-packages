@@ -38,7 +38,7 @@ export type StepsPageProps = {
   /** 광고 자리 — 앱이 네이티브 광고를 넣는다(패키지는 광고를 모른다). 0.4.6 부터 「남은 횟수」 카드 아래 · 「만보기 안내사항」 위 */
   footer?: ReactNode;
   /**
-   * (0.7.18 · 0.4.16-mc2, 대표님 10-28 21:26~27 · 전 앱 같은 모양) **기본 true**: 위쪽 큰 걸음 수 · 말풍선을 없애고 「남은 횟수」 카드 한 장 안에 합친다 — 「오늘 걸음 N걸음」 · 「남은 횟수 N번」 · 설명 한 줄 ·
+   * (-mc2, 대표님 10-28 21:26~27 · 전 앱 같은 모양) **기본 true**: 위쪽 큰 걸음 수 · 말풍선을 없애고 「남은 횟수」 카드 한 장 안에 합친다 — 「오늘 걸음 N걸음」 · 「남은 횟수 N번」 · 설명 한 줄 ·
    * (받을 횟수가 0일 때만) 상태 줄(다음 걸음까지 / 다 받음) · 단추. `false` 를 주면 예전 모양(위 큰 걸음 수 + 말풍선, 카드에는 남은 횟수부터)으로 되돌린다.
    */
   mergedCard?: boolean;
@@ -77,7 +77,10 @@ export function StepsPage({ todaySteps, stages, earnedToday = 0, stepsAvailable,
     }
   };
 
-  return <PageFrame title={title} onBack={onBack} swipeBack={swipeBack} theme={theme}>
+  // (-mc3, 대표님 10-29 09:01) 합친 카드가 맨 위일 때 머리 줄 바로 밑에 12pt: 본문 위 여백 16 대신 4 + 카드의 marginTop 8. 카드 위에 다른 줄이 있으면(옛 빌드 안내 · 받기 실패 안내) 그
+  // 줄이 맨 위라서 여백을 줄이지 않는다(그대로 16). 옛 모양(mergedCard={false})도 그대로 16.
+  const cardFirst = mergedCard && stepsAvailable && !failed;
+  return <PageFrame title={title} onBack={onBack} swipeBack={swipeBack} theme={theme} topGap={cardFirst ? 4 : undefined}>
     {mergedCard ? null : <View style={s.top}>
       <Text style={[s.count, { color: theme.text }]}>{todaySteps.toLocaleString()}<Text style={[s.unit, { color: theme.sub }]}> 걸음</Text></Text>
       <View style={[s.bubble, { backgroundColor: theme.card }]}><Text style={[s.bubbleText, { color: theme.text }]}>{stepsBubble({ available: stepsAvailable, todaySteps, stages })}</Text></View>

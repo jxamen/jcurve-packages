@@ -33,7 +33,7 @@ export declare const PAGE_BUTTON: {
  * 독립 페이지 공통 틀 — 상단 「‹ 제목」 한 줄 · 안드로이드 뒤로 가기 → onBack · 본문 스크롤 · 맨 아래 광고 자리(footer).
  * 상태 표시줄 안전영역은 앱 바깥 틀이 잡는다(carrot PageHeader 와 같은 규칙).
  */
-export declare function PageFrame({ title, onBack, swipeBack, theme, footer, children }: {
+export declare function PageFrame({ title, onBack, swipeBack, theme, footer, topGap, children }: {
     title: string;
     onBack: () => void;
     /**
@@ -44,6 +44,11 @@ export declare function PageFrame({ title, onBack, swipeBack, theme, footer, chi
     theme: MissionPageTheme;
     /** 맨 아래 광고 자리 — 앱이 네이티브 광고를 넣는다(패키지는 광고를 모른다) */
     footer?: ReactNode;
+    /**
+     * (-mc3) 머리 줄 아래 ~ 본문 첫 내용 위 간격(pt). 안 주면 16(지금 그대로 — 다른 페이지 불변). 만보기 합친 카드가 머리 줄 바로 밑에 12pt 로 붙도록 StepsPage 만 4 를 준다.
+     * 0 이상의 숫자일 때만 쓴다(NaN · 음수는 무시하고 16)
+     */
+    topGap?: number;
     children: ReactNode;
 }): React.JSX.Element;
 /** 줄 · 카드 안의 작은 버튼 — 기본 72x34, 끝난 상태는 `done` 바탕 */
