@@ -77,7 +77,10 @@ export function StepsPage({ todaySteps, stages, earnedToday = 0, stepsAvailable,
     }
   };
 
-  return <PageFrame title={title} onBack={onBack} swipeBack={swipeBack} theme={theme}>
+  // (-mc3, 대표님 10-29 09:01) 합친 카드가 맨 위일 때 머리 줄 바로 밑에 12pt: 본문 위 여백 16 대신 4 + 카드의 marginTop 8. 카드 위에 다른 줄이 있으면(옛 빌드 안내 · 받기 실패 안내) 그
+  // 줄이 맨 위라서 여백을 줄이지 않는다(그대로 16). 옛 모양(mergedCard={false})도 그대로 16.
+  const cardFirst = mergedCard && stepsAvailable && !failed;
+  return <PageFrame title={title} onBack={onBack} swipeBack={swipeBack} theme={theme} topGap={cardFirst ? 4 : undefined}>
     {mergedCard ? null : <View style={s.top}>
       <Text style={[s.count, { color: theme.text }]}>{todaySteps.toLocaleString()}<Text style={[s.unit, { color: theme.sub }]}> 걸음</Text></Text>
       <View style={[s.bubble, { backgroundColor: theme.card }]}><Text style={[s.bubbleText, { color: theme.text }]}>{stepsBubble({ available: stepsAvailable, todaySteps, stages })}</Text></View>

@@ -21,6 +21,53 @@ const page = (over: Record<string, unknown> = {}) => nodes(StepsPage({ todayStep
 const strings = (tree: any[]) => tree.filter(x => typeof x === 'string');
 const at = (tree: any[], pred: (n: any) => boolean) => tree.findIndex(pred);
 
+// 머리 줄 아래 ~ 첫 카드 위 간격(-mc3, 대표님 10-29 09:01 「12pt」): 본문 위 여백(PageFrame 기본 16 또는 topGap) + 카드 marginTop 8
+const flatStyle = (style: unknown): Record<string, any> => Object.assign({}, ...([] as unknown[]).concat(style).filter(Boolean));
+const scrollNode = (tree: any[]) => tree.find(n => n?.type === 'ScrollView');
+const claimCardNode = (tree: any[]) => tree.find(n => n?.type === 'View' && flatStyle(n.props.style).borderRadius === 20 && flatStyle(n.props.style).alignItems === 'center' && flatStyle(n.props.style).padding === 20);
+describe('만보기 화면 — 머리 줄과 첫 카드 사이 12pt(-mc3)', () => {
+  it('합친 카드(기본)는 머리 줄 아래 12 — 본문 위 4 + 카드 위 8 — 이고 옆 · 아래 · 카드 사이 여백은 그대로', () => {
+    const tree = page();
+    const content = flatStyle(scrollNode(tree).props.contentContainerStyle);
+    const card = flatStyle(claimCardNode(tree).props.style);
+    expect(content.paddingTop).toBe(4);
+    expect([content.padding, content.paddingBottom, content.gap]).toEqual([16, 40, 12]);
+    expect(content.paddingTop + card.marginTop).toBe(12);
+  });
+  it('mergedCard={false}(옛 모양)는 본문 위 여백이 그대로 16 이다(topGap 을 안 준다)', () => {
+    const tree = page({ mergedCard: false });
+    const content = flatStyle(scrollNode(tree).props.contentContainerStyle);
+    expect(content.paddingTop).toBeUndefined();
+    expect(content.padding).toBe(16);
+  });
+  it('카드 위에 다른 줄이 있으면(옛 빌드 업데이트 안내) 그 줄이 맨 위라서 여백을 줄이지 않는다 — 그대로 16', () => {
+    const tree = page({ stepsAvailable: false });
+    const content = flatStyle(scrollNode(tree).props.contentContainerStyle);
+    expect(content.paddingTop).toBeUndefined();
+    expect(content.padding).toBe(16);
+  });
+  it('받기 실패 안내(카드 위 한 줄)가 있을 때도 그 줄이 맨 위라서 그대로 16 — 안내가 사라지면 다시 12', async () => {
+    const react = await import('react');
+    const spy = vi.spyOn(react, 'useState');
+    // useState 호출 순서: busy, failed — failed 만 켠다
+    let call = 0;
+    spy.mockImplementation(((v: any) => { call += 1; return [call === 2 ? true : v, vi.fn()]; }) as any);
+    try {
+      const tree = page();
+      expect(strings(tree).join('')).toContain('광고 확인이 늦어지고 있어요');
+      expect(flatStyle(scrollNode(tree).props.contentContainerStyle).paddingTop).toBeUndefined();
+    } finally { spy.mockRestore(); }
+    expect(flatStyle(scrollNode(page()).props.contentContainerStyle).paddingTop).toBe(4);
+  });
+  it('카드 ↔ 광고 · 안내 사이는 변하지 않는다(줄 사이 12 · 광고 자리 위 4 그대로)', () => {
+    const tree = page({ footer: React.createElement('NativeAd') });
+    const content = flatStyle(scrollNode(tree).props.contentContainerStyle);
+    expect(content.gap).toBe(12);
+    const adBox = tree.find(n => n?.type === 'View' && flatStyle(n.props.style).marginTop === 4 && React.Children.toArray(n.props.children).some((k: any) => k?.type === 'NativeAd'));
+    expect(adBox).toBeTruthy();
+  });
+});
+
 describe('만보기 화면 — 신발 없음 · 광고는 안내사항 위(0.4.6, 대표님 10-20 19:00)', () => {
   it('신발 그림(👟)이 없다 — 걸음 수와 말풍선은 그대로', () => {
     const tree = page();

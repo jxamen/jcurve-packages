@@ -42,7 +42,7 @@ export const PAGE_BUTTON = { width: 72, height: 34 } as const;
  * 독립 페이지 공통 틀 — 상단 「‹ 제목」 한 줄 · 안드로이드 뒤로 가기 → onBack · 본문 스크롤 · 맨 아래 광고 자리(footer).
  * 상태 표시줄 안전영역은 앱 바깥 틀이 잡는다(carrot PageHeader 와 같은 규칙).
  */
-export function PageFrame({ title, onBack, swipeBack = true, theme, footer, children }: {
+export function PageFrame({ title, onBack, swipeBack = true, theme, footer, topGap, children }: {
   title: string;
   onBack: () => void;
   /**
@@ -53,6 +53,11 @@ export function PageFrame({ title, onBack, swipeBack = true, theme, footer, chil
   theme: MissionPageTheme;
   /** 맨 아래 광고 자리 — 앱이 네이티브 광고를 넣는다(패키지는 광고를 모른다) */
   footer?: ReactNode;
+  /**
+   * (-mc3) 머리 줄 아래 ~ 본문 첫 내용 위 간격(pt). 안 주면 16(지금 그대로 — 다른 페이지 불변). 만보기 합친 카드가 머리 줄 바로 밑에 12pt 로 붙도록 StepsPage 만 4 를 준다.
+   * 0 이상의 숫자일 때만 쓴다(NaN · 음수는 무시하고 16)
+   */
+  topGap?: number;
   children: ReactNode;
 }) {
   useEffect(() => {
@@ -71,7 +76,7 @@ export function PageFrame({ title, onBack, swipeBack = true, theme, footer, chil
       <Text style={[s.title, { color: theme.text }]} numberOfLines={1}>{title}</Text>
       <View style={s.side} />
     </View>
-    <ScrollView contentContainerStyle={s.content}>
+    <ScrollView contentContainerStyle={typeof topGap === 'number' && topGap >= 0 ? [s.content, { paddingTop: topGap }] : s.content}>
       {children}
       {footer != null ? <View style={s.footer}>{footer}</View> : null}
     </ScrollView>

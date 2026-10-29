@@ -14,6 +14,28 @@ const root = (props: Record<string, unknown> = {}): ReactElement<any> =>
   PageFrame({ title: '제목', onBack: vi.fn(), theme: DEFAULT_PAGE_THEME, children: React.createElement('Text', null, '본문'), ...props } as any) as ReactElement<any>;
 const handlerKeys = ['onStartShouldSetPanResponderCapture', 'onMoveShouldSetPanResponderCapture', 'onPanResponderRelease', 'onPanResponderTerminationRequest'];
 
+const flat = (style: unknown): Record<string, any> => Object.assign({}, ...([] as unknown[]).concat(style).filter(Boolean));
+const scrollOf = (r: ReactElement<any>): ReactElement<any> => (React.Children.toArray(r.props.children) as ReactElement<any>[]).find(k => k.type === 'ScrollView')!;
+
+describe('PageFrame topGap(-mc3, 대표님 10-29 만보기 머리 줄 아래 간격)', () => {
+  beforeEach(() => { h.os = 'ios'; h.created.length = 0; });
+  it('안 주면 지금 그대로 — 본문 위 16 · 옆 16 · 아래 40 · 줄 사이 12', () => {
+    const c = scrollOf(root()).props.contentContainerStyle;
+    expect(flat(c)).toEqual({ padding: 16, paddingBottom: 40, gap: 12 });
+    expect(scrollOf(root({ topGap: undefined })).props.contentContainerStyle).toEqual(c);
+  });
+  it('topGap 을 주면 위쪽만 바뀐다 — 옆 · 아래 · 줄 사이는 그대로', () => {
+    for (const gap of [4, 0, 10.5]) {
+      const f = flat(scrollOf(root({ topGap: gap })).props.contentContainerStyle);
+      expect(f.paddingTop).toBe(gap);
+      expect([f.padding, f.paddingBottom, f.gap]).toEqual([16, 40, 12]);
+    }
+  });
+  it('0 이상의 숫자가 아니면 무시한다(NaN · 음수 · 글자 → 16 그대로)', () => {
+    for (const bad of [NaN, -1, '4', null, {}]) expect(flat(scrollOf(root({ topGap: bad })).props.contentContainerStyle).paddingTop).toBeUndefined();
+  });
+});
+
 describe('PageFrame 가장자리 밀기(0.4.13, 대표님 20:xx 하위 화면 iOS 뒤로 밀기 10앱 통일)', () => {
   beforeEach(() => { h.os = 'ios'; h.created.length = 0; });
 
