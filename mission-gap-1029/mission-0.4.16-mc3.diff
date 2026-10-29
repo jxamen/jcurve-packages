@@ -1,0 +1,216 @@
+diff --git a/packages/mission/dist/pages/PageFrame.d.ts b/packages/mission/dist/pages/PageFrame.d.ts
+index 0c50004..baac413 100644
+--- a/packages/mission/dist/pages/PageFrame.d.ts
++++ b/packages/mission/dist/pages/PageFrame.d.ts
+@@ -33,7 +33,7 @@ export declare const PAGE_BUTTON: {
+  * 독립 페이지 공통 틀 — 상단 「‹ 제목」 한 줄 · 안드로이드 뒤로 가기 → onBack · 본문 스크롤 · 맨 아래 광고 자리(footer).
+  * 상태 표시줄 안전영역은 앱 바깥 틀이 잡는다(carrot PageHeader 와 같은 규칙).
+  */
+-export declare function PageFrame({ title, onBack, swipeBack, theme, footer, children }: {
++export declare function PageFrame({ title, onBack, swipeBack, theme, footer, topGap, children }: {
+     title: string;
+     onBack: () => void;
+     /**
+@@ -44,6 +44,11 @@ export declare function PageFrame({ title, onBack, swipeBack, theme, footer, chi
+     theme: MissionPageTheme;
+     /** 맨 아래 광고 자리 — 앱이 네이티브 광고를 넣는다(패키지는 광고를 모른다) */
+     footer?: ReactNode;
++    /**
++     * (-mc3) 머리 줄 아래 ~ 본문 첫 내용 위 간격(pt). 안 주면 16(지금 그대로 — 다른 페이지 불변). 만보기 합친 카드가 머리 줄 바로 밑에 12pt 로 붙도록 StepsPage 만 4 를 준다.
++     * 0 이상의 숫자일 때만 쓴다(NaN · 음수는 무시하고 16)
++     */
++    topGap?: number;
+     children: ReactNode;
+ }): React.JSX.Element;
+ /** 줄 · 카드 안의 작은 버튼 — 기본 72x34, 끝난 상태는 `done` 바탕 */
+diff --git a/packages/mission/dist/pages/PageFrame.js b/packages/mission/dist/pages/PageFrame.js
+index 9c9f31a..4152060 100644
+--- a/packages/mission/dist/pages/PageFrame.js
++++ b/packages/mission/dist/pages/PageFrame.js
+@@ -22,7 +22,7 @@ exports.PAGE_BUTTON = { width: 72, height: 34 };
+  * 독립 페이지 공통 틀 — 상단 「‹ 제목」 한 줄 · 안드로이드 뒤로 가기 → onBack · 본문 스크롤 · 맨 아래 광고 자리(footer).
+  * 상태 표시줄 안전영역은 앱 바깥 틀이 잡는다(carrot PageHeader 와 같은 규칙).
+  */
+-function PageFrame({ title, onBack, swipeBack = true, theme, footer, children }) {
++function PageFrame({ title, onBack, swipeBack = true, theme, footer, topGap, children }) {
+     (0, react_1.useEffect)(() => {
+         const sub = react_native_1.BackHandler.addEventListener('hardwareBackPress', () => { onBack(); return true; });
+         return () => sub.remove();
+@@ -31,7 +31,7 @@ function PageFrame({ title, onBack, swipeBack = true, theme, footer, children })
+     backRef.current = onBack;
+     const edge = (0, react_1.useRef)(react_native_1.PanResponder.create((0, missionNav_1.edgeBackHandlers)(() => backRef.current()))).current;
+     const swipe = swipeBack !== false && react_native_1.Platform.OS === 'ios';
+-    return (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: [s.root, { backgroundColor: theme.bg }], ...(swipe ? edge.panHandlers : {}), children: [(0, jsx_runtime_1.jsxs)(react_native_1.View, { style: s.header, children: [(0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: "\uB4A4\uB85C", hitSlop: 12, onPress: onBack, style: s.side, children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.back, { color: theme.text }], children: "\u2039" }) }), (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.title, { color: theme.text }], numberOfLines: 1, children: title }), (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.side })] }), (0, jsx_runtime_1.jsxs)(react_native_1.ScrollView, { contentContainerStyle: s.content, children: [children, footer != null ? (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.footer, children: footer }) : null] })] });
++    return (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: [s.root, { backgroundColor: theme.bg }], ...(swipe ? edge.panHandlers : {}), children: [(0, jsx_runtime_1.jsxs)(react_native_1.View, { style: s.header, children: [(0, jsx_runtime_1.jsx)(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: "\uB4A4\uB85C", hitSlop: 12, onPress: onBack, style: s.side, children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.back, { color: theme.text }], children: "\u2039" }) }), (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.title, { color: theme.text }], numberOfLines: 1, children: title }), (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.side })] }), (0, jsx_runtime_1.jsxs)(react_native_1.ScrollView, { contentContainerStyle: typeof topGap === 'number' && topGap >= 0 ? [s.content, { paddingTop: topGap }] : s.content, children: [children, footer != null ? (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.footer, children: footer }) : null] })] });
+ }
+ /** 줄 · 카드 안의 작은 버튼 — 기본 72x34, 끝난 상태는 `done` 바탕 */
+ function PageButton({ label, onPress, disabled, theme, width = exports.PAGE_BUTTON.width, height, on = true, big = false, fontSize, radius }) {
+diff --git a/packages/mission/dist/pages/StepsPage.js b/packages/mission/dist/pages/StepsPage.js
+index 46c12bc..d6d5e94 100644
+--- a/packages/mission/dist/pages/StepsPage.js
++++ b/packages/mission/dist/pages/StepsPage.js
+@@ -52,7 +52,10 @@ function StepsPage({ todaySteps, stages, earnedToday = 0, stepsAvailable, onUpda
+             setBusy(false);
+         }
+     };
+-    return (0, jsx_runtime_1.jsxs)(PageFrame_1.PageFrame, { title: title, onBack: onBack, swipeBack: swipeBack, theme: theme, children: [mergedCard ? null : (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: s.top, children: [(0, jsx_runtime_1.jsxs)(react_native_1.Text, { style: [s.count, { color: theme.text }], children: [todaySteps.toLocaleString(), (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.unit, { color: theme.sub }], children: " \uAC78\uC74C" })] }), (0, jsx_runtime_1.jsx)(react_native_1.View, { style: [s.bubble, { backgroundColor: theme.card }], children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.bubbleText, { color: theme.text }], children: (0, logic_1.stepsBubble)({ available: stepsAvailable, todaySteps, stages }) }) })] }), !stepsAvailable ? (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: [s.notice, { backgroundColor: theme.card }], children: [(0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.noticeTitle, { color: theme.text }], children: logic_1.UPDATE_NOTICE }), (0, jsx_runtime_1.jsx)(PageFrame_1.PageButton, { big: true, label: "\uC5C5\uB370\uC774\uD2B8\uD558\uAE30", theme: theme, on: true, onPress: onUpdate })] }) : null, failed ? (0, jsx_runtime_1.jsx)(react_native_1.Text, { accessibilityLiveRegion: "polite", style: [s.message, { color: theme.sub }], children: "\uAD11\uACE0 \uD655\uC778\uC774 \uB2A6\uC5B4\uC9C0\uACE0 \uC788\uC5B4\uC694. \uC7A0\uC2DC \uD6C4 \uB2E4\uC2DC \uB20C\uB7EC \uC8FC\uC138\uC694" }) : null, (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: [s.claimCard, { backgroundColor: theme.card }], children: [mergedCard ? (0, jsx_runtime_1.jsxs)(react_native_1.Text, { style: [s.claimLeft, { color: theme.text }], children: ["\uC624\uB298 \uAC78\uC74C ", (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.claimNum, { color: theme.accent }], children: todaySteps.toLocaleString() }), "\uAC78\uC74C"] }) : null, (0, jsx_runtime_1.jsxs)(react_native_1.Text, { style: [s.claimLeft, { color: theme.text }], children: ["\uB0A8\uC740 \uD69F\uC218 ", (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.claimNum, { color: theme.accent }], children: `${stepsAvailable ? summary.claimable.length : 0}번` })] }), (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.claimSub, { color: theme.sub }], children: `${everySteps.toLocaleString()}걸음마다 광고 보고 ${points}P · 오늘 받은 포인트 ${earnedToday}P` }), status ? (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.claimSub, { color: theme.sub }], children: status }) : null, (0, jsx_runtime_1.jsx)(PageFrame_1.PageButton, { big: true, label: busy ? '확인 중…' : `광고 보고 ${points}P 받기`, theme: theme, on: canClaim || !stepsAvailable, disabled: stepsAvailable && !canClaim, onPress: () => { void claim(); } })] }), footer != null ? (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.ad, children: footer }) : null, (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: [s.guide, { backgroundColor: theme.card }], children: [(0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.guideTitle, { color: theme.text }], children: "\uB9CC\uBCF4\uAE30 \uC548\uB0B4\uC0AC\uD56D" }), guide.map(line => (0, jsx_runtime_1.jsxs)(react_native_1.Text, { style: [s.guideLine, { color: theme.sub }], children: ["\u00B7 ", line] }, line))] })] });
++    // (-mc3, 대표님 10-29 09:01) 합친 카드가 맨 위일 때 머리 줄 바로 밑에 12pt: 본문 위 여백 16 대신 4 + 카드의 marginTop 8. 카드 위에 다른 줄이 있으면(옛 빌드 안내 · 받기 실패 안내) 그
++    // 줄이 맨 위라서 여백을 줄이지 않는다(그대로 16). 옛 모양(mergedCard={false})도 그대로 16.
++    const cardFirst = mergedCard && stepsAvailable && !failed;
++    return (0, jsx_runtime_1.jsxs)(PageFrame_1.PageFrame, { title: title, onBack: onBack, swipeBack: swipeBack, theme: theme, topGap: cardFirst ? 4 : undefined, children: [mergedCard ? null : (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: s.top, children: [(0, jsx_runtime_1.jsxs)(react_native_1.Text, { style: [s.count, { color: theme.text }], children: [todaySteps.toLocaleString(), (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.unit, { color: theme.sub }], children: " \uAC78\uC74C" })] }), (0, jsx_runtime_1.jsx)(react_native_1.View, { style: [s.bubble, { backgroundColor: theme.card }], children: (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.bubbleText, { color: theme.text }], children: (0, logic_1.stepsBubble)({ available: stepsAvailable, todaySteps, stages }) }) })] }), !stepsAvailable ? (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: [s.notice, { backgroundColor: theme.card }], children: [(0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.noticeTitle, { color: theme.text }], children: logic_1.UPDATE_NOTICE }), (0, jsx_runtime_1.jsx)(PageFrame_1.PageButton, { big: true, label: "\uC5C5\uB370\uC774\uD2B8\uD558\uAE30", theme: theme, on: true, onPress: onUpdate })] }) : null, failed ? (0, jsx_runtime_1.jsx)(react_native_1.Text, { accessibilityLiveRegion: "polite", style: [s.message, { color: theme.sub }], children: "\uAD11\uACE0 \uD655\uC778\uC774 \uB2A6\uC5B4\uC9C0\uACE0 \uC788\uC5B4\uC694. \uC7A0\uC2DC \uD6C4 \uB2E4\uC2DC \uB20C\uB7EC \uC8FC\uC138\uC694" }) : null, (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: [s.claimCard, { backgroundColor: theme.card }], children: [mergedCard ? (0, jsx_runtime_1.jsxs)(react_native_1.Text, { style: [s.claimLeft, { color: theme.text }], children: ["\uC624\uB298 \uAC78\uC74C ", (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.claimNum, { color: theme.accent }], children: todaySteps.toLocaleString() }), "\uAC78\uC74C"] }) : null, (0, jsx_runtime_1.jsxs)(react_native_1.Text, { style: [s.claimLeft, { color: theme.text }], children: ["\uB0A8\uC740 \uD69F\uC218 ", (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.claimNum, { color: theme.accent }], children: `${stepsAvailable ? summary.claimable.length : 0}번` })] }), (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.claimSub, { color: theme.sub }], children: `${everySteps.toLocaleString()}걸음마다 광고 보고 ${points}P · 오늘 받은 포인트 ${earnedToday}P` }), status ? (0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.claimSub, { color: theme.sub }], children: status }) : null, (0, jsx_runtime_1.jsx)(PageFrame_1.PageButton, { big: true, label: busy ? '확인 중…' : `광고 보고 ${points}P 받기`, theme: theme, on: canClaim || !stepsAvailable, disabled: stepsAvailable && !canClaim, onPress: () => { void claim(); } })] }), footer != null ? (0, jsx_runtime_1.jsx)(react_native_1.View, { style: s.ad, children: footer }) : null, (0, jsx_runtime_1.jsxs)(react_native_1.View, { style: [s.guide, { backgroundColor: theme.card }], children: [(0, jsx_runtime_1.jsx)(react_native_1.Text, { style: [s.guideTitle, { color: theme.text }], children: "\uB9CC\uBCF4\uAE30 \uC548\uB0B4\uC0AC\uD56D" }), guide.map(line => (0, jsx_runtime_1.jsxs)(react_native_1.Text, { style: [s.guideLine, { color: theme.sub }], children: ["\u00B7 ", line] }, line))] })] });
+ }
+ const s = react_native_1.StyleSheet.create({
+     top: { alignItems: 'center', paddingTop: 8 },
+diff --git a/packages/mission/package.json b/packages/mission/package.json
+index e55dd7a..7f848a7 100644
+--- a/packages/mission/package.json
++++ b/packages/mission/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "@jcurve/mission",
+-  "version": "0.4.16-mc2",
++  "version": "0.4.16-mc3",
+   "description": "공용 미션 카드 페이지 · 쇼핑 미션 화면 · APIHUB 웹뷰와 브릿지",
+   "main": "dist/index.js",
+   "types": "dist/index.d.ts",
+diff --git a/packages/mission/src/pages/PageFrame.test.ts b/packages/mission/src/pages/PageFrame.test.ts
+index d8ed2e3..efc2cb7 100644
+--- a/packages/mission/src/pages/PageFrame.test.ts
++++ b/packages/mission/src/pages/PageFrame.test.ts
+@@ -14,6 +14,28 @@ const root = (props: Record<string, unknown> = {}): ReactElement<any> =>
+   PageFrame({ title: '제목', onBack: vi.fn(), theme: DEFAULT_PAGE_THEME, children: React.createElement('Text', null, '본문'), ...props } as any) as ReactElement<any>;
+ const handlerKeys = ['onStartShouldSetPanResponderCapture', 'onMoveShouldSetPanResponderCapture', 'onPanResponderRelease', 'onPanResponderTerminationRequest'];
+ 
++const flat = (style: unknown): Record<string, any> => Object.assign({}, ...([] as unknown[]).concat(style).filter(Boolean));
++const scrollOf = (r: ReactElement<any>): ReactElement<any> => (React.Children.toArray(r.props.children) as ReactElement<any>[]).find(k => k.type === 'ScrollView')!;
++
++describe('PageFrame topGap(-mc3, 대표님 10-29 만보기 머리 줄 아래 간격)', () => {
++  beforeEach(() => { h.os = 'ios'; h.created.length = 0; });
++  it('안 주면 지금 그대로 — 본문 위 16 · 옆 16 · 아래 40 · 줄 사이 12', () => {
++    const c = scrollOf(root()).props.contentContainerStyle;
++    expect(flat(c)).toEqual({ padding: 16, paddingBottom: 40, gap: 12 });
++    expect(scrollOf(root({ topGap: undefined })).props.contentContainerStyle).toEqual(c);
++  });
++  it('topGap 을 주면 위쪽만 바뀐다 — 옆 · 아래 · 줄 사이는 그대로', () => {
++    for (const gap of [4, 0, 10.5]) {
++      const f = flat(scrollOf(root({ topGap: gap })).props.contentContainerStyle);
++      expect(f.paddingTop).toBe(gap);
++      expect([f.padding, f.paddingBottom, f.gap]).toEqual([16, 40, 12]);
++    }
++  });
++  it('0 이상의 숫자가 아니면 무시한다(NaN · 음수 · 글자 → 16 그대로)', () => {
++    for (const bad of [NaN, -1, '4', null, {}]) expect(flat(scrollOf(root({ topGap: bad })).props.contentContainerStyle).paddingTop).toBeUndefined();
++  });
++});
++
+ describe('PageFrame 가장자리 밀기(0.4.13, 대표님 20:xx 하위 화면 iOS 뒤로 밀기 10앱 통일)', () => {
+   beforeEach(() => { h.os = 'ios'; h.created.length = 0; });
+ 
+diff --git a/packages/mission/src/pages/PageFrame.tsx b/packages/mission/src/pages/PageFrame.tsx
+index 542cc04..72b46d0 100644
+--- a/packages/mission/src/pages/PageFrame.tsx
++++ b/packages/mission/src/pages/PageFrame.tsx
+@@ -42,7 +42,7 @@ export const PAGE_BUTTON = { width: 72, height: 34 } as const;
+  * 독립 페이지 공통 틀 — 상단 「‹ 제목」 한 줄 · 안드로이드 뒤로 가기 → onBack · 본문 스크롤 · 맨 아래 광고 자리(footer).
+  * 상태 표시줄 안전영역은 앱 바깥 틀이 잡는다(carrot PageHeader 와 같은 규칙).
+  */
+-export function PageFrame({ title, onBack, swipeBack = true, theme, footer, children }: {
++export function PageFrame({ title, onBack, swipeBack = true, theme, footer, topGap, children }: {
+   title: string;
+   onBack: () => void;
+   /**
+@@ -53,6 +53,11 @@ export function PageFrame({ title, onBack, swipeBack = true, theme, footer, chil
+   theme: MissionPageTheme;
+   /** 맨 아래 광고 자리 — 앱이 네이티브 광고를 넣는다(패키지는 광고를 모른다) */
+   footer?: ReactNode;
++  /**
++   * (-mc3) 머리 줄 아래 ~ 본문 첫 내용 위 간격(pt). 안 주면 16(지금 그대로 — 다른 페이지 불변). 만보기 합친 카드가 머리 줄 바로 밑에 12pt 로 붙도록 StepsPage 만 4 를 준다.
++   * 0 이상의 숫자일 때만 쓴다(NaN · 음수는 무시하고 16)
++   */
++  topGap?: number;
+   children: ReactNode;
+ }) {
+   useEffect(() => {
+@@ -71,7 +76,7 @@ export function PageFrame({ title, onBack, swipeBack = true, theme, footer, chil
+       <Text style={[s.title, { color: theme.text }]} numberOfLines={1}>{title}</Text>
+       <View style={s.side} />
+     </View>
+-    <ScrollView contentContainerStyle={s.content}>
++    <ScrollView contentContainerStyle={typeof topGap === 'number' && topGap >= 0 ? [s.content, { paddingTop: topGap }] : s.content}>
+       {children}
+       {footer != null ? <View style={s.footer}>{footer}</View> : null}
+     </ScrollView>
+diff --git a/packages/mission/src/pages/StepsPage.test.ts b/packages/mission/src/pages/StepsPage.test.ts
+index da925bd..3c8f289 100644
+--- a/packages/mission/src/pages/StepsPage.test.ts
++++ b/packages/mission/src/pages/StepsPage.test.ts
+@@ -21,6 +21,53 @@ const page = (over: Record<string, unknown> = {}) => nodes(StepsPage({ todayStep
+ const strings = (tree: any[]) => tree.filter(x => typeof x === 'string');
+ const at = (tree: any[], pred: (n: any) => boolean) => tree.findIndex(pred);
+ 
++// 머리 줄 아래 ~ 첫 카드 위 간격(-mc3, 대표님 10-29 09:01 「12pt」): 본문 위 여백(PageFrame 기본 16 또는 topGap) + 카드 marginTop 8
++const flatStyle = (style: unknown): Record<string, any> => Object.assign({}, ...([] as unknown[]).concat(style).filter(Boolean));
++const scrollNode = (tree: any[]) => tree.find(n => n?.type === 'ScrollView');
++const claimCardNode = (tree: any[]) => tree.find(n => n?.type === 'View' && flatStyle(n.props.style).borderRadius === 20 && flatStyle(n.props.style).alignItems === 'center' && flatStyle(n.props.style).padding === 20);
++describe('만보기 화면 — 머리 줄과 첫 카드 사이 12pt(-mc3)', () => {
++  it('합친 카드(기본)는 머리 줄 아래 12 — 본문 위 4 + 카드 위 8 — 이고 옆 · 아래 · 카드 사이 여백은 그대로', () => {
++    const tree = page();
++    const content = flatStyle(scrollNode(tree).props.contentContainerStyle);
++    const card = flatStyle(claimCardNode(tree).props.style);
++    expect(content.paddingTop).toBe(4);
++    expect([content.padding, content.paddingBottom, content.gap]).toEqual([16, 40, 12]);
++    expect(content.paddingTop + card.marginTop).toBe(12);
++  });
++  it('mergedCard={false}(옛 모양)는 본문 위 여백이 그대로 16 이다(topGap 을 안 준다)', () => {
++    const tree = page({ mergedCard: false });
++    const content = flatStyle(scrollNode(tree).props.contentContainerStyle);
++    expect(content.paddingTop).toBeUndefined();
++    expect(content.padding).toBe(16);
++  });
++  it('카드 위에 다른 줄이 있으면(옛 빌드 업데이트 안내) 그 줄이 맨 위라서 여백을 줄이지 않는다 — 그대로 16', () => {
++    const tree = page({ stepsAvailable: false });
++    const content = flatStyle(scrollNode(tree).props.contentContainerStyle);
++    expect(content.paddingTop).toBeUndefined();
++    expect(content.padding).toBe(16);
++  });
++  it('받기 실패 안내(카드 위 한 줄)가 있을 때도 그 줄이 맨 위라서 그대로 16 — 안내가 사라지면 다시 12', async () => {
++    const react = await import('react');
++    const spy = vi.spyOn(react, 'useState');
++    // useState 호출 순서: busy, failed — failed 만 켠다
++    let call = 0;
++    spy.mockImplementation(((v: any) => { call += 1; return [call === 2 ? true : v, vi.fn()]; }) as any);
++    try {
++      const tree = page();
++      expect(strings(tree).join('')).toContain('광고 확인이 늦어지고 있어요');
++      expect(flatStyle(scrollNode(tree).props.contentContainerStyle).paddingTop).toBeUndefined();
++    } finally { spy.mockRestore(); }
++    expect(flatStyle(scrollNode(page()).props.contentContainerStyle).paddingTop).toBe(4);
++  });
++  it('카드 ↔ 광고 · 안내 사이는 변하지 않는다(줄 사이 12 · 광고 자리 위 4 그대로)', () => {
++    const tree = page({ footer: React.createElement('NativeAd') });
++    const content = flatStyle(scrollNode(tree).props.contentContainerStyle);
++    expect(content.gap).toBe(12);
++    const adBox = tree.find(n => n?.type === 'View' && flatStyle(n.props.style).marginTop === 4 && React.Children.toArray(n.props.children).some((k: any) => k?.type === 'NativeAd'));
++    expect(adBox).toBeTruthy();
++  });
++});
++
+ describe('만보기 화면 — 신발 없음 · 광고는 안내사항 위(0.4.6, 대표님 10-20 19:00)', () => {
+   it('신발 그림(👟)이 없다 — 걸음 수와 말풍선은 그대로', () => {
+     const tree = page();
+diff --git a/packages/mission/src/pages/StepsPage.tsx b/packages/mission/src/pages/StepsPage.tsx
+index 0459f92..31539b8 100644
+--- a/packages/mission/src/pages/StepsPage.tsx
++++ b/packages/mission/src/pages/StepsPage.tsx
+@@ -77,7 +77,10 @@ export function StepsPage({ todaySteps, stages, earnedToday = 0, stepsAvailable,
+     }
+   };
+ 
+-  return <PageFrame title={title} onBack={onBack} swipeBack={swipeBack} theme={theme}>
++  // (-mc3, 대표님 10-29 09:01) 합친 카드가 맨 위일 때 머리 줄 바로 밑에 12pt: 본문 위 여백 16 대신 4 + 카드의 marginTop 8. 카드 위에 다른 줄이 있으면(옛 빌드 안내 · 받기 실패 안내) 그
++  // 줄이 맨 위라서 여백을 줄이지 않는다(그대로 16). 옛 모양(mergedCard={false})도 그대로 16.
++  const cardFirst = mergedCard && stepsAvailable && !failed;
++  return <PageFrame title={title} onBack={onBack} swipeBack={swipeBack} theme={theme} topGap={cardFirst ? 4 : undefined}>
+     {mergedCard ? null : <View style={s.top}>
+       <Text style={[s.count, { color: theme.text }]}>{todaySteps.toLocaleString()}<Text style={[s.unit, { color: theme.sub }]}> 걸음</Text></Text>
+       <View style={[s.bubble, { backgroundColor: theme.card }]}><Text style={[s.bubbleText, { color: theme.text }]}>{stepsBubble({ available: stepsAvailable, todaySteps, stages })}</Text></View>

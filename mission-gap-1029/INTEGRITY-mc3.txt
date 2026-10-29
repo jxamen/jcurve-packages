@@ -1,0 +1,51 @@
+# @jcurve/mission 만보기 머리 줄 ↔ 첫 카드 간격 12pt (-mc3) — 해시는 파일에서 계산한 값. 락은 npm install 이 만든 값을 쓰고 손으로 적지 말 것.
+
+# 각 -mc3 는 같은 이름의 -mc2 와 다른 멤버가 8개뿐이다: package.json(version 만) · src/pages/PageFrame.tsx · src/pages/PageFrame.test.ts · src/pages/StepsPage.tsx · src/pages/StepsPage.test.ts · dist/pages/PageFrame.js · dist/pages/PageFrame.d.ts · dist/pages/StepsPage.js. 나머지 멤버(README · 그 밖의 모든 JS · 네이티브 파일 없음)는 바이트 · 헤더까지 동일.
+
+jcurve-mission-0.4.19-mc3.tgz
+  version  0.4.19-mc3
+  base     jcurve-mission-0.4.19-mc2.tgz
+  members  129 (같음) · -mc2 와 다른 멤버 8
+  sha256   74144525c338451598d908697e2bdd2905c33934115a9a818cae4deb5112f913
+  integrity sha512-HXG8uFGIJlDpzxI0DQdw3/eUEXQfXDWtb6r/Vod2C1uenPC9+L6sQ1LnXyHjexyZHw9qyCIOQPKdfVaLnP790w==
+  apps     머니트리 iOS 1.0.9/1.0.10
+
+jcurve-mission-0.4.17-mc3.tgz
+  version  0.4.17-mc3
+  base     jcurve-mission-0.4.17-mc2.tgz
+  members  122 (같음) · -mc2 와 다른 멤버 8
+  sha256   63e31949fa564052b0abb569441a7f1c987bc561e5abeb253c682fb6bfd7ee27
+  integrity sha512-sE3O0PjWHvnUhkorHgkVTuue7bOwEy/vKWQgwny1lYilvnDH0mN2ALHOnWAO72j+Pcoo4pcSI3FvSD2Sejvj6A==
+  apps     캐시팡팡 iOS 1.0.5/1.0.6
+
+jcurve-mission-0.7.14-mc3.tgz
+  version  0.7.14-mc3
+  base     jcurve-mission-0.7.14-mc2.tgz
+  members  122 (같음) · -mc2 와 다른 멤버 8
+  sha256   1effff9db12f22a94fa6f7122385ebbe48764a2e559c5b1c9169f1874fddc16e
+  integrity sha512-iw9jDbi44RQL1CTWhpEzIZnKwUKVgMaOOtfKFH7Cd8slWndHO60FqRm4OhVK2SrtIIEhbRNVH+KvzeeRxga4pw==
+  apps     감자밭 iOS 1.1.5/1.1.7
+
+jcurve-mission-0.7.13-mc3.tgz
+  version  0.7.13-mc3
+  base     jcurve-mission-0.7.13-mc2.tgz
+  members  114 (같음) · -mc2 와 다른 멤버 8
+  sha256   a391d939eb8ef081717a00be9b567d0674be42289463e893a949f37c42d49c22
+  integrity sha512-y9xrD/4T9NK7Dq632q3QhS5O6LBaJ5cC0Nlx7S3hxxkSmzcyto1um3Y1QiXMMayLalob21cgimEMJAJNeNZnPg==
+  apps     감자밭 1.1.3/1.1.4
+
+jcurve-mission-0.4.16-mc3.tgz
+  version  0.4.16-mc3
+  base     jcurve-mission-0.4.16-mc2.tgz
+  members  114 (같음) · -mc2 와 다른 멤버 8
+  sha256   d937e29a4eff83c199fb7a69e239328191e23f5dca448829b679778d084171f7
+  integrity sha512-az054wdHmqG6MjPXls01U8HSf6+W2X2jUau3UfnjX4u/SsTtLy13RKUIkgZvIA558fsa95JokO97e4Pk62IFxQ==
+  apps     캐시팡팡 iOS 1.0.3 · 안드, 머니트리 1.0.7/1.0.8
+
+jcurve-mission-0.4.19-moneytree109.1-mc3.tgz
+  version  0.4.19-moneytree109.1-mc3
+  base     jcurve-mission-0.4.19-moneytree109.1-mc2.tgz
+  members  138 (같음) · -mc2 와 다른 멤버 8
+  sha256   5ec7a4fbdf9f9145885b4e916fc1a6bebec1c586115ff6e4c7717bb5f0c56319
+  integrity sha512-iI24XlsO6APVBShbsvsedhy/oTyqiA9Zy+3+BWDpdB+sPho/1z9LLHdR50MtDOM14HRKDWLaYLQYCHPY3XUNtQ==
+  apps     머니트리 안드 1.0.9/1.0.10 (안드 전용)
