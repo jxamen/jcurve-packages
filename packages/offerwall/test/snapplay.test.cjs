@@ -199,17 +199,15 @@ test('not a 64-hex alias → invalid_usn and the SDK is not touched; showOfferwa
   assert.equal((await second.provider().open({ usn: USN })).reason, 'sdk_error');
 });
 
-test('forgetSnapPlayUser resets the SDK user only after the SDK was started, and the next open sets the member again', async () => {
+test('forgetSnapPlayUser makes no native call (0.6.12); the next open sets the member again', async () => {
   const { snap, provider } = fresh();
   snap.configureSnapPlay(CONFIG);
-  snap.forgetSnapPlayUser();
-  assert.equal(env.sdk.log.length, 0, 'never started: nothing to reset, nothing touched');
-  snap.configureSnapPlay(CONFIG); // 0.6.10: forgetting clears the member's answer; the app sets it again after the next login
   await provider().open({ usn: USN });
+  const before = env.sdk.log.length;
   snap.forgetSnapPlayUser();
   await new Promise((r) => setImmediate(r));
-  assert.equal(env.sdk.log.includes('resetUserName'), true);
-  snap.configureSnapPlay(CONFIG); // 0.6.10: the server's answer is per member — the app asks again after the member changed
+  assert.equal(env.sdk.log.length, before, 'no resetUserName, nothing touched during the sign-in');
+  assert.equal(env.sdk.log.includes('resetUserName'), false);
   await provider().open({ usn: USN });
   assert.equal(env.sdk.log.filter((x) => Array.isArray(x) && x[0] === 'setUserName').length, 2);
 });

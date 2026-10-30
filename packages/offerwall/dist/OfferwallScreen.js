@@ -116,14 +116,7 @@ function OfferwallScreen({ usn, onClose, onRetry, loadingColor, topInset = 0, ta
     const tabId = tabs && current ? current.id : chanceProviders_1.ADPOPCORN_PROVIDER_ID;
     React.useEffect(() => { (0, wallSignal_1.setChanceTab)(tabId); }, [tabId]);
     React.useEffect(() => () => (0, wallSignal_1.setChanceTab)(chanceProviders_1.ADPOPCORN_PROVIDER_ID), []);
-    // Warm the launchers up (SDK init, member) while the member is still on 찬스1, so 찬스2 opens at once. A failure here changes nothing on screen.
-    React.useEffect(() => {
-        if (!usn || !tabs)
-            return;
-        for (const provider of providers)
-            if (provider.kind === 'launcher' && !(0, chanceProviders_1.isClosedProvider)(provider))
-                Promise.resolve(provider.prepare?.({ usn, displayName })).catch(() => { });
-    }, [usn, displayName, ids]);
+    // 0.6.12: no native call on mount — the SDK is set up when the member opens 찬스2 (its first call used to run while the Chance screen was mounting)
     const open = (provider) => {
         if (!usn || !provider.open) {
             setLaunch({ state: 'error', message: copy.error });

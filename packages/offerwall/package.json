@@ -1,6 +1,6 @@
 {
   "name": "@jcurve/offerwall",
-  "version": "0.6.12",
+  "version": "0.6.13",
   "description": "AdPopcorn 서버 보상 오퍼월 · 스냅플레이 제공자 · 찬스1/찬스2 탭 · Expo 설정 · 회원 별칭 · 포인트 빨리 모으기(화면 전부)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

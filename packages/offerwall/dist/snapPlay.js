@@ -74,6 +74,8 @@ function parseSnapPlayConfig(data) {
     };
 }
 let config = null;
+/** 0.6.12: the kept answer belongs to the previous member — closed until this member's answer arrives. */
+let configStale = false;
 /** 앱이 설정 값을 직접 넣을 때(시험 · 서버 없이 쓰는 앱). 모양은 `parseSnapPlayConfig` 와 같다. 못 읽으면 설정을 비운다. */
 function configureSnapPlay(raw) {
     config = parseSnapPlayConfig(raw);
@@ -137,11 +139,12 @@ function snapPlayStatus() {
  * 이미 설정이 있으면 다시 받지 않는다. 실패하면 조용히 그대로(탭이 안 나올 뿐). 네이티브 모듈이 없는 빌드에서는 받지도 않는다.
  */
 async function resolveSnapPlayConfig(fetcher) {
-    if (config === null && hasSnapPlayNative()) {
+    if ((config === null || configStale) && hasSnapPlayNative()) {
         try {
             const parsed = parseSnapPlayConfig(await fetcher());
             if (parsed) {
                 config = parsed;
+                configStale = false;
                 (0, chanceProviders_1.notifyChanceProviders)();
             }
         }
@@ -229,20 +232,14 @@ function forgetSnapPlayUser() {
     latest = null;
     userKey = '';
     adsCache = null;
-    // 0.6.10: the server's answer (`open`, the app IDs, listPlacement) is per member: a new member (or a logout) asks again, so a member's `open` never carries over.
-    if (config !== null) {
-        config = null;
-        (0, chanceProviders_1.notifyChanceProviders)();
-    }
-    if (!inited)
-        return;
-    try {
-        Promise.resolve(api()?.resetUserName()).catch(() => { });
-    }
-    catch { /* 지우지 못해도 다음 열기에서 새 회원으로 다시 설정한다 */ }
+    // 0.6.12: no native call here and no change to the tab list — this runs on every member sign-in (inside initializeOfferwall), in the middle of the Chance screen's
+    // mount. The old answer stays in place as STALE: 찬스2 counts as closed until the app hands over this member's answer (resolveSnapPlayConfig). The next
+    // prepare sets the member on the SDK again (userKey is empty).
+    if (config !== null)
+        configStale = true;
 }
 /** 설정까지 모두 비운다(앱 바뀜 · 시험). SDK 초기화 상태는 프로세스가 사는 동안 유지된다. */
-function resetSnapPlay() { forgetSnapPlayUser(); config = null; adsFlight = null; (0, chanceProviders_1.notifyChanceProviders)(); }
+function resetSnapPlay() { forgetSnapPlayUser(); config = null; configStale = false; adsFlight = null; (0, chanceProviders_1.notifyChanceProviders)(); }
 exports.SNAPPLAY_LIST_TIMEOUT_MS = 6000;
 /** 읽은 목록을 이만큼(ms) 다시 쓴다 — 미션을 연달아 누를 때마다 SDK 를 부르지 않게. */
 exports.SNAPPLAY_LIST_TTL_MS = 60000;
@@ -424,7 +421,7 @@ function SnapPlayView({ onClose, style }) {
     id: exports.SNAPPLAY_PROVIDER_ID, name: '스냅플레이', kind: 'launcher',
     available: () => hasSnapPlayNative() && appId() !== '' && api() !== null,
     // 0.6.8: 허용 목록에 없는 회원에게는 「준비 중입니다」 (서버의 `open: true` 가 있어야 연다)
-    closed: () => config?.open !== true,
+    closed: () => configStale || config?.open !== true,
     prepare, open,
     canEmbed: snapPlayViewAvailable,
     embed: ({ onClose }) => (snapPlayViewAvailable() ? require('react').createElement(SnapPlayView, { onClose }) : null),

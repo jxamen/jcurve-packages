@@ -68,13 +68,14 @@ test('the 무료체험 notice opens inside the sheet Modal (above the sheet), no
   assert.equal(texts(tree).filter((x) => x === title).length, 1, 'and only once (not also in the tree under the Modal)');
 }));
 
-test('0.6.10: the server answer is per member — a new member (initializeOfferwall → resetOfferwall) clears it, so an allowlisted `open` never carries over', () => {
+test('0.6.10/0.6.12: the server answer is per member — a new member makes it stale (closed), so an allowlisted `open` never carries over', () => {
   const provider = api.chanceProviderById('snapplay');
   api.configureSnapPlay({ok: true, config: {ios: {appId: 'IOS-APP-ID'}, listPlacement: 'list', open: true}});
   assert.equal(provider.closed(), false);
   api.resetOfferwall();                                   // what initializeOfferwall does first, for every member
-  assert.equal(provider.closed(), true, 'the next member gets its own answer (closed until fetched)');
-  assert.equal(api.snapPlayStatus().configured, false);
+  assert.equal(provider.closed(), true, 'the next member is closed until its own answer arrives (the old answer is stale)');
+  api.configureSnapPlay({ok: true, config: {ios: {appId: 'IOS-APP-ID'}, listPlacement: 'list', open: false}});
+  assert.equal(provider.closed(), true, 'a new answer for the next member (not open) keeps it closed');
 });
 
 // 0.6.11: 찬스2 changes the accent only — the sheet's text, rows and backgrounds are the 찬스1 colors; the pill is the one place with white text.
