@@ -28,6 +28,11 @@ export type ChanceProvider = {
     kind: 'embedded' | 'launcher';
     /** 지금 이 기기에서 쓸 수 있는가. 던지지 않아야 하고(던지면 쓸 수 없는 것으로 본다) 가벼워야 한다 — 화면이 다시 그려질 때마다 불린다. */
     available(): boolean;
+    /**
+     * 0.6.8 — true 면 이 회원에게는 아직 닫혀 있다: 탭은 「준비 중입니다」 를 보여 주고, 제공자는 준비도 열기도 목록 읽기도 하지 않는다(서버가 허용 목록에 넣은 회원만 false).
+     * 던지면 닫힌 것으로 본다. 없으면 열려 있다.
+     */
+    closed?(): boolean;
     /** launcher: 보여 주기 전에 미리 준비한다(SDK 초기화 · 회원 설정). 실패해도 화면은 그대로이고 `open` 이 다시 시도한다. */
     prepare?(context: ChanceContext): Promise<ChanceResult>;
     /** launcher: 전체 화면을 연다. */
@@ -39,6 +44,8 @@ export type ChanceProvider = {
         onClose(): void;
     }): import('react').ReactElement | null;
 };
+/** 0.6.8: 이 회원에게 닫혀 있는가. 던지면 닫힌 것으로 본다(안전한 쪽). */
+export declare function isClosedProvider(provider: ChanceProvider): boolean;
 /** 같은 id 가 있으면 그 자리에서 바꾸고, 없으면 맨 뒤에 넣는다(= 탭 순서는 등록 순서). */
 export declare function registerChanceProvider(provider: ChanceProvider): void;
 export declare function unregisterChanceProvider(id: string): void;

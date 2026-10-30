@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { OfferwallView } from './index';
 import { getChanceSheetOpen, notifyWallGone, notifyWallLoaded, onChanceSheetOpen, setChanceTab, setChanceTabInset } from './wallSignal';
-import { ADPOPCORN_PROVIDER_ID, useChanceProviders, type ChanceProvider } from './chanceProviders';
+import { ADPOPCORN_PROVIDER_ID, isClosedProvider as isClosed, useChanceProviders, type ChanceProvider } from './chanceProviders';
 
 /** 「찬스2」 같은 전체 화면 제공자 칸의 글. 앱이 `launcherCopy` 로 일부만 바꿀 수 있다. */
 export type LauncherCopy = { title: string; body: string; open: string; retry: string; error: string };
@@ -140,7 +140,7 @@ export function OfferwallScreen({ usn, onClose, onRetry, loadingColor, topInset 
   // Warm the launchers up (SDK init, member) while the member is still on 찬스1, so 찬스2 opens at once. A failure here changes nothing on screen.
   React.useEffect(() => {
     if (!usn || !tabs) return;
-    for (const provider of providers) if (provider.kind === 'launcher') Promise.resolve(provider.prepare?.({ usn, displayName })).catch(() => {});
+    for (const provider of providers) if (provider.kind === 'launcher' && !isClosed(provider)) Promise.resolve(provider.prepare?.({ usn, displayName })).catch(() => {});
   }, [usn, displayName, ids]);
 
   const open = (provider: ChanceProvider) => {
@@ -161,7 +161,7 @@ export function OfferwallScreen({ usn, onClose, onRetry, loadingColor, topInset 
     if (provider.id === current?.id) return;
     setPicked(provider.id);
     setLaunch(IDLE);
-    if (provider.kind === 'launcher' && autoOpenLauncher) open(provider);
+    if (provider.kind === 'launcher' && autoOpenLauncher && !isClosed(provider)) open(provider);
   };
 
   const tabBar = !tabs ? null : h(View, { accessibilityRole: 'tablist', onLayout: (event: { nativeEvent?: { layout?: { height?: number } } }) => { const height = event?.nativeEvent?.layout?.height; if (typeof height === 'number' && height > 0) setTabHeight(Math.round(height)); },
@@ -178,7 +178,9 @@ export function OfferwallScreen({ usn, onClose, onRetry, loadingColor, topInset 
   const backToFirst = () => { setPicked(ADPOPCORN_PROVIDER_ID); setLaunch(IDLE); };
   const embedded = launcher && launch.state === 'embedded' && launcher.embed ? launcher.embed({ onClose: backToFirst }) : null;
   const shield = sheetUp ? { pointerEvents: 'none' as const } : {};
-  const panel = !launcher ? null : embedded ? h(View, { style: { flex: 1, backgroundColor: '#fff' }, ...shield }, embedded) : h(View, { style: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12, backgroundColor: '#fff' }, ...shield },
+  // 0.6.8: a closed launcher (찬스2 for a member not on the server's list) shows only 「준비 중입니다」 — nothing is prepared, opened or listed.
+  const panel = !launcher ? null : isClosed(launcher) ? h(View, { style: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, backgroundColor: '#fff' } },
+    h(Text, { accessibilityRole: 'text', style: { fontSize: 16, fontWeight: '700', color: '#666', textAlign: 'center' } }, '찬스2는 우선 준비 중입니다')) : embedded ? h(View, { style: { flex: 1, backgroundColor: '#fff' }, ...shield }, embedded) : h(View, { style: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12, backgroundColor: '#fff' }, ...shield },
     h(Text, { style: { fontSize: 18, fontWeight: '700', color: '#222', textAlign: 'center' } }, copy.title),
     h(Text, { style: { fontSize: 14, color: '#666', textAlign: 'center' } }, copy.body),
     launch.state === 'error' ? h(Text, { style: { fontSize: 13, color: '#c0392b', textAlign: 'center' } }, launch.message) : null,

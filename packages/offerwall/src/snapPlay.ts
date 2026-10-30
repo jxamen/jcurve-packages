@@ -31,6 +31,11 @@ export type SnapPlayServerConfig = {
    * 비어 있으면 직접 열기는 꺼지고(찬스2 탭으로만 보냄) 목록도 읽지 않는다.
    */
   listPlacement: string;
+  /**
+   * 0.6.8 — 찬스2 를 이 회원에게 연다(서버의 허용 목록 · 테스트 회원). 없거나 `true` 가 아니면 닫힘: 탭은 「준비 중입니다」 만 보여 준다.
+   * 설정은 앱이 받을 때 한 번 정해지니, 회원을 넣거나 빼면 그 뒤 앱을 다시 열어야 한다.
+   */
+  open: boolean;
 };
 
 const ID_PATTERN = /^[^\s\u0000-\u001f]{4,200}$/;
@@ -68,6 +73,7 @@ export function parseSnapPlayConfig(data: unknown): SnapPlayServerConfig | null 
     enabled: root.enabled !== false,
     embed: root.embed !== false,
     listPlacement: pickListPlacement(root),
+    open: root.open === true,
   };
 }
 
@@ -367,6 +373,8 @@ export function SnapPlayView({ onClose, style }: { onClose?: () => void; style?:
 registerChanceProvider({
   id: SNAPPLAY_PROVIDER_ID, name: '스냅플레이', kind: 'launcher',
   available: () => hasSnapPlayNative() && appId() !== '' && api() !== null,
+  // 0.6.8: 허용 목록에 없는 회원에게는 「준비 중입니다」 (서버의 `open: true` 가 있어야 연다)
+  closed: () => config?.open !== true,
   prepare, open,
   canEmbed: snapPlayViewAvailable,
   embed: ({ onClose }) => (snapPlayViewAvailable() ? (require('react') as typeof import('react')).createElement(SnapPlayView, { onClose }) : null),

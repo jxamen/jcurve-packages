@@ -11,7 +11,7 @@ import { addOfferwallNativeListener } from './native';
 import type { ComboStorage } from './comboDone';
 import { popupStorageKey, usePulse, useSeenToday } from './comboSeen';
 import { getChanceTab, getChanceTabInset, isWallLoaded, onChanceTab, onChanceTabInset, onWallState, setChanceSheetOpen } from './wallSignal';
-import { useChanceProviders } from './chanceProviders';
+import { isClosedProvider, useChanceProviders } from './chanceProviders';
 import { SNAPPLAY_PROVIDER_ID, openSnapPlayAd, readSnapPlayAds } from './snapPlay';
 import { useSheetPlacement } from './comboSheetFrame';
 import type { SnapPlayAd, SnapPlayOpenResult } from './snapPlay';
@@ -64,6 +64,11 @@ export function listenForComboRequests(opener: Opener, now: number = Date.now())
  * ~44 from the right, so a 36-high chip 8 left of the icon is top 6 / right 52. The header stays fixed when the list scrolls.
  */
 export const COMBO_CHIP_TOP = 6;
+/**
+ * 0.6.8 — the 「포인트 빨리 모으기」 pill and the sheet's accent on the 찬스2 (SnapPlay) tab: a blue family, so the two tabs read apart (찬스1 keeps the yellow theme).
+ * Pass `snapPlayTheme` to change it; the text stays white for contrast.
+ */
+export const SNAPPLAY_COMBO_THEME: ComboTheme = { ...DEFAULT_COMBO_THEME, accent: '#1565C0', accentText: '#FFFFFF', text: '#FFFFFF', accentSoft: '#E3F0FF', point: '#1565C0', pointSoft: '#E3F0FF' };
 /** The wall's own title (「리워드 충전소」) ends about this far from the left edge (iPhone 402pt and Galaxy A32 411dp captures: 145~150). */
 export const COMBO_TITLE_END = 150;
 /** Space kept between that title and our buttons. */
@@ -390,6 +395,8 @@ export type ComboEntryProps = {
    * (`advId`, `title`, `points` = the SDK's `user_pnt`, …). For an app that sends the list to its server, and the way to compare `points` with what SnapPlay shows. Optional.
    */
   onSnapPlayAds?: (ads: SnapPlayAd[]) => unknown;
+  /** 0.6.8 — the pill and sheet colors while 찬스2 is up (default: SNAPPLAY_COMBO_THEME). 찬스1 uses `theme`. */
+  snapPlayTheme?: ComboTheme;
   /**
    * Called (for every member, once per result and campaign key per visit) when the SDK would not open a campaign's detail page
    * (`open_failed`) or the page was closed again within 15 s (`closed_fast`): a sold-out campaign ends up here, but so can a slow load
@@ -440,9 +447,9 @@ export type ComboEntryProps = {
  * top (and copied when possible) and the plain list is revealed: the Chance tab closes the guide, Home opens the list.
  */
 export function ComboEntry({
-  placement, url, headers, load, loadKey, usn, theme = DEFAULT_COMBO_THEME, sample = false, onPressMission, storage, copyText, campaigns,
+  placement, url, headers, load, loadKey, usn, theme: appTheme = DEFAULT_COMBO_THEME, sample = false, onPressMission, storage, copyText, campaigns,
   reportCampaigns, onDiagnostic, onDetailSignal, onSheetShown, onTrialConsent, onTrialNotify, loadTrials, onTrialCancelled, chipTop, chipRight, sheetTop = COMBO_SHEET_TOP, popupArt, popupAd,
-  loadSnapPlay, onSnapPlayAds,
+  loadSnapPlay, onSnapPlayAds, snapPlayTheme = SNAPPLAY_COMBO_THEME,
 }: ComboEntryProps): ReactElement | null {
   const React = require('react') as typeof import('react');
   const { Modal, Pressable, SafeAreaView, Dimensions, View } = require('react-native') as typeof import('react-native');
@@ -451,7 +458,8 @@ export function ComboEntry({
   // turned it on (the provider is then in the list), and used only while that tab is up. While 찬스2 is up the AdPopcorn list is never shown (its missions open in the other SDK):
   // an app that gives no `loadSnapPlay`, or a server answer without rows, simply has no chip on that tab.
   const providers = useChanceProviders();
-  const snapUsable = placement === 'chance' && providers.some(provider => provider.id === SNAPPLAY_PROVIDER_ID);
+  // 0.6.8: a closed 찬스2 (not on the server's list for this member) is not usable — no list is read or shown for it.
+  const snapUsable = placement === 'chance' && providers.some(provider => provider.id === SNAPPLAY_PROVIDER_ID && !isClosedProvider(provider));
   const [chanceTab, setChanceTabState] = React.useState(getChanceTab);
   // 0.6.4: subscribe, then read the current value at once — the screen next to this entry sets these signals in its own effects, which can run before this subscription exists
   // (the first notification is then missed, and an equal value later notifies nobody). Reading what is already there closes that gap.
@@ -461,6 +469,8 @@ export function ComboEntry({
     return onChanceTab(setChanceTabState);
   }, [placement]);
   const snapActive = snapUsable && chanceTab === SNAPPLAY_PROVIDER_ID;
+  // 0.6.8: the colors follow the tab (찬스2 = snapPlayTheme); everything below draws with `theme`
+  const theme = snapActive ? snapPlayTheme : appTheme;
   const adState = useTodayCombos({ url, headers, load, loadKey, sample });
   const snapState = useTodayCombos({ load: snapUsable ? loadSnapPlay : undefined, loadKey: `${loadKey ?? ''}:snapplay` });
   const state = snapActive ? snapState : adState;
@@ -829,7 +839,9 @@ export function ComboEntry({
       h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: closeSheets, style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: dim } }),
       sheetPlace.frame ? h(View, { pointerEvents: 'box-none', style: { position: 'absolute', left: sheetPlace.frame.left, top: sheetPlace.frame.top, width: sheetPlace.frame.width, height: sheetPlace.frame.height } },
         h(ComboSheet, { top: sheetTop + inset, theme }, open ? guide('sheet') : trialsBody()),
-        notice ? h(ComboToast, { text: notice, top: sheetTop + inset + 8, theme }) : null) : null)) : null;
+        notice ? h(ComboToast, { text: notice, top: sheetTop + inset + 8, theme }) : null) : null,
+      // 0.6.8: the 무료체험 notice (and the 포인트 빨리 모으기 consent) must lie ABOVE the sheet: drawn in the sheet's own Modal, after the sheet
+      consentView)) : null;
   return h(React.Fragment, null,
     sheetModalOn ? h(View, { key: 'sheet-anchor', ...sheetPlace.anchorProps }) : null,
     sheetModal,
@@ -844,11 +856,13 @@ export function ComboEntry({
     }) : null,
     !modalMode && trialsOpen ? h(ComboSheet, { key: 'trials-sheet', top: sheetTop + inset, theme }, trialsBody()) : null,
     popup && !open && !trialsOpen && state.combos ? h(ComboPopup, { combos: state.combos, theme, art: popupArt, ad: popupAd, onOpen: () => { setPopup(false); setOpen(true); }, onClose: () => setPopup(false) }) : null,
+    // 0.6.8: on 찬스2 the pill sits on its own solid strip (the SDK's header behind it is not seen through the pill)
+    shown && snapActive ? h(View, { key: 'snap-strip', pointerEvents: 'none', style: { position: 'absolute', left: 0, right: 0, top: inset, height: 52, backgroundColor: theme.bg, zIndex: 29, elevation: 29 } }) : null,
     shown ? h(ComboChip, {
-      key: 'chip', open, theme, top: (chipTop ?? COMBO_CHIP_TOP) + inset, right: chipRight, opacity: blink, fit: chipFit ?? undefined,
+      key: 'chip', open, theme, top: (chipTop ?? COMBO_CHIP_TOP) + inset, right: chipRight, opacity: snapActive ? undefined : blink, fit: chipFit ?? undefined,
       before: trialsChip && chipFit ? h(ComboTrialsChip, { open: trialsOpen, theme, fit: chipFit, onPress: () => { if (trialsOpen) setTrialsOpen(false); else openTrials(); } }) : null,
       onPress: () => { setTrialsOpen(false); setOpen(o => !o); },
     }) : null,
     notice && !modalMode ? h(ComboToast, { key: 'notice', text: notice, top: sheetTop + inset + 8, theme }) : null,
-    consentView);
+    modalMode ? null : consentView);
 }

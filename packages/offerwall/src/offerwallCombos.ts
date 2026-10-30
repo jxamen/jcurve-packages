@@ -77,6 +77,8 @@ export type OfferwallCombosProps = {
   loadSnapPlay?: ComboEntryProps['loadSnapPlay'];
   /** 0.6.3 — each time the phone reads the SnapPlay ad list (see `ComboEntryProps.onSnapPlayAds`): to send it to the server, or to compare `points` with SnapPlay's own screen. */
   onSnapPlayAds?: ComboEntryProps['onSnapPlayAds'];
+  /** 0.6.8 — the pill and sheet colors on 찬스2 (see `ComboEntryProps.snapPlayTheme`). */
+  snapPlayTheme?: ComboEntryProps['snapPlayTheme'];
   chipTop?: number;
   chipRight?: number;
   sheetTop?: number;
@@ -198,7 +200,7 @@ export function createComboHandlers({ client, memberId, askTestMember, onListTap
 
 export function OfferwallCombos(props: OfferwallCombosProps): ReactElement | null {
   const React = require('react') as typeof import('react');
-  const { placement, usn, memberId, serverUrl = '', tokens, theme: themeOverride, popupArt, adUnit, adTestMode = false, adTestDevices, popupAd: popupAdOn = true, chipTop, chipRight, sheetTop, loadSnapPlay, onSnapPlayAds } = props;
+  const { placement, usn, memberId, serverUrl = '', tokens, theme: themeOverride, popupArt, adUnit, adTestMode = false, adTestDevices, popupAd: popupAdOn = true, chipTop, chipRight, sheetTop, loadSnapPlay, onSnapPlayAds, snapPlayTheme } = props;
 
   // the latest props for the callbacks below (they are created once; the entry keeps asking them what to do)
   const latest = React.useRef(props);
@@ -315,7 +317,7 @@ export function OfferwallCombos(props: OfferwallCombosProps): ReactElement | nul
     placement, load: handlers.load, loadKey: String(memberId), usn, theme, popupArt, popupAd, storage,
     reportCampaigns: handlers.report, onDiagnostic: handlers.diagnose, onDetailSignal: handlers.signalDetail,
     onTrialConsent: handlers.trialConsent, onTrialNotify: trialNotify, onSheetShown: sheetShown, loadTrials: handlers.loadTrials, onTrialCancelled: handlers.trialCancelled,
-    loadSnapPlay, onSnapPlayAds,
+    loadSnapPlay, onSnapPlayAds, snapPlayTheme,
     chipTop, chipRight, ...(sheetTop === undefined ? {} : { sheetTop }),
   } as ComboEntryProps);
 }

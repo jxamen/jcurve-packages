@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ADPOPCORN_PROVIDER_ID = void 0;
+exports.isClosedProvider = isClosedProvider;
 exports.registerChanceProvider = registerChanceProvider;
 exports.unregisterChanceProvider = unregisterChanceProvider;
 exports.chanceProviders = chanceProviders;
@@ -10,6 +11,15 @@ exports.notifyChanceProviders = notifyChanceProviders;
 exports.useChanceProviders = useChanceProviders;
 const entries = [];
 const listeners = new Set();
+/** 0.6.8: 이 회원에게 닫혀 있는가. 던지면 닫힌 것으로 본다(안전한 쪽). */
+function isClosedProvider(provider) {
+    try {
+        return provider.closed?.() === true;
+    }
+    catch {
+        return true;
+    }
+}
 function usable(provider) {
     try {
         return provider.available() === true;

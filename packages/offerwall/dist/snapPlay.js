@@ -69,6 +69,7 @@ function parseSnapPlayConfig(data) {
         enabled: root.enabled !== false,
         embed: root.embed !== false,
         listPlacement: pickListPlacement(root),
+        open: root.open === true,
     };
 }
 let config = null;
@@ -399,6 +400,8 @@ function SnapPlayView({ onClose, style }) {
 (0, chanceProviders_1.registerChanceProvider)({
     id: exports.SNAPPLAY_PROVIDER_ID, name: '스냅플레이', kind: 'launcher',
     available: () => hasSnapPlayNative() && appId() !== '' && api() !== null,
+    // 0.6.8: 허용 목록에 없는 회원에게는 「준비 중입니다」 (서버의 `open: true` 가 있어야 연다)
+    closed: () => config?.open !== true,
     prepare, open,
     canEmbed: snapPlayViewAvailable,
     embed: ({ onClose }) => (snapPlayViewAvailable() ? require('react').createElement(SnapPlayView, { onClose }) : null),

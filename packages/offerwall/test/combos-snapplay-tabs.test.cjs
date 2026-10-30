@@ -31,7 +31,7 @@ const sdk = {
 };
 const ad = (id, extra = {}) => ({adv_id: id, adv_title: `광고 ${id}`, adv_desc: '설명', user_pnt: 50, org_user_pnt: 50, pnt_unit: 'P', icon_img_url: 'https://x.example/i.png', detail_yn: 'N', adid_yn: 'N', adv_type: 331, actn_type: 3410, num_actions: 1, ...extra});
 
-const run = (fn, {config = {listPlacement: 'list'}, ads = [ad(18547), ad(218047, {detail_yn: 'Y'})]} = {}) => withReact(async (ctx) => {
+const run = (fn, {config = {listPlacement: 'list', open: true}, ads = [ad(18547), ad(218047, {detail_yn: 'Y'})]} = {}) => withReact(async (ctx) => {
   const previous = Module._load;
   Module._load = function (id, ...rest) { return id === 'react-native-s2offerwall' ? {S2Offerwall: sdk} : previous.call(this, id, ...rest); };
   Object.assign(env, {lists: [], opened: [], ads, listFails: false, listThrows: false, openThrows: false});
@@ -122,7 +122,7 @@ test('openSnapPlayAd: no list placement, no key, an old plugin or a failed list 
     for (const key of ['', 'abc', '0', '12345678901234567890', -5, 1.5]) assert.equal((await api.openSnapPlayAd(key, {usn: USN})).reason, 'unsupported', String(key));
     env.listFails = true;
     assert.equal((await api.openSnapPlayAd('18547', {usn: USN})).reason, 'list_failed');
-    env.listFails = false; api.resetSnapPlay(); api.configureSnapPlay({ok: true, config: {android: {appId: 'AND-APP-ID'}, listPlacement: 'list'}});
+    env.listFails = false; api.resetSnapPlay(); api.configureSnapPlay({ok: true, config: {android: {appId: 'AND-APP-ID'}, listPlacement: 'list', open: true}});
     env.listThrows = true;
     assert.equal((await api.openSnapPlayAd('18547', {usn: USN})).reason, 'list_failed', 'a throwing SDK call is a failed list, not a crash');
     env.listThrows = false; env.openThrows = true;
@@ -207,7 +207,7 @@ test('direct open not possible (no list placement): the plain fallback — the n
   assert.ok(flat(after).includes('"스냅 18547" 를 찾아 주세요'), flat(after));
   assert.equal(hasSheet(after), false);
   assert.equal(diags[0].how, 'snapplay_id'); assert.equal(diags[0].open, false);
-}, {config: {}}));
+}, {config: {open: true}}));
 
 test('picking another tab while the sheet is open closes it (it belongs to the tab it opened on); a request that waited for the entry still opens it', () => run(async (ctx) => {
   const s = await start(ctx);

@@ -73,6 +73,8 @@ export type OfferwallCombosProps = {
     loadSnapPlay?: ComboEntryProps['loadSnapPlay'];
     /** 0.6.3 — each time the phone reads the SnapPlay ad list (see `ComboEntryProps.onSnapPlayAds`): to send it to the server, or to compare `points` with SnapPlay's own screen. */
     onSnapPlayAds?: ComboEntryProps['onSnapPlayAds'];
+    /** 0.6.8 — the pill and sheet colors on 찬스2 (see `ComboEntryProps.snapPlayTheme`). */
+    snapPlayTheme?: ComboEntryProps['snapPlayTheme'];
     chipTop?: number;
     chipRight?: number;
     sheetTop?: number;

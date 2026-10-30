@@ -121,7 +121,7 @@ function OfferwallScreen({ usn, onClose, onRetry, loadingColor, topInset = 0, ta
         if (!usn || !tabs)
             return;
         for (const provider of providers)
-            if (provider.kind === 'launcher')
+            if (provider.kind === 'launcher' && !(0, chanceProviders_1.isClosedProvider)(provider))
                 Promise.resolve(provider.prepare?.({ usn, displayName })).catch(() => { });
     }, [usn, displayName, ids]);
     const open = (provider) => {
@@ -150,7 +150,7 @@ function OfferwallScreen({ usn, onClose, onRetry, loadingColor, topInset = 0, ta
             return;
         setPicked(provider.id);
         setLaunch(IDLE);
-        if (provider.kind === 'launcher' && autoOpenLauncher)
+        if (provider.kind === 'launcher' && autoOpenLauncher && !(0, chanceProviders_1.isClosedProvider)(provider))
             open(provider);
     };
     const tabBar = !tabs ? null : h(View, { accessibilityRole: 'tablist', onLayout: (event) => { const height = event?.nativeEvent?.layout?.height; if (typeof height === 'number' && height > 0)
@@ -164,7 +164,8 @@ function OfferwallScreen({ usn, onClose, onRetry, loadingColor, topInset = 0, ta
     const backToFirst = () => { setPicked(chanceProviders_1.ADPOPCORN_PROVIDER_ID); setLaunch(IDLE); };
     const embedded = launcher && launch.state === 'embedded' && launcher.embed ? launcher.embed({ onClose: backToFirst }) : null;
     const shield = sheetUp ? { pointerEvents: 'none' } : {};
-    const panel = !launcher ? null : embedded ? h(View, { style: { flex: 1, backgroundColor: '#fff' }, ...shield }, embedded) : h(View, { style: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12, backgroundColor: '#fff' }, ...shield }, h(Text, { style: { fontSize: 18, fontWeight: '700', color: '#222', textAlign: 'center' } }, copy.title), h(Text, { style: { fontSize: 14, color: '#666', textAlign: 'center' } }, copy.body), launch.state === 'error' ? h(Text, { style: { fontSize: 13, color: '#c0392b', textAlign: 'center' } }, launch.message) : null, launch.state === 'opening' ? h(ActivityIndicator, { color: loadingColor ?? '#555' })
+    // 0.6.8: a closed launcher (찬스2 for a member not on the server's list) shows only 「준비 중입니다」 — nothing is prepared, opened or listed.
+    const panel = !launcher ? null : (0, chanceProviders_1.isClosedProvider)(launcher) ? h(View, { style: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, backgroundColor: '#fff' } }, h(Text, { accessibilityRole: 'text', style: { fontSize: 16, fontWeight: '700', color: '#666', textAlign: 'center' } }, '찬스2는 우선 준비 중입니다')) : embedded ? h(View, { style: { flex: 1, backgroundColor: '#fff' }, ...shield }, embedded) : h(View, { style: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12, backgroundColor: '#fff' }, ...shield }, h(Text, { style: { fontSize: 18, fontWeight: '700', color: '#222', textAlign: 'center' } }, copy.title), h(Text, { style: { fontSize: 14, color: '#666', textAlign: 'center' } }, copy.body), launch.state === 'error' ? h(Text, { style: { fontSize: 13, color: '#c0392b', textAlign: 'center' } }, launch.message) : null, launch.state === 'opening' ? h(ActivityIndicator, { color: loadingColor ?? '#555' })
         : h(Pressable, { accessibilityRole: 'button', accessibilityLabel: launch.state === 'error' ? copy.retry : copy.open, onPress: () => open(launcher),
             style: { paddingHorizontal: 28, paddingVertical: 13, backgroundColor: tabColor, borderRadius: 12 } }, h(Text, { style: { fontSize: 15, fontWeight: '700', color: '#fff' } }, launch.state === 'error' ? copy.retry : copy.open)));
     return h(View, { style: { flex: 1, backgroundColor: '#fff', paddingTop: Math.max(0, topInset) } }, tabBar, h(ClassicScreen, { usn, onClose, onRetry, loadingColor, topInset: 0, hidden: launcher !== undefined }), panel);

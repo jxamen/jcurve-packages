@@ -149,7 +149,7 @@ function createComboHandlers({ client, memberId, askTestMember, onListTap }) {
 }
 function OfferwallCombos(props) {
     const React = require('react');
-    const { placement, usn, memberId, serverUrl = '', tokens, theme: themeOverride, popupArt, adUnit, adTestMode = false, adTestDevices, popupAd: popupAdOn = true, chipTop, chipRight, sheetTop, loadSnapPlay, onSnapPlayAds } = props;
+    const { placement, usn, memberId, serverUrl = '', tokens, theme: themeOverride, popupArt, adUnit, adTestMode = false, adTestDevices, popupAd: popupAdOn = true, chipTop, chipRight, sheetTop, loadSnapPlay, onSnapPlayAds, snapPlayTheme } = props;
     // the latest props for the callbacks below (they are created once; the entry keeps asking them what to do)
     const latest = React.useRef(props);
     latest.current = props;
@@ -317,7 +317,7 @@ function OfferwallCombos(props) {
         placement, load: handlers.load, loadKey: String(memberId), usn, theme, popupArt, popupAd, storage,
         reportCampaigns: handlers.report, onDiagnostic: handlers.diagnose, onDetailSignal: handlers.signalDetail,
         onTrialConsent: handlers.trialConsent, onTrialNotify: trialNotify, onSheetShown: sheetShown, loadTrials: handlers.loadTrials, onTrialCancelled: handlers.trialCancelled,
-        loadSnapPlay, onSnapPlayAds,
+        loadSnapPlay, onSnapPlayAds, snapPlayTheme,
         chipTop, chipRight, ...(sheetTop === undefined ? {} : { sheetTop }),
     });
 }

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.COMBO_POPUP_DELAY_MS = exports.COMBO_REFRESH_GAP_MS = exports.COMBO_SIGNAL_REFRESH_MS = exports.COMBO_CLOSED_FAST_MS = exports.COMBO_SHEET_TOP = exports.COMBO_CHIP_RIGHT = exports.COMBO_CHIP_PAIR_HEIGHT = exports.COMBO_CHIP_GAP = exports.COMBO_TITLE_GAP = exports.COMBO_TITLE_END = exports.COMBO_CHIP_TOP = exports.COMBOS_POPUP_ACTION = exports.COMBOS_ROUTE = exports.OFFERWALL_FAST_COMBOS_TABS_MARK = void 0;
+exports.COMBO_POPUP_DELAY_MS = exports.COMBO_REFRESH_GAP_MS = exports.COMBO_SIGNAL_REFRESH_MS = exports.COMBO_CLOSED_FAST_MS = exports.COMBO_SHEET_TOP = exports.COMBO_CHIP_RIGHT = exports.COMBO_CHIP_PAIR_HEIGHT = exports.COMBO_CHIP_GAP = exports.COMBO_TITLE_GAP = exports.COMBO_TITLE_END = exports.SNAPPLAY_COMBO_THEME = exports.COMBO_CHIP_TOP = exports.COMBOS_POPUP_ACTION = exports.COMBOS_ROUTE = exports.OFFERWALL_FAST_COMBOS_TABS_MARK = void 0;
 exports.isCombosRoute = isCombosRoute;
 exports.requestOpenCombos = requestOpenCombos;
 exports.listenForComboRequests = listenForComboRequests;
@@ -69,6 +69,11 @@ function listenForComboRequests(opener, now = Date.now()) {
  * ~44 from the right, so a 36-high chip 8 left of the icon is top 6 / right 52. The header stays fixed when the list scrolls.
  */
 exports.COMBO_CHIP_TOP = 6;
+/**
+ * 0.6.8 — the 「포인트 빨리 모으기」 pill and the sheet's accent on the 찬스2 (SnapPlay) tab: a blue family, so the two tabs read apart (찬스1 keeps the yellow theme).
+ * Pass `snapPlayTheme` to change it; the text stays white for contrast.
+ */
+exports.SNAPPLAY_COMBO_THEME = { ...combos_1.DEFAULT_COMBO_THEME, accent: '#1565C0', accentText: '#FFFFFF', text: '#FFFFFF', accentSoft: '#E3F0FF', point: '#1565C0', pointSoft: '#E3F0FF' };
 /** The wall's own title (「리워드 충전소」) ends about this far from the left edge (iPhone 402pt and Galaxy A32 411dp captures: 145~150). */
 exports.COMBO_TITLE_END = 150;
 /** Space kept between that title and our buttons. */
@@ -287,7 +292,7 @@ function ComboToast({ text, top, theme }) {
  * server's id when it is a key) and its detail page opens. Otherwise, or when nothing is found, the name is shown at the
  * top (and copied when possible) and the plain list is revealed: the Chance tab closes the guide, Home opens the list.
  */
-function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combos_1.DEFAULT_COMBO_THEME, sample = false, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, onDetailSignal, onSheetShown, onTrialConsent, onTrialNotify, loadTrials, onTrialCancelled, chipTop, chipRight, sheetTop = exports.COMBO_SHEET_TOP, popupArt, popupAd, loadSnapPlay, onSnapPlayAds, }) {
+function ComboEntry({ placement, url, headers, load, loadKey, usn, theme: appTheme = combos_1.DEFAULT_COMBO_THEME, sample = false, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, onDetailSignal, onSheetShown, onTrialConsent, onTrialNotify, loadTrials, onTrialCancelled, chipTop, chipRight, sheetTop = exports.COMBO_SHEET_TOP, popupArt, popupAd, loadSnapPlay, onSnapPlayAds, snapPlayTheme = exports.SNAPPLAY_COMBO_THEME, }) {
     const React = require('react');
     const { Modal, Pressable, SafeAreaView, Dimensions, View } = require('react-native');
     const h = React.createElement;
@@ -295,7 +300,8 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     // turned it on (the provider is then in the list), and used only while that tab is up. While 찬스2 is up the AdPopcorn list is never shown (its missions open in the other SDK):
     // an app that gives no `loadSnapPlay`, or a server answer without rows, simply has no chip on that tab.
     const providers = (0, chanceProviders_1.useChanceProviders)();
-    const snapUsable = placement === 'chance' && providers.some(provider => provider.id === snapPlay_1.SNAPPLAY_PROVIDER_ID);
+    // 0.6.8: a closed 찬스2 (not on the server's list for this member) is not usable — no list is read or shown for it.
+    const snapUsable = placement === 'chance' && providers.some(provider => provider.id === snapPlay_1.SNAPPLAY_PROVIDER_ID && !(0, chanceProviders_1.isClosedProvider)(provider));
     const [chanceTab, setChanceTabState] = React.useState(wallSignal_1.getChanceTab);
     // 0.6.4: subscribe, then read the current value at once — the screen next to this entry sets these signals in its own effects, which can run before this subscription exists
     // (the first notification is then missed, and an equal value later notifies nobody). Reading what is already there closes that gap.
@@ -306,6 +312,8 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
         return (0, wallSignal_1.onChanceTab)(setChanceTabState);
     }, [placement]);
     const snapActive = snapUsable && chanceTab === snapPlay_1.SNAPPLAY_PROVIDER_ID;
+    // 0.6.8: the colors follow the tab (찬스2 = snapPlayTheme); everything below draws with `theme`
+    const theme = snapActive ? snapPlayTheme : appTheme;
     const adState = (0, combos_1.useTodayCombos)({ url, headers, load, loadKey, sample });
     const snapState = (0, combos_1.useTodayCombos)({ load: snapUsable ? loadSnapPlay : undefined, loadKey: `${loadKey ?? ''}:snapplay` });
     const state = snapActive ? snapState : adState;
@@ -795,19 +803,23 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme = combo
     const modalMode = sheetUp && sheetPlace.mode === 'modal';
     const dim = 'rgba(0,0,0,0.3)';
     // 0.6.6: the sheet in a Modal. The Modal is dimmed at once; the sheet follows as soon as the container's place inside it is known. Tapping outside the sheet or the system back closes it.
-    const sheetModal = modalMode ? h(Modal, { key: 'sheet-modal', visible: true, transparent: true, animationType: 'none', onRequestClose: closeSheets }, h(View, { style: { flex: 1 }, collapsable: false }, h(View, sheetPlace.modalAnchorProps), h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: closeSheets, style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: dim } }), sheetPlace.frame ? h(View, { pointerEvents: 'box-none', style: { position: 'absolute', left: sheetPlace.frame.left, top: sheetPlace.frame.top, width: sheetPlace.frame.width, height: sheetPlace.frame.height } }, h(ComboSheet, { top: sheetTop + inset, theme }, open ? guide('sheet') : trialsBody()), notice ? h(ComboToast, { text: notice, top: sheetTop + inset + 8, theme }) : null) : null)) : null;
+    const sheetModal = modalMode ? h(Modal, { key: 'sheet-modal', visible: true, transparent: true, animationType: 'none', onRequestClose: closeSheets }, h(View, { style: { flex: 1 }, collapsable: false }, h(View, sheetPlace.modalAnchorProps), h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: closeSheets, style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: dim } }), sheetPlace.frame ? h(View, { pointerEvents: 'box-none', style: { position: 'absolute', left: sheetPlace.frame.left, top: sheetPlace.frame.top, width: sheetPlace.frame.width, height: sheetPlace.frame.height } }, h(ComboSheet, { top: sheetTop + inset, theme }, open ? guide('sheet') : trialsBody()), notice ? h(ComboToast, { text: notice, top: sheetTop + inset + 8, theme }) : null) : null, 
+    // 0.6.8: the 무료체험 notice (and the 포인트 빨리 모으기 consent) must lie ABOVE the sheet: drawn in the sheet's own Modal, after the sheet
+    consentView)) : null;
     return h(React.Fragment, null, sheetModalOn ? h(View, { key: 'sheet-anchor', ...sheetPlace.anchorProps }) : null, sheetModal, !modalMode && open ? h(Pressable, {
         key: 'backdrop', accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: close,
         style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20, elevation: 20, backgroundColor: dim },
     }) : null, !modalMode && open ? h(ComboSheet, { key: 'sheet', top: sheetTop + inset, theme }, guide('sheet')) : null, !modalMode && trialsOpen ? h(Pressable, {
         key: 'trials-backdrop', accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: () => setTrialsOpen(false),
         style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20, elevation: 20, backgroundColor: dim },
-    }) : null, !modalMode && trialsOpen ? h(ComboSheet, { key: 'trials-sheet', top: sheetTop + inset, theme }, trialsBody()) : null, popup && !open && !trialsOpen && state.combos ? h(ComboPopup, { combos: state.combos, theme, art: popupArt, ad: popupAd, onOpen: () => { setPopup(false); setOpen(true); }, onClose: () => setPopup(false) }) : null, shown ? h(ComboChip, {
-        key: 'chip', open, theme, top: (chipTop ?? exports.COMBO_CHIP_TOP) + inset, right: chipRight, opacity: blink, fit: chipFit ?? undefined,
+    }) : null, !modalMode && trialsOpen ? h(ComboSheet, { key: 'trials-sheet', top: sheetTop + inset, theme }, trialsBody()) : null, popup && !open && !trialsOpen && state.combos ? h(ComboPopup, { combos: state.combos, theme, art: popupArt, ad: popupAd, onOpen: () => { setPopup(false); setOpen(true); }, onClose: () => setPopup(false) }) : null, 
+    // 0.6.8: on 찬스2 the pill sits on its own solid strip (the SDK's header behind it is not seen through the pill)
+    shown && snapActive ? h(View, { key: 'snap-strip', pointerEvents: 'none', style: { position: 'absolute', left: 0, right: 0, top: inset, height: 52, backgroundColor: theme.bg, zIndex: 29, elevation: 29 } }) : null, shown ? h(ComboChip, {
+        key: 'chip', open, theme, top: (chipTop ?? exports.COMBO_CHIP_TOP) + inset, right: chipRight, opacity: snapActive ? undefined : blink, fit: chipFit ?? undefined,
         before: trialsChip && chipFit ? h(ComboTrialsChip, { open: trialsOpen, theme, fit: chipFit, onPress: () => { if (trialsOpen)
                 setTrialsOpen(false);
             else
                 openTrials(); } }) : null,
         onPress: () => { setTrialsOpen(false); setOpen(o => !o); },
-    }) : null, notice && !modalMode ? h(ComboToast, { key: 'notice', text: notice, top: sheetTop + inset + 8, theme }) : null, consentView);
+    }) : null, notice && !modalMode ? h(ComboToast, { key: 'notice', text: notice, top: sheetTop + inset + 8, theme }) : null, modalMode ? null : consentView);
 }

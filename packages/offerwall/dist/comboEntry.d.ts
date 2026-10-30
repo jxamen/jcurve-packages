@@ -30,6 +30,11 @@ export declare function listenForComboRequests(opener: Opener, now?: number): ()
  * ~44 from the right, so a 36-high chip 8 left of the icon is top 6 / right 52. The header stays fixed when the list scrolls.
  */
 export declare const COMBO_CHIP_TOP = 6;
+/**
+ * 0.6.8 — the 「포인트 빨리 모으기」 pill and the sheet's accent on the 찬스2 (SnapPlay) tab: a blue family, so the two tabs read apart (찬스1 keeps the yellow theme).
+ * Pass `snapPlayTheme` to change it; the text stays white for contrast.
+ */
+export declare const SNAPPLAY_COMBO_THEME: ComboTheme;
 /** The wall's own title (「리워드 충전소」) ends about this far from the left edge (iPhone 402pt and Galaxy A32 411dp captures: 145~150). */
 export declare const COMBO_TITLE_END = 150;
 /** Space kept between that title and our buttons. */
@@ -185,6 +190,8 @@ export type ComboEntryProps = {
      * (`advId`, `title`, `points` = the SDK's `user_pnt`, …). For an app that sends the list to its server, and the way to compare `points` with what SnapPlay shows. Optional.
      */
     onSnapPlayAds?: (ads: SnapPlayAd[]) => unknown;
+    /** 0.6.8 — the pill and sheet colors while 찬스2 is up (default: SNAPPLAY_COMBO_THEME). 찬스1 uses `theme`. */
+    snapPlayTheme?: ComboTheme;
     /**
      * Called (for every member, once per result and campaign key per visit) when the SDK would not open a campaign's detail page
      * (`open_failed`) or the page was closed again within 15 s (`closed_fast`): a sold-out campaign ends up here, but so can a slow load
@@ -234,5 +241,5 @@ export type ComboEntryProps = {
  * server's id when it is a key) and its detail page opens. Otherwise, or when nothing is found, the name is shown at the
  * top (and copied when possible) and the plain list is revealed: the Chance tab closes the guide, Home opens the list.
  */
-export declare function ComboEntry({ placement, url, headers, load, loadKey, usn, theme, sample, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, onDetailSignal, onSheetShown, onTrialConsent, onTrialNotify, loadTrials, onTrialCancelled, chipTop, chipRight, sheetTop, popupArt, popupAd, loadSnapPlay, onSnapPlayAds, }: ComboEntryProps): ReactElement | null;
+export declare function ComboEntry({ placement, url, headers, load, loadKey, usn, theme: appTheme, sample, onPressMission, storage, copyText, campaigns, reportCampaigns, onDiagnostic, onDetailSignal, onSheetShown, onTrialConsent, onTrialNotify, loadTrials, onTrialCancelled, chipTop, chipRight, sheetTop, popupArt, popupAd, loadSnapPlay, onSnapPlayAds, snapPlayTheme, }: ComboEntryProps): ReactElement | null;
 export {};
