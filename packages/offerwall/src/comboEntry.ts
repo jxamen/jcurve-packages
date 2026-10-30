@@ -12,7 +12,7 @@ import type { ComboStorage } from './comboDone';
 import { popupStorageKey, usePulse, useSeenToday } from './comboSeen';
 import { getChanceTab, getChanceTabInset, isWallLoaded, onChanceTab, onChanceTabInset, onWallState, setChanceSheetOpen } from './wallSignal';
 import { isClosedProvider, useChanceProviders } from './chanceProviders';
-import { SNAPPLAY_PROVIDER_ID, openSnapPlayAd, readSnapPlayAds } from './snapPlay';
+import { SNAPPLAY_PROVIDER_ID, appIsActive, openSnapPlayAd, readSnapPlayAds } from './snapPlay';
 import { useSheetPlacement } from './comboSheetFrame';
 import type { SnapPlayAd, SnapPlayOpenResult } from './snapPlay';
 import { openOfferwall } from './index';
@@ -492,6 +492,15 @@ export function ComboEntry({
   latest.current = { campaigns, copyText, reportCampaigns, usn, placement, onDiagnostic, onDetailSignal, onTrialConsent, onTrialNotify, loadTrials, onTrialCancelled, combos: state.combos, refresh: state.refresh, snap: snapActive, onSnapPlayAds };
   const signalled = React.useRef(new Set<string>());
   const signalTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 0.6.12: timers and async tails that must not run after the entry is gone (unmounted, or the app went to the background)
+  const alive = React.useRef(true);
+  const pendingTimers = React.useRef(new Set<ReturnType<typeof setTimeout>>());
+  React.useEffect(() => () => {
+    alive.current = false;
+    for (const t of pendingTimers.current) clearTimeout(t);
+    pendingTimers.current.clear();
+    if (signalTimer.current) clearTimeout(signalTimer.current);
+  }, []);
   const lastOpened = React.useRef<{ key: string; at: number } | null>(null); // the detail page the SDK opened last, until it closes
   // Fetch the combos again (quietly) when the sheet opens, when the app comes back to the front, and when the SDK's detail screen closes:
   // that is when what the member just did shows up in the server's `done` list. At most once per few seconds; the first load counts.
@@ -516,6 +525,7 @@ export function ComboEntry({
     try { void Promise.resolve(latest.current.onDetailSignal?.({ result, campaignKey: key, platform, ms })).catch(() => {}); } catch { /* reporting is best effort */ }
     if (signalTimer.current) clearTimeout(signalTimer.current);
     signalTimer.current = setTimeout(() => {
+      if (!alive.current) return;
       lastRefresh.current = Date.now();
       try { latest.current.refresh(); } catch { /* a failed refresh keeps what is on screen */ }
     }, COMBO_SIGNAL_REFRESH_MS);
@@ -743,7 +753,12 @@ export function ComboEntry({
         diag.how = 'snapplay_id'; diag.key = key; diag.attempts = 1;
         // 0.6.10: on iOS the SDK's own screen is presented from the root controller; the Modal sheet (0.6.6+) would still be up and swallow that presentation.
         // Close the sheets first and give the dismissal a moment. (Android: the SDK screen is an Activity, the sheet stays as before.)
-        if (require('react-native').Platform.OS === 'ios') { setOpen(false); setTrialsOpen(false); await new Promise<void>(resolve => setTimeout(resolve, 400)); }
+        if (require('react-native').Platform.OS === 'ios') {
+          setOpen(false); setTrialsOpen(false);
+          await new Promise<void>(resolve => { const t = setTimeout(resolve, 400); pendingTimers.current.add(t); });
+          // 0.6.12: the wait may end after the screen went away or the app left the foreground: then nothing is presented
+          if (!alive.current || !appIsActive()) return;
+        }
         const at = Date.now();
         let result: SnapPlayOpenResult;
         try { result = await openSnapPlayAd(key, latest.current.usn ? { usn: latest.current.usn } : undefined); } catch { result = { ok: false, reason: 'sdk_error', listCount: 0 }; }

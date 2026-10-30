@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.SNAPPLAY_LIST_TTL_MS = exports.SNAPPLAY_LIST_TIMEOUT_MS = exports.SNAPPLAY_VIEW_NAME = exports.SNAPPLAY_INIT_TIMEOUT_MS = exports.SNAPPLAY_DEFAULT_PLACEMENT = exports.SNAPPLAY_NATIVE_MODULE = exports.SNAPPLAY_PROVIDER_ID = void 0;
 exports.parseSnapPlayConfig = parseSnapPlayConfig;
 exports.configureSnapPlay = configureSnapPlay;
+exports.appIsActive = appIsActive;
 exports.hasSnapPlayNative = hasSnapPlayNative;
 exports.snapPlayStatus = snapPlayStatus;
 exports.resolveSnapPlayConfig = resolveSnapPlayConfig;
@@ -78,6 +79,16 @@ function configureSnapPlay(raw) {
     config = parseSnapPlayConfig(raw);
     (0, chanceProviders_1.notifyChanceProviders)();
     return config !== null;
+}
+/** 0.6.12: the app is in the foreground. Without AppState (tests, odd hosts) it counts as active. */
+function appIsActive() {
+    try {
+        const { AppState } = require('react-native');
+        return !AppState || AppState.currentState == null || AppState.currentState === 'active';
+    }
+    catch {
+        return true;
+    }
 }
 function platform() {
     try {
@@ -200,6 +211,8 @@ async function prepare(context) {
     }
 }
 async function open(context) {
+    if (!appIsActive())
+        return { ok: false, reason: 'not_ready', message: '잠시 후 다시 시도해 주세요' };
     const ready = await prepare(context);
     if (!ready.ok)
         return ready;
@@ -301,6 +314,8 @@ let adsFlight = null;
  * 같은 목록을 `SNAPPLAY_LIST_TTL_MS` 동안 다시 쓰고, 동시에 부르면 한 번만 읽는다. 목록은 OS · 기기에 따라 다르다. 던지지 않는다.
  */
 async function readSnapPlayAds(context, opts = {}) {
+    if (!appIsActive())
+        return { ok: false, reason: 'not_ready' };
     const sdk = api();
     const placement = config?.listPlacement ?? '';
     if (!sdk || !placement || !config?.enabled || appId() === '' || typeof sdk.requestOfferwallData !== 'function')
@@ -343,6 +358,9 @@ async function readSnapPlayAds(context, opts = {}) {
  */
 async function openSnapPlayAd(advId, context) {
     const id = typeof advId === 'number' ? advId : /^\d{1,16}$/.test(String(advId).trim()) ? Number(String(advId).trim()) : NaN;
+    // 0.6.12: never present the SDK's screen while the app is going to the background or not on screen (an iOS crash while backgrounding)
+    if (!appIsActive())
+        return { ok: false, reason: 'not_ready', listCount: 0 };
     const sdk = api();
     const placement = config?.listPlacement ?? '';
     if (!Number.isSafeInteger(id) || id <= 0 || !sdk || !placement || typeof sdk.openAdItem !== 'function')

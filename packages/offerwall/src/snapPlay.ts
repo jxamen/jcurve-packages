@@ -96,6 +96,14 @@ type Api = {
   onLoginRequested(callback: (event: unknown) => void): unknown;
 };
 
+/** 0.6.12: the app is in the foreground. Without AppState (tests, odd hosts) it counts as active. */
+export function appIsActive(): boolean {
+  try {
+    const { AppState } = require('react-native') as typeof import('react-native');
+    return !AppState || AppState.currentState == null || AppState.currentState === 'active';
+  } catch { return true; }
+}
+
 function platform(): 'ios' | 'android' | null {
   try {
     const os = (require('react-native') as typeof import('react-native')).Platform.OS;
@@ -192,6 +200,7 @@ async function prepare(context: ChanceContext): Promise<ChanceResult> {
 }
 
 async function open(context: ChanceContext): Promise<ChanceResult> {
+  if (!appIsActive()) return { ok: false, reason: 'not_ready', message: '잠시 후 다시 시도해 주세요' };
   const ready = await prepare(context);
   if (!ready.ok) return ready;
   try { await api()?.showOfferwall(config?.placement ?? SNAPPLAY_DEFAULT_PLACEMENT); return { ok: true }; }
@@ -292,6 +301,7 @@ export type SnapPlayAdsResult =
  * 같은 목록을 `SNAPPLAY_LIST_TTL_MS` 동안 다시 쓰고, 동시에 부르면 한 번만 읽는다. 목록은 OS · 기기에 따라 다르다. 던지지 않는다.
  */
 export async function readSnapPlayAds(context?: ChanceContext, opts: { fresh?: boolean } = {}): Promise<SnapPlayAdsResult> {
+  if (!appIsActive()) return { ok: false, reason: 'not_ready' };
   const sdk = api();
   const placement = config?.listPlacement ?? '';
   if (!sdk || !placement || !config?.enabled || appId() === '' || typeof sdk.requestOfferwallData !== 'function') return { ok: false, reason: 'unsupported' };
@@ -327,6 +337,8 @@ export type SnapPlayOpenResult =
  */
 export async function openSnapPlayAd(advId: string | number, context?: ChanceContext): Promise<SnapPlayOpenResult> {
   const id = typeof advId === 'number' ? advId : /^\d{1,16}$/.test(String(advId).trim()) ? Number(String(advId).trim()) : NaN;
+  // 0.6.12: never present the SDK's screen while the app is going to the background or not on screen (an iOS crash while backgrounding)
+  if (!appIsActive()) return { ok: false, reason: 'not_ready', listCount: 0 };
   const sdk = api();
   const placement = config?.listPlacement ?? '';
   if (!Number.isSafeInteger(id) || id <= 0 || !sdk || !placement || typeof sdk.openAdItem !== 'function') return { ok: false, reason: 'unsupported', listCount: 0 };

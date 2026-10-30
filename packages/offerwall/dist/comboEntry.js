@@ -338,6 +338,17 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme: appThe
     latest.current = { campaigns, copyText, reportCampaigns, usn, placement, onDiagnostic, onDetailSignal, onTrialConsent, onTrialNotify, loadTrials, onTrialCancelled, combos: state.combos, refresh: state.refresh, snap: snapActive, onSnapPlayAds };
     const signalled = React.useRef(new Set());
     const signalTimer = React.useRef(null);
+    // 0.6.12: timers and async tails that must not run after the entry is gone (unmounted, or the app went to the background)
+    const alive = React.useRef(true);
+    const pendingTimers = React.useRef(new Set());
+    React.useEffect(() => () => {
+        alive.current = false;
+        for (const t of pendingTimers.current)
+            clearTimeout(t);
+        pendingTimers.current.clear();
+        if (signalTimer.current)
+            clearTimeout(signalTimer.current);
+    }, []);
     const lastOpened = React.useRef(null); // the detail page the SDK opened last, until it closes
     // Fetch the combos again (quietly) when the sheet opens, when the app comes back to the front, and when the SDK's detail screen closes:
     // that is when what the member just did shows up in the server's `done` list. At most once per few seconds; the first load counts.
@@ -374,6 +385,8 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme: appThe
         if (signalTimer.current)
             clearTimeout(signalTimer.current);
         signalTimer.current = setTimeout(() => {
+            if (!alive.current)
+                return;
             lastRefresh.current = Date.now();
             try {
                 latest.current.refresh();
@@ -683,7 +696,10 @@ function ComboEntry({ placement, url, headers, load, loadKey, usn, theme: appThe
                 if (require('react-native').Platform.OS === 'ios') {
                     setOpen(false);
                     setTrialsOpen(false);
-                    await new Promise(resolve => setTimeout(resolve, 400));
+                    await new Promise(resolve => { const t = setTimeout(resolve, 400); pendingTimers.current.add(t); });
+                    // 0.6.12: the wait may end after the screen went away or the app left the foreground: then nothing is presented
+                    if (!alive.current || !(0, snapPlay_1.appIsActive)())
+                        return;
                 }
                 const at = Date.now();
                 let result;

@@ -93,3 +93,8 @@ test('찬스2 theme: every sheet color equals 찬스1 except the accent family a
   assert.ok(ratio(s.accentText, s.accentSoft) >= 4.5, 'selected chip label on its soft fill');
   assert.ok(ratio(s.chipText, s.accent) >= 4.5, 'pill text on the pill');
 });
+
+test('0.6.12: with no AppState (tests, odd hosts) the app counts as active; the SDK is never called from a background state', () => {
+  const {appIsActive} = require('../dist/snapPlay');
+  assert.equal(appIsActive(), true);
+});

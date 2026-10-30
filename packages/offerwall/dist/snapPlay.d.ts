@@ -45,6 +45,8 @@ export type SnapPlayServerConfig = {
 export declare function parseSnapPlayConfig(data: unknown): SnapPlayServerConfig | null;
 /** 앱이 설정 값을 직접 넣을 때(시험 · 서버 없이 쓰는 앱). 모양은 `parseSnapPlayConfig` 와 같다. 못 읽으면 설정을 비운다. */
 export declare function configureSnapPlay(raw: unknown): boolean;
+/** 0.6.12: the app is in the foreground. Without AppState (tests, odd hosts) it counts as active. */
+export declare function appIsActive(): boolean;
 /** 이 빌드에 스냅플레이 네이티브 모듈이 들어 있는가 — `NativeModules` 속성 조회뿐, `require` 없음. */
 export declare function hasSnapPlayNative(): boolean;
 export type SnapPlayStatus = {
