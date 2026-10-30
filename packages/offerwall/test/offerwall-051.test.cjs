@@ -76,3 +76,20 @@ test('0.6.10: the server answer is per member — a new member (initializeOfferw
   assert.equal(provider.closed(), true, 'the next member gets its own answer (closed until fetched)');
   assert.equal(api.snapPlayStatus().configured, false);
 });
+
+// 0.6.11: 찬스2 changes the accent only — the sheet's text, rows and backgrounds are the 찬스1 colors; the pill is the one place with white text.
+test('찬스2 theme: every sheet color equals 찬스1 except the accent family and the pill text; accent text is readable on its soft fill', () => {
+  const d = require('../dist/combos').DEFAULT_COMBO_THEME;
+  const s = require('../dist/comboEntry').SNAPPLAY_COMBO_THEME;
+  const accentFamily = ['accent', 'accentText', 'accentSoft', 'chipText'];
+  for (const key of Object.keys(d)) {
+    if (accentFamily.includes(key)) continue;
+    assert.deepEqual(s[key], d[key], `${key} must be the same as 찬스1`);
+  }
+  assert.equal(s.chipText, '#FFFFFF', 'the pill text is white on the blue pill');
+  // the selected chip = accentSoft fill + accentText label: contrast WCAG AA (4.5) at least
+  const lum = (hex) => { const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+  const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+  assert.ok(ratio(s.accentText, s.accentSoft) >= 4.5, 'selected chip label on its soft fill');
+  assert.ok(ratio(s.chipText, s.accent) >= 4.5, 'pill text on the pill');
+});

@@ -616,6 +616,8 @@ export function formatGoal(goal: number): string {
 export type ComboTheme = {
   bg: string; card: string; line: string; divider: string; text: string; sub: string;
   accent: string; accentText: string; accentSoft: string; point: string; pointSoft: string;
+  /** 0.6.11: the 「포인트 빨리 모으기」 pill's own text color (absent = `text`). Only the pill uses it — never the sheet. */
+  chipText?: string;
   tag: string; tagText: string;
   /** Flat grey behind unselected tabs (default #F2F4F6, as in the shopping tab) and behind a loading icon. */
   chipBg?: string; thumbBg?: string;

@@ -68,7 +68,7 @@ export const COMBO_CHIP_TOP = 6;
  * 0.6.8 — the 「포인트 빨리 모으기」 pill and the sheet's accent on the 찬스2 (SnapPlay) tab: a blue family, so the two tabs read apart (찬스1 keeps the yellow theme).
  * Pass `snapPlayTheme` to change it; the text stays white for contrast.
  */
-export const SNAPPLAY_COMBO_THEME: ComboTheme = { ...DEFAULT_COMBO_THEME, accent: '#1565C0', accentText: '#FFFFFF', text: '#FFFFFF', accentSoft: '#E3F0FF', point: '#1565C0', pointSoft: '#E3F0FF' };
+export const SNAPPLAY_COMBO_THEME: ComboTheme = { ...DEFAULT_COMBO_THEME, accent: '#1565C0', accentText: '#0D47A1', accentSoft: '#E3F0FF', chipText: '#FFFFFF' };
 /** The wall's own title (「리워드 충전소」) ends about this far from the left edge (iPhone 402pt and Galaxy A32 411dp captures: 145~150). */
 export const COMBO_TITLE_END = 150;
 /** Space kept between that title and our buttons. */
@@ -127,8 +127,8 @@ export function ComboChip({ onPress, open = false, theme = DEFAULT_COMBO_THEME, 
       backgroundColor: t.accent, opacity: pressed ? 0.8 : 1, ...(fit ? { width: fit.width, borderWidth: 1.5, borderColor: t.accent } : {}), ...t.shadow,
     }),
   },
-    h(Text, { numberOfLines: 1, style: { fontSize: fit ? fit.size : t.font.small, fontWeight: '900', color: t.text } }, fit ? fit.chipLabel : COMBO_NAME),
-    h(Text, { accessible: false, style: { fontSize: fit ? fit.size : t.font.small, fontWeight: '900', color: t.accentText } }, open ? '✕' : '›'));
+    h(Text, { numberOfLines: 1, style: { fontSize: fit ? fit.size : t.font.small, fontWeight: '900', color: t.chipText ?? t.text } }, fit ? fit.chipLabel : COMBO_NAME),
+    h(Text, { accessible: false, style: { fontSize: fit ? fit.size : t.font.small, fontWeight: '900', color: t.chipText ?? t.accentText } }, open ? '✕' : '›'));
   return h(View, { pointerEvents: 'box-none', style: { position: 'absolute', top, right, zIndex: 30, elevation: 30, flexDirection: 'row', alignItems: 'center', gap: COMBO_CHIP_GAP } },
     before ?? null,
     opacity ? h(Animated.View, { style: { opacity } }, pressable) : pressable);
@@ -788,7 +788,8 @@ export function ComboEntry({
   // Android A32); `display.sheet_modal: "off"` from the server, a container that cannot be measured, or a frame that does not make sense put it back in the tree as before.
   // `display.sheet_embed_block: "off"` stops shielding the embedded 찬스2 view (its container gets pointerEvents none) while a sheet is open.
   const sheetUp = open || trialsOpen;
-  const sheetModalOn = placement === 'chance' && state.combos?.display.sheetModal !== 'off';
+  // 0.6.11: the sheet is always a Modal on the Chance tab (owner 11:00: it must cover the tab bar and the ad). A server `sheet_modal: "off"` no longer puts it back in the tree.
+  const sheetModalOn = placement === 'chance';
   const sheetPlace = useSheetPlacement({ enabled: sheetModalOn, sheetUp });
   const embedShield = placement === 'chance' && sheetUp && state.combos?.display.sheetEmbedBlock !== 'off';
   React.useEffect(() => {
@@ -837,14 +838,15 @@ export function ComboEntry({
   const modalMode = sheetUp && sheetModalOn;
   const dim = 'rgba(0,0,0,0.3)';
   // 0.6.6: the sheet in a Modal. The Modal is dimmed at once; the sheet follows as soon as the container's place inside it is known. Tapping outside the sheet or the system back closes it.
-  const sheetModal = modalMode ? h(Modal, { key: 'sheet-modal', visible: true, transparent: true, animationType: 'none', onRequestClose: closeSheets },
+  // root-level window: iOS presents it over the whole screen (tab bar included); Android draws it under the status bar too
+  const sheetModal = modalMode ? h(Modal, { key: 'sheet-modal', visible: true, transparent: true, animationType: 'none', presentationStyle: 'overFullScreen', statusBarTranslucent: true, onRequestClose: closeSheets },
     h(View, { style: { flex: 1 }, collapsable: false },
       h(View, sheetPlace.modalAnchorProps),
       h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: closeSheets, style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: dim } }),
-      // the place inside the Modal when measured; otherwise the whole window (the sheet still reaches the bottom of the screen, over the tab bar)
-      h(View, { pointerEvents: 'box-none', style: sheetPlace.frame ? { position: 'absolute', left: sheetPlace.frame.left, top: sheetPlace.frame.top, width: sheetPlace.frame.width, height: sheetPlace.frame.height } : { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 } },
-        h(ComboSheet, { top: sheetTop + inset, theme }, open ? guide('sheet') : trialsBody()),
-        notice ? h(ComboToast, { text: notice, top: sheetTop + inset + 8, theme }) : null),
+      // 0.6.11: the parent is the WHOLE window (a frame of the container's size cut the sheet above the tab bar and the banner). Only the sheet's top follows the measured container.
+      h(View, { pointerEvents: 'box-none', style: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 } },
+        h(ComboSheet, { top: (sheetPlace.frame ? sheetPlace.frame.top : 0) + sheetTop + inset, theme }, open ? guide('sheet') : trialsBody()),
+        notice ? h(ComboToast, { text: notice, top: (sheetPlace.frame ? sheetPlace.frame.top : 0) + sheetTop + inset + 8, theme }) : null),
       // 0.6.8: the 무료체험 notice (and the 포인트 빨리 모으기 consent) must lie ABOVE the sheet: drawn in the sheet's own Modal, after the sheet
       consentView)) : null;
   return h(React.Fragment, null,
@@ -861,8 +863,6 @@ export function ComboEntry({
     }) : null,
     !modalMode && trialsOpen ? h(ComboSheet, { key: 'trials-sheet', top: sheetTop + inset, theme }, trialsBody()) : null,
     popup && !open && !trialsOpen && state.combos ? h(ComboPopup, { combos: state.combos, theme, art: popupArt, ad: popupAd, onOpen: () => { setPopup(false); setOpen(true); }, onClose: () => setPopup(false) }) : null,
-    // 0.6.8: on 찬스2 the pill sits on its own solid strip (the SDK's header behind it is not seen through the pill)
-    shown && snapActive ? h(View, { key: 'snap-strip', pointerEvents: 'none', style: { position: 'absolute', left: 0, right: 0, top: inset, height: 52, backgroundColor: theme.bg, zIndex: 29, elevation: 29 } }) : null,
     shown ? h(ComboChip, {
       key: 'chip', open, theme, top: (chipTop ?? COMBO_CHIP_TOP) + inset, right: chipRight, opacity: snapActive ? undefined : blink, fit: chipFit ?? undefined,
       before: trialsChip && chipFit ? h(ComboTrialsChip, { open: trialsOpen, theme, fit: chipFit, onPress: () => { if (trialsOpen) setTrialsOpen(false); else openTrials(); } }) : null,

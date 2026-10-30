@@ -81,10 +81,8 @@ test('a measured container opens the sheet in a Modal: dimmed at once, the sheet
   const placed = s.again();
   const sheet = sheetInModal(placed);
   assert.ok(sheet, 'the sheet is in the Modal now');
-  const frame = walk(modal(placed)).find((n) => n.props && n.props.style && n.props.style.position === 'absolute' && n.props.style.width === 400 && n.props.style.height === 700);
-  assert.deepEqual([frame.props.style.left, frame.props.style.top], [0, 100], 'container (124) minus the Modal\'s origin (24)');
-  assert.equal(frame.props.pointerEvents, 'box-none');
-  assert.equal(sheet.props.style.top, api.COMBO_SHEET_TOP, 'and under the chip row exactly as in the tree');
+  // 0.6.11: the whole window is the parent (the sheet reaches the bottom of the screen); only the sheet's top follows the container (124 - origin 24 = 100)
+  assert.equal(sheet.props.style.top, 100 + api.COMBO_SHEET_TOP, 'container (124) minus the Modal origin (24), plus the chip row');
   assert.equal(sheet.props.style.bottom, 0);
   assert.ok(texts(placed).some((x) => String(x).includes('일 abc123def456')), 'the guide is the sheet\'s content');
   assert.equal(hasSheet({children: [placed]}) && walk(placed).filter((n) => n.type === 'Animated.View' && n.props.style && n.props.style.bottom === 0).length, 1, 'one sheet, not two');
@@ -96,7 +94,7 @@ test('the tab-row inset moves the sheet down inside the Modal as it does in the 
     const s = await start(ctx, {containerNode: node(CONTAINER)});
     const opened = s.openNow();
     const ma = modalAnchor(opened); ma.props.ref(node(box(0, 0, 1, 1))); ma.props.onLayout();
-    assert.equal(sheetInModal(s.again()).props.style.top, api.COMBO_SHEET_TOP + 45);
+    assert.equal(sheetInModal(s.again()).props.style.top, 100 + api.COMBO_SHEET_TOP + 45, '0.6.11: the container top (100) + the tab row and the sheet offset');
   } finally { api.setChanceTabInset(0); }
 }));
 
@@ -127,12 +125,14 @@ test('the 「무료체험 확인」 sheet is drawn the same way (a Modal, the sh
 
 /* ── falling back to the tree ───────────────────────────────────────────────────────────────────── */
 
-test('display.sheet_modal "off": no Modal, no anchor, the sheet is in the tree exactly as in 0.6.5', () => withReact(async (ctx) => {
+test('0.6.11: display.sheet_modal "off" no longer puts the sheet in the tree — it is always a root-level Modal (covers the tab bar and the ad), full-window parent', () => withReact(async (ctx) => {
   const s = await start(ctx, {display: {sheet_modal: 'off'}, containerNode: node(CONTAINER)});
-  assert.equal(anchor(s.tree), undefined, 'no measuring anchor either');
   const opened = s.openNow();
-  assert.equal(modal(opened), undefined);
-  assert.equal(hasSheet(opened), true);
+  const m = modal(opened);
+  assert.ok(m, 'a Modal');
+  assert.equal(m.props.presentationStyle, 'overFullScreen');
+  assert.equal(m.props.statusBarTranslucent, true);
+  assert.ok(sheetInModal(opened), 'the sheet is inside it');
 }));
 
 test('0.6.8: a container that was never laid out or cannot be measured still opens the sheet in its Modal (the whole window: over the tab bar and banner)', () => withReact(async (ctx) => {
