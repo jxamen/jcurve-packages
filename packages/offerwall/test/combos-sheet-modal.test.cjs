@@ -73,7 +73,7 @@ test('a measured container opens the sheet in a Modal: dimmed at once, the sheet
   assert.equal(m.props.transparent, true); assert.equal(m.props.animationType, 'none'); assert.equal(m.props.visible, true);
   assert.equal(typeof m.props.onRequestClose, 'function');
   assert.ok(byLabel(m, '닫기'), 'a backdrop that closes');
-  assert.equal(sheetInModal(opened), undefined, 'the sheet waits for the origin');
+  assert.ok(sheetInModal(opened), '0.6.8: the sheet is in the Modal at once (the whole window until the origin is known)');
   const ma = modalAnchor(opened);
   assert.ok(ma, 'the 1×1 anchor at the Modal\'s origin');
   assert.deepEqual(ma.props.style, {position: 'absolute', left: 0, top: 0, width: 1, height: 1});
@@ -135,38 +135,35 @@ test('display.sheet_modal "off": no Modal, no anchor, the sheet is in the tree e
   assert.equal(hasSheet(opened), true);
 }));
 
-test('a container that was never laid out or cannot be measured (missing, throws, NaN, zero size, off by a screen): the sheet is in the tree at once', () => withReact(async (ctx) => {
+test('0.6.8: a container that was never laid out or cannot be measured still opens the sheet in its Modal (the whole window: over the tab bar and banner)', () => withReact(async (ctx) => {
   for (const spec of [{containerNode: undefined}, {containerNode: node(CONTAINER), onLayout: false}, {containerNode: THROWS}, {containerNode: node(box(0, NaN, 400, 700))}, {containerNode: node(box(0, 100, 0, 0))}, {containerNode: null}]) {
     const s = await start(ctx, spec);
     const opened = s.openNow();
-    assert.equal(modal(opened), undefined, JSON.stringify(Object.keys(spec)));
-    assert.equal(hasSheet(opened), true, 'tree sheet');
-    s.again(); s.again(); // the container is looked at again when a sheet opens: a measure that arrives now must not swap the open sheet for a Modal
-    assert.equal(modal(s.again()), undefined, 'still in the tree: ' + JSON.stringify(Object.keys(spec)));
-    assert.equal(hasSheet(s.again()), true);
+    assert.ok(modal(opened), JSON.stringify(Object.keys(spec)));
+    assert.equal(hasSheet(opened), true, 'the sheet is there');
+    assert.equal(sheetInModal(s.again()) !== undefined, true, 'still in the Modal');
     api.listenForComboRequests({priority: 0, open() {}})();
   }
 }));
 
-test('a frame that does not make sense (the two measures in different coordinate systems): the Modal is given up for the tree sheet', () => withReact(async (ctx) => {
+test('0.6.8: a frame that does not make sense (the two measures in different coordinate systems): the sheet stays in its Modal, over the whole window', () => withReact(async (ctx) => {
   const s = await start(ctx, {containerNode: node(CONTAINER)});
   const opened = s.openNow();
   assert.ok(modal(opened));
   const ma = modalAnchor(opened); ma.props.ref(node(box(0, 5000, 1, 1))); ma.props.onLayout();
   const after = s.again();
-  assert.equal(modal(after), undefined, 'no Modal');
-  assert.equal(hasSheet(after), true, 'the tree sheet instead');
+  assert.ok(modal(after), 'the Modal stays');
+  assert.ok(sheetInModal(after), 'the sheet is in it');
 }));
 
-test('a Modal whose origin never gets measured is given up after the wait: the tree sheet appears', () => withReact(async (ctx) => {
+test('0.6.8: a Modal whose origin never gets measured keeps the sheet in the Modal (full window) after the wait', () => withReact(async (ctx) => {
   const s = await start(ctx, {containerNode: node(CONTAINER)});
   const opened = s.openNow();
-  assert.ok(modal(opened) && !sheetInModal(opened), 'waiting');
-  s.again();                                           // (effects run on the next flush: the wait starts)
+  assert.ok(modal(opened) && sheetInModal(opened), 'at once');
+  s.again();
   await tick(frameMod.SHEET_MEASURE_TIMEOUT_MS + 80);
   const after = s.again();
-  assert.equal(modal(after), undefined);
-  assert.equal(hasSheet(after), true);
+  assert.ok(modal(after) && sheetInModal(after), 'still in the Modal');
 }));
 
 test('a closed sheet starts the next opening with a clean slate (a give-up does not stick)', () => withReact(async (ctx) => {

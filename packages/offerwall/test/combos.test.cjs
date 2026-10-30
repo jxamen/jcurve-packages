@@ -410,8 +410,8 @@ test('entry (Chance tab): chip over the header row, sheet rises over the wall, c
 
   assert.equal(api.requestOpenCombos(), true); // popup / push / link
   tree = mount();
-  assert.ok(hasSheet(tree), 'sheet is in the tree, over the wall');
-  assert.equal(hasType(tree, 'Modal'), false);
+  assert.ok(hasSheet(tree), 'sheet is over the wall');
+  assert.equal(hasType(tree, 'Modal'), true, '0.6.8: the sheet is in its Modal (covers the tab bar and banner)');
   assert.equal(findSheet(tree).props.style.top, 52);
   assert.ok(texts(tree).includes('쉽게 모으기') && texts(tree).includes('✕') && texts(tree).includes('닫기'), 'the sample has an easy list: it opens first');
   const chip = byLabel(tree, '포인트 빨리 모으기');
@@ -444,7 +444,7 @@ test('entry (Chance tab): server off hides the chip but popups still open the sh
     assert.equal(api.requestOpenCombos(), true);
     tree = mount();
     assert.ok(hasSheet(tree));
-    assert.equal(walk(tree).some(n => n.props?.pointerEvents === 'box-none'), false, 'no chip while off');
+    assert.equal(walk(tree).some(n => n.props?.accessibilityLabel === '포인트 빨리 모으기' && n.props?.accessibilityState && 'expanded' in n.props.accessibilityState), false, 'no chip while off');
     const home = make();
     assert.equal(home.render(() => api.ComboEntry({placement: 'home', url: 'u'})), null);
     const none = make();
