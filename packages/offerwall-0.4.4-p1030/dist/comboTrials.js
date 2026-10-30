@@ -1,0 +1,236 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.trialNoticeDeclineKey = exports.trialNoticeKey = exports.COMBO_CONSENT_TOAST_OFF = exports.COMBO_CONSENT_TOAST = exports.COMBO_CONSENT_DECLINE = exports.COMBO_CONSENT_AGREE = exports.COMBO_CONSENT_TAB_LINE = exports.COMBO_CONSENT_BODY = exports.COMBO_CONSENT_TITLE = exports.COMBO_TRIAL_STATUSES = exports.COMBO_CANCELLED_TEXT = exports.COMBO_TRIALS_NAME = void 0;
+exports.parseMyTrials = parseMyTrials;
+exports.monthDay = monthDay;
+exports.asksCancelled = asksCancelled;
+exports.myTrialLine = myTrialLine;
+exports.requestOpenTrials = requestOpenTrials;
+exports.listenForTrialRequests = listenForTrialRequests;
+exports.TrialConsentPopup = TrialConsentPopup;
+exports.useTrialNoticeAgreed = useTrialNoticeAgreed;
+exports.resetTrialNoticeMemory = resetTrialNoticeMemory;
+exports.ComboTrialsScreen = ComboTrialsScreen;
+const combos_1 = require("./combos");
+const comboSheetFrame_1 = require("./comboSheetFrame");
+exports.COMBO_TRIALS_NAME = '무료체험 확인';
+/** What a row says once the member marked it cancelled. */
+exports.COMBO_CANCELLED_TEXT = '해지 완료 ✓ · 알림을 그만 보낼게요';
+exports.COMBO_TRIAL_STATUSES = ['체험 중', '지금 해지 가능', '결제 시작됨'];
+const text = (v, max) => typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, max) : '';
+const whole = (v, max) => {
+    const n = typeof v === 'string' && /^\d+$/.test(v.trim()) ? Number(v) : v;
+    return typeof n === 'number' && Number.isSafeInteger(n) && n > 0 && n <= max ? n : undefined;
+};
+const isoTime = (v) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v) ? v.slice(0, 40) : undefined);
+/** At most this many rows of the member's list are kept. */
+const MAX_MY_TRIALS = 200;
+/**
+ * The body of `GET offerwall/trials`: `{ ok, trials: [...], now }`. Returns the checked rows in the server's order (newest first), or null when
+ * the body is not that shape (so the screen can say it could not load instead of showing nothing). A row needs a campaign key; every other
+ * value is optional and a bad one is simply left out.
+ */
+function parseMyTrials(body) {
+    const root = body && typeof body === 'object' ? body : null;
+    if (!root || root.ok === false || !Array.isArray(root.trials))
+        return null;
+    const seen = new Set();
+    const out = [];
+    for (const item of root.trials.slice(0, MAX_MY_TRIALS * 2)) {
+        if (out.length >= MAX_MY_TRIALS)
+            break;
+        const campaignKey = text(typeof item?.campaignKey === 'number' ? String(item.campaignKey) : item?.campaignKey, 64);
+        if (!campaignKey || seen.has(campaignKey))
+            continue;
+        seen.add(campaignKey);
+        const iconUrl = text(item.icon, 500);
+        const status = exports.COMBO_TRIAL_STATUSES.includes(item.status) ? item.status : undefined;
+        const joinedAt = isoTime(item.joined_at), cancelFrom = isoTime(item.cancel_from), chargeAt = isoTime(item.charge_at);
+        const points = whole(item.points, 10000000), trialDays = whole(item.trial_days, 365), trialHours = whole(item.trial_hours, 8760);
+        const cancelAfterHours = whole(item.cancel_after_hours, 8760), chargeAmount = whole(item.charge_amount, 10000000);
+        out.push({
+            campaignKey, name: text(item.name, 40) || '무료체험',
+            ...(points ? { points } : {}), ...(/^https:\/\/\S+$/i.test(iconUrl) ? { icon: iconUrl } : {}),
+            ...(joinedAt ? { joinedAt } : {}), ...(item.joined_via === 'reward' || item.joined_via === 'consent' ? { joinedVia: item.joined_via } : {}),
+            ...(typeof item.agreed === 'boolean' ? { agreed: item.agreed } : {}),
+            ...(trialDays ? { trialDays } : {}), ...(trialHours ? { trialHours } : {}), ...(cancelAfterHours ? { cancelAfterHours } : {}), ...(chargeAmount ? { chargeAmount } : {}),
+            ...(cancelFrom ? { cancelFrom } : {}), ...(chargeAt ? { chargeAt } : {}),
+            ...(status ? { status } : {}),
+            ...(item.cancelled === true || item.cancelled === false || item.cancelled === null ? { cancelled: item.cancelled } : {}),
+        });
+    }
+    return out;
+}
+/** 「2026-10-30T22:32:24+09:00」 → 「10/30」 (the date as the server wrote it, Korean time). */
+function monthDay(iso) {
+    const m = iso ? /^\d{4}-(\d{2})-(\d{2})/.exec(iso) : null;
+    return m ? `${Number(m[1])}/${Number(m[2])}` : '';
+}
+/** Does this row still have to ask 「해지했나요?」: the cancel time has come (or the first charge has started) and the member has not said yes. */
+function asksCancelled(trial) {
+    return (trial.status === '지금 해지 가능' || trial.status === '결제 시작됨') && trial.cancelled !== true;
+}
+/** The small grey line under a row's name: 「10/27 참여 · 11/3 결제 예정 · 월 29,900원」 (parts the server did not give are left out). */
+function myTrialLine(trial) {
+    const parts = [];
+    const joined = monthDay(trial.joinedAt);
+    if (joined)
+        parts.push(`${joined} 참여`);
+    const charge = monthDay(trial.chargeAt);
+    if (charge)
+        parts.push(trial.status === '결제 시작됨' ? `${charge} 결제 시작` : `${charge} 결제 예정`);
+    if (trial.chargeAmount)
+        parts.push(`월 ${(0, combos_1.formatWon)(trial.chargeAmount)}`);
+    return parts.join(' · ');
+}
+const trialOpeners = new Set();
+let trialsWaiting = null;
+const TRIALS_WAIT_MS = 10000;
+/**
+ * Opens the member's free-trial list from anywhere (a cancel-notice push). `focusKey` is the campaign to highlight. Like `requestOpenCombos`:
+ * with no entry mounted yet (the app is switching to the Chance tab) the request waits up to 10 seconds for the first one that mounts.
+ */
+function requestOpenTrials(focusKey, now = Date.now()) {
+    let target;
+    for (const opener of trialOpeners)
+        if (!target || opener.priority >= target.priority)
+            target = opener;
+    if (!target) {
+        trialsWaiting = { since: now, ...(focusKey ? { focusKey } : {}) };
+        return false;
+    }
+    trialsWaiting = null;
+    target.open(focusKey);
+    return true;
+}
+function listenForTrialRequests(opener, now = Date.now()) {
+    trialOpeners.add(opener);
+    const waiting = trialsWaiting && now - trialsWaiting.since <= TRIALS_WAIT_MS ? trialsWaiting : null;
+    trialsWaiting = null;
+    if (waiting)
+        opener.open(waiting.focusKey);
+    return () => { trialOpeners.delete(opener); };
+}
+// ---- the consent popup -----------------------------------------------------------------------------------------------
+/** 대표님 10/27 22:51 wording. The body is broken by hand so no word is cut in the middle. */
+exports.COMBO_CONSENT_TITLE = '무료체험, 안심하고 참여하세요';
+exports.COMBO_CONSENT_BODY = '체험이 끝나기 전에\n해지할 때를 알림으로 알려 드려요.\n해지하면 돈이 나가지 않아요.';
+/** 대표님 10/27 23:14: what the soft box says (the popup is about the whole tab, not one campaign). */
+exports.COMBO_CONSENT_TAB_LINE = '여기 있는 체험은 끝나면 자동 결제돼요.\n끝나기 전에 해지 알림을 보내 드려요.';
+/** The strong button (대표님 10/27 23:15 「해지 알림 켜고 참여하기」) and the other one. */
+exports.COMBO_CONSENT_AGREE = '해지 알림 켜고 참여하기';
+exports.COMBO_CONSENT_DECLINE = '괜찮아요';
+/** Shown for a moment after the strong button, once the phone's notifications are seen to. */
+exports.COMBO_CONSENT_TOAST = '해지 알림을 맞춰 뒀어요';
+/** Instead, when the phone's notifications stayed off (대표님 10/27 23:11): the member is told they will not get the notices. */
+exports.COMBO_CONSENT_TOAST_OFF = '알림이 꺼져 있어 안내를 못 받아요';
+/**
+ * Asked when the member walks into the 무료체험 tab (대표님 10/27 23:14), not when they tap a row: one question for the whole tab. The strong button
+ * (`COMBO_CONSENT_AGREE`) turns the cancel notices on — the app sees to the phone's notifications, the choice is kept on the device, and from then on tapping a
+ * row saves that campaign's consent by itself and opens it. 「괜찮아요」 (and the dimmed area, and going back) means not again today. The button for the member's own
+ * list does not ask.
+ */
+function TrialConsentPopup({ theme = combos_1.DEFAULT_COMBO_THEME, onAnswer }) {
+    const React = require('react');
+    const { View, Text, Pressable, BackHandler } = require('react-native');
+    const h = React.createElement;
+    const t = theme;
+    React.useEffect(() => {
+        const subscription = BackHandler.addEventListener('hardwareBackPress', () => { onAnswer('decline'); return true; });
+        return () => subscription.remove();
+    }, [onAnswer]);
+    return h(View, { key: 'consent', style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 40, elevation: 40, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 } }, h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '팝업 닫기', onPress: () => onAnswer('decline'), style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.55)' } }), h(View, { accessibilityViewIsModal: true, style: { width: '100%', maxWidth: 320, borderRadius: 20, backgroundColor: t.card, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18, ...t.shadow } }, h(Text, { accessibilityRole: 'header', style: { fontSize: 17, lineHeight: 24, fontWeight: '800', color: t.text, textAlign: 'center' } }, exports.COMBO_CONSENT_TITLE), h(Text, { style: { marginTop: 10, fontSize: 13, lineHeight: 19, color: t.sub, textAlign: 'center' } }, exports.COMBO_CONSENT_BODY), h(View, { style: { marginTop: 12, alignSelf: 'stretch', borderRadius: 12, backgroundColor: t.accentSoft, paddingVertical: 9, paddingHorizontal: 12, alignItems: 'center' } }, h(Text, { style: { fontSize: 13, lineHeight: 19, fontWeight: '800', color: t.accentText, textAlign: 'center' } }, exports.COMBO_CONSENT_TAB_LINE)), h(Pressable, {
+        accessibilityRole: 'button', accessibilityLabel: exports.COMBO_CONSENT_AGREE, onPress: () => onAnswer('agree'),
+        style: ({ pressed }) => ({ marginTop: 18, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accent, opacity: pressed ? 0.85 : 1 }),
+    }, h(Text, { style: { fontSize: 16, fontWeight: '800', color: t.text } }, exports.COMBO_CONSENT_AGREE)), h(Pressable, {
+        accessibilityRole: 'button', accessibilityLabel: exports.COMBO_CONSENT_DECLINE, onPress: () => onAnswer('decline'),
+        style: ({ pressed }) => ({ marginTop: 8, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: t.chipBg ?? '#F2F4F6', opacity: pressed ? 0.85 : 1 }),
+    }, h(Text, { style: { fontSize: 15, fontWeight: '700', color: t.sub } }, exports.COMBO_CONSENT_DECLINE))));
+}
+const noticeMemory = new Map();
+/** 「해지 알림 켜고 참여하기」 was pressed once: kept per member on the device, no daily reset. */
+const trialNoticeKey = (scope) => `jcurve.combos.trialNotice:${scope ?? ''}`;
+exports.trialNoticeKey = trialNoticeKey;
+/** 「괜찮아요」: kept for the Korean day only (read through `useSeenToday`), the popup comes again the next day. */
+const trialNoticeDeclineKey = (scope) => `jcurve.combos.trialNoticeNo:${scope ?? ''}`;
+exports.trialNoticeDeclineKey = trialNoticeDeclineKey;
+const parseAgreed = (value) => { try {
+    const v = JSON.parse(value ?? 'null');
+    return !!v && v.agreed === true;
+}
+catch {
+    return false;
+} };
+/** `agreed` is null until the stored value was read (the popup waits meanwhile), then true or false. */
+function useTrialNoticeAgreed({ storage, scope }) {
+    const React = require('react');
+    const key = (0, exports.trialNoticeKey)(scope);
+    const [state, setState] = React.useState({ key, agreed: storage ? null : parseAgreed(noticeMemory.get(key)) });
+    React.useEffect(() => {
+        if (!storage) {
+            setState({ key, agreed: parseAgreed(noticeMemory.get(key)) });
+            return undefined;
+        }
+        let live = true;
+        Promise.resolve(storage.getItem(key)).then(value => { if (live)
+            setState(prev => ({ key, agreed: parseAgreed(value) || (prev.key === key && prev.agreed === true) })); })
+            .catch(() => { if (live)
+            setState({ key, agreed: false }); });
+        return () => { live = false; };
+    }, [key, storage]);
+    const setAgreed = () => {
+        const value = JSON.stringify({ agreed: true });
+        noticeMemory.set(key, value);
+        setState({ key, agreed: true });
+        try {
+            Promise.resolve(storage?.setItem(key, value)).catch(() => { });
+        }
+        catch { /* storage is best effort */ }
+    };
+    return { agreed: state.key === key ? state.agreed : (storage ? null : parseAgreed(noticeMemory.get(key))), setAgreed };
+}
+/** Test helper: forget the choice in memory. */
+function resetTrialNoticeMemory() { noticeMemory.clear(); }
+const BADGE = {
+    '체험 중': { bg: '#FFF0C7', fg: '#9A5B0E' },
+    '지금 해지 가능': { bg: '#FFE4D6', fg: '#C2410C' },
+    '결제 시작됨': { bg: '#F2F4F6', fg: '#6B7684' },
+};
+/** 「무료체험 확인」: the member's free trials, one row each, newest first (the pushed one first, highlighted). */
+function ComboTrialsScreen({ items, loading = false, failed = false, theme = combos_1.DEFAULT_COMBO_THEME, focusKey, onClose, onOpen, onCancelled, onRetry }) {
+    const React = require('react');
+    const { View, Text, Pressable, ScrollView, BackHandler } = require('react-native');
+    const h = React.createElement;
+    const t = theme;
+    const side = 20;
+    React.useEffect(() => {
+        const subscription = BackHandler.addEventListener('hardwareBackPress', () => { onClose(); return true; });
+        return () => subscription.remove();
+    }, [onClose]);
+    const list = items ?? [];
+    const focus = focusKey ? focusKey.toLowerCase() : '';
+    const rows = focus ? [...list.filter(x => x.campaignKey.toLowerCase() === focus), ...list.filter(x => x.campaignKey.toLowerCase() !== focus)] : list;
+    const pill = (label, onPress, strong = false) => h(Pressable, {
+        key: label, accessibilityRole: 'button', accessibilityLabel: label, onPress, hitSlop: 6,
+        style: { height: 30, paddingHorizontal: 14, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: strong ? t.accent : (t.chipBg ?? '#F2F4F6') },
+    }, h(Text, { style: { fontSize: 13, fontWeight: '800', color: strong ? t.text : t.sub } }, label));
+    const row = (trial, index) => {
+        const focused = !!focus && trial.campaignKey.toLowerCase() === focus;
+        const line = myTrialLine(trial);
+        const badge = trial.status ? BADGE[trial.status] : null;
+        return h(Pressable, {
+            key: trial.campaignKey, accessibilityRole: 'button',
+            accessibilityLabel: `${trial.name}, ${trial.status ?? '무료체험'}${line ? `, ${line}` : ''}${trial.cancelled === true ? ', 해지 완료' : ''}`,
+            onPress: () => onOpen(trial),
+            style: ({ pressed }) => ({
+                paddingVertical: 14, paddingHorizontal: side, borderTopWidth: index === 0 ? 0 : 1, borderTopColor: t.line,
+                backgroundColor: focused ? t.accentSoft : pressed ? '#F7F8FA' : 'transparent',
+            }),
+        }, h(View, { style: { flexDirection: 'row', alignItems: 'center' } }, h(combos_1.ComboMissionIcon, { name: trial.name, uri: trial.icon, size: 40, theme: t }), h(View, { style: { flex: 1, minWidth: 0, marginLeft: 12 } }, h(View, { style: { flexDirection: 'row', alignItems: 'center' } }, h(Text, { numberOfLines: 1, ellipsizeMode: 'tail', style: { flexShrink: 1, fontSize: 15, lineHeight: 21, fontWeight: '700', color: t.text } }, trial.name), badge ? h(View, { style: { marginLeft: 8, borderRadius: 999, paddingVertical: 2, paddingHorizontal: 8, backgroundColor: badge.bg } }, h(Text, { style: { fontSize: 11.5, lineHeight: 16, fontWeight: '800', color: badge.fg } }, trial.status)) : null), line ? h(Text, { numberOfLines: 1, ellipsizeMode: 'tail', style: { marginTop: 2, fontSize: 12.5, lineHeight: 18, color: t.sub } }, line) : null)), 
+        // 대표님 10/27 23:16: one button 「해지했어요」, there from the start (also before the cancel time, which the notices begin at); pressing it says 「해지 완료 ✓ · 알림을 그만 보낼게요」
+        trial.cancelled === true
+            ? h(Text, { style: { marginTop: 10, fontSize: 13, fontWeight: '800', color: t.accentText } }, exports.COMBO_CANCELLED_TEXT)
+            : h(View, { style: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 8 } }, h(Text, { style: { flex: 1, fontSize: 12.5, color: asksCancelled(trial) ? t.text : t.sub, fontWeight: asksCancelled(trial) ? '700' : '400' } }, asksCancelled(trial) ? '해지했나요?' : trial.cancelFrom ? `${monthDay(trial.cancelFrom)}부터 해지할 수 있어요` : ''), pill('해지했어요', () => onCancelled(trial, true), true)));
+    };
+    return h(View, { style: { flex: 1, backgroundColor: t.bg } }, h(View, { style: { height: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: side } }, h(Text, { accessibilityRole: 'header', style: { fontSize: 18, fontWeight: '700', color: t.text } }, exports.COMBO_TRIALS_NAME), h(Pressable, { accessibilityRole: 'button', accessibilityLabel: '닫기', onPress: onClose, hitSlop: 12, style: { paddingVertical: 8, paddingLeft: 8 } }, h(Text, { style: { fontSize: 14, fontWeight: '600', color: t.sub } }, '닫기'))), h(ScrollView, { contentContainerStyle: { paddingBottom: 32 }, ...(0, comboSheetFrame_1.comboListProps)() }, h(Text, { style: { paddingHorizontal: side, paddingTop: 4, paddingBottom: 10, fontSize: 13, lineHeight: 19, color: t.sub } }, '참여한 무료체험이에요.\n해지할 때가 되면 해지했는지 물어봐요.'), loading && !rows.length ? h(Text, { style: { marginTop: 40, fontSize: 15, textAlign: 'center', color: t.sub } }, '불러오고 있어요') : null, !loading && failed && !rows.length ? h(View, { style: { marginTop: 40, alignItems: 'center' } }, h(Text, { style: { fontSize: 15, lineHeight: 22, textAlign: 'center', color: t.sub } }, '목록을 불러오지 못했어요.\n잠시 뒤에 다시 해 주세요.'), onRetry ? h(View, { style: { marginTop: 14 } }, pill('다시 불러오기', onRetry)) : null) : null, !loading && !failed && !rows.length ? h(Text, { style: { marginTop: 40, paddingHorizontal: side, fontSize: 15, lineHeight: 22, textAlign: 'center', color: t.sub } }, '아직 참여한 무료체험이 없어요.\n「포인트 빨리 모으기」의 「무료체험」 탭에서 골라 보세요.') : null, rows.map(row)));
+}
