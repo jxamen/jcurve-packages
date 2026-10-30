@@ -741,6 +741,9 @@ export function ComboEntry({
       const key = [mission.campaignKey, isCampaignKey(mission.id) ? mission.id : undefined].find(isCampaignKey);
       if (key) {
         diag.how = 'snapplay_id'; diag.key = key; diag.attempts = 1;
+        // 0.6.10: on iOS the SDK's own screen is presented from the root controller; the Modal sheet (0.6.6+) would still be up and swallow that presentation.
+        // Close the sheets first and give the dismissal a moment. (Android: the SDK screen is an Activity, the sheet stays as before.)
+        if (require('react-native').Platform.OS === 'ios') { setOpen(false); setTrialsOpen(false); await new Promise<void>(resolve => setTimeout(resolve, 400)); }
         const at = Date.now();
         let result: SnapPlayOpenResult;
         try { result = await openSnapPlayAd(key, latest.current.usn ? { usn: latest.current.usn } : undefined); } catch { result = { ok: false, reason: 'sdk_error', listCount: 0 }; }

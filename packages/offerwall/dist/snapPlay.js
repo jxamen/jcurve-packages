@@ -216,6 +216,11 @@ function forgetSnapPlayUser() {
     latest = null;
     userKey = '';
     adsCache = null;
+    // 0.6.10: the server's answer (`open`, the app IDs, listPlacement) is per member: a new member (or a logout) asks again, so a member's `open` never carries over.
+    if (config !== null) {
+        config = null;
+        (0, chanceProviders_1.notifyChanceProviders)();
+    }
     if (!inited)
         return;
     try {

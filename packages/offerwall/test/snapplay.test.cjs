@@ -204,10 +204,12 @@ test('forgetSnapPlayUser resets the SDK user only after the SDK was started, and
   snap.configureSnapPlay(CONFIG);
   snap.forgetSnapPlayUser();
   assert.equal(env.sdk.log.length, 0, 'never started: nothing to reset, nothing touched');
+  snap.configureSnapPlay(CONFIG); // 0.6.10: forgetting clears the member's answer; the app sets it again after the next login
   await provider().open({ usn: USN });
   snap.forgetSnapPlayUser();
   await new Promise((r) => setImmediate(r));
   assert.equal(env.sdk.log.includes('resetUserName'), true);
+  snap.configureSnapPlay(CONFIG); // 0.6.10: the server's answer is per member — the app asks again after the member changed
   await provider().open({ usn: USN });
   assert.equal(env.sdk.log.filter((x) => Array.isArray(x) && x[0] === 'setUserName').length, 2);
 });
