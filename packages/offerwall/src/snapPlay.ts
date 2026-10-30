@@ -292,6 +292,11 @@ function directOpenAvailable(): boolean {
 }
 
 let adsCache: { at: number; placement: string; ads: SnapPlayAd[] } | null = null;
+/** 0.6.14: the advIds of the SDK's list read at most `maxAgeMs` ago (same placement), or null when there is no such list. */
+export function snapPlayFreshAdIds(maxAgeMs: number = SNAPPLAY_LIST_TTL_MS): Set<string> | null {
+  if (!adsCache || adsCache.placement !== (config?.listPlacement ?? '') || Date.now() - adsCache.at > maxAgeMs) return null;
+  return new Set(adsCache.ads.map((ad) => ad.advId));
+}
 let adsFlight: Promise<SnapPlayAd[] | null> | null = null;
 
 export type SnapPlayAdsResult =

@@ -97,6 +97,8 @@ export declare const SNAPPLAY_LIST_TTL_MS = 60000;
  * 광고 번호가 없거나 제목이 없는 건은 버리고, 같은 번호는 한 번만, 최대 500건.
  */
 export declare function parseSnapPlayAds(raw: unknown): SnapPlayAd[] | null;
+/** 0.6.14: the advIds of the SDK's list read at most `maxAgeMs` ago (same placement), or null when there is no such list. */
+export declare function snapPlayFreshAdIds(maxAgeMs?: number): Set<string> | null;
 export type SnapPlayAdsResult = {
     ok: true;
     ads: SnapPlayAd[];

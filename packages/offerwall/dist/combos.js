@@ -6,6 +6,7 @@ exports.categoryMissions = categoryMissions;
 exports.afterFirstPaint = afterFirstPaint;
 exports.hasComboRows = hasComboRows;
 exports.comboNoticeOf = comboNoticeOf;
+exports.withoutCampaigns = withoutCampaigns;
 exports.missionRowsOf = missionRowsOf;
 exports.trialTerms = trialTerms;
 exports.formatWon = formatWon;
@@ -273,6 +274,37 @@ function comboNoticeOf(combos) {
     return combos?.preparing && combos.notice ? combos.notice : '';
 }
 /** Every mission-shaped row of a document (steps, singles, easy, trials, categories), for the hand ticks and the paid-today marks. Built once per document. */
+/**
+ * 0.6.14: the same document without these campaigns (`keys` = campaign keys). Steps, the one-shot list, the easy list, free trials and categories are
+ * recounted; a step, a category or the easy list left empty is dropped. Nothing else changes (the done marks, the popup, the switches).
+ */
+function withoutCampaigns(combos, keys) {
+    if (!keys.size)
+        return combos;
+    const gone = (m) => keys.has(m.campaignKey ?? '') || keys.has(m.id);
+    const sum = (list) => list.reduce((acc, m) => acc + m.points, 0);
+    const bundles = combos.bundles
+        .map(b => { const missions = b.missions.filter(m => !gone(m)); return { ...b, missions, total: sum(missions) }; })
+        .filter(b => b.missions.length > 0);
+    const singles = combos.singles?.map(s => ({ ...s, missions: s.missions.filter(m => !gone(m)) })).filter(s => s.missions.length > 0);
+    const easyMissions = combos.easy?.missions.filter(m => !gone(m)) ?? [];
+    const easy = combos.easy && easyMissions.length ? { missions: easyMissions, total: sum(easyMissions) } : undefined;
+    const trials = combos.trials?.filter(t => !keys.has(t.campaignKey));
+    const categories = combos.categories
+        ?.map(c => {
+        const items = c.items.filter(i => !keys.has(i.campaignKey));
+        return { ...c, items, count: items.length, totalPoints: c.totalPoints === null ? null : items.reduce((acc, i) => acc + i.points, 0) };
+    })
+        .filter(c => c.items.length > 0);
+    return {
+        ...combos, bundles,
+        ...(singles ? { singles } : {}),
+        ...(easy ? { easy } : { easy: undefined }),
+        ...(trials ? { trials } : {}),
+        ...(categories ? { categories } : {}),
+        ...(combos.trialKeys ? { trialKeys: combos.trialKeys.filter(k => !keys.has(k)) } : {}),
+    };
+}
 function missionRowsOf(combos) {
     if (!combos)
         return [];

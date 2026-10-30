@@ -1,6 +1,6 @@
 /** Ways into 「포인트 빨리 모으기」: Chance-tab chip, Home banner, and a route that popups / pushes / deep links can fire. */
 import type { ReactElement } from 'react';
-import { COMBO_NAME, ComboGuideScreen, DEFAULT_COMBO_THEME, comboPopupContent, formatGoal, hasComboRows, missionRowsOf, needsTrialConsent, popupHeadlineSizes, trialMissions, useTodayCombos } from './combos';
+import { COMBO_NAME, ComboGuideScreen, DEFAULT_COMBO_THEME, comboPopupContent, formatGoal, hasComboRows, missionRowsOf, withoutCampaigns, needsTrialConsent, popupHeadlineSizes, trialMissions, useTodayCombos } from './combos';
 import type { ComboBundle, ComboMission, ComboTheme, ComboTrial, TodayCombos } from './combos';
 import { COMBO_CONSENT_TOAST, COMBO_CONSENT_TOAST_OFF, COMBO_TRIALS_NAME, ComboTrialsScreen, TrialConsentPopup, listenForTrialRequests, parseMyTrials, trialNoticeDeclineKey, useTrialNoticeAgreed } from './comboTrials';
 import type { ConsentAnswer, MyTrial, TrialNotifyResult } from './comboTrials';
@@ -12,7 +12,7 @@ import type { ComboStorage } from './comboDone';
 import { popupStorageKey, usePulse, useSeenToday } from './comboSeen';
 import { getChanceTab, getChanceTabInset, isWallLoaded, onChanceTab, onChanceTabInset, onWallState, setChanceSheetOpen } from './wallSignal';
 import { isClosedProvider, useChanceProviders } from './chanceProviders';
-import { SNAPPLAY_PROVIDER_ID, appIsActive, openSnapPlayAd, readSnapPlayAds } from './snapPlay';
+import { SNAPPLAY_PROVIDER_ID, appIsActive, openSnapPlayAd, readSnapPlayAds, snapPlayFreshAdIds } from './snapPlay';
 import { useSheetPlacement } from './comboSheetFrame';
 import type { SnapPlayAd, SnapPlayOpenResult } from './snapPlay';
 import { openOfferwall } from './index';
@@ -476,6 +476,18 @@ export function ComboEntry({
   const state = snapActive ? snapState : adState;
   const scope = snapActive ? `${loadKey ?? ''}:snapplay` : loadKey;
   const [open, setOpen] = React.useState(false);
+  // 0.6.14: 찬스2 campaigns that ended (the SDK's list no longer has them, or a tap said 「마감」) are taken off the sheet until the next server document.
+  const [goneKeys, setGoneKeys] = React.useState<ReadonlySet<string>>(() => new Set());
+  React.useEffect(() => { setGoneKeys(new Set()); }, [state.combos]);
+  const viewCombos = state.combos ? withoutCampaigns(state.combos, goneKeys) : state.combos;
+  // when the sheet opens: a fresh SDK list (≤ 60 s old) decides which 찬스2 rows are still there
+  React.useEffect(() => {
+    if (!open || !snapActive || !state.combos) return;
+    const ids = snapPlayFreshAdIds();
+    if (!ids) return;
+    const ended = missionRowsOf(state.combos).map(m => m.campaignKey || m.id).filter(k => isCampaignKey(k) && !ids.has(k));
+    if (ended.length) setGoneKeys(prev => new Set([...prev, ...ended]));
+  }, [open, snapActive]);
   // When the render that opened the guide began, for `onSheetShown` (cleared when it closes, so every opening is timed on its own).
   const openedAt = React.useRef<number | null>(null);
   if (!open) openedAt.current = null; else if (openedAt.current === null) openedAt.current = Date.now();
@@ -548,7 +560,7 @@ export function ComboEntry({
   }), []);
   const mode = placement === 'chance' ? state.combos?.display.chance ?? 'chip' : state.combos?.display.home ?? 'off';
   // (the 찬스2 tab has no chip until the server sent rows: an empty chip is never shown)
-  const shown = placement === 'chance' ? mode === 'chip' && !!state.combos && (!snapActive || hasComboRows(state.combos)) : mode === 'banner' && !!state.combos;
+  const shown = placement === 'chance' ? mode === 'chip' && !!state.combos && (!snapActive || hasComboRows(viewCombos)) : mode === 'banner' && !!state.combos;
   const listening = placement === 'chance' || mode !== 'off';
   // Blink until the guide was opened once today (by anyone: chip, banner, popup); then rest until the next Korean day.
   const seen = useSeenToday({ storage, scope, date: state.combos?.date });
@@ -768,6 +780,7 @@ export function ComboEntry({
         if (result.reason === 'gone') {
           signalDetail('open_failed', key, diag.openMs);
           finish();
+          setGoneKeys(prev => new Set([...prev, key])); // 0.6.14: off the sheet at once
           say(`"${mission.name}" 는 마감됐어요 · 다른 미션을 골라 주세요`);
           return;
         }
@@ -814,7 +827,7 @@ export function ComboEntry({
   const closeSheets = () => { setOpen(false); setTrialsOpen(false); };
   const close = () => setOpen(false);
   const guide = (variant: 'page' | 'sheet') => h(ComboGuideScreen, {
-    combos: state.combos, loading: state.status === 'loading', onClose: close, onPressMission: handleMission, usn, theme, variant,
+    combos: viewCombos, loading: state.status === 'loading', onClose: close, onPressMission: handleMission, usn, theme, variant,
     done: doneIds, onToggleDone: toggleDone,
     onTrialTab,
     // the guide's first paint: how long since the render that opened it (only when the app asked)

@@ -155,6 +155,11 @@ export declare function hasComboRows(combos: TodayCombos | null | undefined): bo
 /** The server's 「준비 중」 sentence to show at the top of the guide ('' when the list is not being prepared). */
 export declare function comboNoticeOf(combos: TodayCombos | null | undefined): string;
 /** Every mission-shaped row of a document (steps, singles, easy, trials, categories), for the hand ticks and the paid-today marks. Built once per document. */
+/**
+ * 0.6.14: the same document without these campaigns (`keys` = campaign keys). Steps, the one-shot list, the easy list, free trials and categories are
+ * recounted; a step, a category or the easy list left empty is dropped. Nothing else changes (the done marks, the popup, the switches).
+ */
+export declare function withoutCampaigns(combos: TodayCombos, keys: ReadonlySet<string>): TodayCombos;
 export declare function missionRowsOf(combos: TodayCombos | null | undefined): ComboMission[];
 /** The terms of a free-trial campaign for the consent popup: from the `trials` list, else from a category row that carries them. Empty when unknown. */
 export declare function trialTerms(combos: TodayCombos | null | undefined, key: string | undefined): string;

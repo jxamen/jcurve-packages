@@ -99,3 +99,43 @@ test('0.6.12: with no AppState (tests, odd hosts) the app counts as active; the 
   const {appIsActive} = require('../dist/snapPlay');
   assert.equal(appIsActive(), true);
 });
+
+// 0.6.14 — 찬스2 campaigns that ended come off the sheet at once (a tap that says 「마감」, or a fresh SDK list without them).
+test('0.6.14: withoutCampaigns takes the ended campaigns off every list, recounts the totals and drops the empty steps / categories', () => {
+  const {withoutCampaigns, kstDate} = api;
+  const m = (id, points) => ({id: 'h' + id, name: `일 ${id}`, points, todo: '하나 하기', level: 'easy', campaignKey: id});
+  const doc = {
+    date: kstDate(), display: {chance: 'chip', home: 'off'},
+    bundles: [{goal: 1000, total: 700, missions: [m('111111', 400), m('222222', 300)]}, {goal: 5000, total: 900, missions: [m('333333', 900)]}],
+    easy: {missions: [m('444444', 150), m('555555', 80)], total: 230},
+    categories: [
+      {key: 'install', title: '앱 설치', totalPoints: 600, count: 2, items: [{campaignKey: '666666', name: 'a', points: 300}, {campaignKey: '777777', name: 'b', points: 300}]},
+      {key: 'shop', title: '쇼핑', totalPoints: null, count: 1, items: [{campaignKey: '888888', name: 'c', points: 50}]},
+    ],
+    trials: [{campaignKey: '999999', name: 't', points: 1000}], trialKeys: ['999999', '123456'],
+  };
+  assert.equal(withoutCampaigns(doc, new Set()), doc, 'nothing to take off: the same document');
+  const out = withoutCampaigns(doc, new Set(['111111', '444444', '666666', '888888', '999999']));
+  assert.deepEqual(out.bundles[0].missions.map(x => x.campaignKey), ['222222'], 'one step lost one row');
+  assert.equal(out.bundles[0].total, 300, 'the step total is recounted');
+  assert.deepEqual(out.bundles.map(b => b.goal), [1000, 5000], 'a step is kept while it has rows');
+  assert.deepEqual(out.easy.missions.map(x => x.campaignKey), ['555555']);
+  assert.equal(out.easy.total, 80);
+  assert.deepEqual(out.categories.map(c => c.key), ['install'], 'an empty category is dropped (shop had only the ended row)');
+  assert.equal(out.categories[0].items.length, 1);
+  assert.equal(out.categories[0].count, 1);
+  assert.equal(out.categories[0].totalPoints, 300, 'a category with a total is recounted');
+  assert.deepEqual(out.trials, []);
+  assert.deepEqual(out.trialKeys, ['123456']);
+  // an emptied easy list disappears
+  assert.equal(withoutCampaigns(doc, new Set(['444444', '555555'])).easy, undefined, 'an emptied easy list is dropped');
+  // the original document is not changed
+  assert.equal(doc.bundles[0].missions.length, 2);
+  assert.equal(doc.categories.length, 2);
+});
+
+test('0.6.14: snapPlayFreshAdIds is null until the SDK list was read (and after it gets old)', () => {
+  const {snapPlayFreshAdIds} = require('../dist/snapPlay');
+  assert.equal(snapPlayFreshAdIds(), null, 'no list read yet');
+  assert.equal(snapPlayFreshAdIds(0), null);
+});

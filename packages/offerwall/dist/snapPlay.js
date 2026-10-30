@@ -10,6 +10,7 @@ exports.resolveSnapPlayConfig = resolveSnapPlayConfig;
 exports.forgetSnapPlayUser = forgetSnapPlayUser;
 exports.resetSnapPlay = resetSnapPlay;
 exports.parseSnapPlayAds = parseSnapPlayAds;
+exports.snapPlayFreshAdIds = snapPlayFreshAdIds;
 exports.readSnapPlayAds = readSnapPlayAds;
 exports.openSnapPlayAd = openSnapPlayAd;
 exports.snapPlayViewAvailable = snapPlayViewAvailable;
@@ -305,6 +306,12 @@ function directOpenAvailable() {
     }
 }
 let adsCache = null;
+/** 0.6.14: the advIds of the SDK's list read at most `maxAgeMs` ago (same placement), or null when there is no such list. */
+function snapPlayFreshAdIds(maxAgeMs = exports.SNAPPLAY_LIST_TTL_MS) {
+    if (!adsCache || adsCache.placement !== (config?.listPlacement ?? '') || Date.now() - adsCache.at > maxAgeMs)
+        return null;
+    return new Set(adsCache.ads.map((ad) => ad.advId));
+}
 let adsFlight = null;
 /**
  * 스냅플레이 SDK 에서 지금 참여할 수 있는 광고 목록을 읽는다(`requestOfferwallData(listPlacement, false)` = 전체 목록). 먼저 SDK 를 준비한다(앱 ID · 회원).
