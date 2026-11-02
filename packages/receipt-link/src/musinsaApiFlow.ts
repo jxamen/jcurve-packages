@@ -115,7 +115,7 @@ const TID_RES = [/^(tid|tId|pgTid|transactionId)$/i];
 const MERCHANT_CODE_RES = [/^merchantCode$/i];
 const PAY_METHOD_RES = [/^(payMethod|paymentMethod|payType|paymentType|payWay|payMeans|paymentMeans)$/i, /(pay|payment).*(method|type|way|means)(Name|Nm|Text)?$/i];
 const STATUS_RES = [/^(orderStatus|status|state|claimStatus|statusName|statusNm|orderStateName)$/i, /(status|state)(Name|Nm|Text|Desc)?$/i];
-const CANCELLED = /취소|반품|환불|CANCEL|RETURN|REFUND/i;
+const CANCELLED = /취소|반품|환불|교환|CANCEL|RETURN|REFUND|EXCHANGE/i;   // 대표님 11-03 「주문 상태(취소·반품·교환·환불)」
 const NON_CARD = /포인트|적립금|무통장|계좌|가상계좌|머니|POINT|VBANK|BANK|ACCOUNT|MONEY/i;
 
 export type ParsedOrder = {

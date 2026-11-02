@@ -14,7 +14,7 @@ export const SITES_FOR_PLATFORM: Record<LinkPlatform, ReaderSite[]> = {
   kurly: ['kurly'],
   coupang: ['coupang'],
 };
-export const SITE_LABEL: Record<ReaderSite, string> = { naver_shop: '네이버 쇼핑', naver_pay: '네이버페이', musinsa: '무신사', kurly: '컬리', coupang: '쿠팡' };
+export const SITE_LABEL: Record<ReaderSite, string> = { naver_shop: '네이버 쇼핑', naver_pay: '네이버페이', musinsa: '무신사', kurly: '마켓컬리', coupang: '쿠팡' };
 
 /** 서버가 받는 기간(일) — 대표님 2026-10-28 20:20 「최근 일 년치까지」 */
 export const WINDOW_DAYS = 365;

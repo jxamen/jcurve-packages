@@ -15,7 +15,7 @@ exports.LINK_PLATFORMS = ['naver', 'coupang'];
 exports.TEST_LINK_PLATFORMS = ['naver', 'coupang', 'kurly', 'musinsa'];
 /** 서버가 줄 수 있는 모든 곳 */
 exports.ALL_LINK_PLATFORMS = ['naver', 'coupang', 'musinsa', 'kurly'];
-exports.LINK_LABEL = { naver: '네이버', coupang: '쿠팡', musinsa: '무신사', kurly: '컬리' };
+exports.LINK_LABEL = { naver: '네이버', coupang: '쿠팡', musinsa: '무신사', kurly: '마켓컬리' };
 /** 서버가 한 번에 받는 주문 수 */
 exports.ORDERS_PER_REQUEST = 50;
 /** 영수증 세부 칸 — 대표님 10-29 14:15 card-single 원문 칸(세부 화면에 22:30 캡처 순서로 보인다) */

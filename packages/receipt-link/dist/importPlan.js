@@ -18,7 +18,7 @@ exports.SITES_FOR_PLATFORM = {
     kurly: ['kurly'],
     coupang: ['coupang'],
 };
-exports.SITE_LABEL = { naver_shop: '네이버 쇼핑', naver_pay: '네이버페이', musinsa: '무신사', kurly: '컬리', coupang: '쿠팡' };
+exports.SITE_LABEL = { naver_shop: '네이버 쇼핑', naver_pay: '네이버페이', musinsa: '무신사', kurly: '마켓컬리', coupang: '쿠팡' };
 /** 서버가 받는 기간(일) — 대표님 2026-10-28 20:20 「최근 일 년치까지」 */
 exports.WINDOW_DAYS = 365;
 exports.MAX_PER_MESSAGE = 50;

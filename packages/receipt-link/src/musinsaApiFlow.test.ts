@@ -144,6 +144,12 @@ describe('목록 · 구간 나누기', () => {
     expect(parseOrderRow({ ...base, orderOptionList: [ok] })).toMatchObject({ cancelled: false, amount: 296070 });
   });
 
+  it('교환 상태도 거른다 — 「취소·반품·교환·환불」(대표님 11-03)', () => {
+    const base = { ord_no: '202511262256470001', ord_dt: '2025.11.26 22:56:47', payAmt: '262,960', payMethod: '카드' };
+    expect(parseOrderRow({ ...base, orderOptionList: [{ orderState: 40, claimState: 0, orderStateText: '교환 완료' }] })).toMatchObject({ cancelled: true });
+    expect(parseOrderRow({ ...base, orderOptionList: [{ orderState: 40, claimState: 0, orderStateText: 'EXCHANGE' }] })).toMatchObject({ cancelled: true });
+  });
+
   it('이름으로 찾기 — 다른 키 이름(ord_no · ord_dt · payAmt · 안쪽 paymentInfo)도 읽고, 주문번호 없는 배열은 주문으로 보지 않는다', () => {
     const odd = { ord_no: '202610201000009999', ord_dt: '2026.10.20 10:04:43', payAmt: '45,900', productName: '가짜', paymentInfo: { paymentKey: PK(9), tid: TID(9), merchantCode: 'STORE' }, payMethod: '카드' };
     expect(parseOrderRow(odd)).toMatchObject({ orderNo: '202610201000009999', orderedAt: '2026-10-20 10:04:43', amount: 45900, title: '가짜', cancelled: false });

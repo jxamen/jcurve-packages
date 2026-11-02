@@ -9,7 +9,7 @@ export const LINK_PLATFORMS: LinkPlatform[] = ['naver', 'coupang'];
 export const TEST_LINK_PLATFORMS: LinkPlatform[] = ['naver', 'coupang', 'kurly', 'musinsa'];
 /** 서버가 줄 수 있는 모든 곳 */
 export const ALL_LINK_PLATFORMS: LinkPlatform[] = ['naver', 'coupang', 'musinsa', 'kurly'];
-export const LINK_LABEL: Record<LinkPlatform, string> = { naver: '네이버', coupang: '쿠팡', musinsa: '무신사', kurly: '컬리' };
+export const LINK_LABEL: Record<LinkPlatform, string> = { naver: '네이버', coupang: '쿠팡', musinsa: '무신사', kurly: '마켓컬리' };
 /** 서버가 한 번에 받는 주문 수 */
 export const ORDERS_PER_REQUEST = 50;
 
