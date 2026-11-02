@@ -10,6 +10,11 @@ describe('order link state', () => {
     expect(parseLinkState(null).links).toEqual({});
     expect(parseLinkState(null).windowDays).toBe(30);
   });
+
+  it('keeps only positive per-platform read days from the server', () => {
+    expect(parseLinkState({ readDays: { naver: 365, kurly: 1095, coupang: 0, musinsa: 'x' } }).readDays).toEqual({ naver: 365, kurly: 1095 });
+    expect(parseLinkState(null).readDays).toEqual({});
+  });
   it('treats a revoked link as not connected', () => {
     const s = parseLinkState({ links: { coupang: { linkedAt: 'a', revokedAt: 'b', lastImportAt: null, importedTotal: 0 } } });
     expect(isConnected(s, 'coupang')).toBe(false);

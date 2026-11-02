@@ -33,6 +33,8 @@ export type Uploader = {
     add(orders: unknown[]): void;
     /** 줄에 남은 것을 모두 올린다(실패하면 거기서 멈춘다) */
     flush(): Promise<void>;
+    /** 읽기 기간(일)을 바꾼다 — 플랫폼마다 서버 설정이 다르므로 흐름을 시작하기 전에 맞춘다. 없으면 365 */
+    setWindowDays(days?: number): void;
     progress(): UploadProgress;
     /** 끝: 남은 것을 올려 보고(실패 시 한 번 더) 결과를 낸다 */
     finish(): Promise<UploadSummary>;

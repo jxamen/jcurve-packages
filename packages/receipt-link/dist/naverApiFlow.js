@@ -86,7 +86,7 @@ function createNaverApiFlow(opts = {}) {
         });
     };
     const startedAt = now();
-    let cutoff = ymd(startedAt - naverReceipt_1.LOOKBACK_DAYS * DAY_MS);
+    let cutoff = ymd(startedAt - (opts.windowDays ?? naverReceipt_1.LOOKBACK_DAYS) * DAY_MS);
     const sinceMs = Date.parse(`${cutoff}T00:00:00+09:00`);
     const untilDate = ymd(startedAt + 9 * 3600000);
     let phase = 'idle';

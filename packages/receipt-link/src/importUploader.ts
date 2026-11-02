@@ -3,7 +3,7 @@
  * 흐름이 주문을 내면 add 로 검사 · 중복 거르기(최근 1년 · 주문번호)를 거쳐 줄에 세우고, 한 번에 한 요청씩 50건 이하로 올린다.
  * 요청이 실패하면 그 묶음은 줄 맨 앞에 남고, 다음 add 나 finish 에서 다시 올린다. 주문 내용은 로그나 예외에 넣지 않는다.
  */
-import { createCollector, readFlowOrders, type ImportResult } from './importPlan';
+import { createCollector, readFlowOrders, WINDOW_DAYS, type ImportResult } from './importPlan';
 import { emptyTally, ORDERS_PER_REQUEST, type ImportTally, type OrderInput } from './model';
 
 export type UploadProgress = {
@@ -27,6 +27,8 @@ export type Uploader = {
   add(orders: unknown[]): void;
   /** 줄에 남은 것을 모두 올린다(실패하면 거기서 멈춘다) */
   flush(): Promise<void>;
+  /** 읽기 기간(일)을 바꾼다 — 플랫폼마다 서버 설정이 다르므로 흐름을 시작하기 전에 맞춘다. 없으면 365 */
+  setWindowDays(days?: number): void;
   progress(): UploadProgress;
   /** 끝: 남은 것을 올려 보고(실패 시 한 번 더) 결과를 낸다 */
   finish(): Promise<UploadSummary>;
@@ -103,6 +105,7 @@ export function createUploader(args: { send: UploaderSend; onChange?: (p: Upload
       void flush();
     },
     flush,
+    setWindowDays(days?: number) { coll.setWindowDays(days ?? WINDOW_DAYS); },
     progress,
     async finish() {
       for (let i = 0; i < 2; i++) {

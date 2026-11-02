@@ -31,6 +31,8 @@ export type ApiFlowOptions = FlowOptions & {
   npv2?: boolean;
   /** 서버에 저장된 가장 최근 주문 날짜부터만 읽는다(대표님 11-02) — 앱 흐름(flows.ts)이 켠다 */
   sinceLatest?: boolean;
+  /** 읽을 기간(일) — 서버 앱설정(LinkState.readDays). 없으면 LOOKBACK_DAYS(365) */
+  windowDays?: number;
 };
 
 const DAY_MS = 86_400_000;
@@ -96,7 +98,7 @@ export function createNaverApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
     });
   };
   const startedAt = now();
-  let cutoff = ymd(startedAt - LOOKBACK_DAYS * DAY_MS);
+  let cutoff = ymd(startedAt - (opts.windowDays ?? LOOKBACK_DAYS) * DAY_MS);
   const sinceMs = Date.parse(`${cutoff}T00:00:00+09:00`);
   const untilDate = ymd(startedAt + 9 * 3600000);
 

@@ -25,6 +25,8 @@ export type FlowFactoryOptions = {
     refill?: string[];
     /** 새 네이버페이 수집 길(서버 LinkState.npv2 — 목록 회원만) */
     npv2?: boolean;
+    /** 읽을 기간(일) — 서버 LinkState.readDays[사이트]. 없으면 365 */
+    windowDays?: number;
 };
 export declare const FLOW_FACTORIES: Record<FlowSite, (opts?: FlowFactoryOptions) => ReceiptFlow>;
 /** 흐름이 웹뷰로 열어도 되는 도메인(하위 포함) — 이 밖의 주소는 호스트가 열지 않는다 */

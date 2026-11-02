@@ -23,6 +23,8 @@ export type ApiFlowOptions = FlowOptions & {
     npv2?: boolean;
     /** 서버에 저장된 가장 최근 주문 날짜부터만 읽는다(대표님 11-02) — 앱 흐름(flows.ts)이 켠다 */
     sinceLatest?: boolean;
+    /** 읽을 기간(일) — 서버 앱설정(LinkState.readDays). 없으면 LOOKBACK_DAYS(365) */
+    windowDays?: number;
 };
 /** card-single 영수증 한 장의 원문 칸 전부(대표님 14:15) → 세부 칸. 빈 칸은 싣지 않는다 */
 export declare const detailOf: (slip: ReceiptSlip) => ReceiptDetail | undefined;

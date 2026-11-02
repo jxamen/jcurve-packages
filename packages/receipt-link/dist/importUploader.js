@@ -90,6 +90,7 @@ function createUploader(args) {
             void flush();
         },
         flush,
+        setWindowDays(days) { coll.setWindowDays(days ?? importPlan_1.WINDOW_DAYS); },
         progress,
         async finish() {
             for (let i = 0; i < 2; i++) {

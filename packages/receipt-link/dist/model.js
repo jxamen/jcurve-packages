@@ -59,9 +59,20 @@ function parseLinkState(v) {
         links[p] = { linkedAt: strOrNull(l.linkedAt), revokedAt: strOrNull(l.revokedAt), lastImportAt: strOrNull(l.lastImportAt),
             importedTotal: typeof l.importedTotal === 'number' && l.importedTotal >= 0 ? Math.floor(l.importedTotal) : 0 };
     }
-    return { windowDays: typeof r.windowDays === 'number' && r.windowDays > 0 ? r.windowDays : 30, consentVersion: typeof r.consentVersion === 'string' ? r.consentVersion : '', links, probe: r.probe === true, hide_legacy: r.hide_legacy === true, coupangRead: r.coupangRead === true, npv2: r.npv2 === true };
+    return { windowDays: typeof r.windowDays === 'number' && r.windowDays > 0 ? r.windowDays : 30, consentVersion: typeof r.consentVersion === 'string' ? r.consentVersion : '', links, probe: r.probe === true, hide_legacy: r.hide_legacy === true, coupangRead: r.coupangRead === true, npv2: r.npv2 === true, readDays: parseReadDays(r.readDays) };
 }
 /** 동의했고 철회하지 않았다 */
+/** 서버가 준 플랫폼별 읽기 기간 — 1 이상 숫자만 싣는다 */
+function parseReadDays(v) {
+    const raw = object(v);
+    const out = {};
+    for (const p of exports.ALL_LINK_PLATFORMS) {
+        const d = raw[p];
+        if (typeof d === 'number' && d >= 1)
+            out[p] = Math.floor(d);
+    }
+    return out;
+}
 const isConnected = (s, p) => !!s.links[p]?.linkedAt && !s.links[p]?.revokedAt;
 exports.isConnected = isConnected;
 /**

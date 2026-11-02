@@ -53,11 +53,13 @@ export declare function kstStamp(ms: number): string;
  * 같은 주문번호가 네이버 쇼핑 · 네이버페이에 둘 다 있으면 한 건으로 센다(서버도 주문번호로 거른다).
  * add 는 한꺼번에 모아 finish 에서 자르고, accept 는 읽는 대로 받아 새로 담긴 것만 돌려준다(읽는 순서가 최신순이라 한도는 먼저 온 것부터 채운다).
  */
-export declare function createCollector(nowMs?: number): {
+export declare function createCollector(nowMs?: number, windowDays?: number): {
     add(msg: {
         orders: OrderInput[];
         dropped: number;
     }): void;
+    /** 읽기 기간을 바꾼다(플랫폼마다 서버 설정이 다르다) — 이후 들어오는 주문부터 이 기간으로 거른다 */
+    setWindowDays(days: number): void;
     /** 읽는 대로 받는다 — 새로 담긴 주문만 돌려준다(중복 · 기간 밖 · 한도 밖은 세고 버린다) */
     accept(msg: {
         orders: OrderInput[];

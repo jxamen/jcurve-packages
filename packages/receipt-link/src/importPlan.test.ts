@@ -108,6 +108,16 @@ describe('order collector', () => {
     expect(r.rejected).toBe(1);
   });
 
+  it('reads a longer window when given (서버 readDays) and setWindowDays moves the cutoff for later orders', () => {
+    const c = createCollector(NOW, 1095);
+    c.add(parseReaderMessage(msg('kurly', [order('KR-700001', '2024-10-29 09:00')]))!);
+    c.setWindowDays(365);
+    c.add(parseReaderMessage(msg('kurly', [order('KR-700002', '2024-10-29 09:00')]))!);
+    const r = c.finish();
+    expect(r.orders.map((o) => o.orderNo)).toEqual(['KR-700001']);
+    expect(r.rejected).toBe(1);
+  });
+
   it('caps the total at MAX_TOTAL, keeping the newest, and counts the rest as rejected', () => {
     const c = createCollector(NOW);
     const total = MAX_TOTAL + 10;

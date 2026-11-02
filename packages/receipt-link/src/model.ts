@@ -20,6 +20,8 @@ export type LinkState = { windowDays: number; consentVersion: string; links: Par
   coupangRead?: boolean;
   /** 새 네이버페이 수집 길(rl15) — 서버 목록 회원만. 켜진 회원은 홈에서 자동 점검도 돈다 */
   npv2?: boolean;
+  /** 플랫폼별 읽기 기간(일) — 서버 앱설정이 정한 값. 없으면 흐름 기본(365) */
+  readDays?: Partial<Record<LinkPlatform, number>>;
 };
 /**
  * 서버로 보내는 주문 — 이 열두 칸이 전부다. 뒤의 여섯 칸(사업자번호 · 승인번호 · 카드사 · 종류 · 목록 키)은 영수증을 건건이 읽었을 때만 있다.
@@ -73,10 +75,21 @@ export function parseLinkState(v: unknown): LinkState {
     links[p] = { linkedAt: strOrNull(l.linkedAt), revokedAt: strOrNull(l.revokedAt), lastImportAt: strOrNull(l.lastImportAt),
       importedTotal: typeof l.importedTotal === 'number' && l.importedTotal >= 0 ? Math.floor(l.importedTotal) : 0 };
   }
-  return { windowDays: typeof r.windowDays === 'number' && r.windowDays > 0 ? r.windowDays : 30, consentVersion: typeof r.consentVersion === 'string' ? r.consentVersion : '', links, probe: r.probe === true, hide_legacy: r.hide_legacy === true, coupangRead: r.coupangRead === true, npv2: r.npv2 === true };
+  return { windowDays: typeof r.windowDays === 'number' && r.windowDays > 0 ? r.windowDays : 30, consentVersion: typeof r.consentVersion === 'string' ? r.consentVersion : '', links, probe: r.probe === true, hide_legacy: r.hide_legacy === true, coupangRead: r.coupangRead === true, npv2: r.npv2 === true, readDays: parseReadDays(r.readDays) };
 }
 
 /** 동의했고 철회하지 않았다 */
+/** 서버가 준 플랫폼별 읽기 기간 — 1 이상 숫자만 싣는다 */
+function parseReadDays(v: unknown): Partial<Record<LinkPlatform, number>> {
+  const raw = object(v);
+  const out: Partial<Record<LinkPlatform, number>> = {};
+  for (const p of ALL_LINK_PLATFORMS) {
+    const d = raw[p];
+    if (typeof d === 'number' && d >= 1) out[p] = Math.floor(d);
+  }
+  return out;
+}
+
 export const isConnected = (s: LinkState, p: LinkPlatform): boolean => !!s.links[p]?.linkedAt && !s.links[p]?.revokedAt;
 
 /**

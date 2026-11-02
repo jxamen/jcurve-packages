@@ -102,6 +102,11 @@ describe('요청 모양 (대표님 23:46 · 23:47 · 23:50 원문)', () => {
     expect(bodyOf(q)).toEqual({ startDate: '2025-10-29T00:00:00', endDate: '2026-10-29T23:59:59', page: 1, limit: 10, productName: '', address: '가짜시 가짜구', addressDetail: '' });
   });
 
+  it('windowDays 를 주면 목록 조회 시작일이 그 일수만큼 앞선다(서버 readDays)', () => {
+    const list = toList(mk({ windowDays: 1095 }));
+    expect(bodyOf(list.reqs[0])).toMatchObject({ startDate: '2023-10-30T00:00:00', endDate: '2026-10-29T23:59:59' });
+  });
+
   it('목록 → 상세는 POST v3 orders/{주문번호}(본문 address · addressDetail) 최신 주문부터, 같은 주문 한 줄, 1년 밖 제외', () => {
     const flow = mk();
     const d = toDetail(flow);

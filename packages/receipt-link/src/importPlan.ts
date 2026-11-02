@@ -135,8 +135,8 @@ export function kstStamp(ms: number): string {
  * 같은 주문번호가 네이버 쇼핑 · 네이버페이에 둘 다 있으면 한 건으로 센다(서버도 주문번호로 거른다).
  * add 는 한꺼번에 모아 finish 에서 자르고, accept 는 읽는 대로 받아 새로 담긴 것만 돌려준다(읽는 순서가 최신순이라 한도는 먼저 온 것부터 채운다).
  */
-export function createCollector(nowMs: number = Date.now()) {
-  const cutoff = kstStamp(nowMs - WINDOW_DAYS * DAY_MS);
+export function createCollector(nowMs: number = Date.now(), windowDays: number = WINDOW_DAYS) {
+  let cutoff = kstStamp(nowMs - windowDays * DAY_MS);
   const byNo = new Map<string, OrderInput>();
   let read = 0;
   let duplicates = 0;
@@ -174,6 +174,8 @@ export function createCollector(nowMs: number = Date.now()) {
   };
   return {
     add(msg: { orders: OrderInput[]; dropped: number }): void { ingest(msg, false); },
+    /** 읽기 기간을 바꾼다(플랫폼마다 서버 설정이 다르다) — 이후 들어오는 주문부터 이 기간으로 거른다 */
+    setWindowDays(days: number): void { cutoff = kstStamp(nowMs - days * DAY_MS); },
     /** 읽는 대로 받는다 — 새로 담긴 주문만 돌려준다(중복 · 기간 밖 · 한도 밖은 세고 버린다) */
     accept(msg: { orders: OrderInput[]; dropped: number }): OrderInput[] { return ingest(msg, true); },
     /** 지금까지 담은 주문 수 */

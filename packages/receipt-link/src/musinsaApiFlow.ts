@@ -286,7 +286,7 @@ export function createMusinsaApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
   const allowNoSeconds = opts.allowNoSeconds ?? false;
   const only = opts.onlyKeys ? new Set(opts.onlyKeys) : null;
   const startedAt = now();
-  let cutoff = ymd(startedAt - LOOKBACK_DAYS * DAY_MS);
+  let cutoff = ymd(startedAt - (opts.windowDays ?? LOOKBACK_DAYS) * DAY_MS);
   const untilDate = ymd(startedAt + 9 * 3600000);
 
   let phase: Phase = 'idle';

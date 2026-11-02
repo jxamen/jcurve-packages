@@ -29,6 +29,8 @@ export type LinkState = {
     coupangRead?: boolean;
     /** 새 네이버페이 수집 길(rl15) — 서버 목록 회원만. 켜진 회원은 홈에서 자동 점검도 돈다 */
     npv2?: boolean;
+    /** 플랫폼별 읽기 기간(일) — 서버 앱설정이 정한 값. 없으면 흐름 기본(365) */
+    readDays?: Partial<Record<LinkPlatform, number>>;
 };
 /**
  * 서버로 보내는 주문 — 이 열두 칸이 전부다. 뒤의 여섯 칸(사업자번호 · 승인번호 · 카드사 · 종류 · 목록 키)은 영수증을 건건이 읽었을 때만 있다.
@@ -59,7 +61,6 @@ export declare function readDetail(v: unknown): ReceiptDetail | undefined;
 export type OrderResult = 'new' | 'duplicate' | 'updated' | 'taken' | 'out_of_range' | 'invalid' | 'amount' | 'pouch_full';
 export type ImportTally = Record<OrderResult, number>;
 export declare function parseLinkState(v: unknown): LinkState;
-/** 동의했고 철회하지 않았다 */
 export declare const isConnected: (s: LinkState, p: LinkPlatform) => boolean;
 /**
  * 목록 키 「YYYY-MM-DD HH:mm|금액」 — 영수증을 읽기 전 목록 행과 읽은 뒤 완성본을 잇는다(서버가 같은 키의 list 행을 완성본으로 바꾼다).
