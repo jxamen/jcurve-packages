@@ -141,12 +141,11 @@ describe('쿠팡 — 구동기 + 흐름 + 실제 스크립트(가짜 페이지)'
     expect(r.orders.filter((o) => o.kind === 'list').map((o) => o.orderNo).sort()).toEqual([ID(2), ID(3), ID(4)]);
   }, 30000);
 
-  it('저장된 가장 최근 주문 날짜 이후만 읽는다(대표님 11-02) — 그보다 오래된 주문은 요청도 · 목록 행도 없다', async () => {
+  it('앱 흐름은 저장된 최근 날짜보다 오래된 주문도 다시 읽는다(대표님 11-02 23:36 「못 가져온 것도 다」) — 받은 주문만 건너뛴다', async () => {
     const r = await runFlow('coupang', pages, router, {}, { tails: [tailOf(ID(1), '2026-10-20 00:00:00')] });
-    const all = await runFlow('coupang', pages, router, { sinceLatest: false }, { tails: [tailOf(ID(1), '2026-10-20 00:00:00')] });
-    const listed = r.orders.filter((o) => o.kind === 'list').map((o) => o.orderNo);
-    expect(listed.length).toBeLessThanOrEqual(all.orders.filter((o) => o.kind === 'list').length);
-    for (const o of r.orders) expect(o.orderedAt.slice(0, 10) >= '2026-10-20').toBe(true);
+    const all = await runFlow('coupang', pages, router, { sinceLatest: false } as never, { tails: [tailOf(ID(1), '2026-10-20 00:00:00')] });
+    const listed = (x: typeof r) => x.orders.filter((o) => o.kind === 'list').map((o) => o.orderNo).sort();
+    expect(listed(r)).toEqual(listed(all));
     expect(r.urls.some((u) => u.includes(`orderId=${ID(1)}`))).toBe(false);
   }, 30000);
 
