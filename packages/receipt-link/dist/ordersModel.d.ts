@@ -73,7 +73,7 @@ export type RunView = {
  * retry 는 그 줄만 다시 가져올 수 있다(「가져오기」 단추) — 못 가져옴(로그인이 풀린 때는 빼고)과 멈춘 뒤 남은 대기 줄.
  */
 export type RowView = {
-    state: 'claimed' | 'duplicate' | 'fetched' | 'waiting' | 'fetching' | 'none' | 'failed';
+    state: 'claimed' | 'duplicate' | 'fetched' | 'waiting' | 'fetching' | 'none' | 'cancelled' | 'failed';
     reason: string;
     retry?: boolean;
 };
@@ -94,6 +94,7 @@ export type PendingTally = {
     waiting: number;
     fetching: number;
     none: number;
+    cancelled: number;
     failed: number;
 };
 export declare function tallyPending(list: LinkOrder[], run: RunView | null): PendingTally;

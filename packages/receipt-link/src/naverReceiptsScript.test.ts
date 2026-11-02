@@ -246,10 +246,11 @@ describe('10-29 12:00 실행 뒤 보강 — 후보 고르기 · 형식 재시도
   it('「카드영수증」 링크가 0개면 anchor 0 · 화면 크기 · __NEXT_DATA__ · orderReceipt 유무만 진단으로 남기고 「영수증 없음」 — 값은 없다(대표님 11-02 ④)', async () => {
     const { posted, urls } = await exec(run({ jobs: [{ key: 'k1', orderNo: ORDER, productOrderNo: PO }] }), () => ({ json: { orderNo: ORDER } }));
     const r = posted[0].results[0];
-    expect(urls).toEqual([`/receipts/issue-history?orderNo=${ORDER}`]);
+    // 카드 링크가 없으면 구매 영수증 화면을 한 번 더 받아 구조만 남긴다(11-02)
+    expect(urls).toEqual([`/receipts/issue-history?orderNo=${ORDER}`, `/receipts/purchase?orderNo=${ORDER}`]);
     expect(r.st).toBe('none');
-    expect(r.diag).toMatchObject({ w: 'issue', status: 200 });
-    expect(r.diag?.lines).toEqual(['anchor 0', 'html 0KB', 'nextdata yes', 'orderReceipt no']);
+    expect(r.diag).toMatchObject({ w: 'purchase' });
+    expect(r.diag?.lines).toEqual(expect.arrayContaining(['anchor 0', 'html 0KB', 'nextdata yes', 'orderReceipt no']));
   });
 
   it('링크가 여러 개면 첫 링크로 부르고, href 의 &amp; 를 풀어 읽는다 · 같은 출처가 아닌 href 는 그대로 쓰지 않고 같은 모양의 같은 출처 주소를 Referer 로 쓴다', async () => {
@@ -395,7 +396,7 @@ describe('링크 없는 issue-history — __NEXT_DATA__ 의 orderReceipt 에서 
   });
   it('링크도 orderReceipt 짝도 없으면 「영수증 없음」(실패 아님) — 구조만 남긴다', async () => {
     const { posted } = await exec(run({ jobs: [{ key: 'k1', orderNo: ORDER, productOrderNo: PO }] }), () => ({ raw: orcHtml({ productOrderNo: PO }) }));
-    expect(posted[0].results[0]).toMatchObject({ st: 'none', diag: { w: 'issue' } });
+    expect(posted[0].results[0]).toMatchObject({ st: 'none', diag: { w: 'purchase' } });
   });
 });
 

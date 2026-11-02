@@ -288,7 +288,7 @@ describe('실패 진단 · 실패 까닭 개수 (10-29 12:00 실행 뒤)', () =>
     const wheres: string[] = [];
     const out = finishOut(flow, flow.next({ type: 'receipts', results: batch.jobs.map((j) => ({ key: j.key, st: 'nopair' as const })) }), wheres);
     expect(out).toMatchObject({ type: 'done' });
-    expect(wheres).toEqual(['flowc-t2-k0-x0-f2-q0', 'flowf-no-pair2', 'flown-p0-k0-f0-r0', 'flowe-all-rows-receipts']);
+    expect(wheres).toEqual(['flowc-t2-k0-x0-f2-q0', 'flowf-no-pair2', 'flown-p0-k0-f0-r0', 'flowd-cap0-nono0-cut0-known0-dup0-cancel0', 'flowe-all-rows-receipts']);
     const ok = mk();
     const b2 = toFirstBatch(ok);
     const w2: string[] = [];

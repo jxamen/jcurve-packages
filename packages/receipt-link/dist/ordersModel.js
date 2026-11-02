@@ -204,7 +204,9 @@ function rowViews(list, run) {
         // 이 줄이 지금 실행에 들어 있나 — 한 줄 실행(only)이면 그 줄만, 아니면 모든 줄
         const inRun = !run?.only || run.only.includes(key);
         const live = !ended && inRun;
-        if (r && r.state === 'none')
+        if (r && r.state === 'none' && r.why === 'cancelled')
+            out.set(o.id, { state: 'cancelled', reason: runOutcome_1.CANCELLED_TEXT });
+        else if (r && r.state === 'none')
             out.set(o.id, { state: 'none', reason: runOutcome_1.NONE_TEXT });
         else if (r && r.state === 'failed' && r.code !== 'stopped')
             out.set(o.id, { state: 'failed', reason: (0, runOutcome_1.failText)(r.code), retry: r.code !== 'login' });
@@ -228,13 +230,13 @@ function rowViews(list, run) {
     return out;
 }
 function tallyPending(list, run) {
-    const t = { waiting: 0, fetching: 0, none: 0, failed: 0 };
+    const t = { waiting: 0, fetching: 0, none: 0, cancelled: 0, failed: 0 };
     const views = rowViews(list, run);
     for (const o of list) {
         if (rowState(o) !== 'pending')
             continue;
         const v = views.get(o.id);
-        if (v && (v.state === 'waiting' || v.state === 'fetching' || v.state === 'none' || v.state === 'failed'))
+        if (v && (v.state === 'waiting' || v.state === 'fetching' || v.state === 'none' || v.state === 'cancelled' || v.state === 'failed'))
             t[v.state]++;
     }
     return t;
@@ -258,6 +260,7 @@ function rowLabel(v) {
         case 'waiting': return '대기';
         case 'fetching': return '가져오는 중…';
         case 'none': return '영수증 없음';
+        case 'cancelled': return '취소된 주문';
         case 'failed': return '못 가져옴';
         default: return '';
     }

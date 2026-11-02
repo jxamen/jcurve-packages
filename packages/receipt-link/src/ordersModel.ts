@@ -3,7 +3,7 @@
  * 주문번호는 서버가 가린 값만 받는다. 판매처 · 상품명 · 금액 · 날짜 말고는 화면에 올리지 않는다.
  */
 import { readDetail, type ReceiptDetail } from './model';
-import { failText, NONE_TEXT, outcomeKey, type Outcome } from './runOutcome';
+import { CANCELLED_TEXT, failText, NONE_TEXT, outcomeKey, type Outcome } from './runOutcome';
 
 /** card 카드영수증 · purchase 구매영수증 · list 영수증을 아직 가져오기 전의 목록 행(서버가 완성본으로 바꿔 넣는다) */
 export type OrderKindShown = 'card' | 'purchase' | 'list';
@@ -162,7 +162,7 @@ export type RunView = { stage: 'list' | 'receipt' | 'ended'; reason: string; out
  * 줄 하나의 상태 — 적립 완료 · 이미 올린 영수증 · 가져옴 ✓(광고 보고 적립) · 대기 · 가져오는 중 · 영수증 없음 · 못 가져옴(reason).
  * retry 는 그 줄만 다시 가져올 수 있다(「가져오기」 단추) — 못 가져옴(로그인이 풀린 때는 빼고)과 멈춘 뒤 남은 대기 줄.
  */
-export type RowView = { state: 'claimed' | 'duplicate' | 'fetched' | 'waiting' | 'fetching' | 'none' | 'failed'; reason: string; retry?: boolean };
+export type RowView = { state: 'claimed' | 'duplicate' | 'fetched' | 'waiting' | 'fetching' | 'none' | 'cancelled' | 'failed'; reason: string; retry?: boolean };
 
 const REASON_TEXT: Record<string, string> = {
   'no-row-menu': '영수증 메뉴를 못 찾았어요',
@@ -224,7 +224,8 @@ export function rowViews(list: LinkOrder[], run: RunView | null): Map<number, Ro
     // 이 줄이 지금 실행에 들어 있나 — 한 줄 실행(only)이면 그 줄만, 아니면 모든 줄
     const inRun = !run?.only || run.only.includes(key);
     const live = !ended && inRun;
-    if (r && r.state === 'none') out.set(o.id, { state: 'none', reason: NONE_TEXT });
+    if (r && r.state === 'none' && r.why === 'cancelled') out.set(o.id, { state: 'cancelled', reason: CANCELLED_TEXT });
+    else if (r && r.state === 'none') out.set(o.id, { state: 'none', reason: NONE_TEXT });
     else if (r && r.state === 'failed' && r.code !== 'stopped') out.set(o.id, { state: 'failed', reason: failText(r.code), retry: r.code !== 'login' });
     else if (r && r.state === 'failed') out.set(o.id, { state: 'waiting', reason: '', retry: true });
     else if (live && r) out.set(o.id, { state: 'fetching', reason: '' });   // 가져오는 중 · 가져왔지만 서버 목록이 아직 따라오는 중
@@ -241,14 +242,14 @@ export function rowViews(list: LinkOrder[], run: RunView | null): Map<number, Ro
 }
 
 /** 아직 영수증이 없는 줄(목록 행)의 현재 몫 — 머리 줄의 「영수증 없음 K건 · 못 가져옴 F건」과 중단 뒤 「남은 W건」에 쓴다 */
-export type PendingTally = { waiting: number; fetching: number; none: number; failed: number };
+export type PendingTally = { waiting: number; fetching: number; none: number; cancelled: number; failed: number };
 export function tallyPending(list: LinkOrder[], run: RunView | null): PendingTally {
-  const t: PendingTally = { waiting: 0, fetching: 0, none: 0, failed: 0 };
+  const t: PendingTally = { waiting: 0, fetching: 0, none: 0, cancelled: 0, failed: 0 };
   const views = rowViews(list, run);
   for (const o of list) {
     if (rowState(o) !== 'pending') continue;
     const v = views.get(o.id);
-    if (v && (v.state === 'waiting' || v.state === 'fetching' || v.state === 'none' || v.state === 'failed')) t[v.state]++;
+    if (v && (v.state === 'waiting' || v.state === 'fetching' || v.state === 'none' || v.state === 'cancelled' || v.state === 'failed')) t[v.state]++;
   }
 
   return t;
@@ -275,6 +276,7 @@ export function rowLabel(v: RowView): string {
     case 'waiting': return '대기';
     case 'fetching': return '가져오는 중…';
     case 'none': return '영수증 없음';
+    case 'cancelled': return '취소된 주문';
     case 'failed': return '못 가져옴';
     default: return '';
   }

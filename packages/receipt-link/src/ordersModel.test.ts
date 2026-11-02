@@ -343,9 +343,9 @@ describe('줄 결과(outcomes) — 흐름이 알린 줄마다의 상태 · 까�
   });
 
   it('줄 수 합계 — 영수증 없음 · 못 가져옴 · 대기 · 가져오는 중(가져온 줄은 세지 않는다)', () => {
-    expect(tallyPending(list, reading)).toEqual({ waiting: 1, fetching: 1, none: 1, failed: 1 });
-    expect(tallyPending(list, { stage: 'ended', reason: 'stopped', outcomes })).toEqual({ waiting: 2, fetching: 0, none: 1, failed: 1 });
-    expect(tallyPending([], null)).toEqual({ waiting: 0, fetching: 0, none: 0, failed: 0 });
+    expect(tallyPending(list, reading)).toEqual({ waiting: 1, fetching: 1, none: 1, failed: 1, cancelled: 0 });
+    expect(tallyPending(list, { stage: 'ended', reason: 'stopped', outcomes })).toEqual({ waiting: 2, fetching: 0, none: 1, failed: 1, cancelled: 0 });
+    expect(tallyPending([], null)).toEqual({ waiting: 0, fetching: 0, none: 0, failed: 0, cancelled: 0 });
   });
 });
 

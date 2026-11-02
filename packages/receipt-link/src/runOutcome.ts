@@ -20,7 +20,7 @@ export type FailCode =
 export type Outcome =
   | { state: 'fetching' }
   | { state: 'done' }
-  | { state: 'none' }                          // 영수증이 없는 결제(포인트 · 계좌이체 등) — 「영수증 없음」
+  | { state: 'none'; why?: 'cancelled' }        // 영수증이 없는 결제(포인트 · 계좌이체 등) — 「영수증 없음」. why cancelled = 취소된 주문(11-02 대표님: 적립 대상 아님, 「취소된 주문」으로)
   | { state: 'failed'; code: FailCode };
 
 /** 흐름이 주문 하나의 결과를 알릴 때 쓰는 한 건 */
@@ -46,10 +46,13 @@ export const failText = (code: FailCode): string => FAIL_TEXT[code];
 /** 「영수증 없음」 줄의 안내 글자 */
 export const NONE_TEXT = '영수증이 없는 결제예요';
 
-/** 줄 오른쪽 큰 글자 — 실패는 「못 가져옴」, 영수증이 없는 결제는 「영수증 없음」 */
+/** 취소된 주문 줄의 안내 글자 */
+export const CANCELLED_TEXT = '취소된 주문이라 적립 대상이 아니에요';
+
+/** 줄 오른쪽 큰 글자 — 실패는 「못 가져옴」, 영수증이 없는 결제는 「영수증 없음」, 취소된 주문은 「취소된 주문」 */
 export const outcomeLabel = (o: Outcome): string =>
-  o.state === 'failed' ? '못 가져옴' : o.state === 'none' ? '영수증 없음' : o.state === 'fetching' ? '가져오는 중…' : '';
+  o.state === 'failed' ? '못 가져옴' : o.state === 'none' ? (o.why === 'cancelled' ? '취소된 주문' : '영수증 없음') : o.state === 'fetching' ? '가져오는 중…' : '';
 
 /** 줄 오른쪽 작은 까닭 글자 */
 export const outcomeReason = (o: Outcome): string =>
-  o.state === 'failed' ? failText(o.code) : o.state === 'none' ? NONE_TEXT : '';
+  o.state === 'failed' ? failText(o.code) : o.state === 'none' ? (o.why === 'cancelled' ? CANCELLED_TEXT : NONE_TEXT) : '';

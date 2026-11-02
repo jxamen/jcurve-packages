@@ -117,7 +117,7 @@ function createNaverApiFlow(opts = {}) {
             const at = phase;
             phase = 'finished';
             ending = { reason, orders: pending.splice(0), stats: { ...stats } };
-            endQueue = [`flowc-t${total}-k${okN}-x${noneN}-f${failN}-q${queue.length}`, ...(failCodes.size > 0 ? [`flowf-${[...failCodes].map(([c, n]) => `${c}${n}`).join('-')}`] : []), ...(scanned ? [`flown-p${npFound}-k${npOk}-f${npFail}-r${payRowsN}`] : []), ...(npv2 && scanned ? [only ? `flowo-${hitPage ? `hit-p${hitPage}` : `miss-last${lastScanPage}`}-of${scanTotal}` : `flowo-pages${lastScanPage}-of${scanTotal}${stopPaging ? '-stop' : ''}`] : []), `flowe-${reason}-${at}`];
+            endQueue = [`flowc-t${total}-k${okN}-x${noneN}-f${failN}-q${queue.length}`, ...(failCodes.size > 0 ? [`flowf-${[...failCodes].map(([c, n]) => `${c}${n}`).join('-')}`] : []), ...(scanned ? [`flown-p${npFound}-k${npOk}-f${npFail}-r${payRowsN}`, `flowd-cap${drop.cap}-nono${drop.nono}-cut${drop.cut}-known${drop.known}-dup${drop.dup}-cancel${drop.cancel}`] : []), ...(npv2 && scanned ? [only ? `flowo-${hitPage ? `hit-p${hitPage}` : `miss-last${lastScanPage}`}-of${scanTotal}` : `flowo-pages${lastScanPage}-of${scanTotal}${stopPaging ? '-stop' : ''}`] : []), `flowe-${reason}-${at}`];
         }
         return drainEnd();
     };
@@ -289,14 +289,20 @@ function createNaverApiFlow(opts = {}) {
     };
     /** 이 쪽에서 서버에 이미 받은 줄 수(멈춤 판단) */
     let pageKnown = 0;
+    /** 내역 줄을 작업으로 만들지 않은 까닭별 개수(11-02 107건 누락 찾기) — 상한 · 번호 없음 · 1년 전 · 이미 받음 · 같은 주문번호 */
+    const drop = { cap: 0, nono: 0, cut: 0, known: 0, dup: 0, cancel: 0 };
     const addPayRows = (rows) => {
         for (const row of rows) {
-            if (queue.length + payRowsN >= maxOrders)
+            if (queue.length + payRowsN >= maxOrders) {
+                drop.cap += rows.length;
                 break;
+            }
             // 버튼 영수증 주소의 짝만 있는 결제(주문번호 없음) — 주문번호 자리에 tid, 간편결제는 결제번호의 숫자(작업 칸 모양 8~20자리)
             const orderNo = row.orderNo ?? row.tid ?? (row.paymentId ? row.paymentId.replace('NP', '').slice(0, 20) : undefined);
-            if (!orderNo)
+            if (!orderNo) {
+                drop.nono++;
                 continue;
+            }
             if (only) {
                 // 개별 가져오기: 기다리는 줄과 날짜 · 금액이 같은 내역 줄 한 건만, 그 줄의 키로
                 const k = onlyHit(row);
@@ -321,15 +327,20 @@ function createNaverApiFlow(opts = {}) {
             // 시각 · 금액이 없는 줄은 영수증의 결제 시각 · 금액으로 저장한다(서버 목록 줄 잇기만 건너뜀) — 작업 시각은 지금
             const known = row.at !== undefined ? (0, naverReceipt_1.normalizeKst)(row.at) : null;
             const orderedAt = known ?? (0, naverReceipt_1.normalizeKst)(now());
-            if (known && known.slice(0, 10) < cutoff)
+            if (known && known.slice(0, 10) < cutoff) {
+                drop.cut++;
                 continue;
+            }
             // 서버에 이미 영수증까지 받은 줄 — 이 쪽의 멈춤 판단에 센다(실패 · 목록뿐인 줄은 세지 않는다 → 다음 실행에서도 다시)
             if (knownNos.has(orderNo) || (known && knownTails.has((0, exports.tailOf)(orderNo, known)))) {
                 pageKnown++;
+                drop.known++;
                 continue;
             }
-            if (listedNos.has(orderNo))
+            if (listedNos.has(orderNo)) {
+                drop.dup++;
                 continue;
+            }
             listedNos.add(orderNo);
             const order = {
                 orderNo, orderedAt, amount: row.amount ?? 0, payment: '카드', kind: 'list', needsReceipt: true,
@@ -338,6 +349,13 @@ function createNaverApiFlow(opts = {}) {
                 ...(row.tid ? { pay: { tid: row.tid, ...(row.payId ? { payId: row.payId } : {}), ...(row.paymentId ? { paymentId: row.paymentId } : {}) } } : row.payId ? { payIdHint: row.payId } : {}),
             };
             const key = (0, runOutcome_1.outcomeKey)(order.orderNo, order.orderedAt, order.amount);
+            // 내역 줄 상태가 취소 · 반품 — 영수증을 받지 않고 「취소된 주문」(적립 없음, 대표님 11-02)
+            if (row.cancelled) {
+                drop.cancel++;
+                setOutcome(key, { state: 'none', why: 'cancelled' });
+                total++;
+                continue;
+            }
             if (row.instant && !row.tid && row.paymentId)
                 pinfoWait.push({ j: { order, key, tries: 0 }, paymentId: row.paymentId });
             else
@@ -462,7 +480,7 @@ function createNaverApiFlow(opts = {}) {
         const cancelled = !!slip.cancelAt || ((slip.cancelAmount ?? 0) > 0 && (slip.cancelAmount ?? 0) >= (slip.amount ?? j.order.amount));
         if (cancelled) {
             noneN++;
-            setOutcome(j.key, { state: 'none' });
+            setOutcome(j.key, { state: 'none', why: 'cancelled' });
             return;
         }
         const amount = slip.amount ?? j.order.amount;

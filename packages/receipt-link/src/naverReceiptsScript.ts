@@ -22,7 +22,9 @@ export type PayRow = { orderNo?: string; payId?: string; productOrderNo?: string
   /** 주문번호가 없는 결제 — 그 줄 buttons[] 의 영수증 주소(/receipts/preview/card?) 쿼리 이름 그대로(B형 payId · tid · productOrderNo / A형 paymentId · tid) */
   tid?: string; paymentId?: string;
   /** 간편결제 줄(serviceType SIMPLE_PAYMENT) — orderDetailUrl 의 경로 · 쿼리 그대로(/instantPay/detail/<결제번호>?…, 10-29 16:36 실기록) */
-  instant?: string };
+  instant?: string;
+  /** 내역 줄 status 가 취소 · 반품(name CANCEL/RETURN 또는 글자 취소/반품) */
+  cancelled?: boolean };
 
 /** card-single 응답에서 뽑는 영수증 칸(허용 필드만). 시각은 사이트가 준 그대로(문자열 · 숫자) — 해석은 흐름이 한다 */
 export type ReceiptSlip = {
@@ -367,7 +369,16 @@ export function receiptsScript(r: ReceiptsRun): string {
         // ⑤ 결제번호(현장결제)가 있으면 receipts/offline 로
         if (job.paymentId) return offlineReceipt(job.paymentId);
         // 카드영수증이 원래 없는 결제 — 실패가 아니라 「영수증 없음」(대표님 11-02 ④). 구조만 남긴다
-        return { key: job.key, st: 'none', status: r.status, diag: mkDiag('issue', r.status, null, ['anchor 0', 'html ' + Math.round(r.t.length / 1024) + 'KB', 'nextdata ' + (nd ? 'yes' : 'no'), 'orderReceipt ' + (orc ? 'yes' : 'no')]) };
+        var noneDiag = ['anchor 0', 'html ' + Math.round(r.t.length / 1024) + 'KB', 'nextdata ' + (nd ? 'yes' : 'no'), 'orderReceipt ' + (orc ? 'yes' : 'no')];
+        // 11-02 대표님 확인: 같은 화면의 현금영수증(/receipts/integrated/cash?pkgSeq=&payId=) · 구매 영수증(/receipts/purchase?orderNo=) — 로그인된 같은 출처 GET 만, 쿠키는 다루지 않는다. 이번 판은 구조(값 가림)만 남긴다
+        var cm = /\/receipts\/integrated\/cash\?[^"'<>\s]+/.exec(r.t);
+        var nextPath = cm ? cm[0].replace(/&amp;/g, '&') : '/receipts/purchase?orderNo=' + encodeURIComponent(job.orderNo);
+        var w2 = cm ? 'cash' : 'purchase';
+        return request(nextPath, null, true).then(function (r2) {
+          var nd2 = null, m2 = r2.st === 'ok' ? /<script[^>]*id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i.exec(r2.t) : null;
+          if (m2) { try { nd2 = parseBig(m2[1]); } catch (e) { nd2 = null; } }
+          return { key: job.key, st: 'none', status: r.status, diag: mkDiag(w2, r2.status, nd2, noneDiag.concat([w2 + ' ' + r2.st, w2 + ' nextdata ' + (nd2 ? 'yes' : 'no')])) };
+        });
       }
       var pick = links[0];
       return single({ po: pick.productOrderNo, tid: pick.tid, payId: pick.payId, ref: pick.ref, anchors: links.length });
@@ -466,6 +477,8 @@ export function receiptsScript(r: ReceiptsRun): string {
               else if (a.v2 && it.product && typeof it.product.price === 'number' && it.product.price >= 1 && it.product.price <= 1e9) row.amount = Math.floor(it.product.price);
               var pid2 = digs(ad.payId, 18, 22); if (pid2 && !row.payId) row.payId = pid2;
               if ((typeof ad.productOrderNo === 'string' || typeof ad.productOrderNo === 'number') && /^\d{8,24}$/.test(String(ad.productOrderNo))) row.productOrderNo = String(ad.productOrderNo);
+              // 취소 · 반품 줄(status.name · status.text 이름 그대로) — 영수증을 받지 않고 「취소된 주문」
+              if (it.status && (/CANCEL|RETURN/i.test(String(it.status.name || '')) || /취소|반품/.test(String(it.status.text || '')))) row.cancelled = true;
               out.rows.push(row);
             }
           }

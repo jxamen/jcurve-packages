@@ -14,6 +14,7 @@ export type Outcome = {
     state: 'done';
 } | {
     state: 'none';
+    why?: 'cancelled';
 } | {
     state: 'failed';
     code: FailCode;
@@ -29,7 +30,9 @@ export declare const outcomeKey: (orderNo: string, orderedAt: string, amount: nu
 export declare const failText: (code: FailCode) => string;
 /** 「영수증 없음」 줄의 안내 글자 */
 export declare const NONE_TEXT = "\uC601\uC218\uC99D\uC774 \uC5C6\uB294 \uACB0\uC81C\uC608\uC694";
-/** 줄 오른쪽 큰 글자 — 실패는 「못 가져옴」, 영수증이 없는 결제는 「영수증 없음」 */
+/** 취소된 주문 줄의 안내 글자 */
+export declare const CANCELLED_TEXT = "\uCDE8\uC18C\uB41C \uC8FC\uBB38\uC774\uB77C \uC801\uB9BD \uB300\uC0C1\uC774 \uC544\uB2C8\uC5D0\uC694";
+/** 줄 오른쪽 큰 글자 — 실패는 「못 가져옴」, 영수증이 없는 결제는 「영수증 없음」, 취소된 주문은 「취소된 주문」 */
 export declare const outcomeLabel: (o: Outcome) => string;
 /** 줄 오른쪽 작은 까닭 글자 */
 export declare const outcomeReason: (o: Outcome) => string;

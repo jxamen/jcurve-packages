@@ -21,6 +21,8 @@ export type PayRow = {
     paymentId?: string;
     /** 간편결제 줄(serviceType SIMPLE_PAYMENT) — orderDetailUrl 의 경로 · 쿼리 그대로(/instantPay/detail/<결제번호>?…, 10-29 16:36 실기록) */
     instant?: string;
+    /** 내역 줄 status 가 취소 · 반품(name CANCEL/RETURN 또는 글자 취소/반품) */
+    cancelled?: boolean;
 };
 /** card-single 응답에서 뽑는 영수증 칸(허용 필드만). 시각은 사이트가 준 그대로(문자열 · 숫자) — 해석은 흐름이 한다 */
 export type ReceiptSlip = {
