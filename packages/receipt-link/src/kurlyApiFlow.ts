@@ -173,7 +173,9 @@ export function readKurlyDetail(json: unknown): { npay: boolean; method: string;
     if (isObj(v)) for (const k of Object.keys(v)) walk(v[k], k, depth + 1);
   };
   walk(json, '', 0);
-  if (method === 'pay_point') npay = true;
+  // 결제수단 칸이 있으면 그것으로만 가른다 — 응답 다른 곳의 「npay」 글자(주소 · 결제사 id)로 카드 결제를 네이버페이로 잘못 보지 않게
+  if (/네이버\s*페이|naver|npay/i.test(method) || method === 'pay_point') npay = true;
+  else if (/card|카드/i.test(method)) npay = false;
   if (card) encreq = card;
   return { npay, method, ...(encreq ? { encreq } : {}), ...(paidAt ? { paidAt } : {}), ...(amount !== undefined ? { amount } : {}) };
 }
@@ -320,6 +322,9 @@ export function createKurlyApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
   let slow = false;
   /* 컬리 매출전표는 확인된 creditCardUrl 페이지를 연다 — 목록 · 상세는 HTTP 유지 */
   let navMode = true;
+  let routeN = 0;
+  let blankN = 0;
+  let blankLog: string[] = [];
   let navJobs: Job[] = [];
   let navJob: Job | null = null;
   let navFailRun = 0;
@@ -562,6 +567,7 @@ export function createKurlyApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
       phase = 'receiptnav';
       return { type: 'goto', url: kurlyReceiptUrl(j.encreq as string) as string };
     }
+    if (blankLog.length > 0) { const lines = blankLog; blankLog = []; return structThen(`kurly-blank-${blankN}`, KURLY_RECEIPT_URL, {}, lines, navNext); }
     // 영수증 호스트(pg.kurlypay.co.kr) 출처에서는 api.kurly.com 요청이 또 교차 출처로 막힌다 — 상세 요청 전에 출처 페이지로 되돌아간다
     if (queue.length > 0) { phase = 'pageback'; return { type: 'goto', url: KURLY_LIST_URL }; }
     return nextBatch();
@@ -595,6 +601,7 @@ export function createKurlyApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
     const flags = { login: false, blocked: 0 };
     const toReceipt: Job[] = [];
     let firstOk: FetchResult | undefined;
+    const route: string[] = [];
     for (const j of batch) {
       const r = resOf(j);
       if (r.st === 'ok') {
@@ -604,9 +611,12 @@ export function createKurlyApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
         if (d.paidAt) j.paidAt = d.paidAt;
         if (d.amount !== undefined) j.paid = d.amount;
         if (d.npay) j.npay = true;
+        let to = 'sheet';
         if (d.npay || d.method === 'pay_credit_card') settleSheet(j);
-        else if (d.encreq && kurlyReceiptUrl(d.encreq)) { j.encreq = d.encreq; toReceipt.push(j); }
+        else if (d.encreq && kurlyReceiptUrl(d.encreq)) { j.encreq = d.encreq; toReceipt.push(j); to = 'receipt'; }
         else settleSheet(j);
+        // 줄마다 어느 길로 갔는지(값 없이 결제수단 코드 · 주소 있음/없음만)
+        route.push(`o${route.length + 1} method=${/^[A-Za-z_]{1,30}$/.test(d.method) ? d.method : d.method ? '?' : '-'} card=${d.encreq?.startsWith('https://') ? 'url' : d.encreq ? 'enc' : 'none'} npay=${d.npay ? 'y' : 'n'} to=${to}`);
       } else settleCommon(j, r, again, flags);
     }
     batch = [];
@@ -619,7 +629,8 @@ export function createKurlyApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
       queue = [...again, ...queue];
       return receiptBatch(toReceipt);
     };
-    return firstOk ? structThen('kurly-detail', kurlyDetailUrl('0'.repeat(13)), firstOk.data, usedForDetail(firstOk.data), go) : go();
+    const withRoute = (): FlowOut => (route.length > 0 ? structThen(`kurly-route-${++routeN}`, kurlyDetailUrl('0'.repeat(13)), {}, route, go) : go());
+    return firstOk ? structThen('kurly-detail', kurlyDetailUrl('0'.repeat(13)), firstOk.data, usedForDetail(firstOk.data), withRoute) : withRoute();
   };
 
   const usedForDetail = (data: unknown): string[] => {
@@ -667,16 +678,19 @@ export function createKurlyApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
     if (!j) return navNext();
     if (/\/login/i.test(pathOf(url)) || /^(nid|accounts)\./.test(hostOf(url))) { navJobs.unshift(j); phase = 'relogin'; tries = 0; return { type: 'login' }; }
     const data = kurlyReceiptData(text);
+    // 영수증 화면을 못 읽었을 때 화면 모양(길이 · 칸 이름 있음/없음만 — 글자 값은 남기지 않는다)
+    const blankLines = (): string[] => [`path=${hostOf(url)}${pathOf(url)}`.slice(0, 120), `textLen=${text.length}`, `varData=${/var\s+data\s*=/.test(text) ? 'y' : 'n'}`, `CARD_APP_NO=${/CARD_APP_NO/.test(text) ? 'y' : 'n'}`, `parsed=${data === undefined ? 'none' : Array.isArray(data) ? `array${data.length}` : typeof data}`];
     if (data === undefined) {
       // 빈 화면 · 오류 화면 — 연달아 세 번이면 영수증 호스트가 막은 것으로 보고 끝낸다
       navFailRun++;
       settleSheet(j);
       if (navFailRun >= MAX_NAV_FAIL_RUN) { failNavRest(); return finish('cross-origin'); }
+      if (blankLog.length < 30) blankLog.push(...blankLines().map((l) => `b${++blankN} ${l}`));
       return navNext();
     }
     navFailRun = 0;
     const ks = kurlySlip(data);
-    if (!ks) settleSheet(j);
+    if (!ks) { settleSheet(j); if (blankLog.length < 30) blankLog.push(...blankLines().map((l) => `b${++blankN} ${l}`)); }
     else settleOk(j, ks);
     const go = (): FlowOut => navNext();
     return structThen('kurly-receipt', KURLY_RECEIPT_URL, data, ['via : navigate', 'slip : CARD_APP_NO CO_NM CO_NO APP_DT APP_TM GOODS_AMT'], go);

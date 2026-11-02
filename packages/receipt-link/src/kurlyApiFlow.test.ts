@@ -147,7 +147,7 @@ describe('결과', () => {
     const flow = mk();
     const d = toDetail(flow);
     flow.takeOutcomes?.();
-    const out = settle(flow, flow.next({ type: 'fetched', results: [ok(K2, detailResp({ pay: { method: '네이버페이' } })), ok(K1, { data: { order: { payMethod: 'NAVER_PAY' } } })] }));
+    const out = settle(flow, flow.next({ type: 'fetched', results: [ok(K2, { data: { order: { paymentMethod: '네이버페이', receipt: { encreq: ENC } } } }), ok(K1, { data: { order: { payMethod: 'NAVER_PAY' } } })] }));
     expect(out).toMatchObject({ type: 'done', reason: 'all-rows' });
     expect(flow.takeOutcomes?.().map((e) => e.outcome.state)).toEqual(['done', 'done']);
     const made = (out as Extract<FlowOut, { type: 'done' }>).orders.filter((o) => o.kind === 'purchase');
@@ -457,7 +457,7 @@ describe('구조 기록(값 없음)', () => {
     const d = toDetail(flow, ROWS, undefined, structs);
     const g = settle(flow, flow.next({ type: 'fetched', results: d.reqs.map((q) => ok(q.key, detailResp())) }), structs);
     readReceipts(flow, g, () => receiptText(receiptResp()), structs);
-    expect(structs.map((s) => [s.where, s.host, s.path])).toEqual([
+    expect(structs.filter((s) => !/^kurly-(route|blank)/.test(s.where)).map((s) => [s.where, s.host, s.path])).toEqual([
       ['kurly-addr', 'api.kurly.com', '/addressbook/v1/cart/check-base-address-notification'],
       ['kurly-list', 'api.kurly.com', '/order-external/v4/mypage/orders'],
       ['kurly-detail', 'api.kurly.com', '/order-external/v3/mypage/orders/#'],
@@ -466,7 +466,7 @@ describe('구조 기록(값 없음)', () => {
     expect(structs[0].lines[0]).toBe('use address : found');
     expect(structs[1].lines[0]).toBe('use orderNo : orderNo');
     expect(structs[1].lines).toContain('data.orders : array3');
-    expect(structs[3].lines[0]).toBe('use via : navigate');
+    expect(structs.find((s) => s.where === 'kurly-receipt')!.lines[0]).toBe('use via : navigate');
     for (const s of structs) {
       expect(s.where).toMatch(/^[A-Za-z0-9_-]{1,40}$/);
       expect(s.lines.length).toBeLessThanOrEqual(300);
@@ -561,6 +561,9 @@ describe('이름으로 찾기 (순수 함수)', () => {
     expect(readKurlyDetail({ link: `https://pg.kurlypay.co.kr/x?encreq=${ENC}&z=1`, m: 'NPAY' })).toEqual({ npay: true, method: '', encreq: ENC });
     expect(readKurlyDetail({ a: '네이버 페이' }).npay).toBe(true);
     expect(readKurlyDetail({ a: 'x' })).toEqual({ npay: false, method: '' });
+    // 결제수단이 카드면 다른 칸의 「NPAY」 글자로 네이버페이로 보지 않는다
+    expect(readKurlyDetail({ payment: { paymentMethod: 'credit_card', paymentGatewayId: 'NPAY_PG' } }).npay).toBe(false);
+    expect(readKurlyDetail({ payment: { paymentMethod: 'pay_point' } }).npay).toBe(true);
   });
 
   it('상세: 「영수증 보기」 주소(receipt.creditCardUrl)를 payment.cardBillRedirectUrl 보다 먼저 쓰고, 결제 시각 · 금액을 읽는다', () => {

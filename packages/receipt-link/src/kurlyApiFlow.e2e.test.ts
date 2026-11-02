@@ -147,7 +147,7 @@ describe('컬리 — 구동기 + 흐름 + 실제 스크립트(가짜 페이지)'
     for (const secret of ['0987654321', '가짜결제사', '1234********5678', '홍길', '가짜 주소']) expect(dump).not.toContain(secret);
 
     // 구조 기록: 목록 · 상세 · 영수증 한 번씩, 키 이름만(값 없음)
-    expect(r.structures.map((s) => [s.where, s.host, s.path])).toEqual([
+    expect(r.structures.filter((s) => !/^kurly-(route|blank)/.test(s.where)).map((s) => [s.where, s.host, s.path])).toEqual([
       ['kurly-addr', 'api.kurly.com', '/addressbook/v1/cart/check-base-address-notification'],
       ['kurly-list', 'api.kurly.com', '/order-external/v4/mypage/orders'],
       ['kurly-detail', 'api.kurly.com', '/order-external/v3/mypage/orders/#'],
@@ -156,7 +156,7 @@ describe('컬리 — 구동기 + 흐름 + 실제 스크립트(가짜 페이지)'
     expect(r.structures[1].lines).toContain('use orderNo : orderNo');
     expect(r.structures[1].lines).toContain('data.orders : array10');
     expect(r.structures[1].lines).toContain('data.orders[0].paymentPrice : number');
-    expect(r.structures[3].lines).toContain('use slip : CARD_APP_NO CO_NM CO_NO APP_DT APP_TM GOODS_AMT');
+    expect(r.structures.find((s) => s.where === 'kurly-receipt')!.lines).toContain('use slip : CARD_APP_NO CO_NM CO_NO APP_DT APP_TM GOODS_AMT');
     const structDump = JSON.stringify(r.structures);
     for (const value of ['가짜상점', '1234567890', 'A19999', '삼성카드', enc(1), '1234********5678', '가짜 영수증 상품1', '상품1', '가짜시']) expect(structDump).not.toContain(value);
     for (const s of r.structures) for (const line of s.lines) { expect(line.length).toBeLessThanOrEqual(200); expect(line).not.toMatch(/\d{7,}/); }
@@ -185,7 +185,9 @@ describe('컬리 — 구동기 + 흐름 + 실제 스크립트(가짜 페이지)'
     expect(r.orders.filter((o) => o.kind === 'card')).toHaveLength(2);
     expect(r.gotos.filter(RECEIPT_GOTO)).toHaveLength(2);
     // 배송지 응답의 구조가 가장 먼저 나가고, 구조 기록에는 배송지 값이 없다(「found」 · 키 이름만)
-    expect(r.structures.map((s) => s.where)).toEqual(['kurly-addr', 'kurly-list', 'kurly-detail', 'kurly-receipt']);
+    expect(r.structures.filter((s) => !/^kurly-(route|blank)/.test(s.where)).map((s) => s.where)).toEqual(['kurly-addr', 'kurly-list', 'kurly-detail', 'kurly-receipt']);
+    // 줄마다 간 길(결제수단 코드 · 주소 있음/없음만)
+    expect(r.structures.find((s) => s.where.startsWith('kurly-route'))?.lines.some((l) => / to=receipt$/.test(l))).toBe(true);
     expect(JSON.stringify(r.structures)).not.toContain('가짜시');
     expect(JSON.stringify(r.structures)).not.toContain('101동');
   }, 40000);
