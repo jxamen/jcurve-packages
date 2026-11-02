@@ -127,9 +127,20 @@ export function kurlyRowToOrder(row: Record<string, unknown>): { order: ReceiptO
     const sc = (/(final|payment|pay)/i.test(k) ? 3 : 0) + (/total/i.test(k) ? 2 : 0) + (/(price|amount|money)/i.test(k) ? 1 : 0);
     if (sc > score) { score = sc; amount = n; }
   }
+  // 실측(11-02 서버 구조 기록): 목록 줄은 {groupOrderNo, paymentCompletedAt, deliveryGroups:[{orderStatus, dealProducts:[{dealProductName, quantity, displayPrice, displayDiscountPrice}]}], isSelfCancelable} —
+  // 금액 · 이름 · 상태가 배열 안에 있어 flat 이 못 읽는다(전 줄이 amount 0 으로 버려져 컬리는 6건을 받고도 0건이었다). 배열 안에서 찾는다
+  const groups = Array.isArray(row.deliveryGroups) ? row.deliveryGroups.filter(isObj) : [];
+  const products = groups.flatMap((g) => (Array.isArray(g.dealProducts) ? g.dealProducts.filter(isObj) : []));
+  if (amount < 1 && products.length > 0) {
+    const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0);
+    amount = products.reduce((sum, d) => sum + (num(d.displayDiscountPrice) || num(d.displayPrice)) * (num(d.quantity) || 1), 0);
+  }
   if (!orderedAt || amount < 1) return null;
-  const title = (f.find(([k, v]) => NAME_KEY_STRONG.test(k) && !NAME_KEY_BAD.test(k) && v.length > 0 && !/^\d+$/.test(v)) ?? f.find(([k, v]) => NAME_KEY_WEAK.test(k) && !NAME_KEY_BAD.test(k) && !/^\d+$/.test(v)))?.[1];
-  const cancelled = f.some(([k, v]) => /(status|state)/i.test(k) && /취소|반품|환불|cancel|return|refund/i.test(v));
+  const nameOfProduct = products.map((d) => scalar(d.dealProductName) || scalar(d.contentsProductName)).find((n) => n.length > 0);
+  const title = nameOfProduct ?? (f.find(([k, v]) => NAME_KEY_STRONG.test(k) && !NAME_KEY_BAD.test(k) && v.length > 0 && !/^\d+$/.test(v)) ?? f.find(([k, v]) => NAME_KEY_WEAK.test(k) && !NAME_KEY_BAD.test(k) && !/^\d+$/.test(v)))?.[1];
+  const OFF = /취소|반품|환불|cancel|return|refund/i;
+  const groupStates = groups.map((g) => scalar(g.orderStatus)).filter((x) => x.length > 0);
+  const cancelled = f.some(([k, v]) => /(status|state)/i.test(k) && OFF.test(v)) || (groupStates.length > 0 && groupStates.every((x) => OFF.test(x)));   // 묶음이 여럿이면 전부 취소 · 반품일 때만(일부만이면 남은 묶음은 받는다)
   return { order: listOrder({ orderNo, orderedAt, amount, seller: SELLER, ...(title ? { title: title.slice(0, 80) } : {}) }), cancelled };
 }
 

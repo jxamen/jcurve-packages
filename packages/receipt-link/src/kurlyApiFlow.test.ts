@@ -519,6 +519,22 @@ describe('이름으로 찾기 (순수 함수)', () => {
     expect(kurlyRowToOrder({ orderNo: '2026102000001', orderDate: '2026-10-20T10:00:00' })).toBeNull();
   });
 
+  it('실측 목록 줄(11-02 서버 구조 기록): 금액 · 이름 · 상태가 deliveryGroups[].dealProducts 안에 있어도 읽는다 — 이전엔 금액 0 으로 전 줄이 버려져 컬리가 0건이었다', () => {
+    const mkRow = (status: string[], extra: Record<string, unknown> = {}) => ({
+      groupOrderNo: 2026102000001, paymentCompletedAt: '2026-10-20T10:04:43', isSelfCancelable: false,
+      deliveryGroups: status.map((orderStatus, i) => ({ orderNos: [2026102000001 + i], orderStatus, deliveryPolicy: 'X', partnerName: 'P', dealProducts: [{ dealProductNo: 1, dealProductName: `가짜상품${i}`, contentsProductNo: 2, quantity: 2, displayPrice: 5000, displayDiscountPrice: 4000 }, { dealProductNo: 3, dealProductName: '둘째', quantity: 1, displayPrice: 1500, displayDiscountPrice: 0 }] })),
+      ...extra,
+    });
+    // 상품마다 (할인가 있으면 할인가, 없으면 정가) × 수량을 더한다 = 4000×2 + 1500×1
+    expect(kurlyRowToOrder(mkRow(['배송완료']))).toMatchObject({ cancelled: false, order: { orderNo: '2026102000001', amount: 9500, title: '가짜상품0', kind: 'list', seller: '컬리' } });
+    // 묶음이 모두 취소 · 반품이면 취소로 표시, 일부만이면 남은 묶음 때문에 받는다
+    expect(kurlyRowToOrder(mkRow(['취소완료', '반품완료']))).toMatchObject({ cancelled: true });
+    expect(kurlyRowToOrder(mkRow(['CANCELED']))).toMatchObject({ cancelled: true });
+    expect(kurlyRowToOrder(mkRow(['취소완료', '배송완료']))).toMatchObject({ cancelled: false });
+    // 상품이 없으면(금액을 만들 수 없으면) 예전처럼 null
+    expect(kurlyRowToOrder(mkRow([], { deliveryGroups: [] }))).toBeNull();
+  });
+
   it('hasFilledArray: 값이 든 객체 배열이 있는 응답과 빈 응답을 가른다', () => {
     expect(hasFilledArray({ a: { b: [{ x: 1 }] } })).toBe(true);
     expect(hasFilledArray({ a: { b: [] }, c: 1 })).toBe(false);
