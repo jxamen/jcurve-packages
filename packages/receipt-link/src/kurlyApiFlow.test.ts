@@ -511,6 +511,11 @@ describe('이름으로 찾기 (순수 함수)', () => {
   it('주문번호가 중첩(깊이 2)에 있어도 읽고, 일시 · 금액을 못 찾으면 null · 취소 상태는 표시한다', () => {
     expect(kurlyRowToOrder({ order: { orderNo: '2026102000001' }, createdAt: '2026-10-20T10:04:43', finalPrice: 100, status: 'CANCELLED' })).toMatchObject({ cancelled: true, order: { orderNo: '2026102000001' } });
     expect(kurlyRowToOrder({ orderNo: '2026102000001', price: 100 })).toBeNull();
+    // 반품 · 환불 상태도 취소처럼 거른다(대표님 11-02 「반품 취소 가져오면 안 돼」), 정상 상태는 거르지 않는다
+    for (const status of ['반품완료', '환불 완료', 'RETURNED', 'REFUNDED']) {
+      expect(kurlyRowToOrder({ orderNo: '2026102000001', createdAt: '2026-10-20T10:04:43', finalPrice: 100, status })).toMatchObject({ cancelled: true });
+    }
+    expect(kurlyRowToOrder({ orderNo: '2026102000001', createdAt: '2026-10-20T10:04:43', finalPrice: 100, status: '배송완료' })).toMatchObject({ cancelled: false });
     expect(kurlyRowToOrder({ orderNo: '2026102000001', orderDate: '2026-10-20T10:00:00' })).toBeNull();
   });
 

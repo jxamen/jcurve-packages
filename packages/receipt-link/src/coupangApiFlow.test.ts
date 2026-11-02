@@ -91,6 +91,16 @@ describe('이름으로 주문 찾기 (findCoupangOrders)', () => {
     expect(f.map((o) => o.cancelled)).toEqual([false, true, true]);
   });
 
+  it('반품 · 환불 상태 글자도 취소처럼 거른다(대표님 11-02 「반품 취소 가져오면 안 돼」) — 정상 상태 글자와 returnable 같은 가능 여부 칸은 거르지 않는다', () => {
+    const f = findCoupangOrders(nextData([
+      order(1, '2026-10-06T09:00:00', { status: '반품완료' }),
+      order(2, '2026-10-06T09:00:00', { orderStatus: '환불 완료' }),
+      order(3, '2026-10-06T09:00:00', { cancelReturnStatus: 'RETURN_COMPLETE' }),
+      order(4, '2026-10-06T09:00:00', { status: '배송완료', returnable: true }),
+    ]));
+    expect(f.map((o) => o.cancelled)).toEqual([true, true, true, false]);
+  });
+
   it('날짜 · 금액 읽기 — 에포크 아닌 작은 숫자 · 모양이 틀린 글자는 버린다', () => {
     expect(parseListDate('2026.10.06')).toEqual({ at: '2026-10-06 00:00:00', dateOnly: true });
     expect(parseListDate('2026-10-06')).toEqual({ at: '2026-10-06 00:00:00', dateOnly: true });

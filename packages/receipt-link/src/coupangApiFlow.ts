@@ -144,7 +144,7 @@ const isCancelledObj = (o: unknown): boolean => {
     for (const k of Object.keys(v)) {
       const c = v[k];
       if (/cancel/i.test(k) && c === true) hit = true;
-      else if (/status|state/i.test(k) && typeof c === 'string' && /취소/.test(c)) hit = true;
+      else if (/status|state/i.test(k) && typeof c === 'string' && /취소|반품|환불|CANCEL|RETURN|REFUND/i.test(c)) hit = true;
       else if (c !== null && typeof c === 'object') walk(c, depth + 1);
     }
   };

@@ -726,3 +726,12 @@ describe('6차: 카드 영수증 라벨 읽기', () => {
     expect(s?.merchant).toBeUndefined();
   });
 });
+
+describe('shopItemCancelled — 취소 · 반품 · 환불 상품 거르기(대표님 11-02)', () => {
+  it('status 칸의 CANCEL · RETURN · REFUND · 취소 · 반품 · 환불 은 거르고, 정상 상태는 거르지 않는다', async () => {
+    const { shopItemCancelled } = await import('./naverReceipt');
+    for (const status of ['CANCELED', 'RETURN_DONE', 'REFUNDED', '취소완료', '반품 완료', '환불완료']) expect(shopItemCancelled({ orderStatus: status })).toBe(true);
+    for (const status of ['DELIVERED', '배송완료', '구매확정']) expect(shopItemCancelled({ orderStatus: status })).toBe(false);
+    expect(shopItemCancelled({ returnable: true })).toBe(false);
+  });
+});

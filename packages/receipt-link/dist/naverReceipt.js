@@ -833,7 +833,7 @@ function shopItemToOrder(x) {
 /** 쇼핑 주문 목록의 상품 한 칸이 취소 · 반품인가 — 키 이름에 status 가 든 칸의 값(CANCEL · RETURN · 취소 · 반품). 대표님 11-02 「취소 주문 불러오지 않음」 */
 function shopItemCancelled(x) {
     const r = asObj(x);
-    return Object.keys(r).some((k) => /status/i.test(k) && typeof r[k] === 'string' && /CANCEL|RETURN|취소|반품/i.test(r[k]));
+    return Object.keys(r).some((k) => /status/i.test(k) && typeof r[k] === 'string' && /CANCEL|RETURN|REFUND|취소|반품|환불/i.test(r[k]));
 }
 /** 네이버페이 결제내역 API 의 nvMids[] 한 칸. 주문번호는 없을 수 있다(영수증으로 찾는다) */
 function payItemToOrder(x) {

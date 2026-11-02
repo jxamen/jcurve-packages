@@ -478,7 +478,7 @@ export function receiptsScript(r: ReceiptsRun): string {
               var pid2 = digs(ad.payId, 18, 22); if (pid2 && !row.payId) row.payId = pid2;
               if ((typeof ad.productOrderNo === 'string' || typeof ad.productOrderNo === 'number') && /^\d{8,24}$/.test(String(ad.productOrderNo))) row.productOrderNo = String(ad.productOrderNo);
               // 취소 · 반품 줄(status.name · status.text 이름 그대로) — 영수증을 받지 않고 「취소된 주문」
-              if (it.status && (/CANCEL|RETURN/i.test(String(it.status.name || '')) || /취소|반품/.test(String(it.status.text || '')))) row.cancelled = true;
+              if (it.status && (/CANCEL|RETURN|REFUND/i.test(String(it.status.name || '')) || /취소|반품|환불/.test(String(it.status.text || '')))) row.cancelled = true;
               out.rows.push(row);
             }
           }

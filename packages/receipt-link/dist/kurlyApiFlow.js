@@ -156,7 +156,7 @@ function kurlyRowToOrder(row) {
     if (!orderedAt || amount < 1)
         return null;
     const title = (f.find(([k, v]) => NAME_KEY_STRONG.test(k) && !NAME_KEY_BAD.test(k) && v.length > 0 && !/^\d+$/.test(v)) ?? f.find(([k, v]) => NAME_KEY_WEAK.test(k) && !NAME_KEY_BAD.test(k) && !/^\d+$/.test(v)))?.[1];
-    const cancelled = f.some(([k, v]) => /(status|state)/i.test(k) && /취소|cancel/i.test(v));
+    const cancelled = f.some(([k, v]) => /(status|state)/i.test(k) && /취소|반품|환불|cancel|return|refund/i.test(v));
     return { order: (0, naverReceipt_1.listOrder)({ orderNo, orderedAt, amount, seller: SELLER, ...(title ? { title: title.slice(0, 80) } : {}) }), cancelled };
 }
 /** 상세 응답 → 네이버페이 여부 · 영수증 요청 값(encreq). 어디든 이름으로 찾는다 */
