@@ -157,7 +157,7 @@ describe('결과', () => {
     const rows = [row(1, '2026-10-20T10:04:43', 12300), row(2, '2026-10-25T12:00:00', 5000, { orderStatus: '주문취소 완료' })];
     const d = toDetail(flow, rows);
     expect(d.reqs.map((q) => q.key)).toEqual([K1]);
-    expect(flow.takeOutcomes?.()).toContainEqual({ key: K2, outcome: { state: 'none' } });
+    expect(flow.takeOutcomes?.()).toContainEqual({ key: K2, outcome: { state: 'none', why: 'cancelled' } });
   });
 
   it('승인번호 · 승인 일시 · 금액이 빠진 영수증은 그 줄만 「읽지 못함」', () => {

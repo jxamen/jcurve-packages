@@ -209,7 +209,7 @@ describe('매출전표 결과 · 줄별 결과', () => {
     const b = toReceipts(flow, rows);
     expect(b.reqs.map((q) => q.key)).toEqual([keyOf(1, '2026-10-20 10:04:43')]);
     const oc = flow.takeOutcomes?.() ?? [];
-    expect(oc.find((e) => e.key === keyOf(2, '2026-10-21 10:04:43'))?.outcome).toEqual({ state: 'none' });
+    expect(oc.find((e) => e.key === keyOf(2, '2026-10-21 10:04:43'))?.outcome).toEqual({ state: 'none', why: 'cancelled' });
     expect(oc.find((e) => e.key === keyOf(3, '2026-10-22 10:04:43'))?.outcome).toEqual({ state: 'none' });
     expect(oc.find((e) => e.key === keyOf(4, '2026-10-23 10:04:43'))?.outcome).toEqual({ state: 'failed', code: 'no-pair' });
   });

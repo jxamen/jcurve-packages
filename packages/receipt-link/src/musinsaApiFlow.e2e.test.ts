@@ -96,7 +96,7 @@ describe('무신사 — 구동기 + 흐름 + 실제 스크립트(가짜 페이�
     expect([...new Set(r.urls.map((u) => new URL(u.slice(4)).host))].sort()).toEqual(['api.musinsa.com', 'pay.musinsapayments.com', 'www.musinsa.com']);
     // 목록 행 17(주문번호 있음) + 완성 주문 13
     const list = r.orders.filter((o) => o.kind === 'list');
-    expect(list).toHaveLength(17);
+    expect(list).toHaveLength(16);   // 취소 1건은 올리지 않는다(11-02)
     expect(list.every((o) => /^\d{18}$/.test(o.orderNo))).toBe(true);
     const cards = r.orders.filter((o) => o.kind === 'card');
     expect(cards).toHaveLength(13);

@@ -131,7 +131,7 @@ describe('컬리 — 구동기 + 흐름 + 실제 스크립트(가짜 페이지)'
     expect(last.size).toBe(12);
 
     // 서버로 올라가는 것: 목록 행 열두 개(kind list) + 완성 주문 일곱 개
-    expect(r.orders.filter((o) => o.kind === 'list')).toHaveLength(12);
+    expect(r.orders.filter((o) => o.kind === 'list')).toHaveLength(11);   // 취소 1건은 올리지 않는다(11-02)
     const cards = r.orders.filter((o) => o.kind === 'card');
     expect(cards.map((o) => o.orderNo).sort()).toEqual([1, 7, 8, 9, 10, 11, 12].map(no).sort());
     // 완성 주문 필드 = 대표님 23:50:20 키 매핑(CO_NM · CO_NO · CARD_APP_NO · CARD_NM · APP_DT+APP_TM · GOODS_AMT · GOODS_NM)
@@ -282,7 +282,7 @@ describe('컬리 — 구동기 + 흐름 + 실제 스크립트(가짜 페이지)'
     expect(details).not.toContain(kurlyDetailUrl(no(7)));
     expect(details).toContain(kurlyDetailUrl(no(8)));
     expect(r.orders.filter((o) => o.kind === 'list').map((o) => o.orderNo)).not.toContain(no(1));
-    expect(r.orders.filter((o) => o.kind === 'list')).toHaveLength(10);
+    expect(r.orders.filter((o) => o.kind === 'list')).toHaveLength(9);   // 취소 1건은 올리지 않는다(11-02)
   }, 60000);
 
   it('한 줄만 다시(onlyKeys) — 그 주문만 상세 · 영수증을 열고 목록 행은 올리지 않는다, 목록에 없는 줄은 까닭을 남긴다', async () => {

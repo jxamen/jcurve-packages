@@ -121,6 +121,8 @@ const NON_CARD = /포인트|적립금|무통장|계좌|가상계좌|머니|POINT
 export type ParsedOrder = {
   orderNo: string; orderedAt: string; amount: number; title?: string; seller?: string;
   pay?: { paymentKey: string; tid: string; merchantCode: string }; method?: string; cancelled: boolean;
+  /** 옵션 일부만 반품 · 취소(나머지는 구매 확정) */
+  mixed?: boolean;
 };
 
 export function readMusinsaDetail(json: unknown): NonNullable<ParsedOrder['pay']> | null {
@@ -183,13 +185,17 @@ export function parseOrderRow(e: Raw): ParsedOrder | null {
   const merchantCode = asStr(findKey(e, MERCHANT_CODE_RES, (v) => /^[A-Za-z0-9_]{2,20}$/.test(asStr(v)), 6)) || 'STORE';
   const status = asStr(findKey(e, STATUS_RES, isText, 3));
   const method = asStr(findKey(e, PAY_METHOD_RES, isText, 4));
+  // 대표님 11-02 무신사 JSON: 상태는 orderOptionList(옵션별) — 구매 확정 claimState 0 · orderState 50, 반품 완료 claimState 61 · orderState 40 · orderStateText 「반품 완료」
+  const opts = Array.isArray(e.orderOptionList) ? (e.orderOptionList as unknown[]).filter(isObj) as Raw[] : [];
+  const optOff = opts.filter((o) => CANCELLED.test(asStr(o.orderStateText)) || (typeof o.claimState === 'number' && o.claimState === 61));
   return {
     orderNo, orderedAt, amount,
     title: clip(findKey(e, TITLE_RES, isText, 4), 80),
     seller: clip(findKey(e, SELLER_RES, isText, 4), 80),
     ...(paymentKey && tid ? { pay: { paymentKey, tid, merchantCode } } : {}),
     ...(method ? { method } : {}),
-    cancelled: CANCELLED.test(status),
+    cancelled: opts.length > 0 ? optOff.length === opts.length : CANCELLED.test(status),
+    ...(optOff.length > 0 && optOff.length < opts.length ? { mixed: true } : {}),
   };
 }
 
@@ -443,12 +449,12 @@ export function createMusinsaApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
     if (only) {
       // 목록에서 이 줄을 못 찾았다(주문이 사라졌거나 시각이 바뀜) — 조용히 끝내지 않고 그 줄에 까닭을 남긴다
       for (const k of only) if (!matched.has(k)) { failN++; setOutcome(k, { state: 'failed', code: 'no-pair' }); }
-    } else pending.push(...jobs.map((j) => j.order));
+    } else pending.push(...jobs.filter((j) => !j.parsed.cancelled).map((j) => j.order));   // 취소 · 반품 · 환불 주문은 서버에 올리지 않는다(대표님 11-02)
     total = jobs.length;
     queue = [];
     for (const j of jobs) {
       const p = j.parsed;
-      if (p.cancelled) none(j);
+      if (p.cancelled) { noneN++; setOutcome(j.key, { state: 'none', why: 'cancelled' }); }
       else if (p.method && NON_CARD.test(p.method)) none(j);
       else queue.push(j);
     }

@@ -50,6 +50,8 @@ export type ParsedOrder = {
     };
     method?: string;
     cancelled: boolean;
+    /** 옵션 일부만 반품 · 취소(나머지는 구매 확정) */
+    mixed?: boolean;
 };
 export declare function readMusinsaDetail(json: unknown): NonNullable<ParsedOrder['pay']> | null;
 export declare function musinsaNextOffsets(json: unknown): {

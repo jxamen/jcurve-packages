@@ -486,9 +486,11 @@ function createKurlyApiFlow(opts = {}) {
                 }
         }
         else
-            pending.push(...[...jobs, ...cancelledJobs].map((j) => j.order));
-        for (const j of cancelledJobs)
-            none(j);
+            pending.push(...jobs.map((j) => j.order)); // 취소 주문은 서버에 올리지 않는다(대표님 11-02)
+        for (const j of cancelledJobs) {
+            noneN++;
+            setOutcome(j.key, { state: 'none', why: 'cancelled' });
+        }
         queue = jobs;
         total = jobs.length + cancelledJobs.length;
         if (jobs.length === 0)
