@@ -152,7 +152,7 @@ describe('결과', () => {
     expect(flow.takeOutcomes?.().map((e) => e.outcome.state)).toEqual(['done', 'done']);
     const made = (out as Extract<FlowOut, { type: 'done' }>).orders.filter((o) => o.kind === 'purchase');
     expect(made).toHaveLength(2);
-    expect(made.every((o) => o.amount > 0 && o.payment === '포인트·기타' && o.approval === undefined)).toBe(true);
+    expect(made.every((o) => o.amount > 0 && o.payment === '네이버페이' && o.approval === undefined)).toBe(true);
     expect(d.reqs).toHaveLength(2);
   });
 
@@ -424,6 +424,15 @@ describe('로그인 · 막힘 · 시간 초과 · 교차 출처', () => {
     expect(d.reqs).toHaveLength(2);
   });
 
+  it('네이버페이 구매영수증은 주문상세의 결제 시각 · 결제 금액으로 만든다', () => {
+    const flow = mk();
+    toDetail(flow);
+    const out = settle(flow, flow.next({ type: 'fetched', results: [ok(K2, { data: { paymentCompletedAt: '2025-09-28T08:07:06', payment: { paymentMethod: 'pay_point', totalPaymentPrice: 56890 } } }), ok(K1, { data: { payment: { paymentMethod: 'pay_point' } } })] }));
+    const made = (out as Extract<FlowOut, { type: 'done' }>).orders.filter((o) => o.kind === 'purchase');
+    expect(made).toHaveLength(2);
+    expect(made.some((o) => o.amount === 56890 && o.orderedAt.startsWith('2025-09-28') && o.payment === '네이버페이')).toBe(true);
+  });
+
   it('영수증 화면이 빈 화면이 연달아 세 번이면(영수증 호스트가 막음) cross-origin 으로 끝내고 남은 줄에 까닭을 남긴다', () => {
     const rows = Array.from({ length: 4 }, (_, i) => row(i + 1, `2026-10-${String(10 + i).padStart(2, '0')}T10:00:00`, 1000 + i));
     const flow = mk();
@@ -552,6 +561,13 @@ describe('이름으로 찾기 (순수 함수)', () => {
     expect(readKurlyDetail({ link: `https://pg.kurlypay.co.kr/x?encreq=${ENC}&z=1`, m: 'NPAY' })).toEqual({ npay: true, method: '', encreq: ENC });
     expect(readKurlyDetail({ a: '네이버 페이' }).npay).toBe(true);
     expect(readKurlyDetail({ a: 'x' })).toEqual({ npay: false, method: '' });
+  });
+
+  it('상세: 「영수증 보기」 주소(receipt.creditCardUrl)를 payment.cardBillRedirectUrl 보다 먼저 쓰고, 결제 시각 · 금액을 읽는다', () => {
+    const card = `https://pg.kurlypay.co.kr/api/payments/receipt/request/card?encreq=${ENC}`;
+    const d = readKurlyDetail({ data: { paymentCompletedAt: '2024-11-05T09:10:11', payment: { totalPaymentPrice: 41600, paymentMethod: 'credit_card', cardBillRedirectUrl: 'https://pg.kurlypay.co.kr/bill?encreq=WRONGWRONGWRONG' }, receipt: { creditCardUrl: card, cashUrl: '' } } });
+    expect(d).toEqual({ npay: false, method: 'credit_card', encreq: card, paidAt: '2024-11-05T09:10:11', amount: 41600 });
+    expect(kurlyReceiptUrl(d.encreq as string)).toBe(card);
   });
 
   it('영수증 화면 글자: 화면 글자 뒤의 var data = [ {...} ]; 를 읽고, JSON 본문 · 빈 글자 · 모양이 틀린 글자는 처리한다', () => {

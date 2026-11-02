@@ -145,14 +145,24 @@ export function kurlyRowToOrder(row: Record<string, unknown>): { order: ReceiptO
 }
 
 /** 상세 응답 → 네이버페이 여부 · 영수증 요청 값(encreq). 어디든 이름으로 찾는다 */
-export function readKurlyDetail(json: unknown): { npay: boolean; method: string; encreq?: string } {
+export function readKurlyDetail(json: unknown): { npay: boolean; method: string; encreq?: string; paidAt?: string; amount?: number } {
   let npay = false;
   let method = '';
   let encreq: string | undefined;
+  let card: string | undefined;
+  let paidAt: string | undefined;
+  let amount: number | undefined;
   let n = 0;
   const walk = (v: unknown, key: string, depth: number): void => {
     if (depth > 9 || n++ > 6000) return;
+    if (typeof v === 'number') {
+      if (amount === undefined && /^totalPaymentPrice$/i.test(key) && v > 0) amount = v;
+      return;
+    }
     if (typeof v === 'string') {
+      // 「영수증 보기」 버튼 주소(receipt.creditCardUrl)를 이름으로 먼저 — payment.cardBillRedirectUrl 같은 다른 주소의 encreq 를 집지 않는다(대표님 10-28 19:58 「카드 결제면 영수증보기 누르면 영수증이 열림」)
+      if (!card && /^creditCardUrl$/i.test(key) && /^https:\/\/pg\.kurlypay\.co\.kr\//.test(v)) card = v;
+      if (!paidAt && /^paymentCompletedAt$/i.test(key) && v.length >= 10) paidAt = v;
       if (/^paymentMethod$/i.test(key)) method = v;
       if (/네이버\s*페이|NAVER_?PAY|NPAY/i.test(v)) npay = true;
       if (!encreq && /^encreq$/i.test(key) && v.length > 8) encreq = v;
@@ -164,7 +174,8 @@ export function readKurlyDetail(json: unknown): { npay: boolean; method: string;
   };
   walk(json, '', 0);
   if (method === 'pay_point') npay = true;
-  return { npay, method, ...(encreq ? { encreq } : {}) };
+  if (card) encreq = card;
+  return { npay, method, ...(encreq ? { encreq } : {}), ...(paidAt ? { paidAt } : {}), ...(amount !== undefined ? { amount } : {}) };
 }
 
 /** 영수증 요청 값 → 요청 주소. 이미 퍼센트 부호가 든 값은 그대로, 아니면 부호를 붙인다(base64 의 + / =) */
@@ -253,7 +264,7 @@ const MAX_TIMEOUT_RUN = 3;
 const MAX_NET_STRIKES = 2;
 
 type Phase = 'idle' | 'page' | 'list' | 'addr' | 'detail' | 'receipt' | 'receiptnav' | 'pageback' | 'relogin' | 'finished';
-type Job = { order: ReceiptOrder; key: string; tries: number; encreq?: string };
+type Job = { order: ReceiptOrder; key: string; tries: number; encreq?: string; paidAt?: string; paid?: number; npay?: boolean };   // paidAt · paid = 주문상세의 결제 시각 · 결제 금액
 
 const FAIL_OF: Partial<Record<FetchResult['st'], FailCode>> = { blocked: 'blocked', net: 'network', shape: 'unreadable', http: 'unreadable', login: 'login' };
 const splitUrl = (url: string): { host: string; path: string } => {
@@ -495,11 +506,13 @@ export function createKurlyApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
    * 대표님 11-02 23:36 「컬리 아직도 제대로 못 가져옴」 — 네이버페이 주문상세와 같은 기준. 배송지 · 이름 · 전화는 쓰지 않는다. 만들 수 없으면 예전처럼 「영수증 없음」
    */
   const settleSheet = (j: Job): void => {
-    const paidAt = normalizeKst(j.order.orderedAt);
-    const done = paidAt && j.order.amount > 0
-      ? toImportOrder({ paidAt, amount: j.order.amount }, { orderNo: j.order.orderNo, seller: j.order.seller ?? SELLER, title: j.order.title, amount: j.order.amount }, { kind: 'purchase', allowNoSeconds })
+    const paidAt = normalizeKst(j.paidAt ?? '') ?? normalizeKst(j.order.orderedAt);
+    const amount = j.paid ?? j.order.amount;
+    const done = paidAt && amount > 0
+      ? toImportOrder({ paidAt, amount }, { orderNo: j.order.orderNo, seller: j.order.seller ?? SELLER, title: j.order.title, amount }, { kind: 'purchase', allowNoSeconds })
       : null;
     if (!done) { none(j); return; }
+    if (j.npay) done.payment = '네이버페이';
     if (j.order.listKey) done.listKey = j.order.listKey;
     orders.push(done);
     pending.push(done);
@@ -588,6 +601,9 @@ export function createKurlyApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
         okTotal++;
         firstOk ??= r;
         const d = readKurlyDetail(r.data);
+        if (d.paidAt) j.paidAt = d.paidAt;
+        if (d.amount !== undefined) j.paid = d.amount;
+        if (d.npay) j.npay = true;
         if (d.npay || d.method === 'pay_credit_card') settleSheet(j);
         else if (d.encreq && kurlyReceiptUrl(d.encreq)) { j.encreq = d.encreq; toReceipt.push(j); }
         else settleSheet(j);
