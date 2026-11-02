@@ -5,6 +5,7 @@ exports.findKey = findKey;
 exports.readMusinsaDetail = readMusinsaDetail;
 exports.musinsaNextOffsets = musinsaNextOffsets;
 exports.findOrderRows = findOrderRows;
+exports.musinsaStatusLine = musinsaStatusLine;
 exports.parseOrderRow = parseOrderRow;
 exports.slipFromJson = slipFromJson;
 exports.slipFromMusinsaText = slipFromMusinsaText;
@@ -192,6 +193,14 @@ const hasObjectArray = (json, depth = 0) => {
         return false;
     return Object.keys(json).some((k) => hasObjectArray(json[k], depth + 1));
 };
+/** 상태 기록 한 줄(날짜 · 금액 같은 값 없이): 결제 키 있음/없음 · 옵션별 orderState/claimState/childOrderState/상태 글자 · 판정 */
+function musinsaStatusLine(e, p) {
+    const opts = Array.isArray(e.orderOptionList) ? e.orderOptionList.filter(isObj) : [];
+    const num = (v) => (typeof v === 'number' ? String(v) : '-');
+    const o = opts.slice(0, 6).map((x) => `${num(x.orderState)}/${num(x.claimState)}/${num(x.childOrderState)}/${asStr(x.orderStateText).replace(/[^가-힣A-Za-z ]/g, '').slice(0, 12) || '-'}`).join(',');
+    const top = asStr(findKey(e, STATUS_RES, isText, 3)).replace(/[^가-힣A-Za-z_ ]/g, '').slice(0, 16);
+    return `pay=${p.pay ? 'y' : 'n'} top=${top || '-'} opt=${o || '-'} off=${p.cancelled ? 'y' : p.mixed ? 'part' : 'n'}`.slice(0, 200);
+}
 function parseOrderRow(e) {
     const orderNo = asStr(findKey(e, ORDER_NO_RES, isDigits(12, 24), 3));
     const orderedAtRaw = findKey(e, ORDERED_AT_RES, isStamp, 4);
@@ -361,6 +370,8 @@ function createMusinsaApiFlow(opts = {}) {
     let ending = null;
     let endQueue = [];
     const READ = { kind: 'read' };
+    /** 주문 줄마다 상태 칸(코드 · 상태 글자)만 — 상품명 · 결제 값은 남기지 않는다(대표님 11-03 07:40 반품 · 취소 주문이 목록에 남음) */
+    let statLog = [];
     const queueStructure = (where, host, path, lines) => {
         if (structSeen.has(where) || lines.length === 0)
             return;
@@ -470,6 +481,8 @@ function createMusinsaApiFlow(opts = {}) {
                 stats.rejected++;
                 continue;
             }
+            if (statLog.length < 280)
+                statLog.push(`o${statLog.length + 1} ${musinsaStatusLine(e, p)}`);
             // 묶음 주문 — 같은 주문번호의 상품 줄을 모두 합친다(대표님 11-02: 6/21 묶음 주문에서 반품된 1개만 읽었다). 반품 · 취소 상품은 금액에서 빼고, 전부 반품 · 취소일 때만 취소 주문
             const prev = found.get(p.orderNo);
             if (!prev) {
@@ -491,6 +504,11 @@ function createMusinsaApiFlow(opts = {}) {
     const listDone = () => {
         if (listOk === 0)
             return finish('list-failed');
+        if (statLog.length > 0) {
+            queueStructure('mus-status', LIST_HOST, LIST_PATH, statLog);
+            statLog = [];
+            return withStructure(listDone);
+        }
         const all = [...found.values()]
             .filter((p) => p.orderedAt.slice(0, 10) >= cutoff)
             .sort((a, b) => (a.orderedAt < b.orderedAt ? 1 : a.orderedAt > b.orderedAt ? -1 : 0));

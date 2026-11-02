@@ -113,8 +113,9 @@ describe('무신사 — 구동기 + 흐름 + 실제 스크립트(가짜 페이�
     expect(last.get(keyOf(6))).toBe('failed:no-pair');
     expect([...last.values()].filter((s) => s === 'done')).toHaveLength(13);
     // 구조 기록: 목록(가득 찬 첫 구간) · 매출전표(JSON) — 키 이름만, 값은 한 글자도 없다
-    expect(r.structures.map((s) => s.where)).toEqual(['mus-list', 'mus-rcpt']);
-    const [sl, sr] = r.structures;
+    expect(r.structures.map((s) => s.where)).toEqual(['mus-list', 'mus-status', 'mus-rcpt']);
+    expect(r.structures.find((s) => s.where === 'mus-status')!.lines.every((l) => / pay=[yn] top=.* opt=.* off=(y|n|part)$/.test(l))).toBe(true);
+    const [sl, sr] = r.structures.filter((s) => s.where !== 'mus-status');
     expect(sl).toMatchObject({ host: 'api.musinsa.com', path: '/api2/claim/store/mypage/integration/order' });
     expect(sl.lines).toContain('data.orderList : array15');
     expect(sl.lines).toContain('data.orderList[0].payment.paymentKey : string');

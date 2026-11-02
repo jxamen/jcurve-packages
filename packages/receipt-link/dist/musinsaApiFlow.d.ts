@@ -60,6 +60,8 @@ export declare function musinsaNextOffsets(json: unknown): {
 } | null;
 /** 응답 JSON 안의 주문 배열을 찾는다 — 규칙은 파일 머리말 */
 export declare function findOrderRows(json: unknown): Raw[];
+/** 상태 기록 한 줄(날짜 · 금액 같은 값 없이): 결제 키 있음/없음 · 옵션별 orderState/claimState/childOrderState/상태 글자 · 판정 */
+export declare function musinsaStatusLine(e: Raw, p: ParsedOrder): string;
 export declare function parseOrderRow(e: Raw): ParsedOrder | null;
 /** 매출전표 JSON → Slip(이름으로 찾기, 네 칸 중 셋 이상이면 영수증) */
 export declare function slipFromJson(json: unknown): Slip | null;

@@ -167,7 +167,7 @@ describe('구조 기록 — 값 없이 키 구조만, 같은 모양은 한 번',
     const seen: Struct[] = [];
     const f = toList(flow);
     pass(flow, flow.next({ type: 'fetched', results: listResults(f, { 0: ROWS, 2: [row(7, '2026-02-01 10:00:00')] }) }), seen);
-    expect(seen.map((s) => s.where)).toEqual(['mus-list']);
+    expect(seen.map((s) => s.where)).toEqual(['mus-list', 'mus-status']);
     expect(seen[0]).toMatchObject({ host: 'api.musinsa.com', path: '/api2/claim/store/mypage/integration/order' });
     expect(seen[0].lines).toContain('data.orderList : array3');
     expect(seen[0].lines).toContain('data.orderList[0].paymentAmount : number');
