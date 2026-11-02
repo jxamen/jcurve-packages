@@ -559,7 +559,7 @@ function createKurlyApiFlow(opts = {}) {
         const used = found ? [`address : found`, `addressDetail : ${found.addressDetail ? 'found' : 'empty'}`] : ['address : none'];
         const back = () => {
             if (!found)
-                return finish('list-failed');
+                return looksLoggedOut(lastText) ? (phase = 'page', { type: 'login' }) : finish('list-failed');
             addr = found;
             return addrBack === 'detail' ? detailBatch() : listReq();
         };
@@ -842,6 +842,8 @@ function createKurlyApiFlow(opts = {}) {
             return finish('list-failed');
         return retryOr('timeout');
     };
+    /** 주문 · 금액 글자 없이 「로그인」만 있는 짧은 화면 */
+    const looksLoggedOut = (text) => text.length < 600 && /로그인/.test(text) && !/\d[\d,]*원|\d{10,}/.test(text);
     const onPage = (url, text) => {
         lastUrl = url;
         lastText = text;
@@ -850,6 +852,9 @@ function createKurlyApiFlow(opts = {}) {
                 return { type: 'login' };
             if (!/(^|\.)kurly\.com$/.test(hostOf(url)))
                 return retryOr('shop-lost');
+            // 로그아웃된 컬리 주문 화면은 주소를 /login 으로 바꾸지 않고 같은 주소에 짧은 로그인 안내만 띄운다(11-02 기록: /mypage/order · 글자 39자 · 로그인 글자) — 로그인 화면을 보인다
+            if (looksLoggedOut(text))
+                return { type: 'login' };
             tries = 0;
             return phase === 'page' ? addrReq('list') : listReq();
         }

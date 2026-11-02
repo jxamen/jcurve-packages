@@ -87,6 +87,12 @@ function toDetail(flow: ReturnType<typeof mk>, rows: unknown[] = ROWS, known?: {
 }
 
 describe('요청 모양 (대표님 23:46 · 23:47 · 23:50 원문)', () => {
+  it('로그아웃된 주문 화면(주소는 그대로 · 짧은 로그인 안내)이면 배송지 요청 없이 로그인 화면을 보인다(11-02)', () => {
+    const flow = mk();
+    flow.next({ type: 'start' });
+    expect(flow.next({ type: 'page', url: 'www.kurly.com/mypage/order', text: '로그인이 필요합니다 로그인 회원가입' })).toEqual({ type: 'login' });
+  });
+
   it('출처 페이지를 한 번 열고, 목록은 POST v4 orders — 본문 키와 빈 배송지, 최근 1년', () => {
     const flow = mk();
     const list = toList(flow);
