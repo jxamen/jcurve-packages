@@ -175,11 +175,24 @@ function readKurlyDetail(json) {
     let npay = false;
     let method = '';
     let encreq;
+    let card;
+    let paidAt;
+    let amount;
     let n = 0;
     const walk = (v, key, depth) => {
         if (depth > 9 || n++ > 6000)
             return;
+        if (typeof v === 'number') {
+            if (amount === undefined && /^totalPaymentPrice$/i.test(key) && v > 0)
+                amount = v;
+            return;
+        }
         if (typeof v === 'string') {
+            // 「영수증 보기」 버튼 주소(receipt.creditCardUrl)를 이름으로 먼저 — payment.cardBillRedirectUrl 같은 다른 주소의 encreq 를 집지 않는다(대표님 10-28 19:58 「카드 결제면 영수증보기 누르면 영수증이 열림」)
+            if (!card && /^creditCardUrl$/i.test(key) && /^https:\/\/pg\.kurlypay\.co\.kr\//.test(v))
+                card = v;
+            if (!paidAt && /^paymentCompletedAt$/i.test(key) && v.length >= 10)
+                paidAt = v;
             if (/^paymentMethod$/i.test(key))
                 method = v;
             if (/네이버\s*페이|NAVER_?PAY|NPAY/i.test(v))
@@ -205,7 +218,9 @@ function readKurlyDetail(json) {
     walk(json, '', 0);
     if (method === 'pay_point')
         npay = true;
-    return { npay, method, ...(encreq ? { encreq } : {}) };
+    if (card)
+        encreq = card;
+    return { npay, method, ...(encreq ? { encreq } : {}), ...(paidAt ? { paidAt } : {}), ...(amount !== undefined ? { amount } : {}) };
 }
 /** 영수증 요청 값 → 요청 주소. 이미 퍼센트 부호가 든 값은 그대로, 아니면 부호를 붙인다(base64 의 + / =) */
 const kurlyReceiptUrl = (encreq) => {
@@ -597,6 +612,29 @@ function createKurlyApiFlow(opts = {}) {
         okN++;
         setOutcome(j.key, { state: 'done' });
     };
+    /**
+     * 카드 매출전표를 못 받는 결제(네이버페이 · 카드 직접 결제 · 영수증 주소 없음 · 영수증 화면이 빔) — 주문상세(목록에서 본 금액 · 시각 · 상품)를 구매영수증으로 올린다.
+     * 대표님 11-02 23:36 「컬리 아직도 제대로 못 가져옴」 — 네이버페이 주문상세와 같은 기준. 배송지 · 이름 · 전화는 쓰지 않는다. 만들 수 없으면 예전처럼 「영수증 없음」
+     */
+    const settleSheet = (j) => {
+        const paidAt = (0, naverReceipt_1.normalizeKst)(j.paidAt ?? '') ?? (0, naverReceipt_1.normalizeKst)(j.order.orderedAt);
+        const amount = j.paid ?? j.order.amount;
+        const done = paidAt && amount > 0
+            ? (0, naverReceipt_1.toImportOrder)({ paidAt, amount }, { orderNo: j.order.orderNo, seller: j.order.seller ?? SELLER, title: j.order.title, amount }, { kind: 'purchase', allowNoSeconds })
+            : null;
+        if (!done) {
+            none(j);
+            return;
+        }
+        if (j.npay)
+            done.payment = '네이버페이';
+        if (j.order.listKey)
+            done.listKey = j.order.listKey;
+        orders.push(done);
+        pending.push(done);
+        okN++;
+        setOutcome(j.key, { state: 'done' });
+    };
     /** 한 묶음 결과에서 공통 처리: 로그인 · 막힘 · 시간 초과 갈래. again 은 다시 시도할 주문 */
     const settleCommon = (j, r, again, flags) => {
         if (r.st === 'login') {
@@ -707,14 +745,20 @@ function createKurlyApiFlow(opts = {}) {
                 okTotal++;
                 firstOk ?? (firstOk = r);
                 const d = readKurlyDetail(r.data);
+                if (d.paidAt)
+                    j.paidAt = d.paidAt;
+                if (d.amount !== undefined)
+                    j.paid = d.amount;
+                if (d.npay)
+                    j.npay = true;
                 if (d.npay || d.method === 'pay_credit_card')
-                    none(j);
+                    settleSheet(j);
                 else if (d.encreq && (0, exports.kurlyReceiptUrl)(d.encreq)) {
                     j.encreq = d.encreq;
                     toReceipt.push(j);
                 }
                 else
-                    fail(j, 'no-pair');
+                    settleSheet(j);
             }
             else
                 settleCommon(j, r, again, flags);
@@ -790,7 +834,7 @@ function createKurlyApiFlow(opts = {}) {
         if (data === undefined) {
             // 빈 화면 · 오류 화면 — 연달아 세 번이면 영수증 호스트가 막은 것으로 보고 끝낸다
             navFailRun++;
-            fail(j, 'unreadable');
+            settleSheet(j);
             if (navFailRun >= MAX_NAV_FAIL_RUN) {
                 failNavRest();
                 return finish('cross-origin');
@@ -800,7 +844,7 @@ function createKurlyApiFlow(opts = {}) {
         navFailRun = 0;
         const ks = kurlySlip(data);
         if (!ks)
-            fail(j, 'unreadable');
+            settleSheet(j);
         else
             settleOk(j, ks);
         const go = () => navNext();

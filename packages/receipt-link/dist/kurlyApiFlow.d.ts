@@ -47,6 +47,8 @@ export declare function readKurlyDetail(json: unknown): {
     npay: boolean;
     method: string;
     encreq?: string;
+    paidAt?: string;
+    amount?: number;
 };
 /** 영수증 요청 값 → 요청 주소. 이미 퍼센트 부호가 든 값은 그대로, 아니면 부호를 붙인다(base64 의 + / =) */
 export declare const kurlyReceiptUrl: (encreq: string) => string | null;

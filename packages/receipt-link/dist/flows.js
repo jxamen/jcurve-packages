@@ -10,9 +10,9 @@ const kurlyApiFlow_1 = require("./kurlyApiFlow");
 const musinsaApiFlow_1 = require("./musinsaApiFlow");
 const naverApiFlow_1 = require("./naverApiFlow");
 exports.FLOW_FACTORIES = {
-    naver: (o) => (0, naverApiFlow_1.createNaverApiFlow)({ sinceLatest: true, ...o }),
-    coupang: (o) => (0, coupangApiFlow_1.createCoupangApiFlow)({ sinceLatest: true, ...o }),
-    kurly: (o) => (0, kurlyApiFlow_1.createKurlyApiFlow)({ sinceLatest: true, ...o }),
+    naver: (o) => (0, naverApiFlow_1.createNaverApiFlow)({ ...o }), // 대표님 11-02 23:13 「예전엔 172건」 — 네이버는 최근 저장일 이후만 읽기를 끈다(지운 뒤 옛 주문이 다시 안 들어옴). 중복은 주문번호 · 뒤4자리로 거른다
+    coupang: (o) => (0, coupangApiFlow_1.createCoupangApiFlow)({ ...o }), // 대표님 11-02 23:36 「기존에 못 가져온 것도 다 가져오게」 — 최근 저장일 이후만 읽기를 끈다(옛 목록 행이 cut 으로 다시 시도되지 않음). 받은 주문은 known 으로 건너뛴다
+    kurly: (o) => (0, kurlyApiFlow_1.createKurlyApiFlow)({ ...o }), // 대표님 11-02 23:36 「컬리 아직도 제대로 못 가져옴」 — 최근 저장일 이후만 읽기를 끈다(옛 못 가져옴 줄을 다시 시도)
     musinsa: (o) => (0, musinsaApiFlow_1.createMusinsaApiFlow)({ sinceLatest: true, ...o }),
 };
 /** 흐름이 웹뷰로 열어도 되는 도메인(하위 포함) — 이 밖의 주소는 호스트가 열지 않는다 */
