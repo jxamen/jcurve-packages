@@ -126,7 +126,7 @@ describe('컬리 — 구동기 + 흐름 + 실제 스크립트(가짜 페이지)'
 
     // 줄별 마지막 결과
     const last = lastStates(r.outcomes);
-    const expected: Record<number, string> = { 1: 'done', 2: 'none', 3: 'none', 4: 'none', 5: 'failed:network', 6: 'failed:unreadable', 7: 'done', 8: 'done', 9: 'done', 10: 'done', 11: 'done', 12: 'done' };
+    const expected: Record<number, string> = { 1: 'done', 2: 'done', 3: 'none', 4: 'none', 5: 'failed:network', 6: 'done', 7: 'done', 8: 'done', 9: 'done', 10: 'done', 11: 'done', 12: 'done' };
     for (const n of Object.keys(expected).map(Number)) expect(last.get(key(n)), `주문 ${n}`).toBe(expected[n]);
     expect(last.size).toBe(12);
 
@@ -270,7 +270,10 @@ describe('컬리 — 구동기 + 흐름 + 실제 스크립트(가짜 페이지)'
     // 읽기를 포기한 나머지 줄도 「가져오는 중」으로 남지 않는다
     const states = [...lastStates(b.outcomes).values()];
     expect(states).toHaveLength(7);
-    expect(states.every((s) => s.startsWith('failed'))).toBe(true);
+    // 빈 영수증 화면 세 건은 주문상세(구매영수증)로(대표님 11-02 23:36), 포기한 나머지는 까닭을 남긴다
+    expect(states.filter((s) => s === 'done')).toHaveLength(3);
+    expect(b.orders.filter((o) => o.kind === 'purchase')).toHaveLength(3);
+    expect(states.filter((s) => s.startsWith('failed'))).toHaveLength(4);
   }, 60000);
 
   it('이미 가져온 주문(뒤 4자리 + 날짜)은 상세 · 영수증을 요청하지 않고 목록 행도 다시 올리지 않는다', async () => {

@@ -490,6 +490,23 @@ export function createKurlyApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
     setOutcome(j.key, { state: 'done' });
   };
 
+  /**
+   * 카드 매출전표를 못 받는 결제(네이버페이 · 카드 직접 결제 · 영수증 주소 없음 · 영수증 화면이 빔) — 주문상세(목록에서 본 금액 · 시각 · 상품)를 구매영수증으로 올린다.
+   * 대표님 11-02 23:36 「컬리 아직도 제대로 못 가져옴」 — 네이버페이 주문상세와 같은 기준. 배송지 · 이름 · 전화는 쓰지 않는다. 만들 수 없으면 예전처럼 「영수증 없음」
+   */
+  const settleSheet = (j: Job): void => {
+    const paidAt = normalizeKst(j.order.orderedAt);
+    const done = paidAt && j.order.amount > 0
+      ? toImportOrder({ paidAt, amount: j.order.amount }, { orderNo: j.order.orderNo, seller: j.order.seller ?? SELLER, title: j.order.title, amount: j.order.amount }, { kind: 'purchase', allowNoSeconds })
+      : null;
+    if (!done) { none(j); return; }
+    if (j.order.listKey) done.listKey = j.order.listKey;
+    orders.push(done);
+    pending.push(done);
+    okN++;
+    setOutcome(j.key, { state: 'done' });
+  };
+
   /** 한 묶음 결과에서 공통 처리: 로그인 · 막힘 · 시간 초과 갈래. again 은 다시 시도할 주문 */
   const settleCommon = (j: Job, r: FetchResult, again: Job[], flags: { login: boolean; blocked: number }): void => {
     if (r.st === 'login') { flags.login = true; again.push(j); return; }
@@ -571,9 +588,9 @@ export function createKurlyApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
         okTotal++;
         firstOk ??= r;
         const d = readKurlyDetail(r.data);
-        if (d.npay || d.method === 'pay_credit_card') none(j);
+        if (d.npay || d.method === 'pay_credit_card') settleSheet(j);
         else if (d.encreq && kurlyReceiptUrl(d.encreq)) { j.encreq = d.encreq; toReceipt.push(j); }
-        else fail(j, 'no-pair');
+        else settleSheet(j);
       } else settleCommon(j, r, again, flags);
     }
     batch = [];
@@ -637,13 +654,13 @@ export function createKurlyApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
     if (data === undefined) {
       // 빈 화면 · 오류 화면 — 연달아 세 번이면 영수증 호스트가 막은 것으로 보고 끝낸다
       navFailRun++;
-      fail(j, 'unreadable');
+      settleSheet(j);
       if (navFailRun >= MAX_NAV_FAIL_RUN) { failNavRest(); return finish('cross-origin'); }
       return navNext();
     }
     navFailRun = 0;
     const ks = kurlySlip(data);
-    if (!ks) fail(j, 'unreadable');
+    if (!ks) settleSheet(j);
     else settleOk(j, ks);
     const go = (): FlowOut => navNext();
     return structThen('kurly-receipt', KURLY_RECEIPT_URL, data, ['via : navigate', 'slip : CARD_APP_NO CO_NM CO_NO APP_DT APP_TM GOODS_AMT'], go);

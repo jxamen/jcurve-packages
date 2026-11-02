@@ -143,13 +143,16 @@ describe('결과', () => {
     });
   });
 
-  it('결제수단이 네이버페이면 영수증 요청 없이 「영수증 없음」', () => {
+  it('결제수단이 네이버페이면 영수증 요청 없이 주문상세를 구매영수증으로(대표님 11-02 23:36)', () => {
     const flow = mk();
     const d = toDetail(flow);
     flow.takeOutcomes?.();
     const out = settle(flow, flow.next({ type: 'fetched', results: [ok(K2, detailResp({ pay: { method: '네이버페이' } })), ok(K1, { data: { order: { payMethod: 'NAVER_PAY' } } })] }));
     expect(out).toMatchObject({ type: 'done', reason: 'all-rows' });
-    expect(flow.takeOutcomes?.().map((e) => e.outcome.state)).toEqual(['none', 'none']);
+    expect(flow.takeOutcomes?.().map((e) => e.outcome.state)).toEqual(['done', 'done']);
+    const made = (out as Extract<FlowOut, { type: 'done' }>).orders.filter((o) => o.kind === 'purchase');
+    expect(made).toHaveLength(2);
+    expect(made.every((o) => o.amount > 0 && o.payment === '포인트·기타' && o.approval === undefined)).toBe(true);
     expect(d.reqs).toHaveLength(2);
   });
 
@@ -171,7 +174,7 @@ describe('결과', () => {
     expect(flow.takeOutcomes?.()).toContainEqual({ key: K2, outcome: { state: 'none', why: 'cancelled' } });
   });
 
-  it('승인번호 · 승인 일시 · 금액이 빠진 영수증은 그 줄만 「읽지 못함」', () => {
+  it('승인번호 · 승인 일시 · 금액이 빠진 영수증은 그 줄만 주문상세(구매영수증)로', () => {
     const flow = mk();
     const d = toDetail(flow);
     const g = settle(flow, flow.next({ type: 'fetched', results: d.reqs.map((q) => ok(q.key, detailResp())) }));
@@ -179,17 +182,19 @@ describe('결과', () => {
     const made = [receiptResp({ GOODS_AMT: '' }), receiptResp()];
     readReceipts(flow, g, (_u, i) => receiptText(made[i]));
     expect(flow.takeOutcomes?.()).toEqual([
-      { key: d.reqs[0].key, outcome: { state: 'failed', code: 'unreadable' } },
+      { key: d.reqs[0].key, outcome: { state: 'done' } },
       { key: d.reqs[1].key, outcome: { state: 'done' } },
     ]);
   });
 
-  it('상세에서 영수증 요청 값을 못 찾으면 그 줄은 「영수증 주소를 못 찾았어요」(no-pair)', () => {
+  it('상세에서 영수증 요청 값을 못 찾으면 그 줄은 주문상세(구매영수증)로', () => {
     const flow = mk();
     const d = toDetail(flow);
     flow.takeOutcomes?.();
     settle(flow, flow.next({ type: 'fetched', results: d.reqs.map((q) => ok(q.key, { data: { order: { paymentMethod: '신용카드' } } })) }));
-    expect((flow.takeOutcomes?.() ?? []).every((e) => e.outcome.state === 'failed' && e.outcome.code === 'no-pair')).toBe(true);
+    const outs = flow.takeOutcomes?.() ?? [];
+    expect(outs.length).toBeGreaterThan(0);
+    expect(outs.every((e) => e.outcome.state === 'done')).toBe(true);
   });
 
   it('여섯 건씩 묶는다 — 아홉 건이면 6건 + 3건', () => {
@@ -409,13 +414,13 @@ describe('로그인 · 막힘 · 시간 초과 · 교차 출처', () => {
     expect(cards[0].detail).toMatchObject({ approvalNo: '12345678', cardCompany: '삼성카드', sellerBusinessNo: '1234567890', approvalAmount: 12300 });
   });
 
-  it('상세 paymentMethod 가 pay_point(네이버페이) 또는 pay_credit_card(컬리페이 카드)면 영수증 페이지를 열지 않고 「영수증 없음」', () => {
+  it('상세 paymentMethod 가 pay_point(네이버페이) 또는 pay_credit_card(컬리페이 카드)면 영수증 페이지를 열지 않고 주문상세(구매영수증)로', () => {
     const flow = mk();
     const d = toDetail(flow);
     flow.takeOutcomes?.();
     const out = settle(flow, flow.next({ type: 'fetched', results: [ok(K2, { data: { order: { paymentMethod: 'pay_point' } } }), ok(K1, { data: { order: { paymentMethod: 'pay_credit_card' } } })] }));
     expect(out).toMatchObject({ type: 'done', reason: 'all-rows' });
-    expect(flow.takeOutcomes?.().map((e) => e.outcome.state)).toEqual(['none', 'none']);
+    expect(flow.takeOutcomes?.().map((e) => e.outcome.state)).toEqual(['done', 'done']);
     expect(d.reqs).toHaveLength(2);
   });
 
@@ -430,7 +435,9 @@ describe('로그인 · 막힘 · 시간 초과 · 교차 출처', () => {
     flow.next(blank);
     expect(settle(flow, flow.next(blank))).toMatchObject({ type: 'done', reason: 'cross-origin' });
     const outs = flow.takeOutcomes?.() ?? [];
-    expect(outs.filter((e) => e.outcome.state === 'failed')).toHaveLength(4);
+    // 빈 화면 세 건은 주문상세(구매영수증)로, 읽기를 포기한 나머지 한 건은 까닭(failed)을 남긴다
+    expect(outs.filter((e) => e.outcome.state === 'done')).toHaveLength(3);
+    expect(outs.filter((e) => e.outcome.state === 'failed')).toHaveLength(1);
   });
 });
 
