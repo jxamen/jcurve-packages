@@ -134,11 +134,20 @@ describe('쿠팡 — 구동기 + 흐름 + 실제 스크립트(가짜 페이지)'
   }, 40000);
 
   it('이미 가져온 주문(뒤 4자리 + 날짜)은 영수증을 요청하지 않고 목록 행도 다시 올리지 않는다', async () => {
-    const r = await runFlow('coupang', pages, router, {}, { tails: [tailOf(ID(1), '2026-10-20 00:00:00')] });
+    const r = await runFlow('coupang', pages, router, { sinceLatest: false }, { tails: [tailOf(ID(1), '2026-10-20 00:00:00')] });
     expect(r.results[0].reason).toBe('all-rows');
     expect(r.urls.some((u) => u.includes(`orderId=${ID(1)}`))).toBe(false);
     expect(r.urls.some((u) => u.includes(`orderId=${ID(2)}`))).toBe(true);
     expect(r.orders.filter((o) => o.kind === 'list').map((o) => o.orderNo).sort()).toEqual([ID(2), ID(3), ID(4)]);
+  }, 30000);
+
+  it('저장된 가장 최근 주문 날짜 이후만 읽는다(대표님 11-02) — 그보다 오래된 주문은 요청도 · 목록 행도 없다', async () => {
+    const r = await runFlow('coupang', pages, router, {}, { tails: [tailOf(ID(1), '2026-10-20 00:00:00')] });
+    const all = await runFlow('coupang', pages, router, { sinceLatest: false }, { tails: [tailOf(ID(1), '2026-10-20 00:00:00')] });
+    const listed = r.orders.filter((o) => o.kind === 'list').map((o) => o.orderNo);
+    expect(listed.length).toBeLessThanOrEqual(all.orders.filter((o) => o.kind === 'list').length);
+    for (const o of r.orders) expect(o.orderedAt.slice(0, 10) >= '2026-10-20').toBe(true);
+    expect(r.urls.some((u) => u.includes(`orderId=${ID(1)}`))).toBe(false);
   }, 30000);
 
   it('한 줄만 다시(onlyKeys) — 그 주문만 요청하고 목록 행은 다시 올리지 않는다', async () => {

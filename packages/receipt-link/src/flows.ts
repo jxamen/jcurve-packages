@@ -24,10 +24,10 @@ export type FlowFactoryOptions = {
 };
 
 export const FLOW_FACTORIES: Record<FlowSite, (opts?: FlowFactoryOptions) => ReceiptFlow> = {
-  naver: (o) => createNaverApiFlow(o),
-  coupang: (o) => createCoupangApiFlow(o),
-  kurly: (o) => createKurlyApiFlow(o),
-  musinsa: (o) => createMusinsaApiFlow(o),
+  naver: (o) => createNaverApiFlow({ sinceLatest: true, ...o }),
+  coupang: (o) => createCoupangApiFlow({ sinceLatest: true, ...o }),
+  kurly: (o) => createKurlyApiFlow({ sinceLatest: true, ...o }),
+  musinsa: (o) => createMusinsaApiFlow({ sinceLatest: true, ...o }),
 };
 
 /** 흐름이 웹뷰로 열어도 되는 도메인(하위 포함) — 이 밖의 주소는 호스트가 열지 않는다 */

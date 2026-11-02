@@ -195,6 +195,8 @@ type ListFields = {
 export declare function listOrder(f: ListFields): ReceiptOrder;
 /** 쇼핑 주문내역 API 의 contents[] 한 칸(허용 필드만 쓴다). 주문번호 · 시각 · 금액이 없으면 null */
 export declare function shopItemToOrder(x: unknown): ReceiptOrder | null;
+/** 쇼핑 주문 목록의 상품 한 칸이 취소 · 반품인가 — 키 이름에 status 가 든 칸의 값(CANCEL · RETURN · 취소 · 반품). 대표님 11-02 「취소 주문 불러오지 않음」 */
+export declare function shopItemCancelled(x: unknown): boolean;
 /** 네이버페이 결제내역 API 의 nvMids[] 한 칸. 주문번호는 없을 수 있다(영수증으로 찾는다) */
 export declare function payItemToOrder(x: unknown): ReceiptOrder | null;
 /** 쇼핑 API 응답 전체. contents 가 배열이 아니면 null(모르는 모양), 배열이면 읽은 것만 */

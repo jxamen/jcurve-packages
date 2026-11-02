@@ -10,10 +10,10 @@ const kurlyApiFlow_1 = require("./kurlyApiFlow");
 const musinsaApiFlow_1 = require("./musinsaApiFlow");
 const naverApiFlow_1 = require("./naverApiFlow");
 exports.FLOW_FACTORIES = {
-    naver: (o) => (0, naverApiFlow_1.createNaverApiFlow)(o),
-    coupang: (o) => (0, coupangApiFlow_1.createCoupangApiFlow)(o),
-    kurly: (o) => (0, kurlyApiFlow_1.createKurlyApiFlow)(o),
-    musinsa: (o) => (0, musinsaApiFlow_1.createMusinsaApiFlow)(o),
+    naver: (o) => (0, naverApiFlow_1.createNaverApiFlow)({ sinceLatest: true, ...o }),
+    coupang: (o) => (0, coupangApiFlow_1.createCoupangApiFlow)({ sinceLatest: true, ...o }),
+    kurly: (o) => (0, kurlyApiFlow_1.createKurlyApiFlow)({ sinceLatest: true, ...o }),
+    musinsa: (o) => (0, musinsaApiFlow_1.createMusinsaApiFlow)({ sinceLatest: true, ...o }),
 };
 /** 흐름이 웹뷰로 열어도 되는 도메인(하위 포함) — 이 밖의 주소는 호스트가 열지 않는다 */
 exports.FLOW_HOSTS = {

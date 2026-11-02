@@ -325,7 +325,7 @@ function receiptsScript(r) {
         return request(nextPath, null, true).then(function (r2) {
           var nd2 = null, m2 = r2.st === 'ok' ? /<script[^>]*id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i.exec(r2.t) : null;
           if (m2) { try { nd2 = parseBig(m2[1]); } catch (e) { nd2 = null; } }
-          return { key: job.key, st: 'none', status: r.status, diag: mkDiag(w2, r2.status, nd2, noneDiag.concat([w2 + ' ' + r2.st, w2 + ' nextdata ' + (nd2 ? 'yes' : 'no')])) };
+          return { key: job.key, st: 'none', status: r.status, diag: mkDiag(w2, r2.status, (nd2 && nd2.props && nd2.props.pageProps && (nd2.props.pageProps.dehydratedState || nd2.props.pageProps)) || null, noneDiag.concat([w2 + ' ' + r2.st, w2 + ' nextdata ' + (nd2 ? 'yes' : 'no'), w2 + ' dehydrated ' + (nd2 && nd2.props && nd2.props.pageProps && nd2.props.pageProps.dehydratedState ? 'yes' : 'no')])) };
         });
       }
       var pick = links[0];

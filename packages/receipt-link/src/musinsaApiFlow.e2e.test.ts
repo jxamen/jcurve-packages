@@ -203,7 +203,7 @@ describe('무신사 — 구동기 + 흐름 + 실제 스크립트(가짜 페이�
 
   it('이미 가져온 주문(뒤 4자리 + 날짜)은 매출전표를 요청하지 않고 목록 행도 다시 올리지 않는다', async () => {
     const rows = [mkRow(1), mkRow(7), mkRow(8)];
-    const r = await runFlow('musinsa', pages, serverOf(rows), {}, { tails: [tailOf(ordNo(1), dateOf(1))] });
+    const r = await runFlow('musinsa', pages, serverOf(rows), { sinceLatest: false }, { tails: [tailOf(ordNo(1), dateOf(1))] });
     expect(r.results[0].reason).toBe('all-rows');
     const receipts = r.urls.filter((u) => u.startsWith(RECEIPT_PREFIX));
     expect(receipts.some((u) => u.includes(ordNo(1)))).toBe(false);

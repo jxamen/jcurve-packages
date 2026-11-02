@@ -275,7 +275,7 @@ describe('컬리 — 구동기 + 흐름 + 실제 스크립트(가짜 페이지)'
 
   it('이미 가져온 주문(뒤 4자리 + 날짜)은 상세 · 영수증을 요청하지 않고 목록 행도 다시 올리지 않는다', async () => {
     const { router, calls } = server(MAIN);
-    const r = await runFlow('kurly', pages, router, {}, { tails: [tailOf(no(1), kst(1)), tailOf(no(7), kst(7))] });
+    const r = await runFlow('kurly', pages, router, { sinceLatest: false }, { tails: [tailOf(no(1), kst(1)), tailOf(no(7), kst(7))] });
     expect(r.results[0].reason).toBe('all-rows');
     const details = calls.filter((c) => c.url.includes('/v3/mypage/orders/')).map((c) => c.url);
     expect(details).not.toContain(kurlyDetailUrl(no(1)));

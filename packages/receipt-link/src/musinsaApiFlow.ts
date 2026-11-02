@@ -30,7 +30,7 @@ import {
   extractSlip, listOrder, normalizeKst, pageShape, toImportOrder,
   type FlowEvent, type FlowOut, type FlowStats, type NaverFlow, type ReceiptOrder, type Slip,
 } from './naverReceipt';
-import { tailOf, type ApiFlowOptions } from './naverApiFlow';
+import { latestKnownDay, tailOf, type ApiFlowOptions } from './naverApiFlow';
 import { FETCH_BATCH, FETCH_CONC, FETCH_DEADLINE_MS, FETCH_SLOW, FETCH_STAGGER_MS, FETCH_TIMEOUT_MS, type FetchReq, type FetchResult } from './siteFetch';
 import { outcomeKey, type FailCode, type Outcome, type OutcomeEvent } from './runOutcome';
 import { structureLines } from './shapeLines';
@@ -286,7 +286,7 @@ export function createMusinsaApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
   const allowNoSeconds = opts.allowNoSeconds ?? false;
   const only = opts.onlyKeys ? new Set(opts.onlyKeys) : null;
   const startedAt = now();
-  const cutoff = ymd(startedAt - LOOKBACK_DAYS * DAY_MS);
+  let cutoff = ymd(startedAt - LOOKBACK_DAYS * DAY_MS);
   const untilDate = ymd(startedAt + 9 * 3600000);
 
   let phase: Phase = 'idle';
@@ -704,6 +704,8 @@ export function createMusinsaApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
         for (const n of ev.known?.orderNos ?? []) knownNos.add(n);
         for (const k of ev.known?.listKeys ?? []) knownKeys.add(k);
         for (const t of ev.known?.tails ?? []) knownTails.add(t);
+        // 저장된 가장 최근 주문 날짜부터만 읽는다 — 같은 날 주문은 주문번호 · 뒤4자리로 중복만 거른다(대표님 11-02). 처음(저장 없음)은 1년
+        { const last = opts.sinceLatest && !only ? latestKnownDay(ev.known) : undefined; if (last && last > cutoff) cutoff = last; }
         phase = 'shop';
         resumeTo = 'list';
         tries = 0;

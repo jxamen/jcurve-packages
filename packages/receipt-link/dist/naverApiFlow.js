@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.tailOf = exports.detailOf = void 0;
+exports.latestKnownDay = exports.tailOf = exports.detailOf = void 0;
 exports.createNaverApiFlow = createNaverApiFlow;
 /**
  * 네이버 영수증 흐름(7차) — **요청만** 쓴다. 영수증 화면을 열거나 단추를 누르거나 막히면 화면 방식으로 되돌아가는 길이 없다(대표님 10-29 09:03).
@@ -45,6 +45,22 @@ const listKeyOf = (orderedAt, amount) => `${orderedAt.slice(0, 16)}|${amount}`;
 /** 서버가 가린 주문번호(뒤 4자리) + 날짜로 「이미 가져온 주문」을 가린다 — 영수증의 결제 시각 · 금액은 목록의 주문 시각 · 상품 금액과 다를 수 있어 쓰지 않는다 */
 const tailOf = (orderNo, orderedAt) => `${orderNo.slice(-4)}|${orderedAt.slice(0, 10)}`;
 exports.tailOf = tailOf;
+/** 서버에 저장된 가장 최근 주문의 날짜(YYYY-MM-DD) — 「뒤4자리|날짜」 · 「날짜 시각|금액」에서. 없으면 undefined. 대표님 11-02 「최종 저장된 주문 건 이후 건만」 */
+const latestKnownDay = (known) => {
+    let best;
+    for (const t of known?.tails ?? []) {
+        const d = t.split('|')[1]?.slice(0, 10);
+        if (d && /^\d{4}-\d{2}-\d{2}$/.test(d) && (!best || d > best))
+            best = d;
+    }
+    for (const k of known?.listKeys ?? []) {
+        const d = k.slice(0, 10);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(d) && (!best || d > best))
+            best = d;
+    }
+    return best;
+};
+exports.latestKnownDay = latestKnownDay;
 /** 목록 · 첫 화면 읽기를 다시 해 보는 횟수 */
 const MAX_LIST_TRIES = 3;
 /** 막힘 · 요청 실패를 한 주문에 다시 해 보는 횟수(처음 포함) */
@@ -70,7 +86,7 @@ function createNaverApiFlow(opts = {}) {
         });
     };
     const startedAt = now();
-    const cutoff = ymd(startedAt - naverReceipt_1.LOOKBACK_DAYS * DAY_MS);
+    let cutoff = ymd(startedAt - naverReceipt_1.LOOKBACK_DAYS * DAY_MS);
     const sinceMs = Date.parse(`${cutoff}T00:00:00+09:00`);
     const untilDate = ymd(startedAt + 9 * 3600000);
     let phase = 'idle';
@@ -117,7 +133,7 @@ function createNaverApiFlow(opts = {}) {
             const at = phase;
             phase = 'finished';
             ending = { reason, orders: pending.splice(0), stats: { ...stats } };
-            endQueue = [`flowc-t${total}-k${okN}-x${noneN}-f${failN}-q${queue.length}`, ...(failCodes.size > 0 ? [`flowf-${[...failCodes].map(([c, n]) => `${c}${n}`).join('-')}`] : []), ...(scanned ? [`flown-p${npFound}-k${npOk}-f${npFail}-r${payRowsN}`, `flowd-cap${drop.cap}-nono${drop.nono}-cut${drop.cut}-known${drop.known}-dup${drop.dup}-cancel${drop.cancel}`] : []), ...(npv2 && scanned ? [only ? `flowo-${hitPage ? `hit-p${hitPage}` : `miss-last${lastScanPage}`}-of${scanTotal}` : `flowo-pages${lastScanPage}-of${scanTotal}${stopPaging ? '-stop' : ''}`] : []), `flowe-${reason}-${at}`];
+            endQueue = [`flowc-t${total}-k${okN}-x${noneN}-f${failN}-q${queue.length}`, ...(failCodes.size > 0 ? [`flowf-${[...failCodes].map(([c, n]) => `${c}${n}`).join('-')}`] : []), ...(scanned ? [`flown-p${npFound}-k${npOk}-f${npFail}-r${payRowsN}`, `flowd-cap${drop.cap}-nono${drop.nono}-cut${drop.cut}-known${drop.known}-dup${drop.dup}-cancel${drop.cancel}-merged${shopMerged}`] : []), ...(npv2 && scanned ? [only ? `flowo-${hitPage ? `hit-p${hitPage}` : `miss-last${lastScanPage}`}-of${scanTotal}` : `flowo-pages${lastScanPage}-of${scanTotal}${stopPaging ? '-stop' : ''}`] : []), `flowe-${reason}-${at}`];
         }
         return drainEnd();
     };
@@ -291,6 +307,8 @@ function createNaverApiFlow(opts = {}) {
     let pageKnown = 0;
     /** 내역 줄을 작업으로 만들지 않은 까닭별 개수(11-02 107건 누락 찾기) — 상한 · 번호 없음 · 1년 전 · 이미 받음 · 같은 주문번호 */
     const drop = { cap: 0, nono: 0, cut: 0, known: 0, dup: 0, cancel: 0 };
+    /** 쇼핑 목록에서 상품 여러 개를 한 주문으로 합친 수 */
+    let shopMerged = 0;
     const addPayRows = (rows) => {
         for (const row of rows) {
             if (queue.length + payRowsN >= maxOrders) {
@@ -713,6 +731,12 @@ function createNaverApiFlow(opts = {}) {
                     knownKeys.add(k);
                 for (const t of ev.known?.tails ?? [])
                     knownTails.add(t);
+                // 저장된 가장 최근 주문 날짜부터만 읽는다 — 같은 날 주문은 주문번호 · 뒤4자리로 중복만 거른다(대표님 11-02). 처음(저장 없음)은 1년
+                {
+                    const last = opts.sinceLatest && !only && !refill ? (0, exports.latestKnownDay)(ev.known) : undefined;
+                    if (last && last > cutoff)
+                        cutoff = last;
+                }
                 phase = 'shop';
                 tries = 0;
                 return { type: 'goto', url: naverReceipt_1.SHOP_ORDER_URL };
@@ -721,7 +745,32 @@ function createNaverApiFlow(opts = {}) {
             case 'api': {
                 if (phase !== 'list' || ev.name !== 'shop')
                     return finish('unexpected-api');
-                const parsed = ev.failed ? [] : ev.items.map(naverReceipt_1.shopItemToOrder).filter((o) => o !== null);
+                // 상품마다 한 줄 — 같은 주문번호는 한 주문으로 합친다(묶음 결제, 대표님 11-02 더마팩토리 3건 41,000). 취소 · 반품 상품은 금액에서 빼고, 전부 취소 · 반품이면 올리지 않는다
+                const byNo = new Map();
+                for (const it of ev.failed ? [] : ev.items) {
+                    const o = (0, naverReceipt_1.shopItemToOrder)(it);
+                    if (!o)
+                        continue;
+                    const off = (0, naverReceipt_1.shopItemCancelled)(it);
+                    const g = byNo.get(o.orderNo) ?? { o, kept: 0, live: 0, n: 0 };
+                    g.n++;
+                    if (!off) {
+                        g.kept += o.amount;
+                        g.live++;
+                    }
+                    byNo.set(o.orderNo, g);
+                }
+                const parsed = [];
+                for (const g of byNo.values()) {
+                    if (g.live === 0) {
+                        drop.cancel++;
+                        listedNos.add(g.o.orderNo);
+                        continue;
+                    }
+                    if (g.n > 1)
+                        shopMerged++;
+                    parsed.push(g.n > 1 || g.live < g.n ? { ...g.o, amount: g.kept, listKey: `${g.o.orderedAt.slice(0, 16)}|${g.kept}` } : g.o);
+                }
                 if (parsed.length === 0) {
                     listTries++;
                     return listTries < MAX_LIST_TRIES ? listAction() : finish('list-failed');

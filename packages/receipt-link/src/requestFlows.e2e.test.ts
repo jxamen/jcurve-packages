@@ -75,7 +75,7 @@ describe('네이버 — 구동기 + 흐름 + 실제 스크립트(가짜 페이�
   }, 20000);
 
   it('이미 가져온 주문(뒤 4자리 + 날짜)은 영수증을 요청하지 않고 목록 행도 다시 올리지 않는다', async () => {
-    const r = await runFlow('naver', pages, router, {}, { tails: [tailOf(orderNo(1), '2026-10-25 12:00:00')] });
+    const r = await runFlow('naver', pages, router, { sinceLatest: false }, { tails: [tailOf(orderNo(1), '2026-10-25 12:00:00')] });
     expect(r.results[0].reason).toBe('all-rows');
     expect(r.urls.some((u) => u.includes(`/receipts/issue-history?orderNo=${orderNo(1)}`))).toBe(false);
     expect(r.urls.some((u) => u.includes(`/receipts/issue-history?orderNo=${orderNo(2)}`))).toBe(true);

@@ -309,7 +309,7 @@ function createMusinsaApiFlow(opts = {}) {
     const allowNoSeconds = opts.allowNoSeconds ?? false;
     const only = opts.onlyKeys ? new Set(opts.onlyKeys) : null;
     const startedAt = now();
-    const cutoff = ymd(startedAt - LOOKBACK_DAYS * DAY_MS);
+    let cutoff = ymd(startedAt - LOOKBACK_DAYS * DAY_MS);
     const untilDate = ymd(startedAt + 9 * 3600000);
     let phase = 'idle';
     let resumeTo = 'list';
@@ -910,6 +910,12 @@ function createMusinsaApiFlow(opts = {}) {
                     knownKeys.add(k);
                 for (const t of ev.known?.tails ?? [])
                     knownTails.add(t);
+                // 저장된 가장 최근 주문 날짜부터만 읽는다 — 같은 날 주문은 주문번호 · 뒤4자리로 중복만 거른다(대표님 11-02). 처음(저장 없음)은 1년
+                {
+                    const last = opts.sinceLatest && !only ? (0, naverApiFlow_1.latestKnownDay)(ev.known) : undefined;
+                    if (last && last > cutoff)
+                        cutoff = last;
+                }
                 phase = 'shop';
                 resumeTo = 'list';
                 tries = 0;

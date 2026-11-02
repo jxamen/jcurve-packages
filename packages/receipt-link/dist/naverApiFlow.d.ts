@@ -21,9 +21,16 @@ export type ApiFlowOptions = FlowOptions & {
     refill?: string[];
     /** 새 네이버페이 수집 길(서버 npv2, 대표님 10-29 16:07~16:09) — 내역 전체 페이지 · 버튼 영수증 주소 · 개별 가져오기에서 내역 줄 찾기 */
     npv2?: boolean;
+    /** 서버에 저장된 가장 최근 주문 날짜부터만 읽는다(대표님 11-02) — 앱 흐름(flows.ts)이 켠다 */
+    sinceLatest?: boolean;
 };
 /** card-single 영수증 한 장의 원문 칸 전부(대표님 14:15) → 세부 칸. 빈 칸은 싣지 않는다 */
 export declare const detailOf: (slip: ReceiptSlip) => ReceiptDetail | undefined;
 /** 서버가 가린 주문번호(뒤 4자리) + 날짜로 「이미 가져온 주문」을 가린다 — 영수증의 결제 시각 · 금액은 목록의 주문 시각 · 상품 금액과 다를 수 있어 쓰지 않는다 */
 export declare const tailOf: (orderNo: string, orderedAt: string) => string;
+/** 서버에 저장된 가장 최근 주문의 날짜(YYYY-MM-DD) — 「뒤4자리|날짜」 · 「날짜 시각|금액」에서. 없으면 undefined. 대표님 11-02 「최종 저장된 주문 건 이후 건만」 */
+export declare const latestKnownDay: (known?: {
+    listKeys?: string[];
+    tails?: string[];
+}) => string | undefined;
 export declare function createNaverApiFlow(opts?: ApiFlowOptions): NaverFlow;

@@ -56,7 +56,7 @@ describe('순서 · 한 주문 한 줄', () => {
     const flow = mk();
     const batch = toFirstBatch(flow);
     expect(batch.jobs.map((j) => j.orderNo)).toEqual([orderNo(2), orderNo(1)]);
-    expect(batch.jobs[0].key).toBe(keyOf(2, '2026-10-25 12:00:00'));
+    expect(batch.jobs[0].key).toBe(keyOf(2, '2026-10-25 12:00:00', 4000));
     expect(batch.jobs[0].productOrderNo).toMatch(/^PD\d+$/);
   });
 
@@ -65,9 +65,9 @@ describe('순서 · 한 주문 한 줄', () => {
     toFirstBatch(flow);
     const rows = flow.take();
     expect(rows.map((o) => [o.orderNo, o.kind])).toEqual([[orderNo(2), 'list'], [orderNo(1), 'list']]);
-    expect(rows[0].listKey).toBe('2026-10-25 12:00|2000');
+    expect(rows[0].listKey).toBe('2026-10-25 12:00|4000');
     expect(flow.takeOutcomes?.()).toEqual([
-      { key: keyOf(2, '2026-10-25 12:00:00'), outcome: { state: 'fetching' } },
+      { key: keyOf(2, '2026-10-25 12:00:00', 4000), outcome: { state: 'fetching' } },
       { key: keyOf(1, '2026-10-20 10:04:43'), outcome: { state: 'fetching' } },
     ]);
   });
@@ -84,7 +84,7 @@ describe('순서 · 한 주문 한 줄', () => {
     expect(done).toHaveLength(1);
     expect(done[0]).toMatchObject({
       orderNo: orderNo(2), kind: 'card', seller: '판매자', title: '영수증 상품', businessNumber: '123-45-67890', approval: '111222', cardIssuer: '삼성카드',
-      orderedAt: '2026-10-20 10:04:43', amount: 5000, listKey: '2026-10-25 12:00|2000',
+      orderedAt: '2026-10-20 10:04:43', amount: 5000, listKey: '2026-10-25 12:00|4000',
     });
   });
 
@@ -288,7 +288,7 @@ describe('실패 진단 · 실패 까닭 개수 (10-29 12:00 실행 뒤)', () =>
     const wheres: string[] = [];
     const out = finishOut(flow, flow.next({ type: 'receipts', results: batch.jobs.map((j) => ({ key: j.key, st: 'nopair' as const })) }), wheres);
     expect(out).toMatchObject({ type: 'done' });
-    expect(wheres).toEqual(['flowc-t2-k0-x0-f2-q0', 'flowf-no-pair2', 'flown-p0-k0-f0-r0', 'flowd-cap0-nono0-cut0-known0-dup0-cancel0', 'flowe-all-rows-receipts']);
+    expect(wheres).toEqual(['flowc-t2-k0-x0-f2-q0', 'flowf-no-pair2', 'flown-p0-k0-f0-r0', 'flowd-cap0-nono0-cut0-known0-dup0-cancel0-merged1', 'flowe-all-rows-receipts']);
     const ok = mk();
     const b2 = toFirstBatch(ok);
     const w2: string[] = [];
