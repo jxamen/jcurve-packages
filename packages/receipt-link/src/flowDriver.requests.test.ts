@@ -225,3 +225,17 @@ describe('줄 결과 · 구조 · 중단', () => {
     expect(probes).toEqual(['w1']);
   });
 });
+
+describe('네이버페이 내역 줄 수', () => {
+  it('내역 736줄을 읽으면 736줄이 모두 흐름에 넘어간다 — 앞 200줄만 통과시키던 상한 제거(11-02 대표님 「지우고 다시 하니 50개만」)', () => {
+    const f = fake();
+    const seen: FlowEvent[] = [];
+    const d = make(f, scripted([() => RECEIPTS, () => done()], seen));
+    d.start();
+    const rows = Array.from({ length: 736 }, (_, i) => ({ orderNo: '2026' + String(100000000000 + i), at: T0 - i * 60_000, amount: 1000 + i }));
+    d.onMessage({ type: 'nav', step: 'receipts', results: [{ key: 'np:scan', st: 'none', found: 0, page: 52, pages: 52, rows }] });
+    const ev = seen.find((e) => e.type === 'receipts') as Extract<FlowEvent, { type: 'receipts' }>;
+    expect(ev.results[0].rows).toHaveLength(736);
+    expect(ev.results[0].rows?.[735]).toMatchObject({ orderNo: '2026' + String(100000000000 + 735), amount: 1735 });
+  });
+});

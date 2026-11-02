@@ -427,6 +427,27 @@ describe('네이버페이 내역 줄 → 작업(대표님 15:36 ⓑ)', () => {
   });
 });
 
+describe('한 번에 많이 올린다(11-02 대표님 「한 번에 160건」)', () => {
+  it('내역 줄 300개가 모두 작업이 된다 — 한 번 누르면 읽은 만큼(최대 maxOrders) 올라가고, 서버가 주문 받는 50건 묶음은 올리는 쪽이 나눠 보낸다', () => {
+    const flow = mk();
+    const batch = toFirstBatch(flow, [item(1, '2026-10-20 10:04:43')]);
+    flow.next({ type: 'receipts', results: [OK(batch.jobs[0].key)] });
+    const at = Date.parse('2026-10-26T09:30:00+09:00');
+    const rows = Array.from({ length: 300 }, (_, i) => ({ orderNo: '20261026' + String(10000000 + i), at: at - i * 60_000, amount: 1000 + i }));
+    const next = flow.next({ type: 'receipts', results: [{ key: 'np:scan', st: 'none', found: 0, rows }] });
+    expect(next).toMatchObject({ kind: 'receipts' });
+    expect(flow.progress().total).toBe(300 + 1);
+  });
+
+  it('현금영수증으로 읽은 영수증은 구매 영수증(purchase) 종류 · 결제 수단 「현금영수증」 으로 올라간다 — 카드로 적지 않는다', () => {
+    const flow = mk();
+    const batch = toFirstBatch(flow, [item(1, '2026-10-20 10:04:43')]);
+    const out = finishOut(flow, flow.next({ type: 'receipts', results: [OK(batch.jobs[0].key, { tradeType: '현금영수증', approvalNo: '98765432' })] }));
+    const orders = (out as Extract<FlowOut, { type: 'done' }>).orders;
+    expect(orders.filter((o) => o.kind !== 'list')[0]).toMatchObject({ orderNo: orderNo(1), kind: 'purchase', payment: '현금영수증', approval: '98765432', amount: 5000 });
+  });
+});
+
 describe('새 네이버페이 수집 길(npv2, 대표님 10-29 16:07~16:09)', () => {
   const at = Date.parse('2026-10-26T09:30:00+09:00');
   it('내역 마지막 쪽(totalPage)까지 원문 주소 page=<n> 로 넘겨 읽는다 — npv2 가 아니면 첫 쪽만', () => {

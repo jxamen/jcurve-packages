@@ -437,9 +437,10 @@ export function createNaverApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
     const done = toImportOrder(
       { businessNumber: slip.businessNo, approval: slip.approvalNo, paidAt: paidAt ?? undefined, amount, cardIssuer: slip.cardCompany },
       { orderNo: j.order.orderNo, seller: slip.sellerName ?? j.order.seller, title: slip.productName ?? j.order.title, amount },
-      { kind: 'card', allowNoSeconds },
+      { kind: slip.tradeType === '현금영수증' ? 'purchase' : 'card', allowNoSeconds },
     );
     if (!done) { fail(j, 'unreadable'); return; }
+    if (slip.tradeType === '현금영수증') done.payment = '현금영수증';   // 현금영수증도 가져온다(11-02 대표님) — 카드로 적지 않는다
     done.detail = detailOf(slip);
     // 목록 행과 같은 키로 이어 서버가 목록 행을 완성본으로 바꾸게 한다(영수증의 결제 시각이 주문 시각과 달라도)
     if (j.order.listKey) done.listKey = j.order.listKey;

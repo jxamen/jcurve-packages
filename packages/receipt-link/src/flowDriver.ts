@@ -21,6 +21,8 @@ import type { OutcomeEvent } from './runOutcome';
 
 export const WATCHDOG_MS = 20_000;
 export const MAX_TIMEOUTS = 6;
+/** 네이버페이 내역 줄을 한 번에 받아들이는 안전 상한 — 60쪽(MAX_SCAN_PAGES) × 쪽당 수십 줄보다 크게 */
+export const MAX_PAY_ROWS = 5000;
 export const SITE_CAP_MS = 240_000;
 export const LOGIN_CAP_MS = 600_000;
 export const READ_SETTLE_MS = 600;
@@ -414,10 +416,10 @@ export function createFlowDriver(args: FlowDriverArgs): FlowDriver {
   const log = (step: string, text: string): void => { try { console.log(`[receiptLink] ${site} ${step} ${text}`); } catch { /* 로그 실패는 무시 */ } };
   const RECEIPT_STATUS: readonly ReceiptStatus[] = ['ok', 'none', 'login', 'blocked', 'net', 'nopair', 'shape', 'pair'];
   const ID20 = /^\d{18,22}$/;
-  /** 네이버페이 내역 줄 — 주문번호 16자리 · 시각 · 금액이 맞는 것만(200줄까지) */
+  /** 네이버페이 내역 줄 — 주문번호 16자리 · 시각 · 금액이 맞는 것만. 줄 수 제한은 폭주 방지용 안전 상한(MAX_PAY_ROWS)뿐 — 전에는 앞 200줄만 통과시켜 736줄을 읽어도 그 뒤 줄을 아예 못 봤다(11-02 대표님 「지우고 다시 하니 50개만」) */
   const cleanRows = (v: unknown): PayRow[] => {
     const out: PayRow[] = [];
-    for (const x of Array.isArray(v) ? v.slice(0, 200) : []) {
+    for (const x of Array.isArray(v) ? v.slice(0, MAX_PAY_ROWS) : []) {
       if (!isObj(x)) continue;
       const orderNo = typeof x.orderNo === 'string' && /^\d{16}$/.test(x.orderNo) ? x.orderNo : undefined;
       const tid = typeof x.tid === 'string' && ID20.test(x.tid) ? x.tid : undefined;

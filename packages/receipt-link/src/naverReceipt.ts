@@ -42,7 +42,7 @@ export type ReceiptOrder = {
   amount: number;
   seller?: string;
   title?: string;
-  payment: '카드' | '포인트·기타';
+  payment: '카드' | '포인트·기타' | '현금영수증';
   businessNumber?: string;
   approval?: string;
   cardIssuer?: string;

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.httpsHostOf = exports.MAX_GOTO_DELAY_MS = exports.CLOSING_WAIT_MS = exports.LOGIN_POLL_MS = exports.BACK_READ_MS = exports.READ_SETTLE_MS = exports.LOGIN_CAP_MS = exports.SITE_CAP_MS = exports.MAX_TIMEOUTS = exports.WATCHDOG_MS = void 0;
+exports.httpsHostOf = exports.MAX_GOTO_DELAY_MS = exports.CLOSING_WAIT_MS = exports.LOGIN_POLL_MS = exports.BACK_READ_MS = exports.READ_SETTLE_MS = exports.LOGIN_CAP_MS = exports.SITE_CAP_MS = exports.MAX_PAY_ROWS = exports.MAX_TIMEOUTS = exports.WATCHDOG_MS = void 0;
 exports.isFlowUrl = isFlowUrl;
 exports.pageKey = pageKey;
 exports.shapeProbeRaw = shapeProbeRaw;
@@ -26,6 +26,8 @@ const naverReceiptsScript_1 = require("./naverReceiptsScript");
 const siteFetch_1 = require("./siteFetch");
 exports.WATCHDOG_MS = 20000;
 exports.MAX_TIMEOUTS = 6;
+/** 네이버페이 내역 줄을 한 번에 받아들이는 안전 상한 — 60쪽(MAX_SCAN_PAGES) × 쪽당 수십 줄보다 크게 */
+exports.MAX_PAY_ROWS = 5000;
 exports.SITE_CAP_MS = 240000;
 exports.LOGIN_CAP_MS = 600000;
 exports.READ_SETTLE_MS = 600;
@@ -416,10 +418,10 @@ function createFlowDriver(args) {
     catch { /* 로그 실패는 무시 */ } };
     const RECEIPT_STATUS = ['ok', 'none', 'login', 'blocked', 'net', 'nopair', 'shape', 'pair'];
     const ID20 = /^\d{18,22}$/;
-    /** 네이버페이 내역 줄 — 주문번호 16자리 · 시각 · 금액이 맞는 것만(200줄까지) */
+    /** 네이버페이 내역 줄 — 주문번호 16자리 · 시각 · 금액이 맞는 것만. 줄 수 제한은 폭주 방지용 안전 상한(MAX_PAY_ROWS)뿐 — 전에는 앞 200줄만 통과시켜 736줄을 읽어도 그 뒤 줄을 아예 못 봤다(11-02 대표님 「지우고 다시 하니 50개만」) */
     const cleanRows = (v) => {
         const out = [];
-        for (const x of Array.isArray(v) ? v.slice(0, 200) : []) {
+        for (const x of Array.isArray(v) ? v.slice(0, exports.MAX_PAY_ROWS) : []) {
             if (!isObj(x))
                 continue;
             const orderNo = typeof x.orderNo === 'string' && /^\d{16}$/.test(x.orderNo) ? x.orderNo : undefined;

@@ -17,6 +17,8 @@ import { type FlowStats, type PageShape, type ReceiptOrder } from './naverReceip
 import type { OutcomeEvent } from './runOutcome';
 export declare const WATCHDOG_MS = 20000;
 export declare const MAX_TIMEOUTS = 6;
+/** 네이버페이 내역 줄을 한 번에 받아들이는 안전 상한 — 60쪽(MAX_SCAN_PAGES) × 쪽당 수십 줄보다 크게 */
+export declare const MAX_PAY_ROWS = 5000;
 export declare const SITE_CAP_MS = 240000;
 export declare const LOGIN_CAP_MS = 600000;
 export declare const READ_SETTLE_MS = 600;

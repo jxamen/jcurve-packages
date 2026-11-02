@@ -289,6 +289,35 @@ export function receiptsScript(r: ReceiptsRun): string {
       expiredYear: str(t.expiredYear, 8), expiredMonth: str(t.expiredMonth, 8), merchantRepresentative: str(mc.representative, 40), merchantNo: str(mc.merchantNo, 30), merchantAddress: str(mc.address, 200),
       serviceCharge: num(p.serviceCharge), disposableCupAmount: num(p.disposableCupAmount) };
   }
+  /* 현금영수증 화면(/receipts/integrated/cash) — 11-02 대표님 「현금영수증은 거르면 안 돼 가져와야지」.
+     이 화면의 응답 칸 구조는 서버 기록이 아직 없다(값을 가린 구조 기록은 계속 남긴다) — 그래서 칸 이름으로만 찾는다:
+     승인 시각 · 금액이 **같은 객체 안에** 함께 있는 첫 객체를 영수증으로 읽고, 시각이 분 단위까지 없거나 금액이 없으면 읽지 않는다(그때는 예전처럼 「영수증 없음」 + 구조 기록). */
+  var CASH_AT = ['approvalDateTime', 'tradeDateTime', 'issueDateTime', 'issuedDateTime', 'approvalDate', 'tradeDate', 'issueDate', 'paidAt', 'paymentDateTime', 'useDateTime'];
+  var CASH_AMT = ['totalAmount', 'approvalAmount', 'tradeAmount', 'paymentAmount', 'payAmount', 'useAmount', 'issueAmount', 'amount'];
+  var CASH_NO = ['approvalNo', 'approvalNumber', 'cashReceiptNo', 'issueNo', 'confirmNo'];
+  var CASH_SHOP = ['merchantName', 'sellerName', 'storeName', 'shopName', 'businessName'];
+  var CASH_BIZ = ['businessNo', 'bizNo', 'businessNumber', 'merchantBusinessNo'];
+  function pickName(o, names, conv) {
+    for (var i = 0; i < names.length; i++) { var v = conv(o[names[i]]); if (v !== undefined) return v; }
+    return undefined;
+  }
+  function cashSlipOf(root) {
+    var nodes = 0, hit = null;
+    function word(v) { return typeof v === 'string' || typeof v === 'number' ? String(v).slice(0, 40) : undefined; }
+    function when(v) { return (typeof v === 'string' || typeof v === 'number') && String(v).length >= 12 ? v : undefined; }
+    (function rec(o, d) {
+      if (hit || !o || typeof o !== 'object' || d > 14 || nodes++ > 20000) return;
+      if (Array.isArray(o)) { for (var i = 0; i < o.length && i < 300; i++) rec(o[i], d + 1); return; }
+      var at = pickName(o, CASH_AT, when), amount = pickName(o, CASH_AMT, num);
+      if (at !== undefined && amount !== undefined && amount >= 1 && amount <= 1e9) {
+        hit = { approvalNo: pickName(o, CASH_NO, word), approvalAt: at, cancelAt: prim(o.cancelDateTime), amount: Math.floor(amount), cancelAmount: num(o.cancelAmount),
+          sellerName: pickName(o, CASH_SHOP, function (v) { return str(v, 80); }), businessNo: pickName(o, CASH_BIZ, function (v) { return str(v, 20); }), tradeType: '현금영수증' };
+        return;
+      }
+      for (var k in o) { var v = o[k]; if (v && typeof v === 'object') rec(v, d + 1); if (hit) return; }
+    })(root, 0);
+    return hit;
+  }
   function runJob(job) {
     /* ⑤ 현장결제 영수증(대표님 10-30 19:42) — orders.pay.naver.com 주문이 아닌 결제는 pay.naver.com/receipts/offline?paymentId=<결제번호> 로 받는다(화면 안 열고 같은 출처 요청).
        응답 칸 구조는 A32 웹뷰 셀프테스트의 구조 기록(walk)으로 먼저 확인하고, __NEXT_DATA__ 안에서 trade 가 든 객체를 slipOf 로 best-effort 읽는다(card-single 과 같은 trade 모양이면 바로 맞는다). */
@@ -377,6 +406,10 @@ export function receiptsScript(r: ReceiptsRun): string {
         return request(nextPath, null, true).then(function (r2) {
           var nd2 = null, m2 = r2.st === 'ok' ? /<script[^>]*id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i.exec(r2.t) : null;
           if (m2) { try { nd2 = parseBig(m2[1]); } catch (e) { nd2 = null; } }
+          // 현금영수증이면 영수증으로 읽어 올린다(11-02 대표님 「현금영수증은 거르면 안 돼 가져와야지」) — 못 읽으면 예전처럼 「영수증 없음」 + 구조만
+          var cs = null;
+          if (w2 === 'cash' && nd2) { try { cs = cashSlipOf((nd2.props && nd2.props.pageProps) || nd2); } catch (e) { cs = null; } }
+          if (cs) return { key: job.key, st: 'ok', slip: cs, diag: diagLeft > 0 ? (diagLeft--, { w: 'cashok', status: r2.status || 200, lines: walk(nd2).slice(0, 200) }) : undefined };
           return { key: job.key, st: 'none', status: r.status, diag: mkDiag(w2, r2.status, (nd2 && nd2.props && nd2.props.pageProps && (nd2.props.pageProps.dehydratedState || nd2.props.pageProps)) || null, noneDiag.concat([w2 + ' ' + r2.st, w2 + ' nextdata ' + (nd2 ? 'yes' : 'no'), w2 + ' dehydrated ' + (nd2 && nd2.props && nd2.props.pageProps && nd2.props.pageProps.dehydratedState ? 'yes' : 'no')])) };
         });
       }

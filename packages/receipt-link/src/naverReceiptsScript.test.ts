@@ -253,6 +253,38 @@ describe('10-29 12:00 실행 뒤 보강 — 후보 고르기 · 형식 재시도
     expect(r.diag?.lines).toEqual(expect.arrayContaining(['anchor 0', 'html 0KB', 'nextdata yes', 'orderReceipt no']));
   });
 
+  describe('현금영수증 화면(11-02 대표님 「현금영수증은 거르면 안 돼 가져와야지」) — 칸 이름은 시험용 가정, 실제 화면 구조는 구조 기록으로 확인한다', () => {
+    const issueRaw = '<html><body><a href="/receipts/integrated/cash?pkgSeq=123&amp;payId=' + PAYID + '">현금영수증</a><script id="__NEXT_DATA__" type="application/json">{"props":{}}</script></body></html>';
+    const cashHtml = (data: unknown) => '<html><body><script id="__NEXT_DATA__" type="application/json">' + JSON.stringify(data) + '</script></body></html>';
+    const replies = (cash: string) => (u: string) => ({ raw: u.startsWith('/receipts/integrated/cash') ? cash : issueRaw });
+
+    it('승인 시각 · 금액이 한 객체에 함께 있으면 영수증으로 올린다 — 현금영수증 표시 · 승인번호 · 상점 · 사업자번호', async () => {
+      const data = { props: { pageProps: { dehydratedState: { queries: [{ state: { data: { receipt: { approvalDateTime: '2026-10-20T10:04:43', totalAmount: 12300, approvalNo: '98765432', merchantName: '가짜상점', businessNo: '123-45-67890' } } } }] } } } };
+      const { posted, urls } = await exec(run({ jobs: [{ key: 'k1', orderNo: ORDER }] }), replies(cashHtml(data)));
+      expect(urls[1]).toBe(`/receipts/integrated/cash?pkgSeq=123&payId=${PAYID}`);
+      const r = posted[0].results[0];
+      expect(r.st).toBe('ok');
+      expect(r.slip).toMatchObject({ amount: 12300, approvalAt: '2026-10-20T10:04:43', approvalNo: '98765432', sellerName: '가짜상점', businessNo: '123-45-67890', tradeType: '현금영수증' });
+    });
+
+    it('금액이 없거나 시각이 분 단위까지 없으면 읽지 않는다 — 예전처럼 「영수증 없음」 + 구조 기록(w cash)', async () => {
+      for (const receipt of [{ approvalDateTime: '2026-10-20T10:04:43' }, { approvalDate: '2026-10-20', totalAmount: 12300 }, { approvalDateTime: '2026-10-20T10:04:43', totalAmount: 0 }]) {
+        const { posted } = await exec(run({ jobs: [{ key: 'k1', orderNo: ORDER }] }), replies(cashHtml({ props: { pageProps: { receipt } } })));
+        const r = posted[0].results[0];
+        expect(r.st).toBe('none');
+        expect(r.diag).toMatchObject({ w: 'cash' });
+      }
+    });
+
+    it('구매영수증(purchase) 화면은 읽지 않는다 — 현금영수증 링크가 있을 때만', async () => {
+      const noCashLink = '<html><body><script id="__NEXT_DATA__" type="application/json">{"props":{}}</script></body></html>';
+      const data = { props: { pageProps: { receipt: { approvalDateTime: '2026-10-20T10:04:43', totalAmount: 12300 } } } };
+      const { posted, urls } = await exec(run({ jobs: [{ key: 'k1', orderNo: ORDER }] }), (u) => ({ raw: u.startsWith('/receipts/purchase') ? cashHtml(data) : noCashLink }));
+      expect(urls[1]).toBe(`/receipts/purchase?orderNo=${ORDER}`);
+      expect(posted[0].results[0].st).toBe('none');
+    });
+  });
+
   it('링크가 여러 개면 첫 링크로 부르고, href 의 &amp; 를 풀어 읽는다 · 같은 출처가 아닌 href 는 그대로 쓰지 않고 같은 모양의 같은 출처 주소를 Referer 로 쓴다', async () => {
     const html = '<a href="https://evil.example.com/receipts/preview/card?tid=' + TID + '&amp;productOrderNo=' + PO + '&amp;exitType=back&amp;payId=' + PAYID + '" data-nlog-click="rec.card">카드영수증</a>'
       + '<a href="/receipts/preview/card?tid=20261020999999999999&amp;productOrderNo=PD2026102000099999&amp;exitType=back&amp;payId=20261020888888888888">카드영수증</a>';
