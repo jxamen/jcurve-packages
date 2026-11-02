@@ -26,7 +26,7 @@ export type FlowFactoryOptions = {
 };
 
 export const FLOW_FACTORIES: Record<FlowSite, (opts?: FlowFactoryOptions) => ReceiptFlow> = {
-  naver: (o) => createNaverApiFlow({ sinceLatest: true, ...o }),
+  naver: (o) => createNaverApiFlow({ ...o }),   // 대표님 11-02 23:13 「예전엔 172건」 — 네이버는 최근 저장일 이후만 읽기를 끈다(지운 뒤 옛 주문이 다시 안 들어옴). 중복은 주문번호 · 뒤4자리로 거른다
   coupang: (o) => createCoupangApiFlow({ sinceLatest: true, ...o }),
   kurly: (o) => createKurlyApiFlow({ sinceLatest: true, ...o }),
   musinsa: (o) => createMusinsaApiFlow({ sinceLatest: true, ...o }),
