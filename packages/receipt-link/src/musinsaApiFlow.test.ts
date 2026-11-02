@@ -134,6 +134,16 @@ describe('목록 · 구간 나누기', () => {
     // 2026-07-31 ~ 2026-10-29(90일 차이) → 가운데 2026-09-14: 최신 쪽 [09-15, 10-29] 먼저, 오래된 쪽 [07-31, 09-14]
   });
 
+  it('옵션 상태(orderOptionList) — 전부 반품이면 취소 주문, 일부만 반품이면 반품 옵션을 뺀 금액 · 일부 반품 표시(대표님 11-02)', () => {
+    const base = { ord_no: '202606211833200003', ord_dt: '2026.06.21 18:34:06', payAmt: '296,070', payMethod: '카드' };
+    const ok = { orderState: 50, claimState: 0, orderStateText: '구매 확정', payAmt: '258,390' };
+    const back = { orderState: 40, claimState: 61, orderStateText: '반품 완료', payAmt: '37,680' };
+    expect(parseOrderRow({ ...base, orderOptionList: [back] })).toMatchObject({ cancelled: true });
+    const mixed = parseOrderRow({ ...base, orderOptionList: [back, ok] });
+    expect(mixed).toMatchObject({ cancelled: false, mixed: true, amount: 258390 });
+    expect(parseOrderRow({ ...base, orderOptionList: [ok] })).toMatchObject({ cancelled: false, amount: 296070 });
+  });
+
   it('이름으로 찾기 — 다른 키 이름(ord_no · ord_dt · payAmt · 안쪽 paymentInfo)도 읽고, 주문번호 없는 배열은 주문으로 보지 않는다', () => {
     const odd = { ord_no: '202610201000009999', ord_dt: '2026.10.20 10:04:43', payAmt: '45,900', productName: '가짜', paymentInfo: { paymentKey: PK(9), tid: TID(9), merchantCode: 'STORE' }, payMethod: '카드' };
     expect(parseOrderRow(odd)).toMatchObject({ orderNo: '202610201000009999', orderedAt: '2026-10-20 10:04:43', amount: 45900, title: '가짜', cancelled: false });

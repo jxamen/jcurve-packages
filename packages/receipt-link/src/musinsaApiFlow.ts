@@ -187,9 +187,11 @@ export function parseOrderRow(e: Raw): ParsedOrder | null {
   const method = asStr(findKey(e, PAY_METHOD_RES, isText, 4));
   // 대표님 11-02 무신사 JSON: 상태는 orderOptionList(옵션별) — 구매 확정 claimState 0 · orderState 50, 반품 완료 claimState 61 · orderState 40 · orderStateText 「반품 완료」
   const opts = Array.isArray(e.orderOptionList) ? (e.orderOptionList as unknown[]).filter(isObj) as Raw[] : [];
-  const optOff = opts.filter((o) => CANCELLED.test(asStr(o.orderStateText)) || (typeof o.claimState === 'number' && o.claimState === 61));
+  const optOff: Raw[] = opts.filter((o) => CANCELLED.test(asStr(o.orderStateText)) || (typeof o.claimState === 'number' && o.claimState === 61));
+  const optAmts = opts.length > 1 ? opts.filter((o) => !optOff.includes(o)).map((o) => toMoney(findKey(o, AMOUNT_RES, isMoney, 2))) : [];
+  const keptAmount = optAmts.length > 0 && optAmts.every((v) => v !== undefined) ? optAmts.reduce((a: number, v) => a + (v as number), 0) : amount;
   return {
-    orderNo, orderedAt, amount,
+    orderNo, orderedAt, amount: keptAmount,
     title: clip(findKey(e, TITLE_RES, isText, 4), 80),
     seller: clip(findKey(e, SELLER_RES, isText, 4), 80),
     ...(paymentKey && tid ? { pay: { paymentKey, tid, merchantCode } } : {}),
@@ -305,6 +307,8 @@ export function createMusinsaApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
   let listFailed = 0;
   let listNet = 0;
   let shapeMiss = 0;
+  /** 같은 주문번호로 합친 상품 줄 수(묶음 주문) */
+  let bundled = 0;
   /* 상세 · 매출전표 단계 */
   let queue: Job[] = [];
   let batch: Job[] = [];
@@ -367,7 +371,7 @@ export function createMusinsaApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
       phase = 'finished';
       pendingGo = null;
       ending = { reason, orders: pending.splice(0), stats: { ...stats } };
-      endQueue = [`flowc-t${total}-k${okN}-x${noneN}-f${failN}-q${queue.length}`, `flowe-${reason}-${at}`];
+      endQueue = [`flowc-t${total}-k${okN}-x${noneN}-f${failN}-q${queue.length}`, `flowb-merged${bundled}-mixed${[...found.values()].filter((p) => p.mixed).length}-cancel${[...found.values()].filter((p) => p.cancelled).length}`, `flowe-${reason}-${at}`];
     }
     return drainEnd();
   };
@@ -421,7 +425,13 @@ export function createMusinsaApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
     for (const e of rows) {
       const p = parseOrderRow(e);
       if (!p) { stats.rejected++; continue; }
-      if (!found.has(p.orderNo)) found.set(p.orderNo, p);
+      // 묶음 주문 — 같은 주문번호의 상품 줄을 모두 합친다(대표님 11-02: 6/21 묶음 주문에서 반품된 1개만 읽었다). 반품 · 취소 상품은 금액에서 빼고, 전부 반품 · 취소일 때만 취소 주문
+      const prev = found.get(p.orderNo);
+      if (!prev) { found.set(p.orderNo, p); continue; }
+      bundled++;
+      const both = prev.cancelled && p.cancelled;
+      const amount = both ? prev.amount : (prev.cancelled ? 0 : prev.amount) + (p.cancelled ? 0 : p.amount);
+      found.set(p.orderNo, { ...prev, ...(prev.pay ? {} : p.pay ? { pay: p.pay } : {}), ...(prev.method ? {} : p.method ? { method: p.method } : {}), amount, cancelled: both, ...(!both && (prev.cancelled || p.cancelled || prev.mixed || p.mixed) ? { mixed: true } : {}) });
     }
     const next = musinsaNextOffsets(r.data);
     if (!next?.onlineOffset || next.onlineOffset === '999999999999999999' || listPages >= 100) return withStructure(listDone);
