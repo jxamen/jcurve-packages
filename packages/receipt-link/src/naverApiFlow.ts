@@ -145,7 +145,7 @@ export function createNaverApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
       const at = phase;
       phase = 'finished';
       ending = { reason, orders: pending.splice(0), stats: { ...stats } };
-      endQueue = [`flowc-t${total}-k${okN}-x${noneN}-f${failN}-q${queue.length}`, ...(failCodes.size > 0 ? [`flowf-${[...failCodes].map(([c, n]) => `${c}${n}`).join('-')}`] : []), ...(scanned ? [`flown-p${npFound}-k${npOk}-f${npFail}-r${payRowsN}`, `flowd-cap${drop.cap}-nono${drop.nono}-cut${drop.cut}-known${drop.known}-dup${drop.dup}-cancel${drop.cancel}-merged${shopMerged}`] : []), ...(npv2 && scanned ? [only ? `flowo-${hitPage ? `hit-p${hitPage}` : `miss-last${lastScanPage}`}-of${scanTotal}` : `flowo-pages${lastScanPage}-of${scanTotal}${stopPaging ? '-stop' : ''}`] : []), `flowe-${reason}-${at}`];
+      endQueue = [`flowc-t${total}-k${okN}-x${noneN}-f${failN}-q${queue.length}`, ...(failCodes.size > 0 ? [`flowf-${[...failCodes].map(([c, n]) => `${c}${n}`).join('-')}`] : []), ...(scanned ? [`flown-p${npFound}-k${npOk}-f${npFail}-r${payRowsN}`, `flowd-cap${drop.cap}-nono${drop.nono}`, `flowd-cut${drop.cut}-known${drop.known}`, `flowd-dup${drop.dup}-cancel${drop.cancel}`, `flowd-merged${shopMerged}`] : []), ...(npv2 && scanned ? [only ? `flowo-${hitPage ? `hit-p${hitPage}` : `miss-last${lastScanPage}`}-of${scanTotal}` : `flowo-pages${lastScanPage}-of${scanTotal}${stopPaging ? '-stop' : ''}`] : []), `flowe-${reason}-${at}`];
     }
     return drainEnd();
   };
@@ -301,6 +301,7 @@ export function createNaverApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
   };
   /** 이 쪽에서 서버에 이미 받은 줄 수(멈춤 판단) */
   let pageKnown = 0;
+  /** (끝 기록은 24글자 넘는 토큰을 서버가 「앞 8글자~」로 가리므로 flowd 는 짧은 줄 넷으로 쪼개 남긴다 — 11-02 21:0x 서버 기록에서 flowd-ca~ 로 잘려 까닭을 못 읽었다) */
   /** 내역 줄을 작업으로 만들지 않은 까닭별 개수(11-02 107건 누락 찾기) — 상한 · 번호 없음 · 1년 전 · 이미 받음 · 같은 주문번호 */
   const drop = { cap: 0, nono: 0, cut: 0, known: 0, dup: 0, cancel: 0 };
   /** 쇼핑 목록에서 상품 여러 개를 한 주문으로 합친 수 */
