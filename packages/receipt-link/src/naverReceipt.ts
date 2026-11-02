@@ -42,7 +42,8 @@ export type ReceiptOrder = {
   amount: number;
   seller?: string;
   title?: string;
-  payment: '카드' | '포인트·기타' | '현금영수증';
+  /** 네이버페이… — 카드가 아닌 네이버페이 결제(주문상세 영수증, 예 「네이버페이 머니·포인트」) */
+  payment: '카드' | '포인트·기타' | '현금영수증' | `네이버페이${string}`;
   businessNumber?: string;
   approval?: string;
   cardIssuer?: string;

@@ -456,6 +456,44 @@ describe('pinfo — 간편결제 · 외부몰 네이버페이 짝 얻기(11-02 �
   it('pinfo 작업에는 paymentId 가 꼭 있다', () => {
     expect(() => receiptsScript(run({ jobs: [{ key: 'k', orderNo: '20261026123456', pinfo: true }] }))).toThrow('bad pinfo');
   });
+  it('카드가 아닌 간편결제(포인트)는 결제 상세 응답을 영수증으로 읽는다(ok · orderSheet)', async () => {
+    const { posted } = await exec(run({ jobs: [{ key: 'k1', orderNo: '20261026123456', pinfo: true, paymentId: PID }] }),
+      () => ({ json: { result: { payTypeCode: 'POINT', paymentAmount: 4500, merchantName: '상점', receipt: {} } } }), { host: 'orders.pay.naver.com' });
+    expect(posted[0].results[0]).toMatchObject({ st: 'ok', slip: { orderSheet: true, amount: 4500, sellerName: '상점', tradeType: '네이버페이 포인트' } });
+  });
+});
+
+describe('osheet — 카드영수증 없는 결제의 주문상세(7071 웹 「상세 — 주문서」 요청 그대로) · orders.pay.naver.com 출처에서만', () => {
+  const ONO = '2026102512345678';
+  const SHEET = { result: { order: { orderNo: ONO, payMeansCode: 'NAVER_MONEY', totalPayAmount: '12,300', orderDateTime: '2026-10-25T12:00:00' },
+    productOrders: [{ productName: '주문 상품', merchantName: '스토어', productOrderStatus: 'PAYED' }] } };
+  it('GET /orderApi/orderSheet/detail/?orderNo= 를 부르고 금액 · 품목 · 상호 · 결제수단을 영수증으로 · 구조 기록(값 없음)을 남긴다', async () => {
+    const { posted, urls } = await exec(run({ jobs: [{ key: 'k1', orderNo: ONO, osheet: true }] }), () => ({ json: SHEET }), { host: 'orders.pay.naver.com' });
+    expect(urls).toEqual([`https://orders.pay.naver.com/orderApi/orderSheet/detail/?orderNo=${ONO}`]);
+    const r = posted[0].results[0];
+    expect(r).toMatchObject({ st: 'ok', slip: { orderSheet: true, amount: 12300, productName: '주문 상품', sellerName: '스토어', tradeType: '네이버페이 머니', approvalAt: '2026-10-25T12:00:00' }, diag: { w: 'osheet' } });
+    expect(JSON.stringify(r.diag)).not.toContain('12,300');
+    expect(JSON.stringify(r.diag)).not.toContain('스토어');
+  });
+  it('취소 · 반품 상태거나 카드로만 낸 결제면 올리지 않는다(none)', async () => {
+    const cancel = await exec(run({ jobs: [{ key: 'k1', orderNo: ONO, osheet: true }] }),
+      () => ({ json: { result: { order: { payMeansCode: 'NAVER_MONEY', totalPayAmount: 1000 }, productOrders: [{ productOrderStatus: 'CANCELED' }] } } }), { host: 'orders.pay.naver.com' });
+    expect(cancel.posted[0].results[0].st).toBe('none');
+    const card = await exec(run({ jobs: [{ key: 'k1', orderNo: ONO, osheet: true }] }),
+      () => ({ json: { result: { order: { payMeansCode: 'CREDIT_CARD', totalPayAmount: 1000 } } } }), { host: 'orders.pay.naver.com' });
+    expect(card.posted[0].results[0].st).toBe('none');
+    // 결제수단을 확인하지 못하면(이름 없음) 「네이버페이」로 올리지 않는다
+    const unknown = await exec(run({ jobs: [{ key: 'k1', orderNo: ONO, osheet: true }] }),
+      () => ({ json: { result: { order: { totalPayAmount: 1000 } } } }), { host: 'orders.pay.naver.com' });
+    expect(unknown.posted[0].results[0].st).toBe('none');
+  });
+  it('다른 출처면 부르지 않는다 · 실패는 nopair · 주문번호는 16자리만', async () => {
+    const other = await exec(run({ jobs: [{ key: 'k1', orderNo: ONO, osheet: true }] }), () => ({ json: SHEET }));
+    expect(other.urls).toEqual([]);
+    const bad = await exec(run({ jobs: [{ key: 'k1', orderNo: ONO, osheet: true }] }), () => ({ status: 500 }), { host: 'orders.pay.naver.com' });
+    expect(bad.posted[0].results[0]).toMatchObject({ st: 'nopair', diag: { w: 'osheet' } });
+    expect(() => receiptsScript(run({ jobs: [{ key: 'k', orderNo: '20261026123456', osheet: true }] }))).toThrow('bad osheet');
+  });
 });
 
 describe('네이버페이 내역 줄(대표님 15:36 ⓑ) — items[] 의 additionalData.orderNo · payId · productOrderNo · date · additionalData.orderAmount', () => {

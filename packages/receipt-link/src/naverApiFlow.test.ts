@@ -27,11 +27,17 @@ const LIST = [
 const keyOf = (n: number, at: string, amount = 1000 * n): string => outcomeKey(orderNo(n), at, amount);
 
 /** 네이버페이 내역 읽기(scan) 단계에는 짝이 없다고 답하고, probe 를 흘려 보내며 done 까지 간다. 지나간 probe where 는 seen 에 모은다 */
-const finishOut = (flow: ReturnType<typeof mk>, first: FlowOut, seen: string[] = []): FlowOut => {
+const finishOut = (flow: ReturnType<typeof mk>, first: FlowOut, seen: string[] = [], osheet: (key: string) => ReceiptResult = (key) => ({ key, st: 'none' })): FlowOut => {
   let out = first;
-  for (let i = 0; i < 12; i++) {
+  let orders = false;
+  for (let i = 0; i < 30; i++) {
     if ('type' in out && out.type === 'probe') { seen.push(out.where); out = flow.next({ type: 'resume' }); }
+    else if ('type' in out && out.type === 'structure') out = flow.next({ type: 'resume' });
     else if ('kind' in out && out.kind === 'receipts' && out.scan === true) out = flow.next({ type: 'receipts', results: [{ key: 'np:scan', st: 'none', found: 0 }] });
+    // 카드영수증이 없는 주문 — orders 출처에서 주문상세(osheet) 한 번(기본 답: 주문상세에서도 올릴 것 없음)
+    else if ('type' in out && out.type === 'goto' && out.url.startsWith('https://orders.pay.naver.com/')) { orders = true; out = flow.next({ type: 'page', url: 'orders.pay.naver.com/order/status/1', text: '주문 상세' }); }
+    else if ('kind' in out && out.kind === 'receipts' && out.jobs.length > 0 && out.jobs.every((j) => j.osheet === true)) { orders = true; out = flow.next({ type: 'receipts', results: out.jobs.map((j) => osheet(j.key)) }); }
+    else if (orders && 'type' in out && out.type === 'goto' && out.url === payHistoryUrl(1)) out = flow.next({ type: 'page', url: 'pay.naver.com/history?page=1', text: '결제내역' });
     else break;
   }
   return out;
@@ -114,7 +120,7 @@ describe('순서 · 한 주문 한 줄', () => {
     const flow = mk();
     const batch = toFirstBatch(flow);
     flow.take(); flow.takeOutcomes?.();
-    flow.next({ type: 'receipts', results: [OK(batch.jobs[0].key, { cancelAt: '2026-10-21T00:00:00' }), { key: batch.jobs[1].key, st: 'none' }] });
+    finishOut(flow, flow.next({ type: 'receipts', results: [OK(batch.jobs[0].key, { cancelAt: '2026-10-21T00:00:00' }), { key: batch.jobs[1].key, st: 'none' }] }));
     expect(flow.takeOutcomes?.().map((e) => e.outcome.state)).toEqual(['none', 'none']);
   });
 
@@ -240,18 +246,25 @@ describe('클릭 · 화면 열기 없음', () => {
     feed(flow.next({ type: 'page', url: 'shopping.naver.com/my/order', text: '주문 1,000원' }));
     feed(flow.next({ type: 'api', name: 'shop', items, page: 1, done: true }));
     let out = feed(flow.next({ type: 'page', url: 'pay.naver.com/history?page=1', text: '결제내역 1,000원' }));
-    for (let i = 0; i < 6 && 'kind' in out && out.kind === 'receipts'; i++) {
-      const jobs = out.jobs;
-      out = feed(flow.next({ type: 'receipts', results: jobs.map((j, n) => (n % 2 === 0 ? OK(j.key) : { key: j.key, st: 'none' as const })) }));
+    for (let i = 0; i < 60; i++) {
+      if ('kind' in out && out.kind === 'receipts' && out.scan === true) out = feed(flow.next({ type: 'receipts', results: [{ key: 'np:scan', st: 'none', found: 0 }] }));
+      else if ('kind' in out && out.kind === 'receipts') {
+        const jobs = out.jobs;
+        out = feed(flow.next({ type: 'receipts', results: jobs.map((j, n) => (j.osheet ? { key: j.key, st: 'none' as const } : n % 2 === 0 ? OK(j.key) : { key: j.key, st: 'none' as const })) }));
+      } else if ('type' in out && out.type === 'goto' && out.url.startsWith('https://orders.pay.naver.com/')) out = feed(flow.next({ type: 'page', url: 'orders.pay.naver.com/order/status/1', text: '주문 상세' }));
+      else if ('type' in out && out.type === 'goto' && out.url === payHistoryUrl(1)) out = feed(flow.next({ type: 'page', url: 'pay.naver.com/history?page=1', text: '결제내역' }));
+      else if ('type' in out && (out.type === 'structure' || out.type === 'probe')) out = feed(flow.next({ type: 'resume' }));
+      else break;
     }
-    while ('type' in out && out.type === 'probe') out = feed(flow.next({ type: 'resume' }));
     expect(out).toMatchObject({ type: 'done' });
+    const ordersGoto = `https://orders.pay.naver.com/order/status/${orderNo(10)}?returnUrl=${encodeURIComponent('https://pay.naver.com/pc/history')}`;
     for (const o of outs) {
       if ('kind' in o) expect(['api', 'receipts', 'read']).toContain(o.kind);
-      else if (o.type === 'goto') expect([SHOP_ORDER_URL, payHistoryUrl(1)]).toContain(o.url);
+      else if (o.type === 'goto') expect([SHOP_ORDER_URL, payHistoryUrl(1), ordersGoto]).toContain(o.url);
       else expect(['login', 'probe', 'structure', 'done']).toContain(o.type);
     }
-    expect(outs.filter((o) => 'type' in o && o.type === 'goto')).toHaveLength(2);
+    // 출처 화면: 쇼핑 · 결제 + 카드영수증 없는 주문의 주문상세(orders 출처 한 번 · 결제로 돌아오기 한 번)
+    expect(outs.filter((o) => 'type' in o && o.type === 'goto')).toHaveLength(4);
   });
 });
 
@@ -401,13 +414,54 @@ describe('간편결제 · 외부몰 네이버페이(pinfo) — orders.pay.naver.
     expect((flow.takeOutcomes?.() ?? []).filter((o) => o.key === key).pop()?.outcome).toEqual({ state: 'failed', code: 'no-pair' });
   });
 
-  it('카드영수증 링크가 없는 주문은 페이지를 더 열지 않는다 — 「영수증 없음」은 스크립트가 판단해 넘긴다', () => {
+  it('카드영수증이 없는 주문은 orders 출처에서 주문상세(osheet)를 한 번 부른다 — 거기서도 없으면 예전처럼 「영수증 없음」', () => {
     const flow = mk();
     const batch = toFirstBatch(flow, [item(2, '2026-10-25 12:00:00')]);
-    const out = flow.next({ type: 'receipts', results: [{ key: batch.jobs[0].key, st: 'none', status: 200 }] });
-    expect(finishOut(flow, out)).toMatchObject({ type: 'done' });
+    const scan = flow.next({ type: 'receipts', results: [{ key: batch.jobs[0].key, st: 'none', status: 200 }] });
+    expect(scan).toMatchObject({ kind: 'receipts', scan: true });
+    const out = flow.next({ type: 'receipts', results: [{ key: 'np:scan', st: 'none', found: 0 }] });
+    expect(out).toEqual({ type: 'goto', url: `https://orders.pay.naver.com/order/status/${orderNo(2)}?returnUrl=${encodeURIComponent('https://pay.naver.com/pc/history')}` });
+    const act = flow.next({ type: 'page', url: `orders.pay.naver.com/order/status/${orderNo(2)}`, text: '주문 상세' });
+    expect(act).toMatchObject({ kind: 'receipts', jobs: [{ key: batch.jobs[0].key, orderNo: orderNo(2), osheet: true }] });
+    expect(finishOut(flow, act)).toMatchObject({ type: 'done' });
     const outs = flow.takeOutcomes?.() ?? [];
     expect(outs.filter((o) => o.key === batch.jobs[0].key).pop()?.outcome).toEqual({ state: 'none' });
+  });
+
+  it('주문상세가 비카드 결제(머니 · 포인트)를 읽으면 구매영수증(kind purchase)으로 올린다 — 금액 · 시각은 목록 값', () => {
+    const flow = mk();
+    const batch = toFirstBatch(flow, [item(2, '2026-10-25 12:00:00')]);
+    const k = batch.jobs[0].key;
+    const out = finishOut(flow, flow.next({ type: 'receipts', results: [{ key: k, st: 'none', status: 200 }] }), [],
+      (key) => ({ key, st: 'ok', slip: { orderSheet: true, amount: 3999, tradeType: '네이버페이 머니·포인트', productName: '주문 상품', sellerName: '스토어' } }));
+    expect(out).toMatchObject({ type: 'done' });
+    const done = (out as Extract<FlowOut, { type: 'done' }>).orders.filter((o) => o.kind !== 'list');
+    expect(done).toHaveLength(1);
+    expect(done[0]).toMatchObject({ orderNo: orderNo(2), kind: 'purchase', payment: '네이버페이 머니·포인트', amount: 2000, orderedAt: '2026-10-25 12:00:00', seller: '스토어', title: '주문 상품' });
+    expect((flow.takeOutcomes?.() ?? []).filter((o) => o.key === k).pop()?.outcome).toEqual({ state: 'done' });
+  });
+
+  it('orders 출처에서 끝나기 전에 흐름이 멈춰도(시간 초과) 주문상세를 기다리던 줄은 「영수증 없음」으로 남는다', () => {
+    const flow = mk();
+    const batch = toFirstBatch(flow, [item(2, '2026-10-25 12:00:00')]);
+    const k = batch.jobs[0].key;
+    flow.next({ type: 'receipts', results: [{ key: k, st: 'none', status: 200 }] });   // → 내역 읽기
+    let out = flow.next({ type: 'receipts', results: [{ key: 'np:scan', st: 'none', found: 0 }] });
+    expect(out).toMatchObject({ type: 'goto' });
+    // orders 화면이 계속 안 뜬다 — 시간 초과를 거듭해 끝낸다
+    for (let i = 0; i < 20 && !('type' in out && out.type === 'done'); i++) out = 'type' in out && out.type === 'probe' ? flow.next({ type: 'resume' }) : flow.next({ type: 'timeout' });
+    expect(out).toMatchObject({ type: 'done' });
+    expect((flow.takeOutcomes?.() ?? []).filter((o) => o.key === k).pop()?.outcome).toEqual({ state: 'none' });
+  });
+
+  it('주문상세에서 취소 · 카드로 판단되면(none) 올리지 않는다 · 같은 줄은 주문상세를 한 번만 부른다', () => {
+    const flow = mk();
+    const batch = toFirstBatch(flow, [item(2, '2026-10-25 12:00:00')]);
+    let calls = 0;
+    const out = finishOut(flow, flow.next({ type: 'receipts', results: [{ key: batch.jobs[0].key, st: 'none', status: 200 }] }), [], (key) => { calls++; return { key, st: 'none' }; });
+    expect(out).toMatchObject({ type: 'done' });
+    expect((out as Extract<FlowOut, { type: 'done' }>).orders.filter((o) => o.kind !== 'list')).toEqual([]);
+    expect(calls).toBe(1);
   });
 });
 

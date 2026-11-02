@@ -53,8 +53,9 @@ describe('네이버 — 구동기 + 흐름 + 실제 스크립트(가짜 페이�
     const r = await runFlow('naver', pages, router);
     expect(r.results).toHaveLength(1);
     expect(r.results[0].reason).toBe('all-rows');
-    // 이동은 출처 페이지 두 번뿐, 요청은 모두 허용 호스트
-    expect(r.gotos).toEqual(['https://shopping.naver.com/my/order', 'https://pay.naver.com/history?page=1']);
+    // 이동은 출처 페이지(쇼핑 · 결제) + 카드영수증 없는 주문의 주문상세용 orders 출처 한 번 · 결제로 돌아오기, 요청은 모두 허용 호스트
+    expect(r.gotos).toEqual(['https://shopping.naver.com/my/order', 'https://pay.naver.com/history?page=1',
+      `https://orders.pay.naver.com/order/status/${orderNo(1)}?returnUrl=${encodeURIComponent('https://pay.naver.com/pc/history')}`, 'https://pay.naver.com/history?page=1']);
     // 목록 행 3 + 완성 주문 1
     expect(r.orders.filter((o) => o.kind === 'list')).toHaveLength(3);
     const cards = r.orders.filter((o) => o.kind === 'card');

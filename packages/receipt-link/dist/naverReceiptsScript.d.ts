@@ -8,6 +8,9 @@ export type ReceiptJob = {
     paymentId?: string;
     /** 간편결제(SIMPLE_PAYMENT) · 외부몰 네이버페이 — orders.pay.naver.com 출처에서 GET orderApi/payment/detail/info 로 tid 를 얻는 작업(11-02 대표님 확인 길, 전부 HTTP) */
     pinfo?: boolean;
+    /** 카드영수증이 없는 결제(네이버페이 머니 · 포인트 · 계좌) — orders.pay.naver.com 출처에서 GET orderApi/orderSheet/detail/?orderNo= (7071 웹 「상세 — 주문서」 요청 그대로)로
+        주문상세를 영수증으로 읽는다(11-02 22:40 대표님 「네이버페이 영수증은 별도로 없고 주문상세에 있고」) */
+    osheet?: boolean;
 };
 /** 네이버페이 내역(pay.naver.com/history __NEXT_DATA__) 한 줄 — pageProps.dehydratedState.queries[].state.data.pages[].items[] 의 이름 그대로(10-29 15:36 실기록 키 트리) */
 export type PayRow = {
@@ -57,6 +60,8 @@ export type ReceiptSlip = {
     merchantAddress?: string;
     serviceCharge?: number;
     disposableCupAmount?: number;
+    /** 주문상세(orderSheet · payment/detail/info)에서 읽은 비카드 결제 — 흐름이 구매영수증(kind purchase)으로 올린다. tradeType 에 결제수단 글자 */
+    orderSheet?: boolean;
 };
 /**
  * st: ok 영수증을 읽음(slip) · none 카드 영수증이 없는 결제 · login 로그인이 풀림 · blocked 사이트가 막음(403 · 429) ·

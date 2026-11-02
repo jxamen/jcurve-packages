@@ -40,6 +40,8 @@ function checkReceiptsRun(r) {
             throw new Error('bad orderNo');
         if (j.pinfo !== undefined && (j.pinfo !== true || !j.paymentId))
             throw new Error('bad pinfo');
+        if (j.osheet !== undefined && (j.osheet !== true || j.pinfo !== undefined || !/^\d{16}$/.test(j.orderNo)))
+            throw new Error('bad osheet');
         if (!num(j.productOrderNo, /^(PD)?\d{8,24}$/) || !num(j.payId, /^\d{18,22}$/) || !num(j.tid, /^\d{18,22}$/) || !num(j.paymentId, /^\d{8}NP\d{6,14}$/))
             throw new Error('bad pair');
     }
@@ -205,9 +207,71 @@ function receiptsScript(r) {
       // 카드영수증이 원래 없는 결제(receipt.card 없음)는 실패가 아니라 「영수증 없음」(대표님 11-02 ④)
       if (!tid) {
         var noCard = r.j && r.j.result && r.j.result.receipt && !r.j.result.receipt.card;
+        // 카드가 아닌 간편결제(머니 · 포인트) — 이 결제 상세 응답을 영수증으로 읽는다(11-02 22:40 대표님 「영수증이 별도로 없고 주문상세에 있고」)
+        var po = null;
+        if (noCard) { try { po = osheetSlipOf(r.j.result); } catch (e) { po = null; } }
+        if (po && !po.cancel && !po.card && po.slip.amount !== undefined) return { key: job.key, st: 'ok', slip: po.slip, diag: mkDiag('pinfoslip', r.status || 200, r.j, head.concat(osheetHead(po))) };
         return { key: job.key, st: noCard ? 'none' : 'nopair', status: r.status, diag: mkDiag('pinfo', r.status, r.j, head.concat(['have card.url ' + !!cardUrl])) };
       }
       return { key: job.key, st: 'pair', status: r.status, tid: tid, pos: [], paymentId: job.paymentId };
+    });
+  }
+  /* 주문상세 = 영수증(카드가 아닌 결제) — 칸 구조 기록이 아직 없어(「미확인」) 이름으로만 찾는다: 첫 번째로 나온 이름의 값, 정해 둔 이름 차례로.
+     결제수단은 이름에 means · method · payType 이 든 칸의 글자(MONEY · POINT · BANK · CARD), 취소 · 반품은 이름에 status 가 든 칸의 글자.
+     읽은 칸이 맞는지 서버에서 볼 수 있게 늘 값을 가린 구조 기록(walk)을 같이 남긴다 */
+  var OS_AMT = ['totalPayAmount', 'totalPaymentAmount', 'totalOrderAmount', 'paymentAmount'];   // 주문 전체 금액 이름만(상품 한 줄 금액을 주문 금액으로 잘못 읽지 않게)
+  var OS_AT = ['paymentDateTime', 'payDateTime', 'paymentDate', 'payDate', 'orderDateTime', 'orderDate'];
+  var OS_TITLE = ['productName', 'orderProductName', 'itemName'];
+  var OS_SHOP = ['merchantName', 'sellerName', 'storeName', 'mallName', 'shopName'];
+  function osheetSlipOf(root) {
+    var first = {}, means = {}, cancel = false, nodes = 0;
+    var has = function (o, k) { return Object.prototype.hasOwnProperty.call(o, k); };
+    (function rec(o, d) {
+      if (!o || typeof o !== 'object' || d > 14 || nodes++ > 20000) return;
+      if (Array.isArray(o)) { for (var i = 0; i < o.length && i < 300; i++) rec(o[i], d + 1); return; }
+      for (var k in o) {
+        var v = o[k];
+        if (typeof v === 'string' || typeof v === 'number') {
+          if (!has(first, k)) first[k] = v;
+          if (typeof v === 'string') {
+            if (/means|method|paytype|paymenttype/i.test(k)) {
+              if (/CARD|카드/i.test(v)) means.card = 1;
+              if (/MONEY|머니|CHARGE/i.test(v)) means.money = 1;
+              if (/POINT|포인트/i.test(v)) means.point = 1;
+              if (/BANK|ACCOUNT|TRANSFER|계좌/i.test(v)) means.bank = 1;
+            }
+            if (/status/i.test(k) && /CANCEL|RETURN|취소|반품/i.test(v)) cancel = true;
+          }
+        } else if (v && typeof v === 'object') rec(v, d + 1);
+      }
+    })(root, 0);
+    function pick(names, conv) { for (var i = 0; i < names.length; i++) if (has(first, names[i])) { var x = conv(first[names[i]]); if (x !== undefined) return x; } return undefined; }
+    var amount = pick(OS_AMT, num);
+    var labels = [];
+    if (means.money) labels.push('머니');
+    if (means.point) labels.push('포인트');
+    if (means.bank) labels.push('계좌');
+    // card: 올리지 않음 — 카드가 섞였거나 결제수단(머니 · 포인트 · 계좌)을 확인하지 못했다(카드 결제를 「네이버페이」로 올리지 않는다)
+    return { cancel: cancel, card: !!means.card || labels.length === 0, slip: {
+      orderSheet: true, amount: amount !== undefined && amount >= 1 && amount <= 1e9 ? Math.floor(amount) : undefined,
+      approvalAt: pick(OS_AT, function (v) { return String(v).length >= 12 ? v : undefined; }),
+      productName: pick(OS_TITLE, function (v) { return str(v, 120); }), sellerName: pick(OS_SHOP, function (v) { return str(v, 80); }),
+      tradeType: '네이버페이 ' + labels.join('·') } };
+  }
+  function osheetHead(o) { return ['amount ' + (o.slip.amount !== undefined), 'at ' + (o.slip.approvalAt !== undefined), 'title ' + (o.slip.productName !== undefined), 'shop ' + (o.slip.sellerName !== undefined), 'means ' + o.slip.tradeType, 'card ' + o.card, 'cancel ' + o.cancel]; }
+  /* 7071 웹 「상세 — 주문서(orderSheet)」 요청 그대로: orders.pay.naver.com/order/status/<주문번호> 출처에서 GET /orderApi/orderSheet/detail/?orderNo=<주문번호> */
+  function osheetJob(job) {
+    var ref = 'https://orders.pay.naver.com/order/status/' + job.orderNo;
+    return request('https://orders.pay.naver.com/orderApi/orderSheet/detail/?orderNo=' + encodeURIComponent(job.orderNo), ref).then(function (r) {
+      var head = ['osheet ' + r.st + ' ' + (r.status || 0)];
+      if (r.st !== 'ok') return { key: job.key, st: r.st === 'login' || r.st === 'blocked' ? r.st : 'nopair', status: r.status, diag: mkDiag('osheet', r.status || 0, null, head) };
+      var o = null;
+      try { o = osheetSlipOf((r.j && r.j.result) || r.j); } catch (e) { o = null; }
+      if (!o) return { key: job.key, st: 'shape', status: r.status, diag: mkDiag('osheet', r.status || 200, r.j, head) };
+      var d = mkDiag('osheet', r.status || 200, r.j, head.concat(osheetHead(o)));
+      // 취소 · 반품은 계속 거른다 · 카드로만 낸 결제는 카드 영수증 길(여기서 올리지 않는다)
+      if (o.cancel || o.card) return { key: job.key, st: 'none', status: r.status, diag: d };
+      return { key: job.key, st: 'ok', slip: o.slip, diag: d };
     });
   }
   function mkDiag(w, status, j, extra) {
@@ -325,6 +389,7 @@ function receiptsScript(r) {
       return attempt(0);
     }
     if (job.pinfo) return pinfoJob(job);
+    if (job.osheet) return osheetJob(job);
     if (job.tid && (job.payId || job.paymentId)) return single({ po: job.productOrderNo, tid: job.tid, payId: job.payId, paymentId: job.paymentId });
     /* 대표님 10-28 22:28 원문: pay.naver.com/receipts/issue-history?orderNo=<주문번호 16자리> — 화면을 열지 않고 같은 출처 요청으로 그 화면(HTML)을 받아 __NEXT_DATA__ 에서 짝을 읽는다.
        (10-29 13:35 실행: 원문에 없던 /web-api/receipts/{주문번호} 는 404 였다 — 그 주소는 뺐다) */
@@ -677,7 +742,7 @@ function receiptsScript(r) {
     }
   }
   // 영수증은 pay.naver.com 에서, 간편결제 짝 얻기(pinfo)는 orders.pay.naver.com 에서만(같은 출처 요청 — pay 출처는 CORS 거절, 11-02 실측)
-  var pinfoRun = work.length > 0 && work[0].pinfo === true;
+  var pinfoRun = work.length > 0 && (work[0].pinfo === true || work[0].osheet === true);
   if (location.host !== (pinfoRun ? 'orders.pay.naver.com' : 'pay.naver.com')) { for (var z = 0; z < work.length; z++) results[z] = { key: work[z].key, st: 'net' }; done(); return; }
   if (a.scan === true) {
     var afterScan = function (extra) { queueScan(extra); if (work.length === 0) { done(); return; } setTimeout(done, a.deadlineMs); pump(); };

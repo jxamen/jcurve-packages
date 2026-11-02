@@ -130,6 +130,11 @@ function createNaverApiFlow(opts = {}) {
         if (final)
             return final;
         if (!ending) {
+            // orders 출처에서 아직 못 한 줄 — 조용히 사라지지 않게(주문상세는 예전대로 「영수증 없음」)
+            for (const w of [...pinfoBatch, ...pinfoWait])
+                missOrders(w, 'no-pair');
+            pinfoBatch = [];
+            pinfoWait = [];
             const at = phase;
             phase = 'finished';
             ending = { reason, orders: pending.splice(0), stats: { ...stats } };
@@ -172,10 +177,11 @@ function createNaverApiFlow(opts = {}) {
     const failCodes = new Map();
     /** 네이버페이 내역(pay.naver.com/history __NEXT_DATA__) 읽기 — 영수증 큐가 비면 한 번. 찾은 짝 수 · 가져옴 · 못 가져옴 */
     let scanned = false;
-    /** 간편결제(SIMPLE_PAYMENT) · 외부몰 네이버페이 줄 — 결제번호(paymentId)만 있는 작업. 마지막에 orders.pay.naver.com 출처 화면을 한 번 열고
-        GET orderApi/payment/detail/info 로 tid 를 얻는다(11-02 대표님 확인 길 — 전부 HTTP, 결제 상세 화면을 줄마다 열지 않는다) */
     let pinfoWait = [];
-    let pinfoDone = false;
+    /** orders 출처 화면을 연 횟수 — 간편결제 한 번 + 영수증 단계에서 나온 주문상세 한 번(같은 줄은 한 번만 보낸다) */
+    let pinfoRounds = 0;
+    const MAX_PINFO_ROUNDS = 3;
+    const osheetSent = new Set();
     /** 지금 보낸 pinfo 작업 묶음(8건까지씩) */
     let pinfoBatch = [];
     /** 쇼핑 주문 목록에서 이번에 본 주문번호 — 네이버페이 내역 줄과 겹치면 내역 줄은 건너뛴다 */
@@ -209,6 +215,15 @@ function createNaverApiFlow(opts = {}) {
         setOutcome(j.key, { state: 'failed', code });
         stats.unfetched = [...(stats.unfetched ?? []), j.order.orderNo];
     };
+    /** orders 출처 작업을 못 했을 때 — 주문상세(osheet)는 예전 결과 그대로 「영수증 없음」, 간편결제(pinfo)는 까닭 */
+    const missOrders = (w, code) => {
+        if (w.osheet) {
+            noneN++;
+            setOutcome(w.j.key, { state: 'none' });
+        }
+        else
+            fail(w.j, code);
+    };
     const listAction = () => ({ kind: 'api', name: 'shop', maxPages: 40, sinceMs, since: cutoff, until: untilDate });
     const toJob = (j) => {
         const o = j.order;
@@ -238,14 +253,14 @@ function createNaverApiFlow(opts = {}) {
     const backToPay = () => { phase = 'pay'; tries = 0; curPayPage = 1; return { type: 'goto', url: (0, naverReceipt_1.payHistoryUrl)(1) }; };
     /** 간편결제 짝 얻기 — orders.pay.naver.com 출처 화면(주문 상태 화면 하나)을 한 번 열고, payment/detail/info 를 HTTP 로 부른다(11-02 대표님 확인 길 — 줄마다 결제 상세 화면을 열지 않는다) */
     const gotoPinfo = () => {
-        pinfoDone = true;
+        pinfoRounds++;
         phase = 'pinfoPage';
         tries = 0;
         // 출처 확보용 화면 하나 — 목록에서 본 실제 주문의 상태 화면(대표님 14:22:36 원문 화면). 없으면 이 단계는 못 한다
         const ono = [...listedNos].find((n) => /^\d{16}$/.test(n));
         if (!ono) {
             for (const w of pinfoWait)
-                fail(w.j, 'no-pair');
+                missOrders(w, 'no-pair');
             pinfoWait = [];
             return queue.length > 0 ? backToPay() : finishAll();
         }
@@ -255,7 +270,7 @@ function createNaverApiFlow(opts = {}) {
         phase = 'pinfo';
         pinfoBatch = pinfoWait.splice(0, slow ? naverReceiptsScript_1.RECEIPTS_SLOW.batch : naverReceiptsScript_1.RECEIPTS_BATCH);
         return {
-            kind: 'receipts', jobs: pinfoBatch.map((w) => ({ key: w.j.key, orderNo: w.j.order.orderNo, pinfo: true, paymentId: w.paymentId })),
+            kind: 'receipts', jobs: pinfoBatch.map((w) => (w.osheet ? { key: w.j.key, orderNo: w.j.order.orderNo, osheet: true } : { key: w.j.key, orderNo: w.j.order.orderNo, pinfo: true, paymentId: w.paymentId })),
             conc: slow ? naverReceiptsScript_1.RECEIPTS_SLOW.conc : naverReceiptsScript_1.RECEIPTS_CONC, staggerMs: slow ? 0 : naverReceiptsScript_1.RECEIPTS_STAGGER_MS, gapMs: slow ? naverReceiptsScript_1.RECEIPTS_SLOW.gapMs : 0,
             timeoutMs: naverReceiptsScript_1.RECEIPTS_TIMEOUT_MS, deadlineMs: naverReceiptsScript_1.RECEIPTS_DEADLINE_MS,
         };
@@ -276,17 +291,19 @@ function createNaverApiFlow(opts = {}) {
                     items.push({ where: 'rcpt-pinfo-s200', host: 'orders.pay.naver.com', path: '/orderApi/payment/detail/info', lines: ['via http'] });
                 }
             }
+            else if (r?.st === 'ok')
+                settleOk(w.j, r.slip); // 카드가 아닌 결제 — 주문상세를 영수증으로
             else if (r?.st === 'none') {
                 noneN++;
                 setOutcome(w.j.key, { state: 'none' });
             }
             else
-                fail(w.j, FAIL_OF[r?.st ?? 'net'] ?? 'no-pair');
+                missOrders(w, FAIL_OF[r?.st ?? 'net'] ?? 'no-pair');
         }
         pinfoBatch = [];
         for (const x of results)
             if (x.diag)
-                items.push({ where: `rcpt-${x.diag.w}-s${x.diag.status}`, host: 'orders.pay.naver.com', path: '/orderApi/payment/detail/info', lines: x.diag.lines });
+                items.push({ where: `rcpt-${x.diag.w}-s${x.diag.status}`, host: 'orders.pay.naver.com', path: x.diag.w === 'osheet' ? '/orderApi/orderSheet/detail' : '/orderApi/payment/detail/info', lines: x.diag.lines });
         const nextStep = () => (pinfoWait.length > 0 ? sendPinfo() : backToPay());
         return items.length > 0 ? structureThen(items, nextStep) : nextStep();
     };
@@ -397,8 +414,14 @@ function createNaverApiFlow(opts = {}) {
             tries = 0;
             return { type: 'goto', url: (0, naverReceipt_1.payHistoryUrl)(scanNextPage) };
         }
-        if (queue.length === 0 && pinfoWait.length > 0 && !pinfoDone)
+        if (queue.length === 0 && pinfoWait.length > 0 && pinfoRounds < MAX_PINFO_ROUNDS)
             return gotoPinfo();
+        // 더 열 수 없으면 남은 orders 작업은 까닭을 남긴다(조용히 사라지지 않게)
+        if (queue.length === 0 && pinfoWait.length > 0) {
+            for (const w of pinfoWait)
+                missOrders(w, 'no-pair');
+            pinfoWait = [];
+        }
         if (queue.length === 0)
             return finishAll();
         return sendQueue();
@@ -502,15 +525,29 @@ function createNaverApiFlow(opts = {}) {
             setOutcome(j.key, { state: 'none', why: 'cancelled' });
             return;
         }
-        const amount = slip.amount ?? j.order.amount;
-        const paidAt = (0, naverReceipt_1.normalizeKst)(slip.approvalAt);
-        const done = (0, naverReceipt_1.toImportOrder)({ businessNumber: slip.businessNo, approval: slip.approvalNo, paidAt: paidAt ?? undefined, amount, cardIssuer: slip.cardCompany }, { orderNo: j.order.orderNo, seller: slip.sellerName ?? j.order.seller, title: slip.productName ?? j.order.title, amount }, { kind: slip.tradeType === '현금영수증' ? 'purchase' : 'card', allowNoSeconds });
+        // 주문상세 영수증(비카드)은 칸 이름이 아직 「미확인」이라 금액 · 시각은 목록(대표님 웹과 같은 내역)에서 이미 본 값을 먼저 쓴다
+        const os = slip.orderSheet === true;
+        const amount = os && j.order.amount > 0 ? j.order.amount : slip.amount ?? j.order.amount;
+        if (os && !(amount > 0)) {
+            noneN++;
+            setOutcome(j.key, { state: 'none' });
+            return;
+        } // 주문상세 실패는 예전 결과 그대로
+        const paidAt = os ? ((0, naverReceipt_1.normalizeKst)(j.order.orderedAt) ?? (0, naverReceipt_1.normalizeKst)(slip.approvalAt)) : (0, naverReceipt_1.normalizeKst)(slip.approvalAt);
+        const done = (0, naverReceipt_1.toImportOrder)({ businessNumber: slip.businessNo, approval: slip.approvalNo, paidAt: paidAt ?? undefined, amount, cardIssuer: slip.cardCompany }, { orderNo: j.order.orderNo, seller: slip.sellerName ?? j.order.seller, title: slip.productName ?? j.order.title, amount }, { kind: slip.tradeType === '현금영수증' || os ? 'purchase' : 'card', allowNoSeconds });
+        if (!done && os) {
+            noneN++;
+            setOutcome(j.key, { state: 'none' });
+            return;
+        }
         if (!done) {
             fail(j, 'unreadable');
             return;
         }
         if (slip.tradeType === '현금영수증')
             done.payment = '현금영수증'; // 현금영수증도 가져온다(11-02 대표님) — 카드로 적지 않는다
+        if (os)
+            done.payment = slip.tradeType?.startsWith('네이버페이') ? slip.tradeType.slice(0, 30) : '네이버페이'; // 예: 네이버페이 머니·포인트
         done.detail = (0, exports.detailOf)(slip);
         // 목록 행과 같은 키로 이어 서버가 목록 행을 완성본으로 바꾸게 한다(영수증의 결제 시각이 주문 시각과 달라도)
         if (j.order.listKey)
@@ -593,6 +630,11 @@ function createNaverApiFlow(opts = {}) {
             const r = byKey.get(j.key) ?? { key: j.key, st: 'net' };
             if (r.st === 'ok')
                 settleOk(j, r.slip);
+            // 카드영수증이 없는 쇼핑 주문 — 버리지 않고 주문상세(orderSheet)를 영수증으로 읽으러 orders 출처로(한 줄 한 번만)
+            else if (r.st === 'none' && /^\d{16}$/.test(j.order.orderNo) && !osheetSent.has(j.key)) {
+                osheetSent.add(j.key);
+                pinfoWait.push({ j, osheet: true });
+            }
             else if (r.st === 'none') {
                 noneN++;
                 setOutcome(j.key, { state: 'none' });
@@ -650,7 +692,7 @@ function createNaverApiFlow(opts = {}) {
                     pinfoWait.unshift(w);
                 }
                 else
-                    fail(w.j, 'network');
+                    missOrders(w, 'network');
             }
             pinfoBatch = [];
             if (timeoutRun >= MAX_TIMEOUT_RUN)
@@ -696,7 +738,7 @@ function createNaverApiFlow(opts = {}) {
                 return { type: 'login' };
             if (hostOf(url) !== 'orders.pay.naver.com') {
                 for (const w of [...pinfoBatch, ...pinfoWait])
-                    fail(w.j, 'no-pair');
+                    missOrders(w, 'no-pair');
                 pinfoWait = [];
                 pinfoBatch = [];
                 return backToPay();
