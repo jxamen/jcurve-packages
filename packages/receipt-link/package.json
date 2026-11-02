@@ -1,0 +1,11 @@
+{
+  "name": "@jcurve/receipt-link",
+  "version": "1.0.0",
+  "description": "쇼핑몰 주문 · 영수증 수집(네이버 쇼핑+네이버페이 · 쿠팡 · 무신사 · 컬리) — 숨은 웹뷰에서 앱과 같은 흐름. 화면 · 서버 호출은 앱마다",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist", "src", "README.md"],
+  "scripts": { "build": "tsc -p tsconfig.json", "test": "vitest run" },
+  "repository": { "type": "git", "url": "https://github.com/jxamen/jcurve-packages", "directory": "packages/receipt-link" },
+  "license": "UNLICENSED"
+}
