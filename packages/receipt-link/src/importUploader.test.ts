@@ -84,6 +84,16 @@ describe('읽는 대로 올리기 (createUploader)', () => {
     expect(r.result.note).toBeUndefined();
   });
 
+  it('끝낼 때 서버가 거절한 까닭별 개수(tally)를 돌려준다 — 컬리 6건이 전부 거절된 까닭을 구조 기록으로 남기는 근거', async () => {
+    const s = server({ result: (_o, i) => (i < 2 ? 'out_of_range' : i === 2 ? 'amount' : 'new') });
+    const u = createUploader({ send: s.send, nowMs: NOW });
+    u.add([raw(1), raw(2), raw(3), raw(4)]);
+    const r = await u.finish();
+    expect(r.tally).toMatchObject({ new: 1, out_of_range: 2, amount: 1, invalid: 0 });
+    expect(r.result.rejected).toBe(3);
+    expect(r.unreadable).toBe(0);
+  });
+
   it('계속 실패하면 finish 가 못 올린 수를 알려 준다(화면은 「다시 보내기」)', async () => {
     const s = server({ failTimes: 99 });
     const u = createUploader({ send: s.send, nowMs: NOW });

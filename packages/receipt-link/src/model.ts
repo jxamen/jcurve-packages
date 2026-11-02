@@ -65,6 +65,18 @@ const object = (v: unknown): Record<string, unknown> => v !== null && typeof v =
 const RESULTS: OrderResult[] = ['new', 'duplicate', 'updated', 'taken', 'out_of_range', 'invalid', 'amount', 'pouch_full'];
 const strOrNull = (v: unknown): string | null => typeof v === 'string' && v ? v : null;
 
+/**
+ * 이 사이트를 읽을 기간(일) — 서버 앱설정 readDays 를 서버가 받아 주는 기간(windowDays)까지만 쓴다.
+ * 서버는 windowDays(365)보다 오래된 주문을 out_of_range 로 거절한다 — 컬리를 1095 일로 읽던 11-02 에 읽은 6건이 전부 거절돼 0건이었다.
+ * readDays 가 없으면 undefined(흐름 기본값). windowDays 가 30 이하면(서버가 안 보낸 기본값) 자르지 않는다.
+ */
+export function effectiveReadDays(state: { windowDays: number; readDays?: Partial<Record<LinkPlatform, number>> } | null | undefined, platform: LinkPlatform): number | undefined {
+  const days = state?.readDays?.[platform];
+  if (!days) return undefined;
+  const accepted = state?.windowDays ?? 0;
+  return accepted > 30 ? Math.min(days, accepted) : days;
+}
+
 export function parseLinkState(v: unknown): LinkState {
   const r = object(v);
   const links: LinkState['links'] = {};

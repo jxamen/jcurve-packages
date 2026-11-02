@@ -20,7 +20,7 @@ export type UploadProgress = {
   /** 주머니가 가득 차서 더 올리지 않는다 */
   full: boolean;
 };
-export type UploadSummary = { result: ImportResult; pending: number; readOff: boolean };
+export type UploadSummary = { result: ImportResult; pending: number; readOff: boolean; tally: ImportTally; unreadable: number };
 export type UploaderSend = (orders: OrderInput[]) => Promise<{ tally: ImportTally; unreadable: number }>;
 export type Uploader = {
   /** 흐름이 낸 주문들 — 검사 · 중복 거르기 뒤 줄에 세우고 바로 올린다 */
@@ -121,7 +121,7 @@ export function createUploader(args: { send: UploaderSend; onChange?: (p: Upload
         rejected: c.rejected + unreadable + tally.taken + tally.out_of_range + tally.invalid + tally.amount + tally.pouch_full,
         note: c.read === 0 ? 'no_orders' : undefined,
       };
-      return { result, pending: queue.length, readOff };
+      return { result, pending: queue.length, readOff, tally: { ...tally }, unreadable };
     },
   };
 }

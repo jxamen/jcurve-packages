@@ -23,6 +23,8 @@ export type UploadSummary = {
     result: ImportResult;
     pending: number;
     readOff: boolean;
+    tally: ImportTally;
+    unreadable: number;
 };
 export type UploaderSend = (orders: OrderInput[]) => Promise<{
     tally: ImportTally;

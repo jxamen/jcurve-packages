@@ -107,7 +107,7 @@ function createUploader(args) {
                 rejected: c.rejected + unreadable + tally.taken + tally.out_of_range + tally.invalid + tally.amount + tally.pouch_full,
                 note: c.read === 0 ? 'no_orders' : undefined,
             };
-            return { result, pending: queue.length, readOff };
+            return { result, pending: queue.length, readOff, tally: { ...tally }, unreadable };
         },
     };
 }

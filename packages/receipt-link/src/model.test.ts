@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addTally, chunkOrders, cleanOrder, emptyTally, importMessage, isConnected, normalizeListKey, parseLinkState } from './model';
+import { addTally, chunkOrders, cleanOrder, effectiveReadDays, emptyTally, importMessage, isConnected, normalizeListKey, parseLinkState } from './model';
 
 describe('order link state', () => {
   it('reads the server state defensively', () => {
@@ -94,5 +94,28 @@ describe('batching and result tally', () => {
     expect(m).toContain('이미 가져온 2건');
     expect(m).toContain('다른 계정에서 이미 받은 1건');
     expect(m).toContain('읽을 수 없는 5건');
+  });
+});
+
+describe('effectiveReadDays — 서버가 받아 주는 기간까지만 읽는다', () => {
+  it('컬리 1095 일 설정이어도 서버 받는 기간 365 로 자른다(1년 넘은 주문은 서버가 out_of_range 로 거절)', () => {
+    const s = parseLinkState({ windowDays: 365, links: {}, readDays: { naver: 365, kurly: 1095 } });
+    expect(effectiveReadDays(s, 'kurly')).toBe(365);
+    expect(effectiveReadDays(s, 'naver')).toBe(365);
+  });
+  it('설정이 받는 기간보다 짧으면 그대로, 설정이 없으면 undefined(흐름 기본값)', () => {
+    const s = parseLinkState({ windowDays: 365, links: {}, readDays: { coupang: 90 } });
+    expect(effectiveReadDays(s, 'coupang')).toBe(90);
+    expect(effectiveReadDays(s, 'musinsa')).toBeUndefined();
+    expect(effectiveReadDays(null, 'kurly')).toBeUndefined();
+  });
+  it('서버가 받는 기간을 안 보낸 기본값(30)이면 자르지 않는다 — 읽기 기간이 30 일로 줄어드는 사고 방지', () => {
+    const s = parseLinkState({ links: {}, readDays: { kurly: 1095 } });
+    expect(s.windowDays).toBe(30);
+    expect(effectiveReadDays(s, 'kurly')).toBe(1095);
+  });
+  it('서버가 받는 기간을 늘리면(1095) 그만큼 읽는다', () => {
+    const s = parseLinkState({ windowDays: 1095, links: {}, readDays: { kurly: 1095 } });
+    expect(effectiveReadDays(s, 'kurly')).toBe(1095);
   });
 });
