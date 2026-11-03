@@ -282,7 +282,8 @@ export type FlowStats = {
     rejected: number;
     probes: number;
     duplicates: number; /** 못 가져온 주문번호(16자리) 목록 — 호스트가 줄별로 「못 가져옴」 표시 */
-    unfetched?: string[];
+    unfetched?: string[]; /** 까닭별 개수(「http-400」 · 「no-pair」 · 「receipt-none」…) — 값 없이, 실행 끝 기록용(11-03 쿠팡 14자리) */
+    reasons?: Record<string, number>;
 };
 export type FlowEvent = {
     type: 'start';

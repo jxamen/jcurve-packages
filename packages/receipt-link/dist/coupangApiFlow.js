@@ -59,7 +59,7 @@ const MAX_TIMEOUT_RUN = 3;
 /** 성공이 하나도 없는 채로 영수증 묶음이 연달아 이만큼 net 으로만 오면 교차 출처 거절로 본다 */
 const MAX_ALL_NET_RUN = 2;
 const ORDER_ID_KEY = /^(order(Id|No|Number|Seq|Sn)?|ordNo|orderid)$/i;
-const ORDER_ID_VALUE = /^\d{10,19}$/; // 쿠팡 orderId 가 17자리 이상이면 /^\d{10,16}$/ 가 걸러내 0건이던 문제(대표님 10-30). parseBig 로 정밀하게 읽은 값을 그대로 받는다
+const ORDER_ID_VALUE = /^\d{1,40}$/; // 자릿수로 거르지 않는다 — 목록에서 읽은 주문번호를 몇 자리든 그대로(대표님 11-03 「3자리든 20자리든」). parseBig 로 정밀하게 읽은 값을 그대로 받는다
 const VENDOR_VALUE = /^[A-Z]\d{7,10}$/;
 const DATE_KEYS = [/^order(ed)?(At|Date|Time|Dt|Dttm)$/i, /^ordDt$/i, /^(created|regist(er|ered)?|reg)(At|Date)$/i, /^(order)?date(Str|Text)?$/i, /^(pay|paid)(At|Date|Time)$/i];
 const GROUP_DATE_KEYS = /^(date|orderDate|orderedDate|dateStr|dateText|groupDate|headerDate)$/i;
@@ -189,16 +189,15 @@ function findCoupangOrders(root) {
         }
         if (!isObj(o))
             return;
+        // 주문번호 칸이 여럿이면(order 순번 · orderId 등) 가장 긴 숫자 — 자릿수 제한 대신 「order: 1」 같은 순번을 주문번호로 집지 않게
         let orderId;
         for (const k of Object.keys(o)) {
             if (!ORDER_ID_KEY.test(k))
                 continue;
             const v = o[k];
             const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v : '';
-            if (ORDER_ID_VALUE.test(s)) {
+            if (ORDER_ID_VALUE.test(s) && (orderId === undefined || s.length > orderId.length))
                 orderId = s;
-                break;
-            }
         }
         if (orderId !== undefined) {
             if (!seen.has(orderId)) {
@@ -442,7 +441,13 @@ function createCoupangApiFlow(opts = {}) {
     const orders = [];
     const pending = [];
     const outcomes = [];
-    const stats = { rejected: 0, probes: 0, duplicates: 0, unfetched: [] };
+    const stats = { rejected: 0, probes: 0, duplicates: 0, unfetched: [], reasons: {} };
+    /** 까닭 하나 세기 — 주문 14자리 · 13자리를 갈라 센다(14자리만 영수증이 안 열리던 문제, 11-03) */
+    const note = (k, orderId) => {
+        const key = `${k}${orderId ? `:d${orderId.length}` : ''}`.slice(0, 30);
+        const r = (stats.reasons ?? (stats.reasons = {}));
+        r[key] = (r[key] ?? 0) + 1;
+    };
     const structSeen = new Set();
     let total = 0;
     let okN = 0;
@@ -508,6 +513,7 @@ function createCoupangApiFlow(opts = {}) {
     const setOutcome = (key, outcome) => { outcomes.push({ key, outcome }); };
     const fail = (j, code) => {
         failN++;
+        note(code, j.row.orderId);
         setOutcome(j.key, { state: 'failed', code });
         stats.unfetched = [...(stats.unfetched ?? []), j.row.orderId];
     };
@@ -656,6 +662,7 @@ function createCoupangApiFlow(opts = {}) {
     const settleOk = (j, read) => {
         if (read.kind === 'none') {
             noneN++;
+            note('receipt-none', j.row.orderId);
             setOutcome(j.key, { state: 'none' });
             return;
         }
@@ -680,6 +687,7 @@ function createCoupangApiFlow(opts = {}) {
         orders.push(done);
         pending.push(done);
         okN++;
+        note('ok', j.row.orderId);
         setOutcome(j.key, { state: 'done' });
     };
     const onReceiptsFetched = (results) => {
@@ -726,6 +734,7 @@ function createCoupangApiFlow(opts = {}) {
             }
             else if (r.st === 'http') {
                 noneN++;
+                note(`http-${r.status ?? 0}${r.why ? `-${r.why.replace(/[^a-z0-9_-]/g, '').slice(0, 10)}` : ''}:v${j.row.vendorIds.length}`, j.row.orderId);
                 setOutcome(j.key, { state: 'none' });
             } // 404 같은 응답 — 그 주문에는 카드영수증이 없는 것으로 본다(가정)
             else

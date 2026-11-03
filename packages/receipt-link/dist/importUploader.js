@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.FINISH_RETRY_MS = void 0;
 exports.createUploader = createUploader;
 /**
  * 주문 불러오기 — 읽는 대로 서버에 올리는 순수 로직(노드에서 시험한다). react-native 를 import 하지 않는다.
@@ -8,6 +9,11 @@ exports.createUploader = createUploader;
  */
 const importPlan_1 = require("./importPlan");
 const model_1 = require("./model");
+const statusOf = (e) => { const s = e?.status; return typeof s === 'number' ? s : 0; };
+/** 묶음의 어느 줄 때문에 서버가 통째로 거절했을 수 있는 응답 — 반으로 나눠 다시 보낸다(로그인 · 막힘 · 연동 안 됨 · 너무 잦음은 제외) */
+const isRowReject = (st) => st >= 400 && st < 500 && ![401, 403, 404, 409, 429].includes(st);
+/** 끝낼 때 다시 보내기 전 기다리는 시간 — 서버가 잠깐 바쁘거나 응답이 늦을 때(11-03 네이버 56건 「보내지 못함」) */
+exports.FINISH_RETRY_MS = [2000, 5000, 10000];
 const isReadDisabled = (e) => e?.status === 403 && e?.code === 'read_disabled';
 function sum(a, b) {
     const out = (0, model_1.emptyTally)();
@@ -26,6 +32,9 @@ function createUploader(args) {
     let full = false;
     let running = null;
     let rerun = false;
+    let size = model_1.ORDERS_PER_REQUEST; // 4xx 로 묶음이 거절되면 반씩 줄인다 — 한 줄 때문에 뒤 줄이 전부 막히지 않게
+    let dropped = 0; // 혼자 보내도 거절된 줄(뺐다)
+    const errors = {};
     const progress = () => ({ read: coll.size(), sent, pending: queue.length, failed, readOff, full });
     const notify = () => { if (args.onChange)
         args.onChange(progress()); };
@@ -33,7 +42,7 @@ function createUploader(args) {
         do {
             rerun = false;
             while (queue.length > 0 && !full && !readOff) {
-                const chunk = queue.slice(0, model_1.ORDERS_PER_REQUEST);
+                const chunk = queue.slice(0, size);
                 try {
                     const r = await args.send(chunk);
                     queue.splice(0, chunk.length);
@@ -41,6 +50,7 @@ function createUploader(args) {
                     unreadable += r.unreadable;
                     tally = sum(tally, r.tally);
                     failed = false;
+                    size = Math.min(model_1.ORDERS_PER_REQUEST, size * 2);
                     if (r.tally.pouch_full > 0) {
                         // 주머니가 가득 찼다 — 남은 것은 보내도 모두 pouch_full 이라 보내지 않고 같은 사유로 센다
                         full = true;
@@ -50,6 +60,20 @@ function createUploader(args) {
                     notify();
                 }
                 catch (e) {
+                    const st = statusOf(e);
+                    const ek = `send-${st || 'net'}`;
+                    errors[ek] = (errors[ek] ?? 0) + 1;
+                    if (!isReadDisabled(e) && isRowReject(st)) {
+                        if (chunk.length > 1) {
+                            size = Math.ceil(chunk.length / 2);
+                            continue;
+                        }
+                        queue.splice(0, 1);
+                        dropped++;
+                        tally.invalid++;
+                        notify();
+                        continue; // 혼자 보내도 거절 — 그 줄만 빼고 다음 줄로
+                    }
                     if (isReadDisabled(e)) {
                         readOff = true;
                         queue.length = 0;
@@ -93,7 +117,10 @@ function createUploader(args) {
         setWindowDays(days) { coll.setWindowDays(days ?? importPlan_1.WINDOW_DAYS); },
         progress,
         async finish() {
-            for (let i = 0; i < 2; i++) {
+            const waits = args.retryMs ?? exports.FINISH_RETRY_MS;
+            for (let i = 0; i <= waits.length; i++) {
+                if (i > 0)
+                    await new Promise((r) => setTimeout(r, waits[i - 1]));
                 await flush();
                 if (queue.length === 0 || readOff || full)
                     break;
@@ -107,7 +134,10 @@ function createUploader(args) {
                 rejected: c.rejected + unreadable + tally.taken + tally.out_of_range + tally.invalid + tally.amount + tally.pouch_full,
                 note: c.read === 0 ? 'no_orders' : undefined,
             };
-            return { result, pending: queue.length, readOff, tally: { ...tally }, unreadable };
+            return { result, pending: queue.length, readOff, tally: { ...tally }, unreadable, errors: { ...errors }, dropped };
+        },
+        pendingOrders() {
+            return queue.slice();
         },
     };
 }

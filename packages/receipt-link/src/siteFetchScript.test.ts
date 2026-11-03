@@ -135,6 +135,9 @@ describe('결과 갈래', () => {
     expect((await st({ status: 403 })).st).toBe('blocked');
     expect((await st({ status: 429 })).st).toBe('blocked');
     expect(await st({ status: 500 })).toMatchObject({ st: 'http', status: 500 });
+    // 4xx 는 본문의 오류 코드 이름만 why 로(문장 · 값은 싣지 않는다)
+    expect(await st({ status: 400, text: '{"code":"INVALID_ORDER","message":"주문 정보가 올바르지 않습니다"}' })).toEqual({ key: 'a', st: 'http', status: 400, why: 'invalid_order' });
+    expect(await st({ status: 400, text: '<html>bad</html>' })).toEqual({ key: 'a', st: 'http', status: 400 });
     expect((await st({ reject: true })).st).toBe('net');
     expect((await st({ text: '<html>' })).st).toBe('shape');
   });

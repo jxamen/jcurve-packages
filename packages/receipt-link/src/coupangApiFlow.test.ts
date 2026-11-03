@@ -66,6 +66,13 @@ describe('이름으로 주문 찾기 (findCoupangOrders)', () => {
     expect(found[0]).toMatchObject({ seller: '가짜상점1', title: '가짜상품1', vendorIds: [VENDOR], cancelled: false });
   });
 
+  it('주문번호는 자릿수로 거르지 않는다(3자리 · 14자리 · 20자리 그대로) — 주문번호 칸이 여럿이면 가장 긴 값(order 순번을 집지 않게, 대표님 11-03)', () => {
+    for (const no of ['123', '25110312345678', '12345678901234567890']) {
+      expect(findCoupangOrders({ list: [{ orderId: no, orderedAt: '2026-10-06T09:11:12', payAmount: 5000 }] }).map((o) => o.orderId)).toEqual([no]);
+    }
+    expect(findCoupangOrders({ list: [{ order: 1, orderId: '25110312345678', orderedAt: '2026-10-06T09:11:12', payAmount: 5000 }] }).map((o) => o.orderId)).toEqual(['25110312345678']);
+  });
+
   it('날짜 머리글 객체의 날짜를 아래 주문이 이어받고, 날짜만 있으면 00:00:00 자리표시(dateOnly)', () => {
     const found = findCoupangOrders({ groups: [{ date: '2026.10.06', orders: [{ orderId: ID(3), payAmount: 5000, vendorIds: [VENDOR, 'B01234567'] }] }] });
     expect(found).toHaveLength(1);

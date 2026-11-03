@@ -19,12 +19,15 @@ export type UploadProgress = {
     /** 주머니가 가득 차서 더 올리지 않는다 */
     full: boolean;
 };
+/** errors: 실패한 요청의 응답 번호별 횟수(「send-422」 · 「send-net」) — 값 없이 개수만, 실행 끝 기록용(11-03 네이버 56건) */
 export type UploadSummary = {
     result: ImportResult;
     pending: number;
     readOff: boolean;
     tally: ImportTally;
     unreadable: number;
+    errors: Record<string, number>;
+    dropped: number;
 };
 export type UploaderSend = (orders: OrderInput[]) => Promise<{
     tally: ImportTally;
@@ -38,11 +41,16 @@ export type Uploader = {
     /** 읽기 기간(일)을 바꾼다 — 플랫폼마다 서버 설정이 다르므로 흐름을 시작하기 전에 맞춘다. 없으면 365 */
     setWindowDays(days?: number): void;
     progress(): UploadProgress;
-    /** 끝: 남은 것을 올려 보고(실패 시 한 번 더) 결과를 낸다 */
+    /** 끝: 남은 것을 올려 보고(실패하면 간격을 두고 몇 번 더) 결과를 낸다 */
     finish(): Promise<UploadSummary>;
+    /** 아직 못 올린 주문(복사본) — 앱이 서버 목록과 맞춰 「정말 서버에 없는 것」만 세는 데 쓴다 */
+    pendingOrders(): OrderInput[];
 };
+/** 끝낼 때 다시 보내기 전 기다리는 시간 — 서버가 잠깐 바쁘거나 응답이 늦을 때(11-03 네이버 56건 「보내지 못함」) */
+export declare const FINISH_RETRY_MS: number[];
 export declare function createUploader(args: {
     send: UploaderSend;
     onChange?: (p: UploadProgress) => void;
     nowMs?: number;
+    retryMs?: number[];
 }): Uploader;

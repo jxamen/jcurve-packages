@@ -19,7 +19,7 @@ export type FetchReq = { key: string; method: 'GET' | 'POST'; url: string; body?
  */
 export type FetchStatus = 'ok' | 'login' | 'blocked' | 'net' | 'http' | 'shape';
 /** data: 줄인 JSON(as=json · nextData, as=text 인데 본문이 JSON 일 때) · text: as=text 의 글자(앞 120,000자 — JSON 이면 원문, HTML 이면 태그를 걷은 글자) */
-export type FetchResult = { key: string; st: FetchStatus; status?: number; data?: unknown; text?: string };
+export type FetchResult = { key: string; st: FetchStatus; status?: number; data?: unknown; text?: string; /** 4xx 본문의 오류 코드 이름(영문 소문자 · 숫자 16자 이하)만 — 기록용 */ why?: string };
 
 export type FetchRun = { reqs: FetchReq[]; conc: number; staggerMs: number; gapMs: number; timeoutMs: number; deadlineMs: number };
 

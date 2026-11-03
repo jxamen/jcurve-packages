@@ -56,7 +56,13 @@ export function fetchScript(r: FetchRun): string {
       if (timer) clearTimeout(timer);
       if (res.status === 401 || (res.redirected && isLoginUrl(res.url))) return { key: key, st: 'login', status: res.status };
       if (res.status === 403 || res.status === 429) return { key: key, st: 'blocked', status: res.status };
-      if (!res.ok) return { key: key, st: 'http', status: res.status };
+      // 4xx 는 본문에서 오류 코드 이름(영문 · 숫자 짧은 것)만 「why」로 — 값 · 문장은 싣지 않는다(11-03 쿠팡 400 까닭)
+      if (!res.ok) return res.status >= 500 ? { key: key, st: 'http', status: res.status } : res.text().then(function (t) {
+        var m = /"(?:errorCode|errCode|resultCode|rCode|code)"\s*:\s*"?([A-Za-z0-9_-]{1,16})"?/.exec(String(t).slice(0, 4000));
+        var o = { key: key, st: 'http', status: res.status };
+        if (m) o.why = m[1].toLowerCase();
+        return o;
+      }, function () { return { key: key, st: 'http', status: res.status }; });
       if (q.as === 'json') {
         return res.json().then(function (j) { var d = slim(j); return d === undefined ? { key: key, st: 'shape', status: res.status } : { key: key, st: 'ok', status: res.status, data: d }; }, function () { return { key: key, st: 'shape', status: res.status }; });
       }

@@ -29,7 +29,8 @@ export type FetchResult = {
     st: FetchStatus;
     status?: number;
     data?: unknown;
-    text?: string;
+    text?: string; /** 4xx 본문의 오류 코드 이름(영문 소문자 · 숫자 16자 이하)만 — 기록용 */
+    why?: string;
 };
 export type FetchRun = {
     reqs: FetchReq[];

@@ -66,7 +66,7 @@ export type CoupangListOrder = {
 };
 
 const ORDER_ID_KEY = /^(order(Id|No|Number|Seq|Sn)?|ordNo|orderid)$/i;
-const ORDER_ID_VALUE = /^\d{10,19}$/;   // 쿠팡 orderId 가 17자리 이상이면 /^\d{10,16}$/ 가 걸러내 0건이던 문제(대표님 10-30). parseBig 로 정밀하게 읽은 값을 그대로 받는다
+const ORDER_ID_VALUE = /^\d{1,40}$/;   // 자릿수로 거르지 않는다 — 목록에서 읽은 주문번호를 몇 자리든 그대로(대표님 11-03 「3자리든 20자리든」). parseBig 로 정밀하게 읽은 값을 그대로 받는다
 const VENDOR_VALUE = /^[A-Z]\d{7,10}$/;
 const DATE_KEYS: RegExp[] = [/^order(ed)?(At|Date|Time|Dt|Dttm)$/i, /^ordDt$/i, /^(created|regist(er|ered)?|reg)(At|Date)$/i, /^(order)?date(Str|Text)?$/i, /^(pay|paid)(At|Date|Time)$/i];
 const GROUP_DATE_KEYS = /^(date|orderDate|orderedDate|dateStr|dateText|groupDate|headerDate)$/i;
@@ -163,12 +163,13 @@ export function findCoupangOrders(root: unknown): CoupangListOrder[] {
     if (depth > 18 || out.length >= 800) return;
     if (Array.isArray(o)) { for (const x of o.slice(0, 500)) walk(x, depth + 1, groupDate); return; }
     if (!isObj(o)) return;
+    // 주문번호 칸이 여럿이면(order 순번 · orderId 등) 가장 긴 숫자 — 자릿수 제한 대신 「order: 1」 같은 순번을 주문번호로 집지 않게
     let orderId: string | undefined;
     for (const k of Object.keys(o)) {
       if (!ORDER_ID_KEY.test(k)) continue;
       const v = o[k];
       const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v : '';
-      if (ORDER_ID_VALUE.test(s)) { orderId = s; break; }
+      if (ORDER_ID_VALUE.test(s) && (orderId === undefined || s.length > orderId.length)) orderId = s;
     }
     if (orderId !== undefined) {
       if (!seen.has(orderId)) {
@@ -584,7 +585,7 @@ export function createCoupangApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
       else if (r.st === 'blocked' || r.st === 'net' || (r.st === 'http' && (r.status ?? 0) >= 500)) {
         if (r.st === 'blocked') blocked++;
         if (j.tries + 1 < MAX_JOB_TRIES) { j.tries++; again.push(j); } else fail(j, r.st === 'blocked' ? 'blocked' : 'network');
-      } else if (r.st === 'http') { noneN++; note(`http-${r.status ?? 0}`, j.row.orderId); setOutcome(j.key, { state: 'none' }); }   // 404 같은 응답 — 그 주문에는 카드영수증이 없는 것으로 본다(가정)
+      } else if (r.st === 'http') { noneN++; note(`http-${r.status ?? 0}${r.why ? `-${r.why.replace(/[^a-z0-9_-]/g, '').slice(0, 10)}` : ''}:v${j.row.vendorIds.length}`, j.row.orderId); setOutcome(j.key, { state: 'none' }); }   // 404 같은 응답 — 그 주문에는 카드영수증이 없는 것으로 본다(가정)
       else fail(j, FAIL_OF[r.st] ?? 'unreadable');
     }
     batch = [];
