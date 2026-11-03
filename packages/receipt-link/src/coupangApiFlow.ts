@@ -361,7 +361,13 @@ export function createCoupangApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
   const orders: ReceiptOrder[] = [];
   const pending: ReceiptOrder[] = [];
   const outcomes: OutcomeEvent[] = [];
-  const stats: FlowStats = { rejected: 0, probes: 0, duplicates: 0, unfetched: [] };
+  const stats: FlowStats = { rejected: 0, probes: 0, duplicates: 0, unfetched: [], reasons: {} };
+  /** 까닭 하나 세기 — 주문 14자리 · 13자리를 갈라 센다(14자리만 영수증이 안 열리던 문제, 11-03) */
+  const note = (k: string, orderId?: string): void => {
+    const key = `${k}${orderId ? `:d${orderId.length}` : ''}`.slice(0, 30);
+    const r = (stats.reasons ??= {});
+    r[key] = (r[key] ?? 0) + 1;
+  };
   const structSeen = new Set<string>();
   let total = 0;
   let okN = 0;
@@ -421,6 +427,7 @@ export function createCoupangApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
   const setOutcome = (key: string, outcome: Outcome): void => { outcomes.push({ key, outcome }); };
   const fail = (j: Job, code: FailCode): void => {
     failN++;
+    note(code, j.row.orderId);
     setOutcome(j.key, { state: 'failed', code });
     stats.unfetched = [...(stats.unfetched ?? []), j.row.orderId];
   };
@@ -531,7 +538,7 @@ export function createCoupangApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
 
   /** 영수증 한 장 → 서버로 보낼 완성 주문 */
   const settleOk = (j: Job, read: ReceiptRead): void => {
-    if (read.kind === 'none') { noneN++; setOutcome(j.key, { state: 'none' }); return; }
+    if (read.kind === 'none') { noneN++; note('receipt-none', j.row.orderId); setOutcome(j.key, { state: 'none' }); return; }
     if (read.kind === 'bad') { fail(j, 'unreadable'); return; }
     const s: Slip = { ...read.slip };
     if (!s.paidAt) {   // 영수증에 결제 시각이 없으면 목록의 주문 날짜(+시각이 있으면 시각)를 쓴다 — 초가 없으면 allowNoSeconds 가 켜졌을 때만 서버로 간다
@@ -545,6 +552,7 @@ export function createCoupangApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
     orders.push(done);
     pending.push(done);
     okN++;
+    note('ok', j.row.orderId);
     setOutcome(j.key, { state: 'done' });
   };
 
@@ -576,7 +584,7 @@ export function createCoupangApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
       else if (r.st === 'blocked' || r.st === 'net' || (r.st === 'http' && (r.status ?? 0) >= 500)) {
         if (r.st === 'blocked') blocked++;
         if (j.tries + 1 < MAX_JOB_TRIES) { j.tries++; again.push(j); } else fail(j, r.st === 'blocked' ? 'blocked' : 'network');
-      } else if (r.st === 'http') { noneN++; setOutcome(j.key, { state: 'none' }); }   // 404 같은 응답 — 그 주문에는 카드영수증이 없는 것으로 본다(가정)
+      } else if (r.st === 'http') { noneN++; note(`http-${r.status ?? 0}`, j.row.orderId); setOutcome(j.key, { state: 'none' }); }   // 404 같은 응답 — 그 주문에는 카드영수증이 없는 것으로 본다(가정)
       else fail(j, FAIL_OF[r.st] ?? 'unreadable');
     }
     batch = [];

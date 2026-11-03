@@ -34,7 +34,7 @@ function takeFlow(steps: { made?: ReceiptOrder[]; out?: FlowOut }[]) {
 function wire(factory: (o?: FlowFactoryOptions) => ReceiptFlow, send: UploaderSend) {
   const sentCalls: OrderInput[][] = [];
   const wrapped: UploaderSend = async (orders) => { sentCalls.push(orders); return send(orders); };
-  const uploader = createUploader({ send: wrapped, nowMs: NOW });
+  const uploader = createUploader({ send: wrapped, nowMs: NOW, retryMs: [1, 1, 1] });
   const results: DriverResult[] = [];
   const host: FlowHost = { goto: () => undefined, back: () => undefined, inject: () => undefined, probe: () => undefined, now: () => NOW };
   const d = createFlowDriver({ site: 'naver', factory, host, onOrders: (l) => uploader.add(l), onDone: (r) => results.push(r) });

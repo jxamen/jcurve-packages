@@ -21,6 +21,9 @@ describe('머리 줄 (statusLine) — 읽는 중', () => {
     expect(statusLine({ ...base, total: 133, listTotal: 213, fetched: 64, newFetched: 0 })).toBe('주문 213건 찾음\n새 영수증 받는 중 0/149건\n이미 받은 64건');
     // 목록을 아직 못 받았으면 수 없이
     expect(statusLine({ ...base, total: 133, listTotal: null, fetched: 5, newFetched: 5 })).toBe('영수증 받는 중…\n새 영수증 받는 중 5건');
+    // 지운 직후 서버 목록(69)이 흐름이 찾은 수보다 작아도 분자가 분모를 넘지 않는다(대표님 11-03 「129/69」)
+    expect(statusLine({ ...base, total: 167, listTotal: 69, fetched: 60, newFetched: 129 })).toBe('주문 167건 찾음\n새 영수증 받는 중 129/167건');
+    expect(statusLine({ ...base, total: 50, listTotal: 69, fetched: 60, newFetched: 129 })).toBe('주문 69건 찾음\n새 영수증 받는 중 69/69건');
   });
 
   it('영수증 없음 K · 못 가져옴 F 는 각각 짧은 줄로 따로 (· 로 붙여 단어 중간에서 안 끊기게)', () => {

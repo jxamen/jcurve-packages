@@ -29,7 +29,7 @@ describe('읽는 대로 올리기 (createUploader)', () => {
   it('add 하는 대로 바로 올리고, 이미 올린 주문은 다시 올리지 않는다', async () => {
     const s = server();
     const seen: UploadProgress[] = [];
-    const u = createUploader({ send: s.send, nowMs: NOW, onChange: (p) => seen.push(p) });
+    const u = createUploader({ send: s.send, nowMs: NOW, retryMs: [1, 1, 1], onChange: (p) => seen.push(p) });
     u.add([raw(1), raw(2)]);
     await u.flush();
     u.add([raw(2), raw(3)]);
@@ -48,7 +48,7 @@ describe('읽는 대로 올리기 (createUploader)', () => {
       if (calls.length === 1) return new Promise((res) => { release = () => res({ tally: t, unreadable: 0 }); });
       return Promise.resolve({ tally: t, unreadable: 0 });
     };
-    const u = createUploader({ send, nowMs: NOW });
+    const u = createUploader({ send, nowMs: NOW, retryMs: [1, 1, 1] });
     u.add([raw(1)]);
     expect(calls).toEqual([1]);
     u.add(Array.from({ length: 70 }, (_, i) => raw(10 + i)));
@@ -63,7 +63,7 @@ describe('읽는 대로 올리기 (createUploader)', () => {
 
   it('실패한 묶음은 줄에 남고 다음 add 에서 다시 올린다(순서 유지)', async () => {
     const s = server({ failTimes: 1 });
-    const u = createUploader({ send: s.send, nowMs: NOW });
+    const u = createUploader({ send: s.send, nowMs: NOW, retryMs: [1, 1, 1] });
     u.add([raw(1), raw(2)]);
     await u.flush();
     expect(u.progress()).toMatchObject({ read: 2, sent: 0, pending: 2, failed: true });
@@ -75,7 +75,7 @@ describe('읽는 대로 올리기 (createUploader)', () => {
 
   it('끝낼 때(finish) 남은 것을 올리고, 한 번 실패해도 한 번 더 시도한다', async () => {
     const s = server({ failTimes: 1 });
-    const u = createUploader({ send: s.send, nowMs: NOW });
+    const u = createUploader({ send: s.send, nowMs: NOW, retryMs: [1, 1, 1] });
     u.add([raw(1)]);
     const r = await u.finish();
     expect(s.calls).toHaveLength(2);
@@ -86,7 +86,7 @@ describe('읽는 대로 올리기 (createUploader)', () => {
 
   it('끝낼 때 서버가 거절한 까닭별 개수(tally)를 돌려준다 — 컬리 6건이 전부 거절된 까닭을 구조 기록으로 남기는 근거', async () => {
     const s = server({ result: (_o, i) => (i < 2 ? 'out_of_range' : i === 2 ? 'amount' : 'new') });
-    const u = createUploader({ send: s.send, nowMs: NOW });
+    const u = createUploader({ send: s.send, nowMs: NOW, retryMs: [1, 1, 1] });
     u.add([raw(1), raw(2), raw(3), raw(4)]);
     const r = await u.finish();
     expect(r.tally).toMatchObject({ new: 1, out_of_range: 2, amount: 1, invalid: 0 });
@@ -96,26 +96,54 @@ describe('읽는 대로 올리기 (createUploader)', () => {
 
   it('계속 실패하면 finish 가 못 올린 수를 알려 준다(화면은 「다시 보내기」)', async () => {
     const s = server({ failTimes: 99 });
-    const u = createUploader({ send: s.send, nowMs: NOW });
+    const u = createUploader({ send: s.send, nowMs: NOW, retryMs: [1, 1, 1] });
     u.add([raw(1), raw(2)]);
     const r = await u.finish();
     expect(r.pending).toBe(2);
     expect(r.result.sent).toBe(0);
     s.calls.length = 0;
-    const again = createUploader({ send: server().send, nowMs: NOW });
+    const again = createUploader({ send: server().send, nowMs: NOW, retryMs: [1, 1, 1] });
     again.add([raw(1)]);
     expect((await again.finish()).pending).toBe(0);
   });
 
+  it('서버가 묶음을 422 로 거절하면 반씩 나눠 보내고, 혼자서도 거절되는 줄만 뺀다 — 한 줄 때문에 56건이 막히던 것(11-03)', async () => {
+    const calls: number[] = [];
+    const send: UploaderSend = async (orders) => {
+      calls.push(orders.length);
+      if (orders.some((o) => o.orderNo === 'RC-100007')) throw Object.assign(new Error('x'), { status: 422, code: 'invalid' });
+      const t = emptyTally(); t.new = orders.length; return { tally: t, unreadable: 0 };
+    };
+    const u = createUploader({ send, nowMs: NOW, retryMs: [1, 1, 1] });
+    u.add(Array.from({ length: 10 }, (_, i) => raw(i)));
+    const r = await u.finish();
+    expect(r.pending).toBe(0);
+    expect(r.dropped).toBe(1);
+    expect(r.tally.new).toBe(9);
+    expect(r.errors['send-422']).toBeGreaterThan(0);
+    expect(u.pendingOrders()).toEqual([]);
+  });
+
+  it('500 · 끊김은 나누지 않고 남겨 두며 응답 번호별로 센다 · 남은 줄을 꺼내 볼 수 있다', async () => {
+    const s = server({ failTimes: 99 });
+    const u = createUploader({ send: s.send, nowMs: NOW, retryMs: [1, 1] });
+    u.add([raw(1), raw(2)]);
+    const r = await u.finish();
+    expect(r.pending).toBe(2);
+    expect(r.dropped).toBe(0);
+    expect(r.errors['send-500']).toBeGreaterThanOrEqual(3);
+    expect(u.pendingOrders().map((o) => o.orderNo)).toEqual(['RC-100001', 'RC-100002']);
+  });
+
   it('주문을 하나도 못 읽고 끝나면 no_orders', async () => {
-    const u = createUploader({ send: server().send, nowMs: NOW });
+    const u = createUploader({ send: server().send, nowMs: NOW, retryMs: [1, 1, 1] });
     const r = await u.finish();
     expect(r.result).toMatchObject({ read: 0, sent: 0, note: 'no_orders' });
   });
 
   it('서버가 read_disabled(403)를 주면 더 올리지 않는다', async () => {
     const s = server({ failTimes: 1, status: 403, code: 'read_disabled' });
-    const u = createUploader({ send: s.send, nowMs: NOW });
+    const u = createUploader({ send: s.send, nowMs: NOW, retryMs: [1, 1, 1] });
     u.add([raw(1)]);
     await u.flush();
     expect(u.progress()).toMatchObject({ readOff: true, pending: 0 });
@@ -126,7 +154,7 @@ describe('읽는 대로 올리기 (createUploader)', () => {
 
   it('주머니가 가득 차면(pouch_full) 남은 것은 보내지 않고 같은 사유로 센다', async () => {
     const s = server({ result: (_o, i) => (i === 0 ? 'new' : 'pouch_full') });
-    const u = createUploader({ send: s.send, nowMs: NOW });
+    const u = createUploader({ send: s.send, nowMs: NOW, retryMs: [1, 1, 1] });
     u.add([raw(1), raw(2)]);
     await u.flush();
     u.add([raw(3)]);
@@ -139,7 +167,7 @@ describe('읽는 대로 올리기 (createUploader)', () => {
 
   it('검사에서 틀린 주문 · 1년 밖 주문은 올리지 않고 세기만 한다', async () => {
     const s = server();
-    const u = createUploader({ send: s.send, nowMs: NOW });
+    const u = createUploader({ send: s.send, nowMs: NOW, retryMs: [1, 1, 1] });
     u.add([raw(1), raw(2, { orderedAt: '2024-01-01 10:00:00' }), raw(3, { amount: 0 }), raw(4, { noSeconds: true })]);
     const r = await u.finish();
     expect(s.calls.flat().map((o) => o.orderNo)).toEqual(['RC-100001']);
@@ -148,7 +176,7 @@ describe('읽는 대로 올리기 (createUploader)', () => {
 
   it('서버가 duplicate 로 답하면 중복으로 센다(같은 영수증이 사진 영수증 · 다른 주문에 이미 있음)', async () => {
     const s = server({ result: (o) => (o.orderNo === 'RC-100002' ? 'duplicate' : 'new') });
-    const u = createUploader({ send: s.send, nowMs: NOW });
+    const u = createUploader({ send: s.send, nowMs: NOW, retryMs: [1, 1, 1] });
     u.add([raw(1), raw(2)]);
     const r = await u.finish();
     expect(r.result).toMatchObject({ sent: 2, added: 1, duplicates: 1, rejected: 0 });
@@ -161,7 +189,7 @@ describe('목록 행(kind list)과 완성본 올리기', () => {
 
   it('목록 행은 orderNo 없이 kind · listKey 와 함께 그대로 올리고, 완성본이 오면 다시 올린다(서버가 바꿔 넣는다)', async () => {
     const s = server({ result: (o) => (o.kind === 'list' ? 'new' : 'updated') });
-    const u = createUploader({ send: s.send, nowMs: NOW });
+    const u = createUploader({ send: s.send, nowMs: NOW, retryMs: [1, 1, 1] });
     u.add([list(K(1)), list(K(2), { orderNo: 'KR-300002' })]);
     await u.flush();
     expect(s.calls[0]).toEqual([

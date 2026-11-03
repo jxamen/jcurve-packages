@@ -73,10 +73,14 @@ export function statusLine(a: LineInput): string {
       const already = a.newFetched === undefined ? 0 : Math.max(0, a.fetched - a.newFetched);   // 이번 실행 전에 이미 받아 둔 영수증
       if (a.total > 0) {
         // 영수증 받는 단계
-        lines.push(all === null ? '영수증 받는 중…' : `주문 ${n(all)}건 찾음`);
+        lines.push(all === null ? '영수증 받는 중…' : `주문 ${n(Math.max(all, a.total))}건 찾음`);
         const got = a.newFetched === undefined ? a.fetched : a.newFetched;
         if (all === null) lines.push(`새 영수증 받는 중 ${n(got)}건`);
-        else lines.push(`새 영수증 받는 중 ${n(got)}/${n(all - already)}건`);
+        else {
+          // 분모는 서버 목록 기준이라 지운 직후 · 목록이 늦게 올 때 분자보다 작을 수 있다(대표님 11-03 「129/69」) — 흐름이 센 영수증 수(total)와 큰 쪽, 분자는 분모를 넘지 않게
+          const den = Math.max(all - already, a.total);
+          lines.push(`새 영수증 받는 중 ${n(Math.min(got, den))}/${n(den)}건`);
+        }
         if (already > 0) lines.push(`이미 받은 ${n(already)}건`);
         if ((a.none ?? 0) > 0) lines.push(`영수증 없음 ${n(a.none ?? 0)}건`);
         if (a.missed > 0) lines.push(`못 가져옴 ${n(a.missed)}건`);
