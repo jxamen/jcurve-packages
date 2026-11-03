@@ -309,6 +309,14 @@ export function readReceipt(r: FetchResult): ReceiptRead {
   return NONE_TEXT_RE.test(text) ? { kind: 'none' } : { kind: 'bad' };
 }
 
+/** 못 읽은 영수증의 까닭 키 — 「bad-t{길이단계}-{사업자·승인번호·일시·금액·카드·취소 라벨 0/1}」, 글자가 없으면 「bad-empty」. 값은 담지 않는다 */
+export function badKey(text: string | undefined): string {
+  const t = text ?? '';
+  if (t.trim() === '') return 'bad-empty';
+  const b = (re: RegExp): string => (re.test(t) ? '1' : '0');
+  return `bad-t${Math.min(9, Math.floor(t.length / 1000))}-${b(/사업자/)}${b(/승인\s*번호/)}${b(/(승인|결제|거래)\s*일시/)}${b(/(승인|결제)?\s*금액/)}${b(/카드/)}${b(/취소/)}${/^\s*[{[]/.test(t) ? 'j' : 'h'}`;
+}
+
 /** 응답이 글자(HTML)일 때 구조 기록용 요약 줄 — 값 없이 라벨 유무 · 길이 단계만(영문) */
 export function textSummaryLines(text: string): string[] {
   const has = (re: RegExp): number => (re.test(text) ? 1 : 0);
@@ -381,6 +389,8 @@ export function createCoupangApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
   /* 영수증 웹뷰 직접 열기(교차 출처 대체 길) — navMode 가 켜지면 영수증 단계는 요청 대신 goto 로 한 장씩 읽는다 */
   let navMode = false;
   let navJobs: Job[] = [];
+  /** 요청으로 받았는데 못 읽은 줄 — 요청 차례가 끝나면 숨은 웹뷰가 그 영수증 주소를 직접 열어 한 번 더 읽는다(대표님 11-03 18:11 「잘 좀 수정해봐라」 · 회원1602 79건 「못 읽음」) */
+  let navLater: Job[] = [];
   let navJob: Job | null = null;
   let navFailRun = 0;
   const MAX_NAV_FAIL_RUN = 3;
@@ -459,7 +469,10 @@ export function createCoupangApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
       reqs.push({ key: j.key, method: 'GET', url, as: 'text' });
       setOutcome(j.key, { state: 'fetching' });
     }
-    if (batch.length === 0) return finish(moreWithoutUrl ? 'first-page-only' : 'all-rows');
+    if (batch.length === 0) {
+      if (navLater.length > 0) { for (const x of navLater) note('nav-retry', x.row.orderId); navMode = true; navJobs = [...navJobs, ...navLater]; navLater = []; return navNext(); }
+      return finish(moreWithoutUrl ? 'first-page-only' : 'all-rows');
+    }
     if (navMode) { navJobs = [...batch, ...navJobs]; batch = []; return navNext(); }
     phase = 'receipts';
     return { kind: 'fetch', reqs, conc: slow ? FETCH_SLOW.conc : FETCH_CONC, staggerMs: slow ? 0 : FETCH_STAGGER_MS, gapMs: slow ? FETCH_SLOW.gapMs : 0, timeoutMs: FETCH_TIMEOUT_MS, deadlineMs: FETCH_DEADLINE_MS };
@@ -537,17 +550,17 @@ export function createCoupangApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
     });
   };
 
-  /** 영수증 한 장 → 서버로 보낼 완성 주문 */
-  const settleOk = (j: Job, read: ReceiptRead): void => {
+  /** 영수증 한 장 → 서버로 보낼 완성 주문. text 는 못 읽었을 때 어떤 라벨이 있었는지(값 없이 0/1)만 세려고 받는다(11-03 회원1602 79건 「못 읽음」) */
+  const settleOk = (j: Job, read: ReceiptRead, text?: string): void => {
     if (read.kind === 'none') { noneN++; note('receipt-none', j.row.orderId); setOutcome(j.key, { state: 'none' }); return; }
-    if (read.kind === 'bad') { fail(j, 'unreadable'); return; }
+    if (read.kind === 'bad') { note(badKey(text)); fail(j, 'unreadable'); return; }
     const s: Slip = { ...read.slip };
     if (!s.paidAt) {   // 영수증에 결제 시각이 없으면 목록의 주문 날짜(+시각이 있으면 시각)를 쓴다 — 초가 없으면 allowNoSeconds 가 켜졌을 때만 서버로 간다
       s.paidAt = j.row.dateOnly ? `${j.row.at.slice(0, 10)} 00:00` : j.row.at;
       s.paidAtNoSeconds = j.row.dateOnly || undefined;
     }
     const done = toImportOrder(s, { orderNo: j.row.orderId, seller: read.seller ?? j.row.seller, title: j.row.title, amount: s.amount ?? j.row.amount }, { kind: 'card', allowNoSeconds });
-    if (!done) { fail(j, 'unreadable'); return; }
+    if (!done) { note(`import-${s.paidAtNoSeconds ? 'nosec' : !s.paidAt ? 'nopaid' : 'stamp'}`); fail(j, 'unreadable'); return; }
     if (j.order.listKey) done.listKey = j.order.listKey;
     if (read.detail) done.detail = read.detail;
     orders.push(done);
@@ -580,13 +593,13 @@ export function createCoupangApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
     let blocked = 0;
     const first = rs.find((x) => x.r.st === 'ok');
     for (const { j, r } of rs) {
-      if (r.st === 'ok') settleOk(j, readReceipt(r));
+      if (r.st === 'ok') { const read = readReceipt(r); if (read.kind === 'bad' && !navMode) { note(badKey(r.text)); navLater.push(j); } else settleOk(j, read, r.text); }
       else if (r.st === 'login') { sawLogin = true; again.push(j); }
       else if (r.st === 'blocked' || r.st === 'net' || (r.st === 'http' && (r.status ?? 0) >= 500)) {
         if (r.st === 'blocked') blocked++;
         if (j.tries + 1 < MAX_JOB_TRIES) { j.tries++; again.push(j); } else fail(j, r.st === 'blocked' ? 'blocked' : 'network');
       } else if (r.st === 'http') { noneN++; note(`http-${r.status ?? 0}${r.why ? `-${r.why.replace(/[^a-z0-9_-]/g, '').slice(0, 10)}` : ''}:v${j.row.vendorIds.length}`, j.row.orderId); setOutcome(j.key, { state: 'none' }); }   // 404 같은 응답 — 그 주문에는 카드영수증이 없는 것으로 본다(가정)
-      else fail(j, FAIL_OF[r.st] ?? 'unreadable');
+      else { note(`st-${r.st}`); fail(j, FAIL_OF[r.st] ?? 'unreadable'); }
     }
     batch = [];
     queue = [...again, ...queue];
@@ -648,7 +661,7 @@ export function createCoupangApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
         return navNext();
       }
       navFailRun = 0;
-      settleOk(j, readReceipt({ key: j.key, st: 'ok', text: t }));
+      settleOk(j, readReceipt({ key: j.key, st: 'ok', text: t }), t);
       return structureThen([{ where: 'cp-receipt', host: 'payment.coupang.com', path: '/v2/card-receipt/view', lines: textSummaryLines(t) }], navNext);
     }
     if (phase === 'origin' || phase === 'relogin') {

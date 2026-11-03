@@ -391,6 +391,22 @@ describe('구조 기록 · 로그인 · 막힘 · 교차 출처 · 시간 초과
     expect((f.takeOutcomes?.() ?? []).filter((e) => e.outcome.state === 'done')).toHaveLength(2);
   });
 
+  it('요청으로 받았는데 못 읽은 영수증(글자 없는 껍데기 화면)은 요청이 다 끝난 뒤 숨은 웹뷰가 그 주소를 직접 열어 다시 읽는다 — 거기서도 못 읽으면 그 줄만 「읽지 못함」(대표님 11-03 18:11)', () => {
+    const f = mk();
+    const b1 = toFirstBatch(f, nextData([order(1, '2026-10-06T09:11:12'), order(2, '2026-10-20T10:04:43')]));
+    f.take(); f.takeOutcomes?.();
+    const shell = '<html><body><div id="root"></div><script src="/app.js"></script></body></html>';
+    const g = settle(f, f.next({ type: 'fetched', results: b1.reqs.map((r) => okText(r.key, shell)) }));
+    expect(g).toEqual({ type: 'goto', url: receiptUrl(ID(2), [VENDOR]) });
+    settle(f, f.next({ type: 'page', url: 'payment.coupang.com/v2/card-receipt/view', text: SLIP_TEXT }));
+    const end = settle(f, f.next({ type: 'page', url: 'payment.coupang.com/v2/card-receipt/view', text: '아무 글자' }));
+    expect(end).toMatchObject({ type: 'done', reason: 'all-rows' });
+    expect((end as Extract<FlowOut, { type: 'done' }>).orders.filter((o) => o.kind === 'card')).toHaveLength(1);
+    const outs = f.takeOutcomes?.() ?? [];
+    expect(outs.filter((e) => e.outcome.state === 'done')).toHaveLength(1);
+    expect(outs.filter((e) => e.outcome.state === 'failed')).toHaveLength(1);
+  });
+
   it('웹뷰 직접 열기도 빈 화면이 연달아 나오면(영수증 호스트가 막음) cross-origin 으로 끝내고 줄마다 까닭을 남긴다', () => {
     const f = mk();
     const b1 = toFirstBatch(f, nextData([order(1, '2026-10-06T09:11:12'), order(2, '2026-10-20T10:04:43'), order(3, '2026-10-21T11:00:00')]));
