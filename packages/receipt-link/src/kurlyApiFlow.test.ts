@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import type { FlowOut } from './naverReceipt';
 import {
-  createKurlyApiFlow, findDefaultAddress, KURLY_ADDRESS_URL, KURLY_RECEIPT_URL, kurlyReceiptData, findOrderRows, hasFilledArray, KURLY_LIST_URL, KURLY_ORDERS_URL, kurlyDetailUrl, kurlyReceiptUrl, kurlyRowToOrder, kurlySlip, readKurlyDetail,
+  createKurlyApiFlow, findDefaultAddress, KURLY_ADDRESS_URL, KURLY_RECEIPT_URL, kurlyReceiptData, findOrderRows, hasFilledArray, KURLY_LIST_URL, KURLY_ORDERS_URL, kurlyDetailUrl, kurlyReceiptUrl, kurlyRowParse, kurlyRowToOrder, kurlySlip, readKurlyDetail,
 } from './kurlyApiFlow';
 import { tailOf, type ApiFlowOptions } from './naverApiFlow';
 import { outcomeKey } from './runOutcome';
@@ -522,6 +522,17 @@ describe('이름으로 찾기 (순수 함수)', () => {
     const p = kurlyRowToOrder(rows[0]);
     expect(p?.order).toMatchObject({ orderNo: '2026102000001', orderedAt: '2026-10-20 00:00:00', amount: 2500, title: '가짜 상품 외 1건', seller: '컬리', kind: 'list', listKey: '2026-10-20 00:00|2500' });
     expect(p?.cancelled).toBe(false);
+  });
+
+  it('주문번호는 자릿수로 거르지 않고 칸 이름으로 찾는다 — 12 · 14 · 20자리도 읽고, 빠진 까닭(no-orderno · no-date · no-amount)을 낸다(대표님 11-03)', () => {
+    for (const no of ['202610200001', '20261020000123', '12345678901234567890']) {
+      const rows = findOrderRows({ data: { items: [{ groupOrderNo: no, paymentCompletedAt: '2026-10-20T10:04:43', quantity: 3, finalPrice: 100 }] } });
+      expect(rows).toHaveLength(1);
+      expect(kurlyRowToOrder(rows[0])?.order.orderNo).toBe(no);
+    }
+    expect(kurlyRowParse({ title: 'x', createdAt: '2026-10-20T10:04:43', finalPrice: 100 }).why).toBe('no-orderno');
+    expect(kurlyRowParse({ orderNo: '1', finalPrice: 100 }).why).toBe('no-date');
+    expect(kurlyRowParse({ orderNo: '1', createdAt: '2026-10-20T10:04:43' }).why).toBe('no-amount');
   });
 
   it('주문번호가 중첩(깊이 2)에 있어도 읽고, 일시 · 금액을 못 찾으면 null · 취소 상태는 표시한다', () => {

@@ -53,7 +53,9 @@ const scalar = (v: unknown): string => (typeof v === 'string' ? v : typeof v ===
 
 /* ---------------- 응답에서 이름으로 찾기(순수 함수 — 시험한다) ---------------- */
 
-const ORDER_NO = /^\d{13}$/;
+/** 주문번호: 자릿수로 거르지 않는다(대표님 11-03 「3자리든 20자리든」) — 키 이름이 주문번호 칸(order…No · …Number · …Id)이고 값이 숫자인 것 */
+const ORDER_NO = /^\d{1,40}$/;
+const ORDER_NO_KEY = /(order|^ord).*(no|num|number|id|seq|sn)$/i;
 
 /** 객체의 글자 · 숫자 칸을 깊이 2까지 [키 이름, 값] 으로 편다 */
 function flat(o: Record<string, unknown>): [string, string][] {
@@ -67,11 +69,18 @@ function flat(o: Record<string, unknown>): [string, string][] {
   return out;
 }
 
-/** 목록 응답 → 주문 줄 배열(13자리 값이 든 객체가 가장 많은 배열). 없으면 [] */
+/** 줄의 주문번호 — 주문번호 칸 가운데 가장 긴 숫자(순번 · 수량 같은 작은 숫자를 집지 않게). 없으면 '' */
+export function orderNoOf(o: Record<string, unknown>): string {
+  let best = '';
+  for (const [k, s] of flat(o)) if (ORDER_NO_KEY.test(k) && ORDER_NO.test(s) && s.length > best.length) best = s;
+  return best;
+}
+
+/** 목록 응답 → 주문 줄 배열(주문번호 칸이 든 객체가 가장 많은 배열). 없으면 [] */
 export function findOrderRows(json: unknown): Record<string, unknown>[] {
   let best: Record<string, unknown>[] = [];
   let n = 0;
-  const hasNo = (o: Record<string, unknown>): boolean => flat(o).some(([, s]) => ORDER_NO.test(s));
+  const hasNo = (o: Record<string, unknown>): boolean => orderNoOf(o) !== '';
   const walk = (v: unknown, depth: number): void => {
     if (depth > 7 || n++ > 5000) return;
     if (Array.isArray(v)) {
@@ -111,10 +120,14 @@ const NAME_KEY_BAD = /(user|member|receiver|recipient|addr|deliver|sender|shop)/
 
 /** 목록 줄 하나 → 목록 주문(kind list). 주문번호 · 일시 · 금액 중 하나라도 못 찾으면 null */
 export function kurlyRowToOrder(row: Record<string, unknown>): { order: ReceiptOrder; cancelled: boolean } | null {
+  return kurlyRowParse(row).p;
+}
+
+/** kurlyRowToOrder + 못 읽은 까닭(no-orderno · no-date · no-amount) — 실행 끝 기록용 */
+export function kurlyRowParse(row: Record<string, unknown>): { p: { order: ReceiptOrder; cancelled: boolean } | null; why?: 'no-orderno' | 'no-date' | 'no-amount' } {
   const f = flat(row);
-  const noHit = f.filter(([, s]) => ORDER_NO.test(s));
-  const orderNo = (noHit.find(([k]) => /order/i.test(k)) ?? noHit[0])?.[1];
-  if (!orderNo) return null;
+  const orderNo = orderNoOf(row);
+  if (!orderNo) return { p: null, why: 'no-orderno' };
   const dateKeys = [...f.filter(([k]) => DATE_KEY_STRONG.test(k)), ...f.filter(([k]) => !DATE_KEY_STRONG.test(k) && DATE_KEY_WEAK.test(k))];
   let orderedAt: string | null = null;
   for (const [, v] of dateKeys) { orderedAt = toKst(v); if (orderedAt) break; }
@@ -135,13 +148,14 @@ export function kurlyRowToOrder(row: Record<string, unknown>): { order: ReceiptO
     const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0);
     amount = products.reduce((sum, d) => sum + (num(d.displayDiscountPrice) || num(d.displayPrice)) * (num(d.quantity) || 1), 0);
   }
-  if (!orderedAt || amount < 1) return null;
+  if (!orderedAt) return { p: null, why: 'no-date' };
+  if (amount < 1) return { p: null, why: 'no-amount' };
   const nameOfProduct = products.map((d) => scalar(d.dealProductName) || scalar(d.contentsProductName)).find((n) => n.length > 0);
   const title = nameOfProduct ?? (f.find(([k, v]) => NAME_KEY_STRONG.test(k) && !NAME_KEY_BAD.test(k) && v.length > 0 && !/^\d+$/.test(v)) ?? f.find(([k, v]) => NAME_KEY_WEAK.test(k) && !NAME_KEY_BAD.test(k) && !/^\d+$/.test(v)))?.[1];
   const OFF = /취소|반품|환불|cancel|return|refund/i;
   const groupStates = groups.map((g) => scalar(g.orderStatus)).filter((x) => x.length > 0);
   const cancelled = f.some(([k, v]) => /(status|state)/i.test(k) && OFF.test(v)) || (groupStates.length > 0 && groupStates.every((x) => OFF.test(x)));   // 묶음이 여럿이면 전부 취소 · 반품일 때만(일부만이면 남은 묶음은 받는다)
-  return { order: listOrder({ orderNo, orderedAt, amount, seller: SELLER, ...(title ? { title: title.slice(0, 80) } : {}) }), cancelled };
+  return { p: { order: listOrder({ orderNo, orderedAt, amount, seller: SELLER, ...(title ? { title: title.slice(0, 80) } : {}) }), cancelled } };
 }
 
 /** 상세 응답 → 네이버페이 여부 · 영수증 요청 값(encreq). 어디든 이름으로 찾는다 */
@@ -309,7 +323,9 @@ export function createKurlyApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
   const orders: ReceiptOrder[] = [];
   const pending: ReceiptOrder[] = [];
   const outcomes: OutcomeEvent[] = [];
-  const stats: FlowStats = { rejected: 0, probes: 0, duplicates: 0, unfetched: [] };
+  const stats: FlowStats = { rejected: 0, probes: 0, duplicates: 0, unfetched: [], reasons: {} };
+  /** 까닭 하나 세기 — 목록에서 읽은 줄이 어디서 빠졌는지(값 없이 개수만, 11-03 「주문 몇 개가 안 불러와짐」) */
+  const note = (k: string, n = 1): void => { const r = (stats.reasons ??= {}); r[k] = (r[k] ?? 0) + n; };
   let total = 0;
   let okN = 0;
   let noneN = 0;
@@ -406,18 +422,21 @@ export function createKurlyApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
   /** 목록 줄 전체 → 가져올 주문(최신 먼저, 한 주문에 한 줄, 이미 가져온 것 제외). 새 목록 행은 서버에 올린다 */
   const onList = (): FlowOut => {
     const parsed: { order: ReceiptOrder; cancelled: boolean }[] = [];
-    for (const r of listRows) { const p = kurlyRowToOrder(r); if (p) parsed.push(p); else stats.rejected++; }
+    note('list-rows', listRows.length);
+    note(`list-pages-${page}`);
+    for (const r of listRows) { const x = kurlyRowParse(r); if (x.p) parsed.push(x.p); else { stats.rejected++; note(`drop-${x.why}`); } }
+    note('drop-old', parsed.filter((p) => p.order.orderedAt.slice(0, 10) < cutoff).length);
     const inWindow = parsed.filter((p) => p.order.orderedAt.slice(0, 10) >= cutoff).sort((a, b) => (a.order.orderedAt < b.order.orderedAt ? 1 : a.order.orderedAt > b.order.orderedAt ? -1 : 0));
     const matched = new Set<string>();
     const jobs: Job[] = [];
     const cancelledJobs: Job[] = [];
     seenNo.clear();
     for (const { order: o, cancelled } of inWindow) {
-      if (seenNo.has(o.orderNo)) { stats.duplicates++; continue; }
+      if (seenNo.has(o.orderNo)) { stats.duplicates++; note('drop-dup'); continue; }
       seenNo.add(o.orderNo);
       const key = outcomeKey(o.orderNo, o.orderedAt, o.amount);
       if (only) { if (!only.has(key)) continue; matched.add(key); }
-      else if (knownNos.has(o.orderNo) || knownTails.has(tailOf(o.orderNo, o.orderedAt)) || (o.listKey !== undefined && knownKeys.has(o.listKey))) continue;
+      else if (knownNos.has(o.orderNo) || knownTails.has(tailOf(o.orderNo, o.orderedAt)) || (o.listKey !== undefined && knownKeys.has(o.listKey))) { note('skip-known'); continue; }
       const job: Job = { order: o, key, tries: 0 };
       if (cancelled) cancelledJobs.push(job); else jobs.push(job);
       if (jobs.length + cancelledJobs.length >= maxOrders) break;
@@ -454,7 +473,7 @@ export function createKurlyApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
           if (page === 1 && listRows.length === 0 && hasFilledArray(r.data)) return finish('list-shape');
           return listRows.length === 0 ? finish('all-rows') : onList();
         }
-        const fresh = rows.filter((x) => { const k = flat(x).find(([, s]) => ORDER_NO.test(s))?.[1] ?? ''; if (seenNo.has(k)) return false; seenNo.add(k); return true; });
+        const fresh = rows.filter((x) => { const k = orderNoOf(x); if (seenNo.has(k)) return false; seenNo.add(k); return true; });
         listRows.push(...fresh);
         const oldest = rows.map((x) => kurlyRowToOrder(x)?.order.orderedAt.slice(0, 10) ?? '9999').sort()[0];
         // 실제 응답 {data:{items, pagination:{hasNext}}} (11-02 실측) — 맨 위 pagination 도 받아 둔다
@@ -474,6 +493,7 @@ export function createKurlyApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
       listTries++;
       return listTries < MAX_LIST_TRIES ? listReq() : finish('blocked');
     }
+    note(`list-${r.st}-${r.status ?? 0}`);
     // 4xx(주소 값 거절로 본다): 컬리 페이지에서 기본 배송지를 찾아 한 번 다시 — 그래도 안 되면 끝낸다(대표님 지시)
     if (r.st === 'http' && (r.status ?? 0) >= 400 && (r.status ?? 0) < 500) return !addrTried && page === 1 ? addrReq('list') : finish('list-failed');
     listTries++;

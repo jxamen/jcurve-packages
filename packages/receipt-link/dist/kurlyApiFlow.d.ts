@@ -33,7 +33,9 @@ export declare const KURLY_ORDERS_URL = "https://api.kurly.com/order-external/v4
 export declare const KURLY_ADDRESS_URL = "https://api.kurly.com/addressbook/v1/cart/check-base-address-notification";
 export declare const kurlyDetailUrl: (orderNo: string) => string;
 export declare const KURLY_RECEIPT_URL = "https://pg.kurlypay.co.kr/api/payments/receipt/request/card";
-/** 목록 응답 → 주문 줄 배열(13자리 값이 든 객체가 가장 많은 배열). 없으면 [] */
+/** 줄의 주문번호 — 주문번호 칸 가운데 가장 긴 숫자(순번 · 수량 같은 작은 숫자를 집지 않게). 없으면 '' */
+export declare function orderNoOf(o: Record<string, unknown>): string;
+/** 목록 응답 → 주문 줄 배열(주문번호 칸이 든 객체가 가장 많은 배열). 없으면 [] */
 export declare function findOrderRows(json: unknown): Record<string, unknown>[];
 /** 값이 든 객체 배열이 하나라도 있는가 — 주문번호 모양을 못 찾았는데 목록이 있는 응답(모양 못 읽음)과 정말 빈 응답을 가른다 */
 export declare function hasFilledArray(json: unknown): boolean;
@@ -42,6 +44,14 @@ export declare function kurlyRowToOrder(row: Record<string, unknown>): {
     order: ReceiptOrder;
     cancelled: boolean;
 } | null;
+/** kurlyRowToOrder + 못 읽은 까닭(no-orderno · no-date · no-amount) — 실행 끝 기록용 */
+export declare function kurlyRowParse(row: Record<string, unknown>): {
+    p: {
+        order: ReceiptOrder;
+        cancelled: boolean;
+    } | null;
+    why?: 'no-orderno' | 'no-date' | 'no-amount';
+};
 /** 상세 응답 → 네이버페이 여부 · 영수증 요청 값(encreq). 어디든 이름으로 찾는다 */
 export declare function readKurlyDetail(json: unknown): {
     npay: boolean;
