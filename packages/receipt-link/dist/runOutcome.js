@@ -8,6 +8,32 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.outcomeReason = exports.outcomeLabel = exports.CANCELLED_TEXT = exports.NONE_TEXT = exports.failText = exports.outcomeKey = void 0;
+exports.safeSnippet = safeSnippet;
+exports.safeTitle = safeTitle;
+const NAME_LABEL = /(이름|성명|주소|전화|휴대폰|연락처|이메일|받는\s*분|수령인|주문자|구매자)\s*[:：]?\s*[^\s,|/]+/g;
+/** 응답 앞부분 요약 — 알림 문구(alert) + 태그를 걷은 본문, 숫자 · 메일 · 긴 값 · 「○○님」 · 이름 · 연락처 칸 · 별표 값은 가린다 */
+function safeSnippet(raw, max = 240) {
+    const t = raw ?? '';
+    const alerts = Array.from(t.matchAll(/(?:alert|confirm)\(\s*(['"`])([\s\S]{0,200}?)\1/g)).map((m) => m[2]);
+    const body = t.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;|&#160;/g, ' ').replace(/&[a-z]+;/g, ' ');
+    return maskText([...alerts.map((a) => `[알림] ${a}`), body].join(' ')).slice(0, max);
+}
+/** <title> 글자(가림) */
+function safeTitle(raw) {
+    const m = /<title[^>]*>([\s\S]{0,200}?)<\/title>/i.exec(raw ?? '');
+    return m ? maskText(m[1]).slice(0, 60) || undefined : undefined;
+}
+function maskText(s) {
+    return s
+        .replace(/[\w.+-]+@[\w-]+\.[\w.]+/g, '[메일]')
+        .replace(/[A-Za-z0-9_\-]{20,}/g, '[값]')
+        .replace(NAME_LABEL, (_m, label) => `${label} [가림]`)
+        .replace(/\S*\*\S*/g, '[가림]')
+        .replace(/[가-힣]{1,5}\s*님/g, '[이름]님')
+        .replace(/\d/g, '#')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
 /** 서버 목록 줄과 흐름의 주문을 잇는 키 — orderNo 는 16자리 그대로이거나 앞이 가려진 값(뒤 4자리만 쓴다), orderedAt 은 「YYYY-MM-DD HH:mm…」(앞 16자만 쓴다) */
 const outcomeKey = (orderNo, orderedAt, amount) => `${orderNo.slice(-4)}|${orderedAt.slice(0, 16)}|${Math.floor(amount)}`;
 exports.outcomeKey = outcomeKey;

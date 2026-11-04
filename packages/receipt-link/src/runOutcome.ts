@@ -20,8 +20,59 @@ export type FailCode =
 export type Outcome =
   | { state: 'fetching' }
   | { state: 'done' }
-  | { state: 'none'; why?: 'cancelled' }        // 영수증이 없는 결제(포인트 · 계좌이체 등) — 「영수증 없음」. why cancelled = 취소된 주문(11-02 대표님: 적립 대상 아님, 「취소된 주문」으로)
-  | { state: 'failed'; code: FailCode };
+  | { state: 'none'; why?: 'cancelled'; info?: FailInfo }        // 영수증이 없는 결제(포인트 · 계좌이체 등) — 「영수증 없음」. why cancelled = 취소된 주문(11-02 대표님: 적립 대상 아님, 「취소된 주문」으로)
+  | { state: 'failed'; code: FailCode; info?: FailInfo };
+
+/**
+ * 못 가져온 줄의 진단 — 서버 실패 기록(receipt-link/fails)으로 간다(대표님 11-04 「문제 해결에 필요한 걸 다 기록해놔」).
+ * 쿠키 · 토큰 · 카드번호 · 승인번호는 담지 않는다. snippet · pageTitle 은 safeSnippet 으로 숫자 · 이름 · 연락처를 가린 글자다.
+ */
+export type FailInfo = {
+  /** 막힌 단계 — list 목록 · detail 영수증 주소 만들기 · request 영수증 요청 · read 영수증 읽기 */
+  stage: 'list' | 'detail' | 'request' | 'read';
+  /** 요청 주소의 경로만(쿼리 값 없이) */
+  path?: string;
+  /** fetch 요청 · nav 웹뷰 직접 열기 */
+  via?: 'fetch' | 'nav';
+  http?: number;
+  len?: number;
+  snippet?: string;
+  pageTitle?: string;
+  /** 정해 둔 낱말 유무(badWords) · 읽기 까닭 코드 */
+  words?: string;
+  tries?: number;
+  ms?: number;
+  /** 목록에 있던 주문 상태 · 결제수단 글자(있을 때만) */
+  status?: string;
+  pay?: string;
+  /** 앞 단계(요청)에서 못 읽은 응답 — 웹뷰로 다시 열기 전 */
+  first?: { via: 'fetch'; http?: number; len?: number; snippet?: string; pageTitle?: string; words?: string };
+};
+
+const NAME_LABEL = /(이름|성명|주소|전화|휴대폰|연락처|이메일|받는\s*분|수령인|주문자|구매자)\s*[:：]?\s*[^\s,|/]+/g;
+/** 응답 앞부분 요약 — 알림 문구(alert) + 태그를 걷은 본문, 숫자 · 메일 · 긴 값 · 「○○님」 · 이름 · 연락처 칸 · 별표 값은 가린다 */
+export function safeSnippet(raw: string | undefined, max = 240): string {
+  const t = raw ?? '';
+  const alerts = Array.from(t.matchAll(/(?:alert|confirm)\(\s*(['"`])([\s\S]{0,200}?)\1/g)).map((m) => m[2]);
+  const body = t.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;|&#160;/g, ' ').replace(/&[a-z]+;/g, ' ');
+  return maskText([...alerts.map((a) => `[알림] ${a}`), body].join(' ')).slice(0, max);
+}
+/** <title> 글자(가림) */
+export function safeTitle(raw: string | undefined): string | undefined {
+  const m = /<title[^>]*>([\s\S]{0,200}?)<\/title>/i.exec(raw ?? '');
+  return m ? maskText(m[1]).slice(0, 60) || undefined : undefined;
+}
+function maskText(s: string): string {
+  return s
+    .replace(/[\w.+-]+@[\w-]+\.[\w.]+/g, '[메일]')
+    .replace(/[A-Za-z0-9_\-]{20,}/g, '[값]')
+    .replace(NAME_LABEL, (_m, label: string) => `${label} [가림]`)
+    .replace(/\S*\*\S*/g, '[가림]')
+    .replace(/[가-힣]{1,5}\s*님/g, '[이름]님')
+    .replace(/\d/g, '#')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 /** 흐름이 주문 하나의 결과를 알릴 때 쓰는 한 건 */
 export type OutcomeEvent = { key: string; outcome: Outcome };

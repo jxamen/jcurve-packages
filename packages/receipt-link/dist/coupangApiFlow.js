@@ -69,6 +69,10 @@ const AMOUNT_KEYS = [
     /^totalPayAmount$/i, /^payAmount$/i, /^(total)?paymentAmount$/i, /^(total)?orderAmount$/i, /^finalPrice$/i, /^totalPrice$/i, /^totalAmount$/i, /^amount$/i, /^price$/i,
     /^(pay|payment|total|order|final|charge).*(amount|price)$/i,
 ];
+const STATUS_KEYS = /^(order|delivery|deal|item)?(Status|State)(Text|Name|Label|Desc|Message|Title)?$/i;
+const PAY_KEYS = /^(pay(ment)?(Method|Type|Means|Tool|Way|Kind)s?(Name|Text|Label|Desc|Title)?|payMeans|paymentName|payName)$/i;
+/** 실패 기록에 쓰는 짧은 상태 · 결제수단 글자 — 숫자가 많은 값(번호)은 버린다 */
+const shortLabel = (v) => (typeof v === 'string' && v.trim() !== '' && v.length <= 30 && (v.match(/\d/g) ?? []).length <= 2 ? v.replace(/\s+/g, ' ').trim() : undefined);
 const SELLER_KEYS = /^(vendor(Item)?Name|sellerName|storeName|shopName|merchantName|brandName)$/i;
 const TITLE_KEYS = /^(product(Name|Title)?|item(Name|Title)?|goodsName|vendorItemName|title)$/i;
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -222,6 +226,7 @@ function findCoupangOrders(root) {
                         orderId, at: when.at, dateOnly: when.dateOnly, amount,
                         seller: scan(o, SELLER_KEYS, textOf), title: scan(o, TITLE_KEYS, textOf),
                         vendorIds: vendorsOf(o), cancelled: isCancelledObj(o),
+                        ...(() => { const st = scan(o, STATUS_KEYS, shortLabel); const pay = scan(o, PAY_KEYS, shortLabel); return { ...(st ? { status: st } : {}), ...(pay ? { pay } : {}) }; })(),
                     });
                 }
             }
@@ -534,10 +539,19 @@ function createCoupangApiFlow(opts = {}) {
         return step();
     };
     const setOutcome = (key, outcome) => { outcomes.push({ key, outcome }); };
-    const fail = (j, code) => {
+    /** 줄마다 진단 — 단계 · 경로 · 시도 · 걸린 시간 · 목록의 상태 · 결제수단 · 앞 단계 응답(대표님 11-04 「다 기록해놔」) */
+    const infoOf = (j, x) => ({
+        path: '/v2/card-receipt/view', tries: j.tries + 1, ...(j.t0 !== undefined ? { ms: now() - j.t0 } : {}),
+        ...(j.row.status ? { status: j.row.status } : {}), ...(j.row.pay ? { pay: j.row.pay } : {}), ...(j.first ? { first: j.first } : {}), ...x,
+    });
+    /** 응답 하나의 진단(값은 가린 글자만) */
+    const respInfo = (text, via, http) => ({
+        via, ...(http !== undefined ? { http } : {}), len: (text ?? '').length, snippet: (0, runOutcome_1.safeSnippet)(text), ...((0, runOutcome_1.safeTitle)(text) ? { pageTitle: (0, runOutcome_1.safeTitle)(text) } : {}), words: `${badWords(text)} ${badKey(text)}`,
+    });
+    const fail = (j, code, info) => {
         failN++;
         note(code, j.row.orderId);
-        setOutcome(j.key, { state: 'failed', code });
+        setOutcome(j.key, { state: 'failed', code, info: info ?? infoOf(j, { stage: 'request' }) });
         stats.unfetched = [...(stats.unfetched ?? []), j.row.orderId];
     };
     const listReq = () => {
@@ -560,9 +574,10 @@ function createCoupangApiFlow(opts = {}) {
             const j = queue.shift();
             const url = receiptUrl(j.row.orderId, j.row.vendorIds);
             if (url === null) {
-                fail(j, 'no-pair');
+                fail(j, 'no-pair', infoOf(j, { stage: 'detail', words: `vendors-${j.row.vendorIds.length}` }));
                 continue;
             } // 판매자번호를 못 찾았다 — 요청 없이 까닭만
+            j.t0 ?? (j.t0 = now());
             batch.push(j);
             reqs.push({ key: j.key, method: 'GET', url, as: 'text' });
             setOutcome(j.key, { state: 'fetching' });
@@ -593,6 +608,7 @@ function createCoupangApiFlow(opts = {}) {
         if (!j)
             return finish(moreWithoutUrl ? 'first-page-only' : 'all-rows');
         phase = 'receiptnav';
+        j.t0 ?? (j.t0 = now());
         return { type: 'goto', url: receiptUrl(j.row.orderId, j.row.vendorIds) };
     };
     /** 웹뷰 직접 열기를 그만둘 때 — 아직 읽지 못한 줄(읽는 중 · 대기)에 모두 까닭을 남긴다 */
@@ -691,17 +707,17 @@ function createCoupangApiFlow(opts = {}) {
         });
     };
     /** 영수증 한 장 → 서버로 보낼 완성 주문. text 는 못 읽었을 때 어떤 라벨이 있었는지(값 없이 0/1)만 세려고 받는다(11-03 회원1602 79건 「못 읽음」) */
-    const settleOk = (j, read, text) => {
+    const settleOk = (j, read, text, via = 'fetch', http) => {
         if (read.kind === 'none') {
             noneN++;
             note('receipt-none', j.row.orderId);
-            setOutcome(j.key, { state: 'none' });
+            setOutcome(j.key, { state: 'none', info: infoOf(j, { stage: 'read', ...respInfo(text, via, http) }) });
             return;
         }
         if (read.kind === 'bad') {
             note(badKey(text));
             note(`nav-${badWords(text)}`.slice(0, 30));
-            fail(j, 'unreadable');
+            fail(j, 'unreadable', infoOf(j, { stage: 'read', ...respInfo(text, via, http) }));
             return;
         }
         const s = { ...read.slip };
@@ -711,8 +727,9 @@ function createCoupangApiFlow(opts = {}) {
         }
         const done = (0, naverReceipt_1.toImportOrder)(s, { orderNo: j.row.orderId, seller: read.seller ?? j.row.seller, title: j.row.title, amount: s.amount ?? j.row.amount }, { kind: 'card', allowNoSeconds });
         if (!done) {
-            note(`import-${s.paidAtNoSeconds ? 'nosec' : !s.paidAt ? 'nopaid' : 'stamp'}`);
-            fail(j, 'unreadable');
+            const why = `import-${s.paidAtNoSeconds ? 'nosec' : !s.paidAt ? 'nopaid' : 'stamp'}`;
+            note(why);
+            fail(j, 'unreadable', infoOf(j, { stage: 'read', via, words: why }));
             return;
         }
         if (j.order.listKey)
@@ -756,10 +773,11 @@ function createCoupangApiFlow(opts = {}) {
                 if (read.kind === 'bad' && !navMode) {
                     note(badKey(r.text));
                     note(badWords(r.text));
+                    j.first = { ...respInfo(r.text, 'fetch', r.status), via: 'fetch' };
                     navLater.push(j);
                 }
                 else
-                    settleOk(j, read, r.text);
+                    settleOk(j, read, r.text, 'fetch', r.status);
             }
             else if (r.st === 'login') {
                 sawLogin = true;
@@ -773,16 +791,16 @@ function createCoupangApiFlow(opts = {}) {
                     again.push(j);
                 }
                 else
-                    fail(j, r.st === 'blocked' ? 'blocked' : 'network');
+                    fail(j, r.st === 'blocked' ? 'blocked' : 'network', infoOf(j, { stage: 'request', via: 'fetch', words: `st-${r.st}`, ...(r.status !== undefined ? { http: r.status } : {}) }));
             }
             else if (r.st === 'http') {
                 noneN++;
                 note(`http-${r.status ?? 0}${r.why ? `-${r.why.replace(/[^a-z0-9_-]/g, '').slice(0, 10)}` : ''}:v${j.row.vendorIds.length}`, j.row.orderId);
-                setOutcome(j.key, { state: 'none' });
+                setOutcome(j.key, { state: 'none', info: infoOf(j, { stage: 'request', via: 'fetch', http: r.status ?? 0, words: `http-${r.status ?? 0}${r.why ? `-${r.why}` : ''}` }) });
             } // 404 같은 응답 — 그 주문에는 카드영수증이 없는 것으로 본다(가정)
             else {
                 note(`st-${r.st}`);
-                fail(j, FAIL_OF[r.st] ?? 'unreadable');
+                fail(j, FAIL_OF[r.st] ?? 'unreadable', infoOf(j, { stage: 'request', via: 'fetch', words: `st-${r.st}`, ...(r.status !== undefined ? { http: r.status } : {}) }));
             }
         }
         batch = [];
@@ -819,7 +837,7 @@ function createCoupangApiFlow(opts = {}) {
                     navJobs.unshift(j);
                 }
                 else
-                    fail(j, 'network');
+                    fail(j, 'network', infoOf(j, { stage: 'request', via: 'nav', words: 'timeout' }));
             }
             navFailRun++;
             if (navFailRun >= MAX_NAV_FAIL_RUN) {
@@ -839,7 +857,7 @@ function createCoupangApiFlow(opts = {}) {
                     again.push(j);
                 }
                 else
-                    fail(j, 'network');
+                    fail(j, 'network', infoOf(j, { stage: 'request', via: 'fetch', words: 'timeout' }));
             }
             queue = [...again, ...queue];
             if (timeoutRun >= MAX_TIMEOUT_RUN)
@@ -870,7 +888,7 @@ function createCoupangApiFlow(opts = {}) {
             if (t === '') {
                 // 빈 화면 · 오류 화면 — 연달아 세 번이면 영수증 호스트가 막은 것으로 보고 끝낸다
                 navFailRun++;
-                fail(j, 'network');
+                fail(j, 'network', infoOf(j, { stage: 'request', via: 'nav', len: 0, words: 'blank-page' }));
                 if (navFailRun >= MAX_NAV_FAIL_RUN) {
                     failNavRest();
                     return finish('cross-origin');
@@ -878,7 +896,7 @@ function createCoupangApiFlow(opts = {}) {
                 return navNext();
             }
             navFailRun = 0;
-            settleOk(j, readReceipt({ key: j.key, st: 'ok', text: t }), t);
+            settleOk(j, readReceipt({ key: j.key, st: 'ok', text: t }), t, 'nav');
             return structureThen([{ where: 'cp-receipt', host: 'payment.coupang.com', path: '/v2/card-receipt/view', lines: textSummaryLines(t) }], navNext);
         }
         if (phase === 'origin' || phase === 'relogin') {

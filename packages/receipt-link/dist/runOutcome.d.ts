@@ -15,10 +15,48 @@ export type Outcome = {
 } | {
     state: 'none';
     why?: 'cancelled';
+    info?: FailInfo;
 } | {
     state: 'failed';
     code: FailCode;
+    info?: FailInfo;
 };
+/**
+ * 못 가져온 줄의 진단 — 서버 실패 기록(receipt-link/fails)으로 간다(대표님 11-04 「문제 해결에 필요한 걸 다 기록해놔」).
+ * 쿠키 · 토큰 · 카드번호 · 승인번호는 담지 않는다. snippet · pageTitle 은 safeSnippet 으로 숫자 · 이름 · 연락처를 가린 글자다.
+ */
+export type FailInfo = {
+    /** 막힌 단계 — list 목록 · detail 영수증 주소 만들기 · request 영수증 요청 · read 영수증 읽기 */
+    stage: 'list' | 'detail' | 'request' | 'read';
+    /** 요청 주소의 경로만(쿼리 값 없이) */
+    path?: string;
+    /** fetch 요청 · nav 웹뷰 직접 열기 */
+    via?: 'fetch' | 'nav';
+    http?: number;
+    len?: number;
+    snippet?: string;
+    pageTitle?: string;
+    /** 정해 둔 낱말 유무(badWords) · 읽기 까닭 코드 */
+    words?: string;
+    tries?: number;
+    ms?: number;
+    /** 목록에 있던 주문 상태 · 결제수단 글자(있을 때만) */
+    status?: string;
+    pay?: string;
+    /** 앞 단계(요청)에서 못 읽은 응답 — 웹뷰로 다시 열기 전 */
+    first?: {
+        via: 'fetch';
+        http?: number;
+        len?: number;
+        snippet?: string;
+        pageTitle?: string;
+        words?: string;
+    };
+};
+/** 응답 앞부분 요약 — 알림 문구(alert) + 태그를 걷은 본문, 숫자 · 메일 · 긴 값 · 「○○님」 · 이름 · 연락처 칸 · 별표 값은 가린다 */
+export declare function safeSnippet(raw: string | undefined, max?: number): string;
+/** <title> 글자(가림) */
+export declare function safeTitle(raw: string | undefined): string | undefined;
 /** 흐름이 주문 하나의 결과를 알릴 때 쓰는 한 건 */
 export type OutcomeEvent = {
     key: string;

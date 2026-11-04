@@ -207,7 +207,7 @@ describe('흐름: 목록 → 영수증 묶음 → 줄별 결과', () => {
     const b = toFirstBatch(flow, nextData(LIST));
     flow.take(); flow.takeOutcomes?.();
     const out = settle(flow, flow.next({ type: 'fetched', results: [okText(b.reqs[0].key), okText(b.reqs[1].key, `${SLIP_TEXT}\n취소완료`)] }));
-    expect(flow.takeOutcomes?.()).toEqual([{ key: b.reqs[0].key, outcome: { state: 'done' } }, { key: b.reqs[1].key, outcome: { state: 'none' } }]);
+    expect(flow.takeOutcomes?.()).toMatchObject([{ key: b.reqs[0].key, outcome: { state: 'done' } }, { key: b.reqs[1].key, outcome: { state: 'none', info: { stage: 'read', via: 'fetch' } } }]);
     expect(out).toMatchObject({ type: 'done', reason: 'all-rows' });
     const done = (out as Extract<FlowOut, { type: 'done' }>).orders;
     expect(done).toHaveLength(1);
@@ -219,7 +219,7 @@ describe('흐름: 목록 → 영수증 묶음 → 줄별 결과', () => {
     const noVendor = { orderId: ID(5), orderedAt: '2026-10-21T10:00:00', totalPayAmount: 5000 };
     const b = toFirstBatch(flow, nextData([noVendor, order(1, '2026-10-06T09:11:12')]));
     expect(b.reqs.map((r) => r.key)).toEqual([keyOf(1, '2026-10-06 09:11:12')]);
-    expect(flow.takeOutcomes?.()).toContainEqual({ key: keyOf(5, '2026-10-21 10:00:00', 5000), outcome: { state: 'failed', code: 'no-pair' } });
+    expect(flow.takeOutcomes?.()).toContainEqual({ key: keyOf(5, '2026-10-21 10:00:00', 5000), outcome: { state: 'failed', code: 'no-pair', info: { stage: 'detail', path: '/v2/card-receipt/view', tries: 1, words: 'vendors-0' } } });
   });
 
   it('영수증에 결제 시각이 없으면 목록의 주문 시각을 쓰고, 날짜만 아는 행의 초 없는 시각은 allowNoSeconds 가 꺼져 있으면 「읽지 못함」', () => {
@@ -233,7 +233,7 @@ describe('흐름: 목록 → 영수증 묶음 → 줄별 결과', () => {
     const b2 = toFirstBatch(f2, { groups: [{ date: '2026.10.06', orders: [{ orderId: ID(7), payAmount: 7000, vendorIds: [VENDOR] }] }] });
     f2.takeOutcomes?.();
     settle(f2, f2.next({ type: 'fetched', results: [okText(b2.reqs[0].key, noPaid)] }));
-    expect(f2.takeOutcomes?.()).toEqual([{ key: b2.reqs[0].key, outcome: { state: 'failed', code: 'unreadable' } }]);
+    expect(f2.takeOutcomes?.()).toMatchObject([{ key: b2.reqs[0].key, outcome: { state: 'failed', code: 'unreadable', info: { stage: 'read', words: 'import-nosec' } } }]);
     const f3 = mk({ allowNoSeconds: true });
     const b3 = toFirstBatch(f3, { groups: [{ date: '2026.10.06', orders: [{ orderId: ID(7), payAmount: 7000, vendorIds: [VENDOR] }] }] });
     f3.take(); f3.takeOutcomes?.();
@@ -435,7 +435,7 @@ describe('구조 기록 · 로그인 · 막힘 · 교차 출처 · 시간 초과
     const b = toFirstBatch(f, nextData([order(1, '2026-10-06T09:11:12'), order(2, '2026-10-20T10:04:43')]));
     f.take(); f.takeOutcomes?.();
     const b2 = asFetch(settle(f, f.next({ type: 'fetched', results: [{ key: b.reqs[0].key, st: 'http', status: 404 }, { key: b.reqs[1].key, st: 'http', status: 503 }] })));
-    expect(f.takeOutcomes?.()).toEqual([{ key: b.reqs[0].key, outcome: { state: 'none' } }, { key: b.reqs[1].key, outcome: { state: 'fetching' } }]);
+    expect(f.takeOutcomes?.()).toMatchObject([{ key: b.reqs[0].key, outcome: { state: 'none', info: { stage: 'request', http: 404 } } }, { key: b.reqs[1].key, outcome: { state: 'fetching' } }]);
     expect(b2.reqs.map((r) => r.key)).toEqual([b.reqs[1].key]);
   });
 
@@ -487,5 +487,23 @@ describe('못 읽은 응답 낱말 기록', () => {
     expect(k).toContain('ade');
     expect(k).not.toMatch(/홍|0101/);
     expect(badWords('')).toBe('bw-0-l0');
+  });
+});
+
+describe('실패 줄 진단(대표님 11-04 「다 기록해놔」)', () => {
+  it('못 읽은 줄은 요청 응답(앞 단계)과 웹뷰 응답을 둘 다 — 길이 · 가린 앞부분 · 제목 · 낱말 · 시도 · 목록의 상태와 결제수단', () => {
+    const f = mk();
+    const row = { ...order(1, '2026-10-06T09:11:12'), orderStatus: '배송완료', payMethodName: '쿠페이 머니' };
+    const b = toFirstBatch(f, nextData([row]));
+    f.take(); f.takeOutcomes?.();
+    const shell = '<html><head><title>카드영수증</title></head><body>홍길동님 010-1234-5678 카드 결제 내역이 없습니다</body></html>';
+    settle(f, f.next({ type: 'fetched', results: [okText(b.reqs[0].key, shell)] }));
+    settle(f, f.next({ type: 'page', url: 'payment.coupang.com/v2/card-receipt/view', text: '카드 결제 내역이 없습니다' }));
+    const out = (f.takeOutcomes?.() ?? []).find((e) => e.outcome.state === 'failed');
+    const info = out?.outcome.state === 'failed' ? out.outcome.info : undefined;
+    expect(info).toMatchObject({ stage: 'read', via: 'nav', path: '/v2/card-receipt/view', status: '배송완료', pay: '쿠페이 머니', first: { via: 'fetch', pageTitle: '카드영수증' } });
+    const raw = JSON.stringify(info);
+    expect(raw).not.toMatch(/홍길동|1234|5678/);
+    expect(info?.first?.snippet).toContain('[이름]님');
   });
 });

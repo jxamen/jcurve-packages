@@ -41,6 +41,9 @@ export type CoupangListOrder = {
     title?: string;
     vendorIds: string[];
     cancelled: boolean;
+    /** 목록의 주문 상태 · 결제수단 글자(짧은 글자만, 실패 기록용) */
+    status?: string;
+    pay?: string;
 };
 /** 값 → 한국 날짜. 「2026.10.06」 · 「2026-10-06」 처럼 날짜만 있으면 dateOnly. 에포크 · ISO · 시각 있는 글자는 normalizeKst */
 export declare function parseListDate(v: unknown): {
