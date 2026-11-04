@@ -209,20 +209,25 @@ function createNaverApiFlow(opts = {}) {
     let npOk = 0;
     let npFail = 0;
     const setOutcome = (key, outcome) => { outcomes.push({ key, outcome }); };
-    const fail = (j, code) => {
+    /** info: 어디서 · 어떤 응답으로 막혔는지(서버 실패 기록으로 간다 — 11-04 대표님 「뭐가 문제인지 알 수가 없으니」. 값은 없고 단계 · 경로 · HTTP · 낱말만) */
+    const fail = (j, code, info) => {
         failN++;
         failCodes.set(code, (failCodes.get(code) ?? 0) + 1);
-        setOutcome(j.key, { state: 'failed', code });
+        setOutcome(j.key, { state: 'failed', code, ...(info ? { info } : {}) });
         stats.unfetched = [...(stats.unfetched ?? []), j.order.orderNo];
     };
     /** 영수증이 없는 결제 — 줄은 「영수증 없음」, 서버에는 목록 행을 none 으로 바꾸는 행을 보낸다(「목록만」으로 남지 않게, 11-04). 취소(why cancelled)는 따로 */
-    const none = (j) => { noneN++; setOutcome(j.key, { state: 'none' }); pending.push((0, naverReceipt_1.noneOrder)(j.order)); };
-    /** orders 출처 작업을 못 했을 때 — 주문상세(osheet)는 예전 결과 그대로 「영수증 없음」, 간편결제(pinfo)는 까닭 */
-    const missOrders = (w, code) => {
+    const none = (j, info) => { noneN++; setOutcome(j.key, { state: 'none', ...(info ? { info } : {}) }); pending.push((0, naverReceipt_1.noneOrder)(j.order)); };
+    const OSHEET_PATH = '/orderApi/orderSheet/detail';
+    const PINFO_PATH = '/orderApi/payment/detail/info';
+    /** orders 출처 작업을 못 했을 때 — 주문상세(osheet)는 예전 결과 그대로 「영수증 없음」(대표님 11-02 ④ 실패가 아님), 간편결제(pinfo)는 까닭.
+     *  둘 다 서버 실패 기록에는 어느 길 · 어떤 까닭인지 남긴다 — 1.1.0 까지는 「없음」만 남아 까닭이 가려졌다(11-04 회원 1967 66건 중 61건, 대표님 「뭐가 문제인지 알 수가 없으니」) */
+    const missOrders = (w, code, http) => {
+        const info = { stage: 'request', via: 'fetch', path: w.osheet ? OSHEET_PATH : PINFO_PATH, ...(http !== undefined ? { http } : {}), words: `${w.osheet ? 'osheet' : 'pinfo'}-${code}` };
         if (w.osheet)
-            none(w.j);
+            none(w.j, info);
         else
-            fail(w.j, code);
+            fail(w.j, code, info);
     };
     const listAction = () => ({ kind: 'api', name: 'shop', maxPages: 40, sinceMs, since: cutoff, until: untilDate });
     const toJob = (j) => {
@@ -294,9 +299,9 @@ function createNaverApiFlow(opts = {}) {
             else if (r?.st === 'ok')
                 settleOk(w.j, r.slip); // 카드가 아닌 결제 — 주문상세를 영수증으로
             else if (r?.st === 'none')
-                none(w.j);
+                none(w.j, { stage: 'read', via: 'fetch', path: w.osheet ? OSHEET_PATH : PINFO_PATH, ...(r.status !== undefined ? { http: r.status } : {}), words: `${w.osheet ? 'osheet' : 'pinfo'}-none` });
             else
-                missOrders(w, FAIL_OF[r?.st ?? 'net'] ?? 'no-pair');
+                missOrders(w, FAIL_OF[r?.st ?? 'net'] ?? 'no-pair', r?.status);
         }
         pinfoBatch = [];
         for (const x of results)
@@ -514,7 +519,7 @@ function createNaverApiFlow(opts = {}) {
     /** 영수증 한 장 → 서버로 보낼 완성 주문. 취소된 결제는 영수증이 없는 것으로 센다 */
     const settleOk = (j, slip) => {
         if (!slip) {
-            fail(j, 'unreadable');
+            fail(j, 'unreadable', { stage: 'read', via: 'fetch', words: 'noslip' });
             return;
         }
         const cancelled = !!slip.cancelAt || ((slip.cancelAmount ?? 0) > 0 && (slip.cancelAmount ?? 0) >= (slip.amount ?? j.order.amount));
@@ -527,17 +532,17 @@ function createNaverApiFlow(opts = {}) {
         const os = slip.orderSheet === true;
         const amount = os && j.order.amount > 0 ? j.order.amount : slip.amount ?? j.order.amount;
         if (os && !(amount > 0)) {
-            none(j);
+            none(j, { stage: 'read', via: 'fetch', path: OSHEET_PATH, words: 'osheet-noamount' });
             return;
-        } // 주문상세 실패는 예전 결과 그대로
+        } // 주문상세 실패는 예전 결과 그대로 「영수증 없음」 — 기록에는 까닭(1.1.1)
         const paidAt = os ? ((0, naverReceipt_1.normalizeKst)(j.order.orderedAt) ?? (0, naverReceipt_1.normalizeKst)(slip.approvalAt)) : (0, naverReceipt_1.normalizeKst)(slip.approvalAt);
         const done = (0, naverReceipt_1.toImportOrder)({ businessNumber: slip.businessNo, approval: slip.approvalNo, paidAt: paidAt ?? undefined, amount, cardIssuer: slip.cardCompany }, { orderNo: j.order.orderNo, seller: slip.sellerName ?? j.order.seller, title: slip.productName ?? j.order.title, amount }, { kind: slip.tradeType === '현금영수증' || os ? 'purchase' : 'card', allowNoSeconds });
         if (!done && os) {
-            none(j);
+            none(j, { stage: 'read', via: 'fetch', path: OSHEET_PATH, words: 'osheet-import' });
             return;
         }
         if (!done) {
-            fail(j, 'unreadable');
+            fail(j, 'unreadable', { stage: 'read', via: 'fetch', words: 'card-import' });
             return;
         }
         if (slip.tradeType === '현금영수증')
@@ -632,7 +637,7 @@ function createNaverApiFlow(opts = {}) {
                 pinfoWait.push({ j, osheet: true });
             }
             else if (r.st === 'none')
-                none(j);
+                none(j, { stage: 'read', via: 'fetch', ...(r.status !== undefined ? { http: r.status } : {}), words: `card-none${r.diag ? `-${r.diag.w}` : ''}` });
             else if (r.st === 'login') {
                 sawLogin = true;
                 again.push(j);
@@ -645,10 +650,10 @@ function createNaverApiFlow(opts = {}) {
                     again.push(j);
                 }
                 else
-                    fail(j, FAIL_OF[r.st] ?? 'network');
+                    fail(j, FAIL_OF[r.st] ?? 'network', { stage: 'request', via: 'fetch', ...(r.status !== undefined ? { http: r.status } : {}), words: `st-${r.st}${r.diag ? `-${r.diag.w}` : ''}`, tries: j.tries + 1 });
             }
             else
-                fail(j, FAIL_OF[r.st] ?? 'unreadable');
+                fail(j, FAIL_OF[r.st] ?? 'unreadable', { stage: 'request', via: 'fetch', ...(r.status !== undefined ? { http: r.status } : {}), words: `st-${r.st}${r.diag ? `-${r.diag.w}` : ''}` });
         }
         batch = [];
         queue = [...again, ...queue];
@@ -704,7 +709,7 @@ function createNaverApiFlow(opts = {}) {
                     again.push(j);
                 }
                 else
-                    fail(j, 'network');
+                    fail(j, 'network', { stage: 'request', via: 'fetch', words: 'timeout', tries: j.tries + 1 });
             }
             queue = [...again, ...queue];
             if (timeoutRun >= MAX_TIMEOUT_RUN)

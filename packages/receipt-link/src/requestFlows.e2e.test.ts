@@ -89,7 +89,7 @@ describe('네이버 — 구동기 + 흐름 + 실제 스크립트(가짜 페이�
     expect(r.results[0].reason).toBe('all-rows');
     expect(r.urls.filter((u) => u.includes('/receipts/issue-history'))).toEqual([`GET https://pay.naver.com/receipts/issue-history?orderNo=${orderNo(2)}`]);
     expect(r.orders.filter((o) => o.kind === 'list')).toEqual([]);
-    expect(r.outcomes.at(-1)).toEqual({ key, outcome: { state: 'none' } });   // 이 주문은 카드영수증이 없는 결제(11-02 ④ — 실패가 아니라 「영수증 없음」)
+    expect(r.outcomes.at(-1)).toMatchObject({ key, outcome: { state: 'none', info: { words: expect.stringMatching(/^osheet-/) } } });   // 이 주문은 카드영수증이 없는 결제(11-02 ④ — 실패가 아니라 「영수증 없음」)
   }, 30000);
 });
 

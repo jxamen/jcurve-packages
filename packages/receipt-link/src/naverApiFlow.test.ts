@@ -84,7 +84,7 @@ describe('순서 · 한 주문 한 줄', () => {
     flow.take(); flow.takeOutcomes?.();
     const k2 = batch.jobs[0].key; const k1 = batch.jobs[1].key;
     const out = finishOut(flow, flow.next({ type: 'receipts', results: [OK(k2), { key: k1, st: 'none' }] }));
-    expect(flow.takeOutcomes?.()).toEqual([{ key: k2, outcome: { state: 'done' } }, { key: k1, outcome: { state: 'none' } }]);
+    expect(flow.takeOutcomes?.()).toMatchObject([{ key: k2, outcome: { state: 'done' } }, { key: k1, outcome: { state: 'none', info: { stage: 'read', words: expect.stringMatching(/-none$/) } } }]);
     expect(out).toMatchObject({ type: 'done', reason: 'all-rows' });
     const done = (out as Extract<FlowOut, { type: 'done' }>).orders;
     expect(done).toHaveLength(2);
@@ -101,8 +101,8 @@ describe('순서 · 한 주문 한 줄', () => {
     const batch = toFirstBatch(flow);
     flow.take(); flow.takeOutcomes?.();
     flow.next({ type: 'receipts', results: [OK(batch.jobs[0].key, { approvalAt: undefined }), OK(batch.jobs[1].key)] });
-    expect(flow.takeOutcomes?.()).toEqual([
-      { key: batch.jobs[0].key, outcome: { state: 'failed', code: 'unreadable' } },
+    expect(flow.takeOutcomes?.()).toMatchObject([
+      { key: batch.jobs[0].key, outcome: { state: 'failed', code: 'unreadable', info: { stage: 'read', words: 'card-import' } } },
       { key: batch.jobs[1].key, outcome: { state: 'done' } },
     ]);
   });
@@ -413,7 +413,7 @@ describe('간편결제 · 외부몰 네이버페이(pinfo) — orders.pay.naver.
     expect(back).toEqual({ type: 'goto', url: payHistoryUrl(1) });
     const end = finishOut(flow, flow.next({ type: 'page', url: 'pay.naver.com/history?page=1', text: '결제내역' }));
     expect(end).toMatchObject({ type: 'done' });
-    expect((flow.takeOutcomes?.() ?? []).filter((o) => o.key === key).pop()?.outcome).toEqual({ state: 'failed', code: 'no-pair' });
+    expect((flow.takeOutcomes?.() ?? []).filter((o) => o.key === key).pop()?.outcome).toEqual({ state: 'failed', code: 'no-pair', info: { stage: 'request', via: 'fetch', path: '/orderApi/payment/detail/info', http: 200, words: 'pinfo-no-pair' } });
   });
 
   it('카드영수증이 없는 주문은 orders 출처에서 주문상세(osheet)를 한 번 부른다 — 거기서도 없으면 예전처럼 「영수증 없음」', () => {
@@ -427,7 +427,8 @@ describe('간편결제 · 외부몰 네이버페이(pinfo) — orders.pay.naver.
     expect(act).toMatchObject({ kind: 'receipts', jobs: [{ key: batch.jobs[0].key, orderNo: orderNo(2), osheet: true }] });
     expect(finishOut(flow, act)).toMatchObject({ type: 'done' });
     const outs = flow.takeOutcomes?.() ?? [];
-    expect(outs.filter((o) => o.key === batch.jobs[0].key).pop()?.outcome).toEqual({ state: 'none' });
+    // 화면에는 「영수증 없음」 그대로, 서버 실패 기록에는 어느 길에서 왜 없음이 됐는지(1.1.1 — 대표님 11-04 「뭐가 문제인지 알 수가 없으니」)
+    expect(outs.filter((o) => o.key === batch.jobs[0].key).pop()?.outcome).toMatchObject({ state: 'none', info: { path: '/orderApi/orderSheet/detail', words: expect.stringMatching(/^osheet-/) } });
   });
 
   it('주문상세가 비카드 결제(머니 · 포인트)를 읽으면 구매영수증(kind purchase)으로 올린다 — 금액 · 시각은 목록 값', () => {
@@ -453,7 +454,7 @@ describe('간편결제 · 외부몰 네이버페이(pinfo) — orders.pay.naver.
     // orders 화면이 계속 안 뜬다 — 시간 초과를 거듭해 끝낸다
     for (let i = 0; i < 20 && !('type' in out && out.type === 'done'); i++) out = 'type' in out && out.type === 'probe' ? flow.next({ type: 'resume' }) : flow.next({ type: 'timeout' });
     expect(out).toMatchObject({ type: 'done' });
-    expect((flow.takeOutcomes?.() ?? []).filter((o) => o.key === k).pop()?.outcome).toEqual({ state: 'none' });
+    expect((flow.takeOutcomes?.() ?? []).filter((o) => o.key === k).pop()?.outcome).toMatchObject({ state: 'none', info: { path: '/orderApi/orderSheet/detail', words: expect.stringMatching(/^osheet-/) } });
   });
 
   it('주문상세에서 취소 · 카드로 판단되면(none) 완성본은 올리지 않고 목록 행을 none 으로 바꾸는 행만 간다 · 같은 줄은 주문상세를 한 번만 부른다', () => {
