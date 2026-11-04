@@ -5,8 +5,9 @@
 import { readDetail, type ReceiptDetail } from './model';
 import { CANCELLED_TEXT, failText, NONE_TEXT, outcomeKey, type Outcome } from './runOutcome';
 
-/** card 카드영수증 · purchase 구매영수증 · list 영수증을 아직 가져오기 전의 목록 행(서버가 완성본으로 바꿔 넣는다) */
-export type OrderKindShown = 'card' | 'purchase' | 'list';
+/** card 카드영수증 · purchase 구매영수증 · list 영수증을 아직 가져오기 전의 목록 행(서버가 완성본으로 바꿔 넣는다) · none 영수증이 없는 결제로 끝난 주문(적립 불가) */
+export type OrderKindShown = 'card' | 'purchase' | 'list' | 'none';
+const kindShown = (k: unknown): OrderKindShown | null => (k === 'card' || k === 'purchase' || k === 'list' || k === 'none' ? k : null);
 export type LinkOrder = {
   id: number;
   platform: string;
@@ -46,7 +47,7 @@ function parseOrder(v: unknown): LinkOrder | null {
     orderedAt,
     claimed: r.claimed === true,
     claimedAt: text(r.claimedAt) || null,
-    kind: r.kind === 'card' || r.kind === 'purchase' || r.kind === 'list' ? r.kind : null,
+    kind: kindShown(r.kind),
     duplicate: r.duplicate === true,
     ...(r.hasDetail === true ? { hasDetail: true } : {}),
   };
@@ -140,12 +141,13 @@ export function summaryLine(claimable: number, perOrder: number): string {
   return `적립 가능 ${count(claimable)}건 · 건당 ${count(perOrder)}P`;
 }
 
-/** 줄 오른쪽에 무엇을 보일지 — claimed 적립 완료(claimedAt 이 있어도) · duplicate 이미 올린 영수증 · pending 아직 영수증을 못 가져온 목록 행 · ready 광고 보고 적립 */
-export type RowState = 'claimed' | 'duplicate' | 'pending' | 'ready';
+/** 줄 오른쪽에 무엇을 보일지 — claimed 적립 완료(claimedAt 이 있어도) · duplicate 이미 올린 영수증 · pending 아직 영수증을 못 가져온 목록 행 · none 영수증이 없는 결제(서버 kind none, 적립 불가) · ready 광고 보고 적립 */
+export type RowState = 'claimed' | 'duplicate' | 'pending' | 'none' | 'ready';
 export function rowState(o: LinkOrder): RowState {
   if (isClaimed(o)) return 'claimed';
   if (o.duplicate) return 'duplicate';
   if (o.kind === 'list') return 'pending';
+  if (o.kind === 'none') return 'none';
   return 'ready';
 }
 
@@ -219,6 +221,7 @@ export function rowViews(list: LinkOrder[], run: RunView | null): Map<number, Ro
     const st = rowState(o);
     if (st === 'claimed' || st === 'duplicate') { out.set(o.id, { state: st, reason: '' }); continue; }
     if (st === 'ready') { out.set(o.id, { state: 'fetched', reason: '' }); continue; }
+    if (st === 'none') { out.set(o.id, { state: 'none', reason: NONE_TEXT }); continue; }   // 서버에 「영수증 없음」으로 남은 줄 — 다시 가져오지 않는다
     const key = outcomeKey(o.orderNo, o.orderedAt, o.amount);
     const r: Outcome | undefined = run?.outcomes?.[key];
     // 이 줄이 지금 실행에 들어 있나 — 한 줄 실행(only)이면 그 줄만, 아니면 모든 줄
@@ -262,7 +265,7 @@ export function listCounts(list: LinkOrder[]): ListCounts {
   let claimable = 0;
   for (const o of list) {
     const st = rowState(o);
-    if (st !== 'pending') fetched++;
+    if (st !== 'pending' && st !== 'none') fetched++;
     if (st === 'ready') claimable++;
   }
 
@@ -318,7 +321,7 @@ export function parseOrderReceipt(v: unknown): OrderReceipt | null {
     title: text(r.title),
     amount: Math.max(0, Math.floor(r.amount)),
     orderedAt,
-    kind: r.kind === 'card' || r.kind === 'purchase' || r.kind === 'list' ? r.kind : null,
+    kind: kindShown(r.kind),
     cardIssuer: text(r.cardIssuer),
     approval: text(r.approval),
     businessNumber: text(r.businessNumber),

@@ -208,7 +208,8 @@ describe('매출전표 결과 · 줄별 결과', () => {
     const out = finishOut(flow, flow.next({ type: 'fetched', results: [OKJ(b.reqs[0].key), OKT(b.reqs[1].key), { key: b.reqs[2].key, st: 'http', status: 404 }] }));
     expect(out).toMatchObject({ type: 'done', reason: 'all-rows' });
     const done = (out as Extract<FlowOut, { type: 'done' }>).orders;
-    expect(done.map((o) => o.orderNo)).toEqual([ordNo(2), ordNo(1)]);
+    expect(done.filter((o) => o.kind === 'card').map((o) => o.orderNo)).toEqual([ordNo(2), ordNo(1)]);
+    expect(done.filter((o) => o.kind === 'none')).toHaveLength(1);   // 404(영수증 없음)인 줄은 목록 행을 none 으로 바꾸는 행이 간다
     expect(done[0]).toMatchObject({ kind: 'card', approval: '12345678', businessNumber: '123-45-67890', cardIssuer: '삼성카드', orderedAt: '2026-10-20 10:04:43', amount: 45900, seller: '가짜브랜드2', listKey: '2026-10-25 12:00|20000' });
     expect(done[1]).toMatchObject({ kind: 'card', approval: '12345678', orderedAt: '2026-10-20 10:04:43' });
     expect(flow.takeOutcomes?.().map((e) => e.outcome.state)).toEqual(['done', 'done', 'none']);

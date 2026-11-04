@@ -164,8 +164,8 @@ describe('영수증 읽기 (readReceipt)', () => {
   });
 
   it('취소완료 글자 · JSON 의 취소 표시 · 영수증 없음 안내는 none, 읽을 게 없으면 bad', () => {
-    expect(readReceipt({ key: 'k', st: 'ok', text: `${SLIP_TEXT}\n취소완료` })).toEqual({ kind: 'none' });
-    expect(readReceipt({ key: 'k', st: 'ok', data: { isCanceled: true, approvalNo: '12345678' } })).toEqual({ kind: 'none' });
+    expect(readReceipt({ key: 'k', st: 'ok', text: `${SLIP_TEXT}\n취소완료` })).toEqual({ kind: 'none', cancelled: true });
+    expect(readReceipt({ key: 'k', st: 'ok', data: { isCanceled: true, approvalNo: '12345678' } })).toEqual({ kind: 'none', cancelled: true });
     expect(readReceipt({ key: 'k', st: 'ok', text: '카드 영수증 정보가 없습니다' })).toEqual({ kind: 'none' });
     expect(readReceipt({ key: 'k', st: 'ok', text: '아무 글자' })).toEqual({ kind: 'bad' });
     expect(readReceipt({ key: 'k', st: 'ok' })).toEqual({ kind: 'bad' });
@@ -207,11 +207,27 @@ describe('흐름: 목록 → 영수증 묶음 → 줄별 결과', () => {
     const b = toFirstBatch(flow, nextData(LIST));
     flow.take(); flow.takeOutcomes?.();
     const out = settle(flow, flow.next({ type: 'fetched', results: [okText(b.reqs[0].key), okText(b.reqs[1].key, `${SLIP_TEXT}\n취소완료`)] }));
-    expect(flow.takeOutcomes?.()).toMatchObject([{ key: b.reqs[0].key, outcome: { state: 'done' } }, { key: b.reqs[1].key, outcome: { state: 'none', info: { stage: 'read', via: 'fetch' } } }]);
+    expect(flow.takeOutcomes?.()).toMatchObject([{ key: b.reqs[0].key, outcome: { state: 'done' } }, { key: b.reqs[1].key, outcome: { state: 'none', why: 'cancelled', info: { stage: 'read', via: 'fetch' } } }]);
     expect(out).toMatchObject({ type: 'done', reason: 'all-rows' });
+    expect((out as Extract<FlowOut, { type: 'done' }>).orders.map((o) => o.kind)).toEqual(['card']);   // 취소된 주문은 서버에 none 행을 남기지 않는다
     const done = (out as Extract<FlowOut, { type: 'done' }>).orders;
     expect(done).toHaveLength(1);
     expect(done[0]).toMatchObject({ orderNo: ID(2), kind: 'card', seller: '가짜상점', title: '가짜상품2', businessNumber: '120-81-00000', approval: '12345678', orderedAt: '2026-10-06 14:23:45', amount: 8900, listKey: '2026-10-20 10:04|2000' });
+  });
+
+  it('영수증이 없는 결제(영수증 없음 안내 · 404)는 줄은 「영수증 없음」, 서버에는 목록 행과 같은 주문번호 · listKey 의 kind none 행이 간다(상세 없음)', () => {
+    const flow = mk();
+    const b = toFirstBatch(flow, nextData(LIST));
+    flow.take(); flow.takeOutcomes?.();
+    const out = settle(flow, flow.next({ type: 'fetched', results: [okText(b.reqs[0].key, '카드 영수증 정보가 없습니다'), { key: b.reqs[1].key, st: 'http', status: 404 }] }));
+    expect(flow.takeOutcomes?.()).toMatchObject([{ key: b.reqs[0].key, outcome: { state: 'none' } }, { key: b.reqs[1].key, outcome: { state: 'none' } }]);
+    expect((flow.takeOutcomes?.() ?? []).some((e) => e.outcome.state === 'none' && 'why' in e.outcome)).toBe(false);
+    const done = (out as Extract<FlowOut, { type: 'done' }>).orders;
+    expect(done).toEqual([
+      { orderNo: ID(2), orderedAt: '2026-10-20 10:04:43', amount: 2000, payment: '카드', kind: 'none', listKey: '2026-10-20 10:04|2000', seller: '가짜상점2', title: '가짜상품2' },
+      { orderNo: ID(1), orderedAt: '2026-10-06 09:11:12', amount: 1000, payment: '카드', kind: 'none', listKey: '2026-10-06 09:11|1000', seller: '가짜상점1', title: '가짜상품1' },
+    ]);
+    expect(JSON.stringify(done)).not.toContain('needsReceipt');
   });
 
   it('판매자번호를 못 찾은 주문은 요청 없이 그 줄에만 「영수증 주소를 못 찾았어요」(no-pair)', () => {

@@ -87,7 +87,9 @@ describe('순서 · 한 주문 한 줄', () => {
     expect(flow.takeOutcomes?.()).toEqual([{ key: k2, outcome: { state: 'done' } }, { key: k1, outcome: { state: 'none' } }]);
     expect(out).toMatchObject({ type: 'done', reason: 'all-rows' });
     const done = (out as Extract<FlowOut, { type: 'done' }>).orders;
-    expect(done).toHaveLength(1);
+    expect(done).toHaveLength(2);
+    // 영수증이 없는 결제(none)는 목록 행과 같은 주문번호 · listKey 로 kind none 행이 간다 — 서버가 list 행을 none 으로 바꾼다(상세 없음)
+    expect(done[1]).toEqual({ orderNo: orderNo(1), orderedAt: '2026-10-20 10:04:43', amount: 1000, payment: '카드', kind: 'none', listKey: '2026-10-20 10:04|1000', seller: '상점1', title: '상품1', productOrderNo: `PD${orderNo(1)}` });
     expect(done[0]).toMatchObject({
       orderNo: orderNo(2), kind: 'card', seller: '판매자', title: '영수증 상품', businessNumber: '123-45-67890', approval: '111222', cardIssuer: '삼성카드',
       orderedAt: '2026-10-20 10:04:43', amount: 5000, listKey: '2026-10-25 12:00|4000',
@@ -454,13 +456,15 @@ describe('간편결제 · 외부몰 네이버페이(pinfo) — orders.pay.naver.
     expect((flow.takeOutcomes?.() ?? []).filter((o) => o.key === k).pop()?.outcome).toEqual({ state: 'none' });
   });
 
-  it('주문상세에서 취소 · 카드로 판단되면(none) 올리지 않는다 · 같은 줄은 주문상세를 한 번만 부른다', () => {
+  it('주문상세에서 취소 · 카드로 판단되면(none) 완성본은 올리지 않고 목록 행을 none 으로 바꾸는 행만 간다 · 같은 줄은 주문상세를 한 번만 부른다', () => {
     const flow = mk();
     const batch = toFirstBatch(flow, [item(2, '2026-10-25 12:00:00')]);
     let calls = 0;
     const out = finishOut(flow, flow.next({ type: 'receipts', results: [{ key: batch.jobs[0].key, st: 'none', status: 200 }] }), [], (key) => { calls++; return { key, st: 'none' }; });
     expect(out).toMatchObject({ type: 'done' });
-    expect((out as Extract<FlowOut, { type: 'done' }>).orders.filter((o) => o.kind !== 'list')).toEqual([]);
+    const rest = (out as Extract<FlowOut, { type: 'done' }>).orders.filter((o) => o.kind !== 'list');
+    expect(rest.map((o) => [o.orderNo, o.kind, o.listKey])).toEqual([[orderNo(2), 'none', '2026-10-25 12:00|2000']]);
+    expect(rest[0]).not.toHaveProperty('detail');
     expect(calls).toBe(1);
   });
 });

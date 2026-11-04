@@ -21,7 +21,7 @@
  *  - 취소: cancel 이 든 키가 true · 상태 글자에 「취소」
  */
 import {
-  extractSlip, isLoginPage, listOrder, LOOKBACK_DAYS, normalizeKst, pageShape, toImportOrder,
+  extractSlip, isLoginPage, listOrder, LOOKBACK_DAYS, noneOrder, normalizeKst, pageShape, toImportOrder,
   type FlowEvent, type FlowOut, type FlowStats, type NaverFlow, type ReceiptOrder, type Slip,
 } from './naverReceipt';
 import { latestKnownDay, tailOf, type ApiFlowOptions } from './naverApiFlow';
@@ -239,15 +239,16 @@ export function receiptUrl(orderId: string, vendorIds: readonly string[]): strin
   return `${COUPANG_RECEIPT_URL}?orderId=${orderId}&vendorIds=${vendorIds.join(',')}&cancel=false`;
 }
 
-export type ReceiptRead = { kind: 'slip'; slip: Slip; seller?: string; detail?: ReceiptDetail } | { kind: 'none' } | { kind: 'bad' };
+/** none 은 영수증이 없는 결제. cancelled 가 붙으면 취소된 주문(「취소된 주문」 줄 · 서버에 none 행을 남기지 않는다) */
+export type ReceiptRead = { kind: 'slip'; slip: Slip; seller?: string; detail?: ReceiptDetail } | { kind: 'none'; cancelled?: true } | { kind: 'bad' };
 
 const NONE_TEXT_RE = /영수증[^\n]{0,14}(없|조회할 수 없|존재하지)|매출전표[^\n]{0,14}(없|조회할 수 없)/;
 const cardWord = (s: string | undefined): string | undefined => (s && s.length <= 20 ? s : undefined);
 
 /** 영수증 JSON 에서 이름으로 칸을 찾는다. 사업자번호 · 승인번호 · 결제 일시 · 금액 중 셋이 안 되면 null (extractSlip 과 같은 기준) */
 export function readReceiptJson(data: unknown): ReceiptRead {
-  if (isCancelledObj(data)) return { kind: 'none' };
-  const digits = (v: unknown): string | undefined => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; return /^\d{5,16}$/.test(s) ? s : undefined; };
+  if (isCancelledObj(data)) return { kind: 'none', cancelled: true };
+  const digits =(v: unknown): string | undefined => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; return /^\d{5,16}$/.test(s) ? s : undefined; };
   const biz = scan(data, /(biz|business|saupja|registration|corpReg)/i, (v) => { const s = typeof v === 'string' ? v.trim() : ''; return /^\d{3}-?\d{2}-?\d{5}$/.test(s) ? `${s.replace(/-/g, '').slice(0, 3)}-${s.replace(/-/g, '').slice(3, 5)}-${s.replace(/-/g, '').slice(5)}` : undefined; });
   const approval = scan(data, /^(card)?(approval|approve|auth)(No|Num|Number)$/i, digits);
   let paid: { at: string; dateOnly: boolean } | undefined;
@@ -300,7 +301,7 @@ export function readReceipt(r: FetchResult): ReceiptRead {
     if (j.kind !== 'bad' || text === '') return j;
   }
   if (text === '') return { kind: 'bad' };
-  if (/취소\s*완료/.test(text)) return { kind: 'none' };
+  if (/취소\s*완료/.test(text)) return { kind: 'none', cancelled: true };
   const slip = extractSlip(text);
   if (slip) {
     // 글자 영수증도 세부 칸을 채운다(JSON 경로와 같은 이름) — 11-02 실측: 쿠팡 영수증은 HTML 이라 세부가 0건이었다
@@ -583,7 +584,15 @@ export function createCoupangApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
 
   /** 영수증 한 장 → 서버로 보낼 완성 주문. text 는 못 읽었을 때 어떤 라벨이 있었는지(값 없이 0/1)만 세려고 받는다(11-03 회원1602 79건 「못 읽음」) */
   const settleOk = (j: Job, read: ReceiptRead, text?: string, via: 'fetch' | 'nav' = 'fetch', http?: number): void => {
-    if (read.kind === 'none') { noneN++; note('receipt-none', j.row.orderId); setOutcome(j.key, { state: 'none', info: infoOf(j, { stage: 'read', ...respInfo(text, via, http) }) }); return; }
+    if (read.kind === 'none') {
+      noneN++;
+      note('receipt-none', j.row.orderId);
+      const info = infoOf(j, { stage: 'read', ...respInfo(text, via, http) });
+      if (read.cancelled) { setOutcome(j.key, { state: 'none', why: 'cancelled', info }); return; }
+      setOutcome(j.key, { state: 'none', info });
+      pending.push(noneOrder(j.order));   // 영수증이 없는 결제 — 서버의 목록 행을 none 으로 바꾼다(「목록만」으로 남지 않게, 11-04)
+      return;
+    }
     if (read.kind === 'bad') { note(badKey(text)); note(`nav-${badWords(text)}`.slice(0, 30)); fail(j, 'unreadable', infoOf(j, { stage: 'read', ...respInfo(text, via, http) })); return; }
     const s: Slip = { ...read.slip };
     if (!s.paidAt) {   // 영수증에 결제 시각이 없으면 목록의 주문 날짜(+시각이 있으면 시각)를 쓴다 — 초가 없으면 allowNoSeconds 가 켜졌을 때만 서버로 간다
@@ -629,7 +638,7 @@ export function createCoupangApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
       else if (r.st === 'blocked' || r.st === 'net' || (r.st === 'http' && (r.status ?? 0) >= 500)) {
         if (r.st === 'blocked') blocked++;
         if (j.tries + 1 < MAX_JOB_TRIES) { j.tries++; again.push(j); } else fail(j, r.st === 'blocked' ? 'blocked' : 'network', infoOf(j, { stage: 'request', via: 'fetch', words: `st-${r.st}`, ...(r.status !== undefined ? { http: r.status } : {}) }));
-      } else if (r.st === 'http') { noneN++; note(`http-${r.status ?? 0}${r.why ? `-${r.why.replace(/[^a-z0-9_-]/g, '').slice(0, 10)}` : ''}:v${j.row.vendorIds.length}`, j.row.orderId); setOutcome(j.key, { state: 'none', info: infoOf(j, { stage: 'request', via: 'fetch', http: r.status ?? 0, words: `http-${r.status ?? 0}${r.why ? `-${r.why}` : ''}` }) }); }   // 404 같은 응답 — 그 주문에는 카드영수증이 없는 것으로 본다(가정)
+      } else if (r.st === 'http') { noneN++; note(`http-${r.status ?? 0}${r.why ? `-${r.why.replace(/[^a-z0-9_-]/g, '').slice(0, 10)}` : ''}:v${j.row.vendorIds.length}`, j.row.orderId); setOutcome(j.key, { state: 'none', info: infoOf(j, { stage: 'request', via: 'fetch', http: r.status ?? 0, words: `http-${r.status ?? 0}${r.why ? `-${r.why}` : ''}` }) }); pending.push(noneOrder(j.order)); }   // 404 같은 응답 — 그 주문에는 카드영수증이 없는 것으로 본다(가정) · 서버 목록 행도 none 으로
       else { note(`st-${r.st}`); fail(j, FAIL_OF[r.st] ?? 'unreadable', infoOf(j, { stage: 'request', via: 'fetch', words: `st-${r.st}`, ...(r.status !== undefined ? { http: r.status } : {}) })); }
     }
     batch = [];

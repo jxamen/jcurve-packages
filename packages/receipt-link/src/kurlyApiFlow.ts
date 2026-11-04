@@ -26,7 +26,7 @@
  *   기본 배송지: address|addr|baseAddress|roadAddress 글자 + addressDetail|detailAddress|addrDetail 글자
  */
 import {
-  listOrder, LOOKBACK_DAYS, normalizeKst, pageShape, toImportOrder,
+  listOrder, LOOKBACK_DAYS, noneOrder, normalizeKst, pageShape, toImportOrder,
   type FlowEvent, type FlowOut, type FlowStats, type NaverFlow, type ReceiptOrder, type Slip,
 } from './naverReceipt';
 import { latestKnownDay, tailOf, type ApiFlowOptions } from './naverApiFlow';
@@ -379,7 +379,10 @@ export function createKurlyApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
     setOutcome(j.key, { state: 'failed', code });
     stats.unfetched = [...(stats.unfetched ?? []), j.order.orderNo];
   };
-  const none = (j: Job): void => { noneN++; setOutcome(j.key, { state: 'none' }); };
+  /** 영수증이 없는 결제 — 줄은 「영수증 없음」, 서버에는 목록 행을 none 으로 바꾸는 행을 보낸다(「목록만」으로 남지 않게, 11-04) */
+  const none = (j: Job): void => { noneN++; setOutcome(j.key, { state: 'none' }); pending.push(noneOrder(j.order)); };
+  /** 취소된 주문 — 「취소된 주문」 줄만, 서버에는 보내지 않는다(목록 단계의 취소 행과 같다) */
+  const cancelled = (j: Job): void => { noneN++; setOutcome(j.key, { state: 'none', why: 'cancelled' }); };
 
   /** 응답의 키 구조(값 없음)를 같은 모양마다 한 번만 남긴다. 찾아 쓴 칸의 키 이름도 맨 앞에 붙인다 */
   const structThen = (where: string, url: string, data: unknown, used: string[], then: () => FlowOut): FlowOut => {
@@ -514,7 +517,7 @@ export function createKurlyApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
 
   /** 영수증 한 장 → 서버로 보낼 완성 주문 */
   const settleOk = (j: Job, ks: KurlySlip): void => {
-    if (ks.cancelled) { none(j); return; }
+    if (ks.cancelled) { cancelled(j); return; }   // 영수증이 취소된 주문 — 「영수증 없음」 행을 서버에 남기지 않는다
     const amount = ks.slip.amount ?? j.order.amount;
     const done = toImportOrder(ks.slip, { orderNo: j.order.orderNo, seller: ks.seller ?? j.order.seller ?? SELLER, title: ks.title ?? j.order.title, amount }, { kind: 'card', allowNoSeconds });
     if (!done) { fail(j, 'unreadable'); return; }

@@ -27,8 +27,11 @@ export type LinkState = { windowDays: number; consentVersion: string; links: Par
  * 서버로 보내는 주문 — 이 열두 칸이 전부다. 뒤의 여섯 칸(사업자번호 · 승인번호 · 카드사 · 종류 · 목록 키)은 영수증을 건건이 읽었을 때만 있다.
  * orderedAt 은 'YYYY-MM-DD HH:mm:ss'(초 포함)가 정상이고, 'YYYY-MM-DD HH:mm' 도 받는다.
  * kind 'list' 는 영수증을 읽기 전의 목록 행이다 — orderNo 가 없을 수 있고(그러면 listKey 로 가린다), 서버가 완성본으로 바꿔 넣는다(결과 updated).
+ * kind 'none' 은 영수증이 없는 결제로 끝난 목록 주문 — list 와 같은 칸(상세 없음), 서버가 list 행을 none 으로 바꾼다(적립 불가).
  */
-export type OrderKind = 'card' | 'purchase' | 'list';
+export type OrderKind = 'card' | 'purchase' | 'list' | 'none';
+/** 상세(영수증) 없이 가는 종류 — 주문번호 대신 listKey 만 있어도 된다 */
+export const isPendingKind = (k: unknown): k is 'list' | 'none' => k === 'list' || k === 'none';
 export type OrderInput = {
   orderNo?: string; orderedAt: string; amount: number; seller?: string; title?: string; payment?: string;
   businessNumber?: string; approval?: string; cardIssuer?: string; kind?: OrderKind; listKey?: string;
@@ -128,7 +131,7 @@ const clip = (v: unknown, max: number): string | undefined => {
  */
 export function cleanOrder(raw: unknown): OrderInput | null {
   const r = object(raw);
-  const isList = r.kind === 'list';
+  const isList = isPendingKind(r.kind);
   const orderNo = clip(r.orderNo, 60);
   const listKey = normalizeListKey(r.listKey);
   const orderedAt = clip(r.orderedAt, 40);

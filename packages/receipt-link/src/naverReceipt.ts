@@ -47,8 +47,8 @@ export type ReceiptOrder = {
   businessNumber?: string;
   approval?: string;
   cardIssuer?: string;
-  /** 'list' = 목록(API · 블록 글자)에서 본 주문. 영수증 보강 전이면 needsReceipt, orderNo 는 빈 문자열일 수 있다 */
-  kind: ReceiptKind | 'list';
+  /** 'list' = 목록(API · 블록 글자)에서 본 주문. 영수증 보강 전이면 needsReceipt, orderNo 는 빈 문자열일 수 있다. 'none' = 영수증이 없는 결제로 끝난 목록 주문(서버가 list 행을 바꿔 넣는다 · 적립 불가) */
+  kind: ReceiptKind | 'list' | 'none';
   needsReceipt?: boolean;
   /** 「YYYY-MM-DD HH:mm|금액」 — 목록 행과 보강본을 잇는 키. 서버는 같은 키의 list 행을 보강본으로 바꾼다 */
   listKey?: string;
@@ -820,6 +820,15 @@ export function listOrder(f: ListFields): ReceiptOrder {
   if (f.productOrderNo) out.productOrderNo = f.productOrderNo;
   if (f.pay) out.pay = f.pay;
   return out;
+}
+
+/**
+ * 영수증이 없는 결제로 끝난 목록 주문 → 서버로 보낼 「영수증 없음」 행(kind none). 목록 행과 같은 칸(주문번호 · listKey)에 종류만 none —
+ * 서버는 같은 list 행을 none 으로 바꾸고, 다음 실행은 known 으로 건너뛴다(list 행처럼 「목록만」으로 남지 않게, 11-04). 취소된 주문(why cancelled)은 보내지 않는다.
+ */
+export function noneOrder(o: ReceiptOrder): ReceiptOrder {
+  const { needsReceipt: _n, pay: _p, payIdHint: _h, detail: _d, ...rest } = o;
+  return { ...rest, kind: 'none' };
 }
 
 /** 영수증 요청 주소에 들어가는 주문 상품 번호 — 「PD」로 시작해도 된다(대표님 23:23 B형 요청 형식). 모양이 틀리면 없음 */

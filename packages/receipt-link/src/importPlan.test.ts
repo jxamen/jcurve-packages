@@ -262,6 +262,22 @@ describe('목록 행(kind list)과 완성본', () => {
     expect(r.orders[1].listKey).toBe('2026-10-27 00:00|900');
   });
 
+  it('「영수증 없음」(kind none) replaces a list row, never a completed order; a completed order still replaces a none row; a second none is a duplicate', () => {
+    const c = createCollector(NOWL);
+    expect(c.accept({ orders: readFlowOrders([row({ orderNo: 'KR-300001', listKey: K(1) }), row({ listKey: K(2) }), { orderNo: 'KR-300003', orderedAt: '2026-10-27 14:03:22', amount: 900, kind: 'card', listKey: K(3) }]).orders, dropped: 0 })).toHaveLength(3);
+    // none 이 목록 행을 대신한다(주문번호로 · listKey 로)
+    const a = c.accept({ orders: readFlowOrders([row({ orderNo: 'KR-300001', kind: 'none', listKey: K(1) }), row({ orderNo: 'KR-300002', kind: 'none', listKey: K(2) })]).orders, dropped: 0 });
+    expect(a.map((o) => [o.orderNo, o.kind])).toEqual([['KR-300001', 'none'], ['KR-300002', 'none']]);
+    // none 은 완성본(card)을 대신하지 않고, 같은 none 을 다시 받으면 중복
+    const b = c.accept({ orders: readFlowOrders([row({ orderNo: 'KR-300003', kind: 'none', listKey: K(3) }), row({ orderNo: 'KR-300001', kind: 'none', listKey: K(1) })]).orders, dropped: 0 });
+    expect(b).toEqual([]);
+    // 완성본은 none 행을 대신한다
+    const d = c.accept({ orders: readFlowOrders([{ orderNo: 'KR-300001', orderedAt: '2026-10-27 14:03:22', amount: 900, kind: 'card', listKey: K(1) }]).orders, dropped: 0 });
+    expect(d.map((o) => [o.orderNo, o.kind])).toEqual([['KR-300001', 'card']]);
+    expect(c.size()).toBe(3);
+    expect(c.finish().orders.map((o) => o.kind).sort()).toEqual(['card', 'card', 'none']);
+  });
+
   it('a completed order replaces the list row (same listKey, or same orderNo) instead of counting as a duplicate', () => {
     const c = createCollector(NOWL);
     const a = c.accept({ orders: readFlowOrders([row({ listKey: K(1) }), row({ orderNo: 'KR-200002', listKey: K(2) })]).orders, dropped: 0 });

@@ -3,7 +3,7 @@
  * 주문 내용은 여기서도 로그로 남기거나 예외 메시지에 넣지 않는다. 틀린 메시지는 null, 틀린 주문 한 건은 세고 버린다.
  */
 import { ORDER_PAGES } from './readers';
-import { normalizeListKey, readDetail, type LinkPlatform, type OrderInput, type OrderKind } from './model';
+import { isPendingKind, normalizeListKey, readDetail, type LinkPlatform, type OrderInput, type OrderKind } from './model';
 
 export type ReaderSite = keyof typeof ORDER_PAGES;
 
@@ -61,7 +61,7 @@ const BIZ = /^[0-9-]{1,20}$/;
 function readOrder(v: unknown): OrderInput | null {
   const r = obj(v);
   if (r.noSeconds === true) return null;
-  const isList = r.kind === 'list';
+  const isList = isPendingKind(r.kind);
   const listKey = normalizeListKey(r.listKey);
   const orderNo = typeof r.orderNo === 'string' ? r.orderNo.replace(/[^0-9A-Za-z-]/g, '') : '';
   const noOk = orderNo.length >= 5 && orderNo.length <= 40;
@@ -155,9 +155,11 @@ export function createCollector(nowMs: number = Date.now(), windowDays: number =
       const key = keyOf(o);
       const prev = byNo.get(key);
       const sharedKey = o.listKey ? listIdx.get(o.listKey) : undefined;
-      const listPrev = sharedKey !== undefined && byNo.get(sharedKey)?.kind === 'list' ? sharedKey : undefined;
-      // 영수증을 읽어 완성된 주문은 먼저 올린 목록 행(kind list)을 대신한다 — 중복으로 세지 않고 다시 올린다(서버가 바꿔 넣는다)
-      if (o.kind !== 'list' && (prev?.kind === 'list' || listPrev !== undefined)) {
+      const listPrev = sharedKey !== undefined && isPendingKind(byNo.get(sharedKey)?.kind) ? sharedKey : undefined;
+      // 영수증을 읽어 완성된 주문은 먼저 올린 목록 행(kind list)을 대신한다 — 중복으로 세지 않고 다시 올린다(서버가 바꿔 넣는다).
+      // 「영수증 없음」(kind none)도 목록 행을 대신하지만, 완성본(card · purchase)이나 다른 none 을 대신하지는 않는다
+      const replaces = o.kind !== 'list' && !(o.kind === 'none' && (prev?.kind === 'none' || (listPrev !== undefined && byNo.get(listPrev)?.kind === 'none')));
+      if (replaces && (isPendingKind(prev?.kind) || listPrev !== undefined)) {
         if (listPrev !== undefined && listPrev !== key) byNo.delete(listPrev);
         if (o.listKey) listIdx.delete(o.listKey);
         byNo.set(key, o);
@@ -166,7 +168,7 @@ export function createCollector(nowMs: number = Date.now(), windowDays: number =
       else if (cap && byNo.size >= MAX_TOTAL) capped++;
       else {
         byNo.set(key, o);
-        if (o.kind === 'list' && o.listKey) listIdx.set(o.listKey, key);
+        if (isPendingKind(o.kind) && o.listKey) listIdx.set(o.listKey, key);
         fresh.push(o);
       }
     }

@@ -176,6 +176,16 @@ describe('줄마다 상태 (rowViews) — 대기 / 가져오는 중 / 가져옴 
   ];
   const states = (run: RunView | null): Record<number, string> => Object.fromEntries([...rowViews(list, run)].map(([id, v]) => [id, v.state]));
 
+  it('서버에 「영수증 없음」(kind none)으로 남은 줄 — 읽기 중이든 끝났든 「영수증 없음」, 다시 가져오기 단추 없음 · 목록 수에서 가져온 줄로 세지 않는다', () => {
+    const withNone = [...list, row({ id: 7, orderedAt: '2026-10-19 10:00', kind: 'none' })];
+    expect(rowState(withNone[6])).toBe('none');
+    for (const run of [null, { stage: 'list' as const, reason: '' }, { stage: 'ended' as const, reason: 'receipt-bounced' }]) {
+      expect(rowViews(withNone, run).get(7)).toEqual({ state: 'none', reason: '영수증이 없는 결제예요' });
+    }
+    expect(listCounts(withNone)).toEqual({ total: 7, fetched: 3, claimable: 1 });
+    expect(parseOrderList({ orders: [{ id: 9, orderedAt: '2026-10-27 14:03', amount: 1, kind: 'none' }] }).orders[0].kind).toBe('none');
+  });
+
   it('목록을 읽는 단계 — 영수증을 못 가져온 줄은 모두 「대기」, 가져온 줄은 바로 가져옴 ✓', () => {
     expect(states({ stage: 'list', reason: '' })).toEqual({ 1: 'waiting', 2: 'waiting', 3: 'fetched', 4: 'claimed', 5: 'duplicate', 6: 'waiting' });
   });

@@ -45,6 +45,11 @@ describe('cleanOrder keeps only the allowed fields', () => {
     expect(cleanOrder({ orderedAt: '2026-10-27 14:03:22', amount: 900, kind: 'list', listKey: 'L-1' })).toBeNull();
     expect(cleanOrder({ orderedAt: '2026-10-27 14:03:22', amount: 900, listKey: '2026-10-27 14:03|900' })).toBeNull();
   });
+  it('keeps a 「영수증 없음」 row (kind none) like a list row — listKey alone is enough, detail is dropped', () => {
+    expect(cleanOrder({ orderedAt: '2026-10-27 14:03:22', amount: 900, kind: 'none', listKey: '2026-10-27 14:03|900' })).toEqual({ orderedAt: '2026-10-27 14:03:22', amount: 900, kind: 'none', listKey: '2026-10-27 14:03|900' });
+    expect(cleanOrder({ orderNo: 'KR-100001', orderedAt: '2026-10-27 14:03:22', amount: 900, kind: 'none', needsReceipt: true })).toEqual({ orderNo: 'KR-100001', orderedAt: '2026-10-27 14:03:22', amount: 900, kind: 'none' });
+    expect(cleanOrder({ orderedAt: '2026-10-27 14:03:22', amount: 900, kind: 'none' })).toBeNull();
+  });
   it('a completed order carries the same listKey so the server can replace the list row', () => {
     expect(cleanOrder({ orderNo: 'KR-100001', orderedAt: '2026-10-27 14:03:22', amount: 900, kind: 'card', listKey: '2026-10-27 14:03|900' }))
       .toMatchObject({ orderNo: 'KR-100001', kind: 'card', listKey: '2026-10-27 14:03|900' });
