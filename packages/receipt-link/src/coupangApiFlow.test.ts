@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import type { FlowOut } from './naverReceipt';
 import { tailOf } from './naverApiFlow';
 import {
-  cleanMerchant, COUPANG_LIST_URL, coupangFindOverUrl, coupangListUrl, createCoupangApiFlow, findCoupangOrders, nextListPage, parseAmount, parseListDate, readReceipt, receiptUrl, textSummaryLines,
+  badWords, cleanMerchant, COUPANG_LIST_URL, coupangFindOverUrl, coupangListUrl, createCoupangApiFlow, findCoupangOrders, nextListPage, parseAmount, parseListDate, readReceipt, receiptUrl, textSummaryLines,
 } from './coupangApiFlow';
 import { outcomeKey } from './runOutcome';
 import { FETCH_BATCH, type FetchResult } from './siteFetch';
@@ -477,5 +477,15 @@ describe('클릭 · 화면 열기 없음', () => {
       else expect(['login', 'probe', 'structure', 'done']).toContain(o.type);
     }
     expect(outs.filter((o) => 'type' in o && o.type === 'goto')).toHaveLength(1);
+  });
+});
+
+describe('못 읽은 응답 낱말 기록', () => {
+  it('정해 둔 낱말 유무와 길이 단계만 — 숫자 · 이름은 남기지 않는다', () => {
+    const k = badWords('<script>alert("쿠페이 머니로 결제한 주문은 카드 영수증이 없습니다 홍길동 01012345678")</script>');
+    expect(k).toMatch(/^bw-[a-z]+-l\d+$/);
+    expect(k).toContain('ade');
+    expect(k).not.toMatch(/홍|0101/);
+    expect(badWords('')).toBe('bw-0-l0');
   });
 });

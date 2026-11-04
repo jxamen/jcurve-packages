@@ -83,7 +83,7 @@ export declare function readReceiptJson(data: unknown): ReceiptRead;
 export declare function cleanMerchant(raw: string | undefined): string | undefined;
 /** 영수증 응답 → 읽은 것. data 가 있으면 JSON 으로, 아니면 text 가 JSON 모양이면 파싱, 아니면 글자에서(extractSlip). 취소 · 영수증 없음 글자는 none */
 export declare function readReceipt(r: FetchResult): ReceiptRead;
-/** 못 읽은 영수증의 까닭 키 — 「bad-t{길이단계}-{사업자·승인번호·일시·금액·카드·취소 라벨 0/1}」, 글자가 없으면 「bad-empty」. 값은 담지 않는다 */
+export declare function badWords(text: string | undefined): string;
 export declare function badKey(text: string | undefined): string;
 /** 응답이 글자(HTML)일 때 구조 기록용 요약 줄 — 값 없이 라벨 유무 · 길이 단계만(영문) */
 export declare function textSummaryLines(text: string): string[];

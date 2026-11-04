@@ -310,6 +310,18 @@ export function readReceipt(r: FetchResult): ReceiptRead {
 }
 
 /** 못 읽은 영수증의 까닭 키 — 「bad-t{길이단계}-{사업자·승인번호·일시·금액·카드·취소 라벨 0/1}」, 글자가 없으면 「bad-empty」. 값은 담지 않는다 */
+/** 못 읽은 짧은 응답에 든 낱말 — 정해 둔 낱말이 있는지만 글자 하나로(본문 · 이름 · 숫자는 남기지 않는다). 회원1602 79건이 1000자 미만 · 「카드」만 든 응답이었다(11-04) */
+const BAD_WORDS: Array<[string, RegExp]> = [
+  ['a', /없습니다|없어요|없음/], ['b', /현금/], ['c', /계좌/], ['d', /쿠페이|coupay/i], ['e', /머니/], ['f', /캐시/], ['g', /포인트/],
+  ['h', /로그인/], ['i', /권한|본인/], ['j', /오류|에러|error/i], ['k', /잘못/], ['l', /일시적|잠시/], ['m', /조회/], ['n', /결제\s*수단/],
+  ['o', /상품권|기프트/], ['p', /무통장|가상\s*계좌/], ['q', /휴대폰/], ['r', /판매자/], ['s', /영수증/], ['t', /발급/], ['u', /부분|복합/],
+  ['v', /법인/], ['w', /신용/], ['x', /체크/], ['y', /alert\(|location\.(href|replace)/], ['z', /<script/i],
+];
+export function badWords(text: string | undefined): string {
+  const t = text ?? '';
+  return `bw-${BAD_WORDS.filter(([, re]) => re.test(t)).map(([c]) => c).join('') || '0'}-l${Math.min(99, Math.floor(t.length / 50))}`.slice(0, 30);
+}
+
 export function badKey(text: string | undefined): string {
   const t = text ?? '';
   if (t.trim() === '') return 'bad-empty';
@@ -553,7 +565,7 @@ export function createCoupangApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
   /** 영수증 한 장 → 서버로 보낼 완성 주문. text 는 못 읽었을 때 어떤 라벨이 있었는지(값 없이 0/1)만 세려고 받는다(11-03 회원1602 79건 「못 읽음」) */
   const settleOk = (j: Job, read: ReceiptRead, text?: string): void => {
     if (read.kind === 'none') { noneN++; note('receipt-none', j.row.orderId); setOutcome(j.key, { state: 'none' }); return; }
-    if (read.kind === 'bad') { note(badKey(text)); fail(j, 'unreadable'); return; }
+    if (read.kind === 'bad') { note(badKey(text)); note(`nav-${badWords(text)}`.slice(0, 30)); fail(j, 'unreadable'); return; }
     const s: Slip = { ...read.slip };
     if (!s.paidAt) {   // 영수증에 결제 시각이 없으면 목록의 주문 날짜(+시각이 있으면 시각)를 쓴다 — 초가 없으면 allowNoSeconds 가 켜졌을 때만 서버로 간다
       s.paidAt = j.row.dateOnly ? `${j.row.at.slice(0, 10)} 00:00` : j.row.at;
@@ -593,7 +605,7 @@ export function createCoupangApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
     let blocked = 0;
     const first = rs.find((x) => x.r.st === 'ok');
     for (const { j, r } of rs) {
-      if (r.st === 'ok') { const read = readReceipt(r); if (read.kind === 'bad' && !navMode) { note(badKey(r.text)); navLater.push(j); } else settleOk(j, read, r.text); }
+      if (r.st === 'ok') { const read = readReceipt(r); if (read.kind === 'bad' && !navMode) { note(badKey(r.text)); note(badWords(r.text)); navLater.push(j); } else settleOk(j, read, r.text); }
       else if (r.st === 'login') { sawLogin = true; again.push(j); }
       else if (r.st === 'blocked' || r.st === 'net' || (r.st === 'http' && (r.status ?? 0) >= 500)) {
         if (r.st === 'blocked') blocked++;

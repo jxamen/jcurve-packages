@@ -9,6 +9,7 @@ exports.receiptUrl = receiptUrl;
 exports.readReceiptJson = readReceiptJson;
 exports.cleanMerchant = cleanMerchant;
 exports.readReceipt = readReceipt;
+exports.badWords = badWords;
 exports.badKey = badKey;
 exports.textSummaryLines = textSummaryLines;
 exports.createCoupangApiFlow = createCoupangApiFlow;
@@ -399,6 +400,17 @@ function readReceipt(r) {
     return NONE_TEXT_RE.test(text) ? { kind: 'none' } : { kind: 'bad' };
 }
 /** 못 읽은 영수증의 까닭 키 — 「bad-t{길이단계}-{사업자·승인번호·일시·금액·카드·취소 라벨 0/1}」, 글자가 없으면 「bad-empty」. 값은 담지 않는다 */
+/** 못 읽은 짧은 응답에 든 낱말 — 정해 둔 낱말이 있는지만 글자 하나로(본문 · 이름 · 숫자는 남기지 않는다). 회원1602 79건이 1000자 미만 · 「카드」만 든 응답이었다(11-04) */
+const BAD_WORDS = [
+    ['a', /없습니다|없어요|없음/], ['b', /현금/], ['c', /계좌/], ['d', /쿠페이|coupay/i], ['e', /머니/], ['f', /캐시/], ['g', /포인트/],
+    ['h', /로그인/], ['i', /권한|본인/], ['j', /오류|에러|error/i], ['k', /잘못/], ['l', /일시적|잠시/], ['m', /조회/], ['n', /결제\s*수단/],
+    ['o', /상품권|기프트/], ['p', /무통장|가상\s*계좌/], ['q', /휴대폰/], ['r', /판매자/], ['s', /영수증/], ['t', /발급/], ['u', /부분|복합/],
+    ['v', /법인/], ['w', /신용/], ['x', /체크/], ['y', /alert\(|location\.(href|replace)/], ['z', /<script/i],
+];
+function badWords(text) {
+    const t = text ?? '';
+    return `bw-${BAD_WORDS.filter(([, re]) => re.test(t)).map(([c]) => c).join('') || '0'}-l${Math.min(99, Math.floor(t.length / 50))}`.slice(0, 30);
+}
 function badKey(text) {
     const t = text ?? '';
     if (t.trim() === '')
@@ -688,6 +700,7 @@ function createCoupangApiFlow(opts = {}) {
         }
         if (read.kind === 'bad') {
             note(badKey(text));
+            note(`nav-${badWords(text)}`.slice(0, 30));
             fail(j, 'unreadable');
             return;
         }
@@ -742,6 +755,7 @@ function createCoupangApiFlow(opts = {}) {
                 const read = readReceipt(r);
                 if (read.kind === 'bad' && !navMode) {
                     note(badKey(r.text));
+                    note(badWords(r.text));
                     navLater.push(j);
                 }
                 else
