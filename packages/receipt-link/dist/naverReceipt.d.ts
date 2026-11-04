@@ -62,8 +62,8 @@ export type ReceiptOrder = {
     businessNumber?: string;
     approval?: string;
     cardIssuer?: string;
-    /** 'list' = 목록(API · 블록 글자)에서 본 주문. 영수증 보강 전이면 needsReceipt, orderNo 는 빈 문자열일 수 있다 */
-    kind: ReceiptKind | 'list';
+    /** 'list' = 목록(API · 블록 글자)에서 본 주문. 영수증 보강 전이면 needsReceipt, orderNo 는 빈 문자열일 수 있다. 'none' = 영수증이 없는 결제로 끝난 목록 주문(서버가 list 행을 바꿔 넣는다 · 적립 불가) */
+    kind: ReceiptKind | 'list' | 'none';
     needsReceipt?: boolean;
     /** 「YYYY-MM-DD HH:mm|금액」 — 목록 행과 보강본을 잇는 키. 서버는 같은 키의 list 행을 보강본으로 바꾼다 */
     listKey?: string;
@@ -194,6 +194,11 @@ type ListFields = {
 };
 /** 목록에서 본 주문 — 영수증으로 보강 전이라 needsReceipt, orderNo 는 모를 수 있다(빈 문자열) */
 export declare function listOrder(f: ListFields): ReceiptOrder;
+/**
+ * 영수증이 없는 결제로 끝난 목록 주문 → 서버로 보낼 「영수증 없음」 행(kind none). 목록 행과 같은 칸(주문번호 · listKey)에 종류만 none —
+ * 서버는 같은 list 행을 none 으로 바꾸고, 다음 실행은 known 으로 건너뛴다(list 행처럼 「목록만」으로 남지 않게, 11-04). 취소된 주문(why cancelled)은 보내지 않는다.
+ */
+export declare function noneOrder(o: ReceiptOrder): ReceiptOrder;
 /** 쇼핑 주문내역 API 의 contents[] 한 칸(허용 필드만 쓴다). 주문번호 · 시각 · 금액이 없으면 null */
 export declare function shopItemToOrder(x: unknown): ReceiptOrder | null;
 /** 쇼핑 주문 목록의 상품 한 칸이 취소 · 반품인가 — 키 이름에 status 가 든 칸의 값(CANCEL · RETURN · 취소 · 반품). 대표님 11-02 「취소 주문 불러오지 않음」 */

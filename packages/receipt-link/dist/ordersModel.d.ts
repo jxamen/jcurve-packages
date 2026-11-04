@@ -4,8 +4,8 @@
  */
 import { type ReceiptDetail } from './model';
 import { type Outcome } from './runOutcome';
-/** card 카드영수증 · purchase 구매영수증 · list 영수증을 아직 가져오기 전의 목록 행(서버가 완성본으로 바꿔 넣는다) */
-export type OrderKindShown = 'card' | 'purchase' | 'list';
+/** card 카드영수증 · purchase 구매영수증 · list 영수증을 아직 가져오기 전의 목록 행(서버가 완성본으로 바꿔 넣는다) · none 영수증이 없는 결제로 끝난 주문(적립 불가) */
+export type OrderKindShown = 'card' | 'purchase' | 'list' | 'none';
 export type LinkOrder = {
     id: number;
     platform: string;
@@ -50,8 +50,8 @@ export declare function displayLine(o: LinkOrder): string;
 export declare function sortOrders(list: LinkOrder[]): LinkOrder[];
 /** 「적립 가능 3건 · 건당 300P」 */
 export declare function summaryLine(claimable: number, perOrder: number): string;
-/** 줄 오른쪽에 무엇을 보일지 — claimed 적립 완료(claimedAt 이 있어도) · duplicate 이미 올린 영수증 · pending 아직 영수증을 못 가져온 목록 행 · ready 광고 보고 적립 */
-export type RowState = 'claimed' | 'duplicate' | 'pending' | 'ready';
+/** 줄 오른쪽에 무엇을 보일지 — claimed 적립 완료(claimedAt 이 있어도) · duplicate 이미 올린 영수증 · pending 아직 영수증을 못 가져온 목록 행 · none 영수증이 없는 결제(서버 kind none, 적립 불가) · ready 광고 보고 적립 */
+export type RowState = 'claimed' | 'duplicate' | 'pending' | 'none' | 'ready';
 export declare function rowState(o: LinkOrder): RowState;
 /**
  * 주문 읽기가 어디까지 왔는지(화면이 이미 아는 신호만) — list 목록을 읽는 중(영수증 단계 전) · receipt 영수증을 가져오는 중 · ended 끝남(끝난 까닭 reason).

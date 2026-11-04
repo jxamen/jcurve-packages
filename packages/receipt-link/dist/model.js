@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.emptyTally = exports.isConnected = exports.RECEIPT_DETAIL_KEYS = exports.ORDERS_PER_REQUEST = exports.LINK_LABEL = exports.ALL_LINK_PLATFORMS = exports.TEST_LINK_PLATFORMS = exports.LINK_PLATFORMS = void 0;
+exports.emptyTally = exports.isConnected = exports.RECEIPT_DETAIL_KEYS = exports.isPendingKind = exports.ORDERS_PER_REQUEST = exports.LINK_LABEL = exports.ALL_LINK_PLATFORMS = exports.TEST_LINK_PLATFORMS = exports.LINK_PLATFORMS = void 0;
 exports.readDetail = readDetail;
 exports.effectiveReadDays = effectiveReadDays;
 exports.parseLinkState = parseLinkState;
@@ -18,6 +18,9 @@ exports.ALL_LINK_PLATFORMS = ['naver', 'coupang', 'musinsa', 'kurly'];
 exports.LINK_LABEL = { naver: '네이버', coupang: '쿠팡', musinsa: '무신사', kurly: '마켓컬리' };
 /** 서버가 한 번에 받는 주문 수 */
 exports.ORDERS_PER_REQUEST = 50;
+/** 상세(영수증) 없이 가는 종류 — 주문번호 대신 listKey 만 있어도 된다 */
+const isPendingKind = (k) => k === 'list' || k === 'none';
+exports.isPendingKind = isPendingKind;
 /** 영수증 세부 칸 — 대표님 10-29 14:15 card-single 원문 칸(세부 화면에 22:30 캡처 순서로 보인다) */
 exports.RECEIPT_DETAIL_KEYS = [
     'cardCompany', 'approvalNo', 'cardNo', 'tradeType', 'ownerType', 'installmentType', 'approvalAt', 'cancelAt', 'productName', 'productOrderNo',
@@ -112,7 +115,7 @@ const clip = (v, max) => {
  */
 function cleanOrder(raw) {
     const r = object(raw);
-    const isList = r.kind === 'list';
+    const isList = (0, exports.isPendingKind)(r.kind);
     const orderNo = clip(r.orderNo, 60);
     const listKey = normalizeListKey(r.listKey);
     const orderedAt = clip(r.orderedAt, 40);

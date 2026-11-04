@@ -5,6 +5,7 @@
  */
 import { type ImportTally, type LinkPlatform, type LinkState } from './model';
 import { type ClaimResult, type LinkOrder, type OrderList, type OrderReceipt } from './ordersModel';
+import type { FailItem } from './failLog';
 import type { ProbePayload } from './probe';
 import type { Outcome } from './runOutcome';
 /** 사이트의 공식 로그인 페이지 — 회원이 여기서 직접 로그인한다 */
@@ -52,6 +53,20 @@ export declare function createReceiptLinkApi(http: ReceiptLinkHttp): {
     getOrderReceipt(id: number): Promise<OrderReceipt>;
     /** 광고를 본 뒤 한 건 적립. 광고 확인 전이면 402 ad_required */
     claimOrder(id: number): Promise<ClaimResult>;
+    /** 카드 · 화면이 쓰는 상태 — 서버 스위치가 꺼졌거나(404) 못 받으면 null(연동 영역을 그리지 않는다) */
+    loadLinkState(): Promise<LinkState | null>;
+    /** 불러오기 한 번의 끝 — 까닭별 개수만(모든 회원, 주문 값 없음). 서버 receipt-link/run-end(11-03). 기록이라 실패해도 막지 않는다 */
+    postRunEnd(body: RunEndBody): Promise<void>;
+    /** 영수증을 못 받은 주문마다 진단 한 줄(failLog.failItems) — 100줄씩, 서버 receipt-link/fails(11-04). 실패해도 막지 않는다 */
+    postFails(platform: LinkPlatform, items: readonly FailItem[]): Promise<void>;
+};
+/** 실행 끝 기록 본문 — reason · reasons 의 키는 영문 · 숫자 · : _ - 만(서버가 그 모양만 받는다) */
+export type RunEndBody = {
+    platform: LinkPlatform;
+    total: number;
+    ok: number;
+    reason: string;
+    reasons: Record<string, number>;
 };
 export type ReceiptLinkApi = ReturnType<typeof createReceiptLinkApi>;
 /** 영수증 보기를 못 열었을 때 — 없는 주문(404)과 그 밖 */

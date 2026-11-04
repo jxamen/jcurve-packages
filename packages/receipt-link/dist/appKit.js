@@ -154,6 +154,31 @@ function createReceiptLinkApi(http) {
         async claimOrder(id) {
             return (0, ordersModel_1.parseClaimResult)(await http.post('receipt-orders/' + enc(id) + '/claim', {}));
         },
+        /** 카드 · 화면이 쓰는 상태 — 서버 스위치가 꺼졌거나(404) 못 받으면 null(연동 영역을 그리지 않는다) */
+        async loadLinkState() {
+            try {
+                return await this.fetchLinkState();
+            }
+            catch {
+                return null;
+            }
+        },
+        /** 불러오기 한 번의 끝 — 까닭별 개수만(모든 회원, 주문 값 없음). 서버 receipt-link/run-end(11-03). 기록이라 실패해도 막지 않는다 */
+        async postRunEnd(body) {
+            try {
+                await http.post('receipt-link/run-end', body);
+            }
+            catch { /* 기록 */ }
+        },
+        /** 영수증을 못 받은 주문마다 진단 한 줄(failLog.failItems) — 100줄씩, 서버 receipt-link/fails(11-04). 실패해도 막지 않는다 */
+        async postFails(platform, items) {
+            for (let i = 0; i < items.length; i += 100) {
+                try {
+                    await http.post('receipt-link/fails', { platform, items: items.slice(i, i + 100) });
+                }
+                catch { /* 기록 */ }
+            }
+        },
     };
 }
 /** 영수증 보기를 못 열었을 때 — 없는 주문(404)과 그 밖 */

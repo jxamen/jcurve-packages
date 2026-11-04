@@ -306,7 +306,7 @@ const cardWord = (s) => (s && s.length <= 20 ? s : undefined);
 /** 영수증 JSON 에서 이름으로 칸을 찾는다. 사업자번호 · 승인번호 · 결제 일시 · 금액 중 셋이 안 되면 null (extractSlip 과 같은 기준) */
 function readReceiptJson(data) {
     if (isCancelledObj(data))
-        return { kind: 'none' };
+        return { kind: 'none', cancelled: true };
     const digits = (v) => { const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''; return /^\d{5,16}$/.test(s) ? s : undefined; };
     const biz = scan(data, /(biz|business|saupja|registration|corpReg)/i, (v) => { const s = typeof v === 'string' ? v.trim() : ''; return /^\d{3}-?\d{2}-?\d{5}$/.test(s) ? `${s.replace(/-/g, '').slice(0, 3)}-${s.replace(/-/g, '').slice(3, 5)}-${s.replace(/-/g, '').slice(5)}` : undefined; });
     const approval = scan(data, /^(card)?(approval|approve|auth)(No|Num|Number)$/i, digits);
@@ -382,7 +382,7 @@ function readReceipt(r) {
     if (text === '')
         return { kind: 'bad' };
     if (/취소\s*완료/.test(text))
-        return { kind: 'none' };
+        return { kind: 'none', cancelled: true };
     const slip = (0, naverReceipt_1.extractSlip)(text);
     if (slip) {
         // 글자 영수증도 세부 칸을 채운다(JSON 경로와 같은 이름) — 11-02 실측: 쿠팡 영수증은 HTML 이라 세부가 0건이었다
@@ -711,7 +711,13 @@ function createCoupangApiFlow(opts = {}) {
         if (read.kind === 'none') {
             noneN++;
             note('receipt-none', j.row.orderId);
-            setOutcome(j.key, { state: 'none', info: infoOf(j, { stage: 'read', ...respInfo(text, via, http) }) });
+            const info = infoOf(j, { stage: 'read', ...respInfo(text, via, http) });
+            if (read.cancelled) {
+                setOutcome(j.key, { state: 'none', why: 'cancelled', info });
+                return;
+            }
+            setOutcome(j.key, { state: 'none', info });
+            pending.push((0, naverReceipt_1.noneOrder)(j.order)); // 영수증이 없는 결제 — 서버의 목록 행을 none 으로 바꾼다(「목록만」으로 남지 않게, 11-04)
             return;
         }
         if (read.kind === 'bad') {
@@ -797,7 +803,8 @@ function createCoupangApiFlow(opts = {}) {
                 noneN++;
                 note(`http-${r.status ?? 0}${r.why ? `-${r.why.replace(/[^a-z0-9_-]/g, '').slice(0, 10)}` : ''}:v${j.row.vendorIds.length}`, j.row.orderId);
                 setOutcome(j.key, { state: 'none', info: infoOf(j, { stage: 'request', via: 'fetch', http: r.status ?? 0, words: `http-${r.status ?? 0}${r.why ? `-${r.why}` : ''}` }) });
-            } // 404 같은 응답 — 그 주문에는 카드영수증이 없는 것으로 본다(가정)
+                pending.push((0, naverReceipt_1.noneOrder)(j.order));
+            } // 404 같은 응답 — 그 주문에는 카드영수증이 없는 것으로 본다(가정) · 서버 목록 행도 none 으로
             else {
                 note(`st-${r.st}`);
                 fail(j, FAIL_OF[r.st] ?? 'unreadable', infoOf(j, { stage: 'request', via: 'fetch', words: `st-${r.st}`, ...(r.status !== undefined ? { http: r.status } : {}) }));

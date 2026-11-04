@@ -424,7 +424,8 @@ function createMusinsaApiFlow(opts = {}) {
         setOutcome(j.key, { state: 'failed', code });
         stats.unfetched = [...(stats.unfetched ?? []), j.order.orderNo];
     };
-    const none = (j) => { noneN++; setOutcome(j.key, { state: 'none' }); };
+    /** 영수증이 없는 결제 — 줄은 「영수증 없음」, 서버에는 목록 행을 none 으로 바꾸는 행을 보낸다(「목록만」으로 남지 않게, 11-04) */
+    const none = (j) => { noneN++; setOutcome(j.key, { state: 'none' }); pending.push((0, naverReceipt_1.noneOrder)(j.order)); };
     /* ----- 목록: meta offset ----- */
     const fetchAction = (reqs, slowRun) => ({
         kind: 'fetch', reqs,

@@ -21,6 +21,7 @@ exports.toImportOrder = toImportOrder;
 exports.interceptScript = interceptScript;
 exports.normalizeKst = normalizeKst;
 exports.listOrder = listOrder;
+exports.noneOrder = noneOrder;
 exports.shopItemToOrder = shopItemToOrder;
 exports.shopItemCancelled = shopItemCancelled;
 exports.payItemToOrder = payItemToOrder;
@@ -796,6 +797,14 @@ function listOrder(f) {
     if (f.pay)
         out.pay = f.pay;
     return out;
+}
+/**
+ * 영수증이 없는 결제로 끝난 목록 주문 → 서버로 보낼 「영수증 없음」 행(kind none). 목록 행과 같은 칸(주문번호 · listKey)에 종류만 none —
+ * 서버는 같은 list 행을 none 으로 바꾸고, 다음 실행은 known 으로 건너뛴다(list 행처럼 「목록만」으로 남지 않게, 11-04). 취소된 주문(why cancelled)은 보내지 않는다.
+ */
+function noneOrder(o) {
+    const { needsReceipt: _n, pay: _p, payIdHint: _h, detail: _d, ...rest } = o;
+    return { ...rest, kind: 'none' };
 }
 /** 영수증 요청 주소에 들어가는 주문 상품 번호 — 「PD」로 시작해도 된다(대표님 23:23 B형 요청 형식). 모양이 틀리면 없음 */
 const productOrderNoOf = (v) => {

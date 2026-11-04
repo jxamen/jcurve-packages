@@ -1,6 +1,7 @@
 export * from './appKit';
 export * from './backLayer';
 export * from './coupangApiFlow';
+export * from './failLog';
 export * from './flowDriver';
 export * from './flows';
 export * from './importLine';

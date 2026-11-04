@@ -28,6 +28,7 @@ exports.refillTails = refillTails;
  */
 const model_1 = require("./model");
 const runOutcome_1 = require("./runOutcome");
+const kindShown = (k) => (k === 'card' || k === 'purchase' || k === 'list' || k === 'none' ? k : null);
 const object = (v) => v !== null && typeof v === 'object' && !Array.isArray(v) ? v : {};
 const count = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0;
 const text = (v) => typeof v === 'string' ? v.trim() : '';
@@ -48,7 +49,7 @@ function parseOrder(v) {
         orderedAt,
         claimed: r.claimed === true,
         claimedAt: text(r.claimedAt) || null,
-        kind: r.kind === 'card' || r.kind === 'purchase' || r.kind === 'list' ? r.kind : null,
+        kind: kindShown(r.kind),
         duplicate: r.duplicate === true,
         ...(r.hasDetail === true ? { hasDetail: true } : {}),
     };
@@ -141,6 +142,8 @@ function rowState(o) {
         return 'duplicate';
     if (o.kind === 'list')
         return 'pending';
+    if (o.kind === 'none')
+        return 'none';
     return 'ready';
 }
 const REASON_TEXT = {
@@ -199,6 +202,10 @@ function rowViews(list, run) {
             out.set(o.id, { state: 'fetched', reason: '' });
             continue;
         }
+        if (st === 'none') {
+            out.set(o.id, { state: 'none', reason: runOutcome_1.NONE_TEXT });
+            continue;
+        } // 서버에 「영수증 없음」으로 남은 줄 — 다시 가져오지 않는다
         const key = (0, runOutcome_1.outcomeKey)(o.orderNo, o.orderedAt, o.amount);
         const r = run?.outcomes?.[key];
         // 이 줄이 지금 실행에 들어 있나 — 한 줄 실행(only)이면 그 줄만, 아니면 모든 줄
@@ -246,7 +253,7 @@ function listCounts(list) {
     let claimable = 0;
     for (const o of list) {
         const st = rowState(o);
-        if (st !== 'pending')
+        if (st !== 'pending' && st !== 'none')
             fetched++;
         if (st === 'ready')
             claimable++;
@@ -284,7 +291,7 @@ function parseOrderReceipt(v) {
         title: text(r.title),
         amount: Math.max(0, Math.floor(r.amount)),
         orderedAt,
-        kind: r.kind === 'card' || r.kind === 'purchase' || r.kind === 'list' ? r.kind : null,
+        kind: kindShown(r.kind),
         cardIssuer: text(r.cardIssuer),
         approval: text(r.approval),
         businessNumber: text(r.businessNumber),

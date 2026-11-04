@@ -58,7 +58,7 @@ function readOrder(v) {
     const r = obj(v);
     if (r.noSeconds === true)
         return null;
-    const isList = r.kind === 'list';
+    const isList = (0, model_1.isPendingKind)(r.kind);
     const listKey = (0, model_1.normalizeListKey)(r.listKey);
     const orderNo = typeof r.orderNo === 'string' ? r.orderNo.replace(/[^0-9A-Za-z-]/g, '') : '';
     const noOk = orderNo.length >= 5 && orderNo.length <= 40;
@@ -187,9 +187,11 @@ function createCollector(nowMs = Date.now(), windowDays = exports.WINDOW_DAYS) {
             const key = keyOf(o);
             const prev = byNo.get(key);
             const sharedKey = o.listKey ? listIdx.get(o.listKey) : undefined;
-            const listPrev = sharedKey !== undefined && byNo.get(sharedKey)?.kind === 'list' ? sharedKey : undefined;
-            // 영수증을 읽어 완성된 주문은 먼저 올린 목록 행(kind list)을 대신한다 — 중복으로 세지 않고 다시 올린다(서버가 바꿔 넣는다)
-            if (o.kind !== 'list' && (prev?.kind === 'list' || listPrev !== undefined)) {
+            const listPrev = sharedKey !== undefined && (0, model_1.isPendingKind)(byNo.get(sharedKey)?.kind) ? sharedKey : undefined;
+            // 영수증을 읽어 완성된 주문은 먼저 올린 목록 행(kind list)을 대신한다 — 중복으로 세지 않고 다시 올린다(서버가 바꿔 넣는다).
+            // 「영수증 없음」(kind none)도 목록 행을 대신하지만, 완성본(card · purchase)이나 다른 none 을 대신하지는 않는다
+            const replaces = o.kind !== 'list' && !(o.kind === 'none' && (prev?.kind === 'none' || (listPrev !== undefined && byNo.get(listPrev)?.kind === 'none')));
+            if (replaces && ((0, model_1.isPendingKind)(prev?.kind) || listPrev !== undefined)) {
                 if (listPrev !== undefined && listPrev !== key)
                     byNo.delete(listPrev);
                 if (o.listKey)
@@ -203,7 +205,7 @@ function createCollector(nowMs = Date.now(), windowDays = exports.WINDOW_DAYS) {
                 capped++;
             else {
                 byNo.set(key, o);
-                if (o.kind === 'list' && o.listKey)
+                if ((0, model_1.isPendingKind)(o.kind) && o.listKey)
                     listIdx.set(o.listKey, key);
                 fresh.push(o);
             }

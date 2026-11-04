@@ -1,7 +1,8 @@
-// @jcurve/receipt-link — 쇼핑몰 주문 · 영수증 수집(네이버 쇼핑+페이 · 쿠팡 · 무신사 · 컬리). 화면은 없다 — 흐름 · 웹뷰 스크립트 · 구동기 · 모델만.
+// @jcurve/receipt-link — 쇼핑몰 주문 · 영수증 수집(네이버 쇼핑+페이 · 쿠팡 · 무신사 · 컬리). 흐름 · 웹뷰 스크립트 · 구동기 · 모델 · 실패 기록. 화면은 '@jcurve/receipt-link/screen'(react-native 필요)
 export * from './appKit';
 export * from './backLayer';
 export * from './coupangApiFlow';
+export * from './failLog';
 export * from './flowDriver';
 export * from './flows';
 export * from './importLine';

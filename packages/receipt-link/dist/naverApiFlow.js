@@ -215,12 +215,12 @@ function createNaverApiFlow(opts = {}) {
         setOutcome(j.key, { state: 'failed', code });
         stats.unfetched = [...(stats.unfetched ?? []), j.order.orderNo];
     };
+    /** 영수증이 없는 결제 — 줄은 「영수증 없음」, 서버에는 목록 행을 none 으로 바꾸는 행을 보낸다(「목록만」으로 남지 않게, 11-04). 취소(why cancelled)는 따로 */
+    const none = (j) => { noneN++; setOutcome(j.key, { state: 'none' }); pending.push((0, naverReceipt_1.noneOrder)(j.order)); };
     /** orders 출처 작업을 못 했을 때 — 주문상세(osheet)는 예전 결과 그대로 「영수증 없음」, 간편결제(pinfo)는 까닭 */
     const missOrders = (w, code) => {
-        if (w.osheet) {
-            noneN++;
-            setOutcome(w.j.key, { state: 'none' });
-        }
+        if (w.osheet)
+            none(w.j);
         else
             fail(w.j, code);
     };
@@ -293,10 +293,8 @@ function createNaverApiFlow(opts = {}) {
             }
             else if (r?.st === 'ok')
                 settleOk(w.j, r.slip); // 카드가 아닌 결제 — 주문상세를 영수증으로
-            else if (r?.st === 'none') {
-                noneN++;
-                setOutcome(w.j.key, { state: 'none' });
-            }
+            else if (r?.st === 'none')
+                none(w.j);
             else
                 missOrders(w, FAIL_OF[r?.st ?? 'net'] ?? 'no-pair');
         }
@@ -529,15 +527,13 @@ function createNaverApiFlow(opts = {}) {
         const os = slip.orderSheet === true;
         const amount = os && j.order.amount > 0 ? j.order.amount : slip.amount ?? j.order.amount;
         if (os && !(amount > 0)) {
-            noneN++;
-            setOutcome(j.key, { state: 'none' });
+            none(j);
             return;
         } // 주문상세 실패는 예전 결과 그대로
         const paidAt = os ? ((0, naverReceipt_1.normalizeKst)(j.order.orderedAt) ?? (0, naverReceipt_1.normalizeKst)(slip.approvalAt)) : (0, naverReceipt_1.normalizeKst)(slip.approvalAt);
         const done = (0, naverReceipt_1.toImportOrder)({ businessNumber: slip.businessNo, approval: slip.approvalNo, paidAt: paidAt ?? undefined, amount, cardIssuer: slip.cardCompany }, { orderNo: j.order.orderNo, seller: slip.sellerName ?? j.order.seller, title: slip.productName ?? j.order.title, amount }, { kind: slip.tradeType === '현금영수증' || os ? 'purchase' : 'card', allowNoSeconds });
         if (!done && os) {
-            noneN++;
-            setOutcome(j.key, { state: 'none' });
+            none(j);
             return;
         }
         if (!done) {
@@ -635,10 +631,8 @@ function createNaverApiFlow(opts = {}) {
                 osheetSent.add(j.key);
                 pinfoWait.push({ j, osheet: true });
             }
-            else if (r.st === 'none') {
-                noneN++;
-                setOutcome(j.key, { state: 'none' });
-            }
+            else if (r.st === 'none')
+                none(j);
             else if (r.st === 'login') {
                 sawLogin = true;
                 again.push(j);

@@ -5,6 +5,7 @@
  */
 import { addTally, chunkOrders, cleanOrder, emptyTally, isConnected, LINK_LABEL, parseLinkState, type ImportTally, type LinkPlatform, type LinkState } from './model';
 import { parseClaimResult, parseOrderList, parseOrderReceipt, type ClaimResult, type LinkOrder, type OrderList, type OrderReceipt } from './ordersModel';
+import type { FailItem } from './failLog';
 import type { ProbePayload } from './probe';
 import type { Outcome } from './runOutcome';
 
@@ -153,8 +154,33 @@ export function createReceiptLinkApi(http: ReceiptLinkHttp) {
     async claimOrder(id: number): Promise<ClaimResult> {
       return parseClaimResult(await http.post<unknown>('receipt-orders/' + enc(id) + '/claim', {}));
     },
+    /** 카드 · 화면이 쓰는 상태 — 서버 스위치가 꺼졌거나(404) 못 받으면 null(연동 영역을 그리지 않는다) */
+    async loadLinkState(): Promise<LinkState | null> {
+      try {
+        return await this.fetchLinkState();
+      } catch {
+        return null;
+      }
+    },
+    /** 불러오기 한 번의 끝 — 까닭별 개수만(모든 회원, 주문 값 없음). 서버 receipt-link/run-end(11-03). 기록이라 실패해도 막지 않는다 */
+    async postRunEnd(body: RunEndBody): Promise<void> {
+      try {
+        await http.post<unknown>('receipt-link/run-end', body);
+      } catch { /* 기록 */ }
+    },
+    /** 영수증을 못 받은 주문마다 진단 한 줄(failLog.failItems) — 100줄씩, 서버 receipt-link/fails(11-04). 실패해도 막지 않는다 */
+    async postFails(platform: LinkPlatform, items: readonly FailItem[]): Promise<void> {
+      for (let i = 0; i < items.length; i += 100) {
+        try {
+          await http.post<unknown>('receipt-link/fails', { platform, items: items.slice(i, i + 100) });
+        } catch { /* 기록 */ }
+      }
+    },
   };
 }
+
+/** 실행 끝 기록 본문 — reason · reasons 의 키는 영문 · 숫자 · : _ - 만(서버가 그 모양만 받는다) */
+export type RunEndBody = { platform: LinkPlatform; total: number; ok: number; reason: string; reasons: Record<string, number> };
 export type ReceiptLinkApi = ReturnType<typeof createReceiptLinkApi>;
 
 /** 영수증 보기를 못 열었을 때 — 없는 주문(404)과 그 밖 */

@@ -10,6 +10,56 @@
 import { createFlowDriver, FLOW_FACTORIES, FLOW_HOSTS, type FlowSite } from '@jcurve/receipt-link';
 ```
 
+## 붙이는 법 (1.1.0 — 한 장)
+
+로그인 · 목록 · 영수증 읽기 · 서버 보내기 · 실패 기록 · 진행 줄이 전부 패키지 안에 있다. 앱이 할 일은 **설정 하나 + 화면 호출 하나**.
+
+**1. 설치** — `package.json`
+```json
+"@jcurve/receipt-link": "https://github.com/jxamen/jcurve-packages/releases/download/receipt-link-v1.1.0/jcurve-receipt-link-1.1.0.tgz"
+```
+같이 필요한 것: `react-native-webview`(읽기 웹뷰), 앱의 서버 호출기(`get` · `post`, 경로는 `/api/v1/{앱}/` 뒤).
+
+**2. 설정** — 앱마다 다른 것만 넘긴다(`src/receiptLink/screen.tsx` 같은 파일 하나)
+```tsx
+import { createReceiptLinkApi } from '@jcurve/receipt-link';
+import { defineReceiptLinkScreen } from '@jcurve/receipt-link/screen';
+import { WebView } from 'react-native-webview';
+import { api } from '../api';            // get(path) · post(path, body) — 토큰은 이 안에서
+import { Button } from '../ui/kit';      // { label, onPress, compact?, tone?: 'ghost' } 를 받는 단추
+import { C, S } from '../ui/theme';
+
+export const link = createReceiptLinkApi(api);
+export const receiptScreen = defineReceiptLinkScreen({
+  api: link,
+  WebView,
+  Button,
+  theme: { bg: C.bg, text: C.text, sub: C.sub, brandDark: C.brandDark, space: S },
+  // 선택: updateId(OTA 판, 실패 기록에 실림) · claimLine(보상이 있는 앱만) · renderOrders(화면 안 주문 목록을 앱이 그릴 때)
+});
+```
+
+**3. 화면 호출** — 연동 칩의 「주문 불러오기」가 열 때
+```tsx
+import { ReceiptImportScreen } from '@jcurve/receipt-link/screen';
+<ReceiptImportScreen config={receiptScreen} platform="naver" onClose={close} coupangRead={state?.coupangRead === true} />
+```
+`platform`: `naver` · `coupang` · `kurly` · `musinsa`. 연동 상태(`link.fetchLinkState()`) · 동의(`consentLink`) · 철회(`revokeLink`) · 목록(`listOrders`)도 `link` 에 있다.
+
+**4. 서버(jcurve-api) 끝점** — 앱마다 같은 경로, 앱 DB(`jc_{앱}`)에 따로 저장
+| 경로 | 하는 일 |
+|---|---|
+| `GET/POST receipt-link` · `POST receipt-link/revoke` | 연동 상태 · 동의 · 철회 |
+| `POST receipt-orders` | 읽은 주문 보내기(50건씩, `kind`: card · purchase · list · none) |
+| `GET receipt-orders` · `GET receipt-orders/{id}` | 목록 · 영수증 한 건 |
+| `POST receipt-orders/{id}/claim` | 적립(보상이 있는 앱만) |
+| `POST receipt-link/run-end` · `POST receipt-link/fails` | 실행 끝 요약 · 못 받은 줄 기록(어드민 「실패 기록」) |
+| `POST receipt-link/probe` | 구조 기록 — 어드민 설정 `{앱}.receipt_link_members` 에 적힌 회원만 |
+
+서버에서 앱을 여는 것은 우리가 한다(`ReceiptLinkController::APPS` + `php83 artisan receipts:add-link-tables --app={앱}`). 2026-11-04 기준 열린 앱: youngtech · bill.
+
+**5. 확인** — 앱에서 한 번 불러온 뒤 서버 `receipt_link_orders` 건수가 늘면 끝. 쿠키 · 토큰 · 카드번호는 패키지가 읽지도 보내지도 않는다.
+
 ## 길 (2026-11-02 대표님과 PC 크롬 실측)
 
 | 몰 | 목록 | 영수증 |

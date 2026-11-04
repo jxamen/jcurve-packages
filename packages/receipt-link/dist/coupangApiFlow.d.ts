@@ -67,6 +67,7 @@ export declare function nextListPage(root: unknown): {
 };
 /** 쿠팡 카드영수증 주소 — 대표님 23:45:08 형식(orderId · vendorIds · cancel=false). 값 모양이 틀리면 null */
 export declare function receiptUrl(orderId: string, vendorIds: readonly string[]): string | null;
+/** none 은 영수증이 없는 결제. cancelled 가 붙으면 취소된 주문(「취소된 주문」 줄 · 서버에 none 행을 남기지 않는다) */
 export type ReceiptRead = {
     kind: 'slip';
     slip: Slip;
@@ -74,6 +75,7 @@ export type ReceiptRead = {
     detail?: ReceiptDetail;
 } | {
     kind: 'none';
+    cancelled?: true;
 } | {
     kind: 'bad';
 };
