@@ -52,6 +52,18 @@ import { ReceiptImportScreen } from '@jcurve/receipt-link/screen';
 ```
 `platform`: `naver` · `coupang` · `kurly` · `musinsa`. 연동 상태(`link.fetchLinkState()`) · 동의(`consentLink`) · 철회(`revokeLink`) · 목록(`listOrders`)도 `link` 에 있다.
 
+**3-b. 영수증 올리기 화면의 전자 영수증 세 조각** — `@jcurve/receipt-guide`(2026-11-05, 대표님 「화면도 패키지로 · 디자인만 앱마다」)
+```json
+"@jcurve/receipt-guide": "https://github.com/jxamen/jcurve-packages/releases/download/receipt-guide-v1.0.2/jcurve-receipt-guide-1.0.2.tgz"
+```
+| 조각 | 컴포넌트 | 앱이 넘기는 것 |
+|---|---|---|
+| ① 「전자 영수증」 카드 — 칩 6칸(네이버 · 쿠팡 · 마켓컬리 · 무신사 · 배민 · 쿠팡이츠 …) · 「연동/미연동」 배지 · 「더보기 ∨」 | `PlatformChooser` | `linkChips`(연동 상태는 `link.fetchLinkState()` + `isConnected`) · `onLinkPick` · `theme`(색) |
+| ② 칩을 누르면 뜨는 「○○ 연동됨」 시트 — 주문 불러오기 · 불러온 주문 보기 · 사용 방법 보기 · (probe 만) 로그인 창 열기 · 연동 해제 · 닫기 | `ActionMenu` + `linkedMenuItems` · `linkedMenuTitle` | 다섯 동작 함수 · `theme`(색 · 둥글기 · 글자 크기 · 여백) · `insetBottom` |
+| ③ 「○○ 영수증 올리는 법」 단계 안내 + 맨 아래 「주문 불러오기」 | `ReceiptGuide` + `linkGuide(site)` | `appName` · `cta` · `theme` · `renderCharacter`(선택) |
+
+붙이는 예(세 조각 한 번에)와 색 이름은 `@jcurve/receipt-guide` README 에 있다. 「주문 불러오기」가 여는 화면은 위 3 의 `ReceiptImportScreen`.
+
 **4. 서버(jcurve-api) 끝점** — 앱마다 같은 경로, 앱 DB(`jc_{앱}`)에 따로 저장
 | 경로 | 하는 일 |
 |---|---|
