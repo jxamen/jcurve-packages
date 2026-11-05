@@ -30,8 +30,12 @@ const checkFetchRun = (r) => {
             throw new Error('bad url');
         if (q.body !== undefined && (typeof q.body !== 'string' || q.body.length > 8000 || q.method !== 'POST'))
             throw new Error('bad body');
-        if (q.as !== 'json' && q.as !== 'nextData' && q.as !== 'text')
+        if (q.as !== 'json' && q.as !== 'nextData' && q.as !== 'text' && q.as !== 'html')
             throw new Error('bad as');
+        if (q.form !== undefined && (typeof q.form !== 'boolean' || q.method !== 'POST'))
+            throw new Error('bad form');
+        if (q.xhr !== undefined && typeof q.xhr !== 'boolean')
+            throw new Error('bad xhr');
     }
     if (![r.conc, r.staggerMs, r.gapMs, r.timeoutMs, r.deadlineMs].every((v) => Number.isInteger(v) && v >= 0 && v <= 60000) || r.conc < 1 || r.conc > 6)
         throw new Error('bad run');

@@ -4,4 +4,4 @@
  * package.json 의 version 과 같아야 한다(version.test.ts 가 확인).
  */
 export const PKG_NAME = 'receipt-link';
-export const PKG_VERSION = '1.2.0';
+export const PKG_VERSION = '1.2.1';

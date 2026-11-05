@@ -1,6 +1,6 @@
 import type { FlowEvent, FlowOut } from './naverReceipt';
 import type { OutcomeEvent } from './runOutcome';
-export type FlowSite = 'naver' | 'coupang' | 'kurly' | 'musinsa';
+export type FlowSite = 'naver' | 'coupang' | 'kurly' | 'musinsa' | 'daiso' | 'oliveyoung';
 export type ReceiptFlow = {
     next(ev: FlowEvent): FlowOut;
     progress(): {

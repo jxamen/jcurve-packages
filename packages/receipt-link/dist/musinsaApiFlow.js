@@ -10,6 +10,7 @@ exports.parseOrderRow = parseOrderRow;
 exports.slipFromJson = slipFromJson;
 exports.slipFromMusinsaText = slipFromMusinsaText;
 exports.slipOf = slipOf;
+exports.cashSlipFromText = cashSlipFromText;
 exports.createMusinsaApiFlow = createMusinsaApiFlow;
 /**
  * 무신사 영수증 흐름(8차) — **요청만** 쓴다. 영수증 화면을 열거나 단추를 누르거나 막히면 화면 방식으로 되돌아가는 길이 없다(대표님 10-29 09:03).
@@ -33,7 +34,7 @@ exports.createMusinsaApiFlow = createMusinsaApiFlow;
  *  · 원소의 칸은 이름으로(너비 우선, 깊이 5까지): 주문번호 orderNo · ordNo · orderNumber · ord_no ⋯ / 주문 일시 orderDate · orderDt ⋯ → paymentDate · regDate ⋯ /
  *    금액 finalPaymentAmount · paymentAmount ⋯ → totalAmount · orderAmount ⋯ / 상품명 goodsName · productName ⋯ / 영수증 값 paymentKey · tid · merchantCode
  *  · merchantCode 가 없으면 대표님 원문(5글자)과 옛 확인(STORE)에 맞춰 STORE 를 쓴다
- *  · 영수증이 없는 결제: 목록 원소의 취소 · 반품 · 환불 상태, 또는 결제수단 이름이 포인트 · 계좌 · 무통장 · 가상계좌 · 머니(카드 아님)이면 요청 없이 「영수증 없음」,
+ *  · 영수증이 없는 결제: 목록 원소의 취소 · 반품 · 환불 상태, 또는 결제수단 이름이 포인트 · 계좌 · 머니(카드 아님)이면 요청 없이 「영수증 없음」(가상계좌 · 무통장은 영수증 화면을 현금영수증으로 읽는다),
  *    paymentKey · tid 가 없고 결제수단도 모르면 「영수증 주소를 못 찾았어요」, 매출전표 요청이 404 · 410 이면 「영수증 없음」
  *  · 매출전표 응답은 JSON 이면 이름으로(approvalNo · businessNo · approvalDateTime · approvalAmount ⋯), HTML 이면 태그를 걷은 글자에서 extractSlip 으로 읽는다
  * 끝난 까닭 코드: all-rows · login · blocked · list-failed · list-shape(목록은 왔는데 주문으로 읽은 게 없음) · cross-origin(매출전표 호스트로 가는 요청이 모두 실패) ·
@@ -133,6 +134,9 @@ const PAY_METHOD_RES = [/^(payMethod|paymentMethod|payType|paymentType|payWay|pa
 const STATUS_RES = [/^(orderStatus|status|state|claimStatus|statusName|statusNm|orderStateName)$/i, /(status|state)(Name|Nm|Text|Desc)?$/i];
 const CANCELLED = /취소|반품|환불|교환|CANCEL|RETURN|REFUND|EXCHANGE/i; // 대표님 11-03 「주문 상태(취소·반품·교환·환불)」
 const NON_CARD = /포인트|적립금|무통장|계좌|가상계좌|머니|POINT|VBANK|BANK|ACCOUNT|MONEY/i;
+/** 가상계좌 · 무통장 — 카드가 아니지만 영수증 화면의 현금영수증 글자를 읽는다(대표님 11-05 실측: pay_kind VTRANSFER) */
+const CASH_KIND = /VTRANSFER|가상계좌|무통장|현금영수증/i;
+const RECEIPT_PAGE_RE = /^https:\/\/pay\.musinsapayments\.com\/\S+$/;
 function readMusinsaDetail(json) {
     const info = isObj(json) && isObj(json.orderInfo) ? json.orderInfo : null;
     if (!info)
@@ -141,7 +145,9 @@ function readMusinsaDetail(json) {
     const tid = asStr(info.tno);
     if (!/^[A-Za-z0-9_-]{10,64}$/.test(paymentKey) || !/^[A-Za-z0-9_-]{16,160}$/.test(tid))
         return null;
-    return { paymentKey, tid, merchantCode: 'STORE' };
+    const cash = CASH_KIND.test(`${asStr(info.pay_kind)} ${asStr(info.pay_kind_name)}`);
+    const receiptPage = asStr(info.receiptPageUrl);
+    return { paymentKey, tid, merchantCode: 'STORE', ...(cash ? { cash: true } : {}), ...(cash && RECEIPT_PAGE_RE.test(receiptPage) ? { cashUrl: receiptPage } : {}) };
 }
 function musinsaNextOffsets(json) {
     const meta = isObj(json) && isObj(json.meta) ? json.meta : null;
@@ -289,6 +295,20 @@ const cleanMerchant = (m) => {
     return t ? t.slice(0, 60) : undefined;
 };
 exports.cleanMerchant = cleanMerchant;
+function cashSlipFromText(raw) {
+    const t = raw.replace(/<!--[\s\S]*?-->/g, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
+    const money = (re) => { const s = re.exec(t)?.[1]; return s ? Number(s.replace(/,/g, '')) : undefined; };
+    const paid = /승인\s*(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})/.exec(t);
+    const merchant = /(?:판매자\s*상호|상\s*호)\s*(.{1,40}?)(?=\s(?:사업자|대표|합\s*계|공급|부가|승인|거래|결제|전화|주소|사업장)|$)/.exec(t)?.[1];
+    return {
+        amount: money(/합\s*계\s*([\d,]+)\s*원/),
+        supply: money(/공급\s*가액\s*([\d,]+)/),
+        tax: money(/부가\s*세\s*([\d,]+)/),
+        approval: /승인\s*번호\s*(\d{6,12})/.exec(t)?.[1],
+        paidAt: paid ? `${paid[1]} ${paid[2]}` : undefined,
+        merchant: (0, exports.cleanMerchant)(merchant),
+    };
+}
 /** 매출전표 글자에서 카드 영수증이 아닌 결제(현금영수증 · 무통장 · 포인트)를 가리킨다 — 카드 승인 글자가 없을 때만 */
 const NO_CARD_TEXT = /현금영수증|무통장|계좌이체|가상계좌|포인트|적립금|머니/;
 /** 값 없는 글자 모양 줄 — HTML 매출전표는 키 구조가 없어 읽은 칸의 있음 · 없음만 남긴다 */
@@ -549,7 +569,7 @@ function createMusinsaApiFlow(opts = {}) {
                 noneN++;
                 setOutcome(j.key, { state: 'none', why: 'cancelled' });
             }
-            else if (p.method && NON_CARD.test(p.method))
+            else if (p.method && NON_CARD.test(p.method) && !CASH_KIND.test(p.method))
                 none(j);
             else
                 queue.push(j);
@@ -624,6 +644,9 @@ function createMusinsaApiFlow(opts = {}) {
     /* ----- 매출전표 ----- */
     const receiptReq = (j) => {
         const p = j.parsed.pay;
+        // 가상계좌 · 무통장은 상세 응답의 영수증 화면 주소(receiptPageUrl)를 연다
+        if (p.cashUrl)
+            return { key: j.key, method: 'GET', as: 'text', accept: RECEIPT_ACCEPT, url: p.cashUrl };
         return {
             key: j.key, method: 'GET', as: 'text', accept: RECEIPT_ACCEPT,
             url: `${exports.MUSINSA_RECEIPT_BASE}${j.parsed.orderNo}?paymentKey=${encodeURIComponent(p.paymentKey)}&merchantCode=${encodeURIComponent(p.merchantCode)}&tid=${encodeURIComponent(p.tid)}`,
@@ -672,9 +695,13 @@ function createMusinsaApiFlow(opts = {}) {
     };
     /** 매출전표 하나 → 완성 주문 · 영수증 없음 · 읽지 못함 */
     const settleOk = (j, r) => {
-        const slip = slipOf(r);
         const lines = r.data !== undefined ? (0, shapeLines_1.structureLines)(r.data) : (typeof r.text === 'string' ? textShapeLines(r.text) : []);
         queueStructure('mus-rcpt', RECEIPT_HOST, RECEIPT_PATH, lines);
+        if (j.parsed.pay?.cash) {
+            settleCash(j, r);
+            return;
+        }
+        const slip = slipOf(r);
         if (!slip) {
             if (typeof r.text === 'string' && NO_CARD_TEXT.test(r.text) && !/승인\s*번호/.test(r.text))
                 none(j);
@@ -705,7 +732,38 @@ function createMusinsaApiFlow(opts = {}) {
             detail.merchantName = merchantName;
         if (Object.keys(detail).length > 0)
             done.detail = detail;
-        // 목록 행과 같은 키로 이어 서버가 목록 행을 완성본으로 바꾸게 한다(영수증의 결제 시각이 주문 시각과 달라도)
+        keepDone(j, done);
+    };
+    /** 가상계좌 · 무통장 주문 — 영수증 화면의 현금영수증 글자를 읽는다. 글자를 못 읽으면 주문 상세 금액으로 purchase 를 만든다(unreadable 로 떨어뜨리지 않음) */
+    const settleCash = (j, r) => {
+        const c = cashSlipFromText(typeof r.text === 'string' ? r.text : '');
+        const merchantName = (0, exports.cleanMerchant)(c.merchant);
+        const amount = c.amount ?? j.parsed.amount;
+        const done = (0, naverReceipt_1.toImportOrder)({ paidAt: c.paidAt ?? j.parsed.orderedAt, amount, approval: c.approval, merchant: merchantName }, { orderNo: j.parsed.orderNo, seller: j.parsed.seller, title: j.parsed.title, amount }, { kind: 'purchase', allowNoSeconds: true });
+        if (!done) {
+            fail(j, 'unreadable');
+            return;
+        }
+        done.payment = '현금영수증';
+        const detail = {};
+        if (c.amount !== undefined)
+            detail.totalAmount = c.amount;
+        if (c.supply !== undefined)
+            detail.supplyAmount = c.supply;
+        if (c.tax !== undefined)
+            detail.taxAmount = c.tax;
+        if (c.approval)
+            detail.approvalNo = c.approval;
+        if (c.paidAt)
+            detail.approvalAt = c.paidAt;
+        if (merchantName)
+            detail.merchantName = merchantName;
+        if (Object.keys(detail).length > 0)
+            done.detail = detail;
+        keepDone(j, done);
+    };
+    /** 완성 주문을 남긴다 — 목록 행과 같은 키로 이어 서버가 목록 행을 완성본으로 바꾸게 한다(영수증의 결제 시각이 주문 시각과 달라도) */
+    const keepDone = (j, done) => {
         if (j.order.listKey)
             done.listKey = j.order.listKey;
         orders.push(done);

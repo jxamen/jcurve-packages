@@ -6,14 +6,18 @@ exports.NAVER_ISSUE_SITE_CAP_MS = exports.NAVER_ISSUE_GOTO_DELAY_MS = exports.FL
  * 흐름이 같은 FlowEvent/FlowOut 규약(naverReceipt.ts)을 따른다. 사이트별 에이전트는 자기 파일만 고친다.
  */
 const coupangApiFlow_1 = require("./coupangApiFlow");
+const daisoApiFlow_1 = require("./daisoApiFlow");
 const kurlyApiFlow_1 = require("./kurlyApiFlow");
 const musinsaApiFlow_1 = require("./musinsaApiFlow");
 const naverApiFlow_1 = require("./naverApiFlow");
+const oliveyoungApiFlow_1 = require("./oliveyoungApiFlow");
 exports.FLOW_FACTORIES = {
     naver: (o) => (0, naverApiFlow_1.createNaverApiFlow)({ ...o }), // 대표님 11-02 23:13 「예전엔 172건」 — 네이버는 최근 저장일 이후만 읽기를 끈다(지운 뒤 옛 주문이 다시 안 들어옴). 중복은 주문번호 · 뒤4자리로 거른다
     coupang: (o) => (0, coupangApiFlow_1.createCoupangApiFlow)({ ...o }), // 대표님 11-02 23:36 「기존에 못 가져온 것도 다 가져오게」 — 최근 저장일 이후만 읽기를 끈다(옛 목록 행이 cut 으로 다시 시도되지 않음). 받은 주문은 known 으로 건너뛴다
     kurly: (o) => (0, kurlyApiFlow_1.createKurlyApiFlow)({ ...o }), // 대표님 11-02 23:36 「컬리 아직도 제대로 못 가져옴」 — 최근 저장일 이후만 읽기를 끈다(옛 못 가져옴 줄을 다시 시도)
     musinsa: (o) => (0, musinsaApiFlow_1.createMusinsaApiFlow)({ sinceLatest: true, ...o }),
+    daiso: (o) => (0, daisoApiFlow_1.createDaisoApiFlow)({ ...o }), // 대표님 11-05 15:45 — 다이소몰 온라인 + 매장 전자영수증(서버 크롬 실측 presets 21 그대로)
+    oliveyoung: (o) => (0, oliveyoungApiFlow_1.createOliveyoungApiFlow)({ ...o }), // 대표님 11-05 15:45 — 올리브영 온라인(거래증빙 · KSNET 매출전표) + 매장 구매
 };
 /** 흐름이 웹뷰로 열어도 되는 도메인(하위 포함) — 이 밖의 주소는 호스트가 열지 않는다 */
 exports.FLOW_HOSTS = {
@@ -21,6 +25,8 @@ exports.FLOW_HOSTS = {
     coupang: ['coupang.com'],
     kurly: ['kurly.com', 'kurlypay.co.kr'],
     musinsa: ['musinsa.com', 'musinsapayments.com'],
+    daiso: ['daisomall.co.kr'],
+    oliveyoung: ['oliveyoung.co.kr', 'ksnet.co.kr'],
 };
 /**
  * 네이버 요청 흐름(naverApiFlow)에서 이동(goto)은 실행당 두 번(주문 목록 출처 · 결제 출처)뿐이라 주문 사이에는 이동이 없다 — 이 값은 그 두 이동 사이의 최소 쉬는 시간(밀리초)이다.

@@ -20,7 +20,7 @@
  *  · 원소의 칸은 이름으로(너비 우선, 깊이 5까지): 주문번호 orderNo · ordNo · orderNumber · ord_no ⋯ / 주문 일시 orderDate · orderDt ⋯ → paymentDate · regDate ⋯ /
  *    금액 finalPaymentAmount · paymentAmount ⋯ → totalAmount · orderAmount ⋯ / 상품명 goodsName · productName ⋯ / 영수증 값 paymentKey · tid · merchantCode
  *  · merchantCode 가 없으면 대표님 원문(5글자)과 옛 확인(STORE)에 맞춰 STORE 를 쓴다
- *  · 영수증이 없는 결제: 목록 원소의 취소 · 반품 · 환불 상태, 또는 결제수단 이름이 포인트 · 계좌 · 무통장 · 가상계좌 · 머니(카드 아님)이면 요청 없이 「영수증 없음」,
+ *  · 영수증이 없는 결제: 목록 원소의 취소 · 반품 · 환불 상태, 또는 결제수단 이름이 포인트 · 계좌 · 머니(카드 아님)이면 요청 없이 「영수증 없음」(가상계좌 · 무통장은 영수증 화면을 현금영수증으로 읽는다),
  *    paymentKey · tid 가 없고 결제수단도 모르면 「영수증 주소를 못 찾았어요」, 매출전표 요청이 404 · 410 이면 「영수증 없음」
  *  · 매출전표 응답은 JSON 이면 이름으로(approvalNo · businessNo · approvalDateTime · approvalAmount ⋯), HTML 이면 태그를 걷은 글자에서 extractSlip 으로 읽는다
  * 끝난 까닭 코드: all-rows · login · blocked · list-failed · list-shape(목록은 왔는데 주문으로 읽은 게 없음) · cross-origin(매출전표 호스트로 가는 요청이 모두 실패) ·
@@ -47,6 +47,8 @@ export type ParsedOrder = {
         paymentKey: string;
         tid: string;
         merchantCode: string;
+        cash?: boolean;
+        cashUrl?: string;
     };
     method?: string;
     cancelled: boolean;
@@ -77,5 +79,15 @@ export declare function slipOf(r: FetchResult): Slip | null;
  * 뒤 칸 글자(사업자등록번호 · 카드사 · 승인번호 …)까지 끌려온다(통합 시험에서 확인) — 다음 칸 이름 앞에서 자른다. 남는 글자가 없으면 없음
  */
 export declare const cleanMerchant: (m: string | undefined) => string | undefined;
+/** 현금영수증 화면 글자(가상계좌 · 무통장) — 합계 · 공급가액 · 부가세 · 승인 일시 · 승인번호 · 상호. 없는 칸은 빈 값 */
+export type CashSlip = {
+    amount?: number;
+    supply?: number;
+    tax?: number;
+    approval?: string;
+    paidAt?: string;
+    merchant?: string;
+};
+export declare function cashSlipFromText(raw: string): CashSlip;
 export declare function createMusinsaApiFlow(opts?: ApiFlowOptions): NaverFlow;
 export {};

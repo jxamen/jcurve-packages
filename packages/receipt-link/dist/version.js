@@ -7,4 +7,4 @@ exports.PKG_VERSION = exports.PKG_NAME = void 0;
  * package.json 의 version 과 같아야 한다(version.test.ts 가 확인).
  */
 exports.PKG_NAME = 'receipt-link';
-exports.PKG_VERSION = '1.1.3';
+exports.PKG_VERSION = '1.2.1';

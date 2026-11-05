@@ -151,6 +151,11 @@ describe('ReceiptImportScreen source', () => {
   it('coupang reads only when the server switch is on; otherwise it reads nothing and shows the not-ready notice', () => {
     expect(src).toContain("const offByServer = platform === 'coupang' && !coupangRead;");
     expect(src).toContain('if (probe !== null && !offByServer) void startRun();');
+    // 한 번 누르면 끝까지(대표님 11-05 16:57): 시간 · 재시도 상한으로 끊긴 전체 실행은 새 줄을 읽었으면 스스로 이어 간다(최대 3번) — 한 줄 · 채우기 실행은 아니다
+    expect(src).toContain("const CONTINUE_REASONS = ['timeout', 'timeouts', 'site-cap', 'budget', 'max-steps'];");
+    expect(src).toContain('const MAX_AUTO_RUNS = 3;');
+    expect(src).toContain('if (!scopedRun.current && CONTINUE_REASONS.includes(reasonRef.current) && uploader.current!.progress().read > 0 && autoRuns.current < MAX_AUTO_RUNS) {');
+    expect(src).toMatch(/autoRuns\.current \+= 1;\s*setOrdersKey\(\(k\) => k \+ 1\);\s*void startRun\(\);\s*return;/);
     expect(src).toContain("if (offByServer || readOff) return paperExit(`쿠팡은 준비 중이에요 · 종이 영수증이나 사진으로 올려 주세요`);");
     expect(src).toContain('if (p.readOff) {');
   });

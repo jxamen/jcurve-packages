@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.emptyTally = exports.isConnected = exports.RECEIPT_DETAIL_KEYS = exports.isPendingKind = exports.ORDERS_PER_REQUEST = exports.LINK_LABEL = exports.ALL_LINK_PLATFORMS = exports.TEST_LINK_PLATFORMS = exports.LINK_PLATFORMS = void 0;
+exports.emptyTally = exports.isConnected = exports.RECEIPT_DETAIL_KEYS = exports.isPendingKind = exports.ORDERS_PER_REQUEST = exports.LINK_LABEL = exports.ALL_LINK_PLATFORMS = exports.PROBE_LINK_PLATFORMS = exports.TEST_LINK_PLATFORMS = exports.LINK_PLATFORMS = void 0;
 exports.readDetail = readDetail;
 exports.effectiveReadDays = effectiveReadDays;
 exports.parseLinkState = parseLinkState;
@@ -13,9 +13,11 @@ exports.importMessage = importMessage;
 exports.LINK_PLATFORMS = ['naver', 'coupang'];
 /** 대표님 계정(probe)에게만 보이는 시험 곳 — 영수증 올리기 「전자 영수증」 칸 앞 연동 칩의 순서(대표님 10-28 17:56) · 구조 기록 */
 exports.TEST_LINK_PLATFORMS = ['naver', 'coupang', 'kurly', 'musinsa'];
+/** 구조 기록 회원(대표님 계정, link.state.probe === true)에게만 보이는 곳 — 다이소 · 올리브영(대표님 2026-11-05 15:45). 칩 순서는 시험 곳 뒤에 이 순서로 */
+exports.PROBE_LINK_PLATFORMS = ['daiso', 'oliveyoung'];
 /** 서버가 줄 수 있는 모든 곳 */
-exports.ALL_LINK_PLATFORMS = ['naver', 'coupang', 'musinsa', 'kurly'];
-exports.LINK_LABEL = { naver: '네이버', coupang: '쿠팡', musinsa: '무신사', kurly: '마켓컬리' };
+exports.ALL_LINK_PLATFORMS = ['naver', 'coupang', 'musinsa', 'kurly', 'daiso', 'oliveyoung'];
+exports.LINK_LABEL = { naver: '네이버', coupang: '쿠팡', musinsa: '무신사', kurly: '마켓컬리', daiso: '다이소', oliveyoung: '올리브영' };
 /** 서버가 한 번에 받는 주문 수 */
 exports.ORDERS_PER_REQUEST = 50;
 /** 상세(영수증) 없이 가는 종류 — 주문번호 대신 listKey 만 있어도 된다 */

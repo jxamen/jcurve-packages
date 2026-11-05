@@ -71,11 +71,16 @@ const FALLBACK_URL = {
     coupang: 'https://mc.coupang.com/ssr/mobile/order/list',
     kurly: 'https://www.kurly.com/mypage/order',
     musinsa: 'https://www.musinsa.com/order/order-list',
+    daiso: 'https://www.daisomall.co.kr/',
+    oliveyoung: 'https://www.oliveyoung.co.kr/store/main/main.do',
 };
 /** 이 사유로 끝났으면 끝까지 다 읽은 것이다(나머지는 일부를 못 읽고 끝난 것) */
 const COMPLETE_REASONS = ['all-rows', 'max-orders'];
+/** 한 번 누르면 끝까지(대표님 11-05 16:57 「1번 누르면 알아서 다 가져와야지」) — 이 까닭으로 끊겼는데 이번 실행에서 새 줄을 읽었으면 다시 누르지 않아도 이어서 돈다(이미 받은 줄은 known 으로 건너뛴다) */
+const CONTINUE_REASONS = ['timeout', 'timeouts', 'site-cap', 'budget', 'max-steps'];
+const MAX_AUTO_RUNS = 3;
 /** 줄마다 가져오기 결과(onOutcome)를 알리는 사이트의 흐름 — 줄 상태 · 까닭을 이 결과로 보인다. 나머지 사이트는 끝난 뒤 목록 행으로 짐작한다 */
-const REPORTS_OUTCOMES = ['naver', 'coupang', 'kurly', 'musinsa'];
+const REPORTS_OUTCOMES = ['naver', 'coupang', 'kurly', 'musinsa', 'daiso', 'oliveyoung'];
 /** 자동 점검 기록 — syslog(값 없음) + 서버(구조 기록)로. 대표님 폰이 PC 에 없을 때 서버에서 본다(슬랙대표님요청 10-29 18:x) */
 const stLog = (text) => { try {
     console.log(`[receiptLink] selftest ${text}`);
@@ -144,6 +149,8 @@ function ReceiptImportScreen({ config, platform, onClose, coupangRead = false, s
     const outcomeRef = (0, react_1.useRef)({});
     /** 이번 실행이 한 줄 · 영수증 채우기 실행이다 — 이때는 새 주문 0건을 예전처럼 「못 읽음」으로 둔다 */
     const scopedRun = (0, react_1.useRef)(false);
+    /** 끊긴 전체 실행을 스스로 이어 간 횟수 — 사용자가 누르면 0 부터 */
+    const autoRuns = (0, react_1.useRef)(0);
     /** 새 네이버페이 수집 길(서버 LinkState.npv2) */
     const npv2On = (0, react_1.useRef)(false);
     /** 자동 점검 단계 — full 전체 실행 중 · one 개별 실행 중 · done 끝 */
@@ -294,6 +301,13 @@ function ReceiptImportScreen({ config, platform, onClose, coupangRead = false, s
             setMode('stopped');
             return;
         }
+        // 끝까지 못 가고 끊겼는데(시간 · 재시도 상한) 새 줄을 읽었다 — 한 번 누름에 다 가져오게 스스로 이어서(최대 MAX_AUTO_RUNS 번)
+        if (!scopedRun.current && CONTINUE_REASONS.includes(reasonRef.current) && uploader.current.progress().read > 0 && autoRuns.current < MAX_AUTO_RUNS) {
+            autoRuns.current += 1;
+            setOrdersKey((k) => k + 1);
+            void startRun();
+            return;
+        }
         // 새 주문을 한 건도 못 읽었다 — 전체 실행이면 까닭을 가른다: 목록을 끝까지 읽었고 가져올 게 없으면 정상 종료(실패가 아니다),
         // 로그인이 풀렸거나 시간 초과 · 막힘 · 목록 못 읽음이면 「못 읽었어요」+ 그 까닭. 한 줄 · 영수증 채우기 실행은 예전 그대로(대표님 11-02 20:36)
         if (uploader.current.progress().read === 0) {
@@ -429,6 +443,7 @@ function ReceiptImportScreen({ config, platform, onClose, coupangRead = false, s
         if (tries >= MAX_TRIES && endNote !== 'login')
             return;
         setTries((t) => t + 1);
+        autoRuns.current = 0;
         // 다시 시도 — 읽기를 시작하기 전에 서버 목록부터 새로 받아 이미 불러온 줄을 바로 보인다
         setOrdersKey((k) => k + 1);
         void startRun();
@@ -550,6 +565,7 @@ function ReceiptImportScreen({ config, platform, onClose, coupangRead = false, s
     }, []);
     // 카드 상태(구조 기록 여부)를 읽은 뒤 읽기를 시작한다. 쿠팡 스위치가 꺼져 있으면 시작하지 않는다
     (0, react_1.useEffect)(() => {
+        autoRuns.current = 0;
         if (probe !== null && !offByServer)
             void startRun();
     }, [probe]);

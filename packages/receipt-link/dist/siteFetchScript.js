@@ -52,8 +52,9 @@ function fetchScript(r) {
     if (ctl) ctls.push(ctl);
     var timer = ctl ? setTimeout(function () { try { ctl.abort(); } catch (e) {} }, a.timeoutMs) : null;
     var headers = { accept: q.accept || (q.as === 'json' ? 'application/json, text/plain, */*' : 'text/html,application/json,*/*;q=0.8') };
+    if (q.xhr) headers['x-requested-with'] = 'XMLHttpRequest';
     var init = { method: q.method, credentials: 'include', headers: headers, signal: ctl ? ctl.signal : undefined };
-    if (q.method === 'POST') { headers['content-type'] = 'application/json'; init.body = q.body === undefined ? '{}' : q.body; }
+    if (q.method === 'POST') { headers['content-type'] = q.form ? 'application/x-www-form-urlencoded' : 'application/json'; init.body = q.body === undefined ? (q.form ? '' : '{}') : q.body; }
     return fetch(q.url, init).then(function (res) {
       if (timer) clearTimeout(timer);
       if (res.status === 401 || (res.redirected && isLoginUrl(res.url))) return { key: key, st: 'login', status: res.status };
@@ -69,6 +70,7 @@ function fetchScript(r) {
         return res.json().then(function (j) { var d = slim(j); return d === undefined ? { key: key, st: 'shape', status: res.status } : { key: key, st: 'ok', status: res.status, data: d }; }, function () { return { key: key, st: 'shape', status: res.status }; });
       }
       return res.text().then(function (raw) {
+        if (q.as === 'html') return { key: key, st: 'ok', status: res.status, text: raw.slice(0, 120000) };
         if (q.as === 'nextData') {
           var nd = nextData(raw);
           var d = nd === undefined ? undefined : slim(nd);

@@ -2,11 +2,13 @@
  * 네이버 · 쿠팡 주문내역 연동 — 서버 계약과 읽어 온 주문을 서버로 보내기 전에 거르는 순수 함수(기획서 docs/order-link §9).
  * 쿠키 · 아이디 · 비밀번호 · 수취인 · 주소 · 전화는 이 파일 어디에도 타입이 없다 — 읽는 쪽이 그런 값을 건네도 cleanOrder 가 버린다.
  */
-export type LinkPlatform = 'naver' | 'coupang' | 'musinsa' | 'kurly';
+export type LinkPlatform = 'naver' | 'coupang' | 'musinsa' | 'kurly' | 'daiso' | 'oliveyoung';
 /** 캡슐함 카드에 보이는 두 곳(모든 스위치 켜진 회원) */
 export declare const LINK_PLATFORMS: LinkPlatform[];
 /** 대표님 계정(probe)에게만 보이는 시험 곳 — 영수증 올리기 「전자 영수증」 칸 앞 연동 칩의 순서(대표님 10-28 17:56) · 구조 기록 */
 export declare const TEST_LINK_PLATFORMS: LinkPlatform[];
+/** 구조 기록 회원(대표님 계정, link.state.probe === true)에게만 보이는 곳 — 다이소 · 올리브영(대표님 2026-11-05 15:45). 칩 순서는 시험 곳 뒤에 이 순서로 */
+export declare const PROBE_LINK_PLATFORMS: LinkPlatform[];
 /** 서버가 줄 수 있는 모든 곳 */
 export declare const ALL_LINK_PLATFORMS: LinkPlatform[];
 export declare const LINK_LABEL: Record<LinkPlatform, string>;
