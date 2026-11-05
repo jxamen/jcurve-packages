@@ -172,6 +172,10 @@ describe('영수증 읽기 (readReceipt)', () => {
     expect(readReceipt({ key: 'k', st: 'ok', data: { approvalNo: '12345678' } })).toEqual({ kind: 'bad' });
   });
 
+  it('「카드 영수증 생성에 실패했습니다」 안내(비카드 결제)는 nocard — none 도 bad 도 아니다(11-05 회원 1602 외 5명 311건)', () => {
+    expect(readReceipt({ key: 'k', st: 'ok', text: '에러페이지 | 오류 발생 카드 영수증 생성에 실패했습니다. 이전으로' })).toEqual({ kind: 'nocard' });
+  });
+
   it('글자 응답의 구조 기록 요약은 라벨 유무 · 길이 단계뿐이다(영문, 값 없음)', () => {
     const lines = textSummaryLines(SLIP_TEXT);
     expect(lines).toContain('label.biz : 1');
@@ -228,6 +232,21 @@ describe('흐름: 목록 → 영수증 묶음 → 줄별 결과', () => {
       { orderNo: ID(1), orderedAt: '2026-10-06 09:11:12', amount: 1000, payment: '카드', kind: 'none', listKey: '2026-10-06 09:11|1000', seller: '가짜상점1', title: '가짜상품1' },
     ]);
     expect(JSON.stringify(done)).not.toContain('needsReceipt');
+  });
+
+  it('카드영수증을 못 만드는 결제(「생성에 실패」)는 목록에서 본 값으로 구매영수증(purchase) 행 — 줄은 「가져옴」, 사업자번호 · 판매자 · 상품은 detail 에(11-05 문의 #326)', () => {
+    const flow = mk();
+    const b = toFirstBatch(flow, nextData([order(1, '2026-10-06T09:11:12'), order(2, '2026-10-20T10:04:43', { businessNumber: '1208100000' })]));
+    flow.take(); flow.takeOutcomes?.();
+    const out = settle(flow, flow.next({ type: 'fetched', results: [okText(b.reqs[0].key, '에러페이지 | 오류 발생 카드 영수증 생성에 실패했습니다. 이전으로'), okText(b.reqs[1].key)] }));
+    expect(flow.takeOutcomes?.()).toMatchObject([{ key: b.reqs[0].key, outcome: { state: 'done' } }, { key: b.reqs[1].key, outcome: { state: 'done' } }]);
+    const done = (out as Extract<FlowOut, { type: 'done' }>).orders;
+    expect(done[0]).toEqual({
+      orderNo: ID(2), orderedAt: '2026-10-20 10:04:43', amount: 2000, payment: '포인트·기타', kind: 'purchase', seller: '가짜상점2', title: '가짜상품2', businessNumber: '120-81-00000',
+      listKey: '2026-10-20 10:04|2000', detail: { sellerBusinessNo: '120-81-00000', sellerName: '가짜상점2', productName: '가짜상품2' },
+    });
+    expect(done[1]).toMatchObject({ orderNo: ID(1), kind: 'card' });
+    expect(out).toMatchObject({ type: 'done', reason: 'all-rows' });
   });
 
   it('판매자번호를 못 찾은 주문은 요청 없이 그 줄에만 「영수증 주소를 못 찾았어요」(no-pair)', () => {

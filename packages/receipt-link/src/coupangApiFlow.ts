@@ -66,6 +66,8 @@ export type CoupangListOrder = {
   /** 목록의 주문 상태 · 결제수단 글자(짧은 글자만, 실패 기록용) */
   status?: string;
   pay?: string;
+  /** 목록의 판매자 사업자번호(000-00-00000) — 카드영수증을 못 만드는 결제(비카드)의 구매영수증 행에 쓴다(11-05) */
+  bizNo?: string;
 };
 
 const ORDER_ID_KEY = /^(order(Id|No|Number|Seq|Sn)?|ordNo|orderid)$/i;
@@ -83,6 +85,9 @@ const PAY_KEYS = /^(pay(ment)?(Method|Type|Means|Tool|Way|Kind)s?(Name|Text|Labe
 const shortLabel = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() !== '' && v.length <= 30 && (v.match(/\d/g) ?? []).length <= 2 ? v.replace(/\s+/g, ' ').trim() : undefined);
 const SELLER_KEYS = /^(vendor(Item)?Name|sellerName|storeName|shopName|merchantName|brandName)$/i;
 const TITLE_KEYS = /^(product(Name|Title)?|item(Name|Title)?|goodsName|vendorItemName|title)$/i;
+const BIZ_KEYS = /^(business(Number|No|RegNo)|bizNo|saupjaNo)$/i;
+/** 사업자번호 10자리 → 000-00-00000 (다른 모양은 없음) */
+const bizOf = (v: unknown): string | undefined => { const d = typeof v === 'string' ? v.replace(/-/g, '').trim() : ''; return /^\d{10}$/.test(d) ? `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}` : undefined; };
 
 const isObj = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
 
@@ -191,7 +196,7 @@ export function findCoupangOrders(root: unknown): CoupangListOrder[] {
             orderId, at: when.at, dateOnly: when.dateOnly, amount,
             seller: scan(o, SELLER_KEYS, textOf), title: scan(o, TITLE_KEYS, textOf),
             vendorIds: vendorsOf(o), cancelled: isCancelledObj(o),
-            ...(() => { const st = scan(o, STATUS_KEYS, shortLabel); const pay = scan(o, PAY_KEYS, shortLabel); return { ...(st ? { status: st } : {}), ...(pay ? { pay } : {}) }; })(),
+            ...(() => { const st = scan(o, STATUS_KEYS, shortLabel); const pay = scan(o, PAY_KEYS, shortLabel); const bizNo = scan(o, BIZ_KEYS, bizOf); return { ...(st ? { status: st } : {}), ...(pay ? { pay } : {}), ...(bizNo ? { bizNo } : {}) }; })(),
           });
         }
       }
@@ -240,9 +245,11 @@ export function receiptUrl(orderId: string, vendorIds: readonly string[]): strin
 }
 
 /** none 은 영수증이 없는 결제. cancelled 가 붙으면 취소된 주문(「취소된 주문」 줄 · 서버에 none 행을 남기지 않는다) */
-export type ReceiptRead = { kind: 'slip'; slip: Slip; seller?: string; detail?: ReceiptDetail } | { kind: 'none'; cancelled?: true } | { kind: 'bad' };
+/** nocard: 쿠팡이 카드영수증을 만들지 못하는 결제(「카드 영수증 생성에 실패했습니다」 — 쿠페이 머니 · 쿠팡캐시 같은 비카드로 보임, 11-05 회원 1602 외 5명 311건) */
+export type ReceiptRead = { kind: 'slip'; slip: Slip; seller?: string; detail?: ReceiptDetail } | { kind: 'none'; cancelled?: true } | { kind: 'nocard' } | { kind: 'bad' };
 
 const NONE_TEXT_RE = /영수증[^\n]{0,14}(없|조회할 수 없|존재하지)|매출전표[^\n]{0,14}(없|조회할 수 없)/;
+const NOCARD_TEXT_RE = /카드\s*영수증\s*생성에\s*실패/;
 const cardWord = (s: string | undefined): string | undefined => (s && s.length <= 20 ? s : undefined);
 
 /** 영수증 JSON 에서 이름으로 칸을 찾는다. 사업자번호 · 승인번호 · 결제 일시 · 금액 중 셋이 안 되면 null (extractSlip 과 같은 기준) */
@@ -315,6 +322,7 @@ export function readReceipt(r: FetchResult): ReceiptRead {
     if (seller) detail.sellerName = seller;
     return { kind: 'slip', slip, seller, ...(Object.keys(detail).length > 0 ? { detail } : {}) };
   }
+  if (NOCARD_TEXT_RE.test(text)) return { kind: 'nocard' };
   return NONE_TEXT_RE.test(text) ? { kind: 'none' } : { kind: 'bad' };
 }
 
@@ -591,6 +599,21 @@ export function createCoupangApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
       if (read.cancelled) { setOutcome(j.key, { state: 'none', why: 'cancelled', info }); return; }
       setOutcome(j.key, { state: 'none', info });
       pending.push(noneOrder(j.order));   // 영수증이 없는 결제 — 서버의 목록 행을 none 으로 바꾼다(「목록만」으로 남지 않게, 11-04)
+      return;
+    }
+    if (read.kind === 'nocard') {
+      // 카드영수증이 없는 결제(비카드) — 네이버 주문상세(osheet)처럼 목록에서 이미 본 주문번호 · 일시 · 금액 · 판매자 · 사업자번호로 구매영수증(purchase) 행을 만든다(11-05 문의 #326)
+      const s: Slip = { paidAt: j.row.dateOnly ? `${j.row.at.slice(0, 10)} 00:00` : j.row.at, paidAtNoSeconds: j.row.dateOnly || undefined, amount: j.row.amount, businessNumber: j.row.bizNo };
+      const done = toImportOrder(s, { orderNo: j.row.orderId, seller: j.row.seller, title: j.row.title, amount: j.row.amount }, { kind: 'purchase', allowNoSeconds });
+      if (!done) { noneN++; note('nocard-import', j.row.orderId); setOutcome(j.key, { state: 'none', info: infoOf(j, { stage: 'read', via, ...(http !== undefined ? { http } : {}), words: 'nocard-import' }) }); pending.push(noneOrder(j.order)); return; }
+      if (j.order.listKey) done.listKey = j.order.listKey;
+      const detail: ReceiptDetail = { ...(j.row.bizNo ? { sellerBusinessNo: j.row.bizNo } : {}), ...(j.row.seller ? { sellerName: j.row.seller } : {}), ...(j.row.title ? { productName: j.row.title } : {}) };
+      if (Object.keys(detail).length > 0) done.detail = detail;
+      orders.push(done);
+      pending.push(done);
+      okN++;
+      note('nocard-ok', j.row.orderId);
+      setOutcome(j.key, { state: 'done' });
       return;
     }
     if (read.kind === 'bad') { note(badKey(text)); note(`nav-${badWords(text)}`.slice(0, 30)); fail(j, 'unreadable', infoOf(j, { stage: 'read', ...respInfo(text, via, http) })); return; }

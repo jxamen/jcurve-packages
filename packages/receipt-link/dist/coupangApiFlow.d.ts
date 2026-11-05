@@ -44,6 +44,8 @@ export type CoupangListOrder = {
     /** 목록의 주문 상태 · 결제수단 글자(짧은 글자만, 실패 기록용) */
     status?: string;
     pay?: string;
+    /** 목록의 판매자 사업자번호(000-00-00000) — 카드영수증을 못 만드는 결제(비카드)의 구매영수증 행에 쓴다(11-05) */
+    bizNo?: string;
 };
 /** 값 → 한국 날짜. 「2026.10.06」 · 「2026-10-06」 처럼 날짜만 있으면 dateOnly. 에포크 · ISO · 시각 있는 글자는 normalizeKst */
 export declare function parseListDate(v: unknown): {
@@ -68,6 +70,7 @@ export declare function nextListPage(root: unknown): {
 /** 쿠팡 카드영수증 주소 — 대표님 23:45:08 형식(orderId · vendorIds · cancel=false). 값 모양이 틀리면 null */
 export declare function receiptUrl(orderId: string, vendorIds: readonly string[]): string | null;
 /** none 은 영수증이 없는 결제. cancelled 가 붙으면 취소된 주문(「취소된 주문」 줄 · 서버에 none 행을 남기지 않는다) */
+/** nocard: 쿠팡이 카드영수증을 만들지 못하는 결제(「카드 영수증 생성에 실패했습니다」 — 쿠페이 머니 · 쿠팡캐시 같은 비카드로 보임, 11-05 회원 1602 외 5명 311건) */
 export type ReceiptRead = {
     kind: 'slip';
     slip: Slip;
@@ -76,6 +79,8 @@ export type ReceiptRead = {
 } | {
     kind: 'none';
     cancelled?: true;
+} | {
+    kind: 'nocard';
 } | {
     kind: 'bad';
 };
