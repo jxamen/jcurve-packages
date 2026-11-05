@@ -33,3 +33,4 @@ export type { ReceiptRow } from './naverReceipt';
 export type { ReceiptRow as OrdersReceiptRow } from './ordersModel';
 export { safeKey } from './shapeLines';
 export { safeKey as tapSafeKey } from './shapeTap';
+export * from './version';

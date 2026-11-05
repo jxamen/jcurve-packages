@@ -4,6 +4,7 @@
  * react-native 를 import 하지 않는다. 서버 호출은 앱의 http(get · post · slow)를 받아 쓴다. 주문 내용은 글자에 넣지 않는다.
  */
 import { addTally, chunkOrders, cleanOrder, emptyTally, isConnected, LINK_LABEL, parseLinkState, type ImportTally, type LinkPlatform, type LinkState } from './model';
+import { PKG_VERSION } from './version';
 import { parseClaimResult, parseOrderList, parseOrderReceipt, type ClaimResult, type LinkOrder, type OrderList, type OrderReceipt } from './ordersModel';
 import type { FailItem } from './failLog';
 import type { ProbePayload } from './probe';
@@ -162,17 +163,17 @@ export function createReceiptLinkApi(http: ReceiptLinkHttp) {
         return null;
       }
     },
-    /** 불러오기 한 번의 끝 — 까닭별 개수만(모든 회원, 주문 값 없음). 서버 receipt-link/run-end(11-03). 기록이라 실패해도 막지 않는다 */
+    /** 불러오기 한 번의 끝 — 까닭별 개수만(모든 회원, 주문 값 없음) + 패키지 판(pkg, 11-05 옛 판 표시용). 서버 receipt-link/run-end(11-03). 기록이라 실패해도 막지 않는다 */
     async postRunEnd(body: RunEndBody): Promise<void> {
       try {
-        await http.post<unknown>('receipt-link/run-end', body);
+        await http.post<unknown>('receipt-link/run-end', { ...body, pkg: PKG_VERSION });
       } catch { /* 기록 */ }
     },
     /** 영수증을 못 받은 주문마다 진단 한 줄(failLog.failItems) — 100줄씩, 서버 receipt-link/fails(11-04). 실패해도 막지 않는다 */
     async postFails(platform: LinkPlatform, items: readonly FailItem[]): Promise<void> {
       for (let i = 0; i < items.length; i += 100) {
         try {
-          await http.post<unknown>('receipt-link/fails', { platform, items: items.slice(i, i + 100) });
+          await http.post<unknown>('receipt-link/fails', { platform, items: items.slice(i, i + 100), pkg: PKG_VERSION });
         } catch { /* 기록 */ }
       }
     },

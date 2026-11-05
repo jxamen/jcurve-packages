@@ -55,7 +55,7 @@ export declare function createReceiptLinkApi(http: ReceiptLinkHttp): {
     claimOrder(id: number): Promise<ClaimResult>;
     /** 카드 · 화면이 쓰는 상태 — 서버 스위치가 꺼졌거나(404) 못 받으면 null(연동 영역을 그리지 않는다) */
     loadLinkState(): Promise<LinkState | null>;
-    /** 불러오기 한 번의 끝 — 까닭별 개수만(모든 회원, 주문 값 없음). 서버 receipt-link/run-end(11-03). 기록이라 실패해도 막지 않는다 */
+    /** 불러오기 한 번의 끝 — 까닭별 개수만(모든 회원, 주문 값 없음) + 패키지 판(pkg, 11-05 옛 판 표시용). 서버 receipt-link/run-end(11-03). 기록이라 실패해도 막지 않는다 */
     postRunEnd(body: RunEndBody): Promise<void>;
     /** 영수증을 못 받은 주문마다 진단 한 줄(failLog.failItems) — 100줄씩, 서버 receipt-link/fails(11-04). 실패해도 막지 않는다 */
     postFails(platform: LinkPlatform, items: readonly FailItem[]): Promise<void>;

@@ -56,3 +56,4 @@ var shapeLines_1 = require("./shapeLines");
 Object.defineProperty(exports, "safeKey", { enumerable: true, get: function () { return shapeLines_1.safeKey; } });
 var shapeTap_1 = require("./shapeTap");
 Object.defineProperty(exports, "tapSafeKey", { enumerable: true, get: function () { return shapeTap_1.safeKey; } });
+__exportStar(require("./version"), exports);

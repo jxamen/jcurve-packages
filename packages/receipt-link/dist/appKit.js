@@ -17,6 +17,7 @@ exports.linkRecordEntries = linkRecordEntries;
  * react-native 를 import 하지 않는다. 서버 호출은 앱의 http(get · post · slow)를 받아 쓴다. 주문 내용은 글자에 넣지 않는다.
  */
 const model_1 = require("./model");
+const version_1 = require("./version");
 const ordersModel_1 = require("./ordersModel");
 /** 사이트의 공식 로그인 페이지 — 회원이 여기서 직접 로그인한다 */
 exports.LOGIN_URL = {
@@ -163,10 +164,10 @@ function createReceiptLinkApi(http) {
                 return null;
             }
         },
-        /** 불러오기 한 번의 끝 — 까닭별 개수만(모든 회원, 주문 값 없음). 서버 receipt-link/run-end(11-03). 기록이라 실패해도 막지 않는다 */
+        /** 불러오기 한 번의 끝 — 까닭별 개수만(모든 회원, 주문 값 없음) + 패키지 판(pkg, 11-05 옛 판 표시용). 서버 receipt-link/run-end(11-03). 기록이라 실패해도 막지 않는다 */
         async postRunEnd(body) {
             try {
-                await http.post('receipt-link/run-end', body);
+                await http.post('receipt-link/run-end', { ...body, pkg: version_1.PKG_VERSION });
             }
             catch { /* 기록 */ }
         },
@@ -174,7 +175,7 @@ function createReceiptLinkApi(http) {
         async postFails(platform, items) {
             for (let i = 0; i < items.length; i += 100) {
                 try {
-                    await http.post('receipt-link/fails', { platform, items: items.slice(i, i + 100) });
+                    await http.post('receipt-link/fails', { platform, items: items.slice(i, i + 100), pkg: version_1.PKG_VERSION });
                 }
                 catch { /* 기록 */ }
             }

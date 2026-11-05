@@ -10,15 +10,21 @@
 import { createFlowDriver, FLOW_FACTORIES, FLOW_HOSTS, type FlowSite } from '@jcurve/receipt-link';
 ```
 
-## 붙이는 법 (1.1.0 — 한 장)
+## 붙이는 법 (1.1.3 — 한 장)
 
 로그인 · 목록 · 영수증 읽기 · 서버 보내기 · 실패 기록 · 진행 줄이 전부 패키지 안에 있다. 앱이 할 일은 **설정 하나 + 화면 호출 하나**.
 
 **1. 설치** — `package.json`
 ```json
-"@jcurve/receipt-link": "https://github.com/jxamen/jcurve-packages/releases/download/receipt-link-v1.1.0/jcurve-receipt-link-1.1.0.tgz"
+"@jcurve/receipt-link": "https://github.com/jxamen/jcurve-packages/releases/download/receipt-link-v1.1.3/jcurve-receipt-link-1.1.3.tgz"
 ```
-같이 필요한 것: `react-native-webview`(읽기 웹뷰), 앱의 서버 호출기(`get` · `post`, 경로는 `/api/v1/{앱}/` 뒤).
+같이 필요한 것: `react-native-webview`(읽기 웹뷰), 앱의 서버 호출기(`get` · `post`, 경로는 `https://api.j-curve.co.kr/v1/{앱}/` 뒤).
+
+**판 점검(설치 뒤 · 빌드마다)** — 깔린 @jcurve/* 가 최신 릴리스보다 낮으면 표로 알려 주고 실패한다(2026-11-05, 자세한 것은 `@jcurve/kitcheck` README)
+```sh
+npx -y https://github.com/jxamen/jcurve-packages/releases/download/kitcheck-v1.0.0/jcurve-kitcheck-1.0.0.tgz
+```
+패키지 자신도 실행 끝 보고(`receipt-link/run-end`) · 실패 기록(`receipt-link/fails`)에 자기 판 `pkg` 를 실어 보내고, 서버는 옛 판이면 `receipt_link.pkg_old` 로그 · 실패 기록 `info.pkg_old` 로 남긴다.
 
 **2. 설정** — 앱마다 다른 것만 넘긴다(`src/receiptLink/screen.tsx` 같은 파일 하나)
 ```tsx

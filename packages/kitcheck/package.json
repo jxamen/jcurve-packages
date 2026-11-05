@@ -1,0 +1,13 @@
+{
+  "name": "@jcurve/kitcheck",
+  "version": "1.0.0",
+  "description": "공용 패키지(@jcurve/*) 판 점검 — 이 저장소에 깔린 판과 최신 릴리스를 견줘 옛 판이 있으면 표로 보여 주고 실패(exit 1)한다. 어느 저장소든 한 줄로 설치",
+  "main": "dist/check.js",
+  "types": "dist/check.d.ts",
+  "bin": { "jcurve-kitcheck": "dist/cli.js" },
+  "files": ["dist", "src", "README.md"],
+  "engines": { "node": ">=18" },
+  "scripts": { "build": "tsc -p tsconfig.json", "test": "vitest run" },
+  "repository": { "type": "git", "url": "https://github.com/jxamen/jcurve-packages", "directory": "packages/kitcheck" },
+  "license": "UNLICENSED"
+}
