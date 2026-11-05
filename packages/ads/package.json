@@ -1,13 +1,14 @@
 {
   "name": "@jcurve/ads",
-  "version": "1.8.0",
-  "description": "리워드 앱 공용 광고 — AdMob 보상형(꼬꼬농장 방식, 화면 없음) · ATT · 틱톡 광고 전환(TikTok Business SDK)",
+  "version": "1.10.0",
+  "description": "공용 광고 — AdMob 보상형·일반 전면·적응형 배너·UMP 개인정보 설정·ATT·틱톡 광고 전환",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist", "src", "README.md", "ios", "android", "expo-module.config.json", "app.plugin.js"],
+  "files": ["dist", "src", "README.md", "ADR-native-compatibility.md", "ios", "android", "expo-module.config.json", "app.plugin.js", "mediation.plugin.js", "kotlin.plugin.js"],
   "scripts": { "build": "tsc -p tsconfig.json", "test": "vitest run" },
   "peerDependencies": {
     "react-native-google-mobile-ads": ">=16",
+    "react": ">=18",
     "expo-tracking-transparency": "*",
     "expo-updates": "*",
     "react-native": ">=0.74",
@@ -17,6 +18,7 @@
   },
   "peerDependenciesMeta": {
     "react-native-google-mobile-ads": { "optional": true },
+    "react": { "optional": true },
     "expo-tracking-transparency": { "optional": true },
     "expo-updates": { "optional": true },
     "react-native": { "optional": true },

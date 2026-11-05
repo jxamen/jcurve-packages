@@ -42,6 +42,7 @@ function setup(o: { os?: string; test?: boolean; noSdk?: boolean; units?: AdsOpt
     getAdvertisingId: () => att.id,
   };
   const sdk = {
+    AdsConsent: { gatherConsent: async () => ({ canRequestAds: true }), getConsentInfo: async () => ({ canRequestAds: true }) },
     default: () => ({
       initialize: async () => { inits++; order.push('initialize'); },
       setRequestConfiguration: async (c: any) => { order.push('config:' + (c?.testDeviceIdentifiers ?? []).join(',')); },
@@ -127,10 +128,11 @@ describe('끝까지 봤는가', () => {
     expect(s.calls.fail).toEqual(['광고를 끝까지 보지 않았어요']);
   });
 
-  it('닫힘 이벤트를 못 받아도 앱이 뒤로 갔다 돌아오면 닫힌 것으로 본다', async () => {
-    const s = setup();
+  it('iOS 기존 복구: 닫힘 이벤트를 못 받아도 앱이 뒤로 갔다 돌아오면 닫힌 것으로 본다', async () => {
+    const s = setup({ os: 'ios' });
     void s.ads.show({ ...s.cb });
     await flush();
+    vi.advanceTimersByTime(600); await flush();
     const ad = s.made[0];
     ad.emit(EV.LOADED); ad.emit(EV.OPENED); ad.emit(EV.EARNED_REWARD);
     s.toBg(); s.toFg();
@@ -175,12 +177,14 @@ describe('광고가 안 채워질 때', () => {
     expect(s.calls.fail[0]).toContain('(load)');
   });
 
-  it('도는 중에 또 부르면 거짓 — 걸린 지 12초가 넘었으면 풀고 새로 시작한다', async () => {
+  it('도는 중에 또 부르면 거짓 — 15초 로드 시간 초과 후 새로 시작한다', async () => {
     const s = setup();
     void s.ads.show({ ...s.cb });
     await flush();
     expect(await s.ads.show({ ...s.cb })).toBe(false);
     vi.advanceTimersByTime(12_000);
+    expect(await s.ads.show({ ...s.cb })).toBe(false);
+    vi.advanceTimersByTime(3000);
     expect(await s.ads.show({ ...s.cb })).toBe(true);
   });
 });
@@ -190,6 +194,7 @@ describe('광고 단위·SSV', () => {
     const s = setup({ os: 'ios' });
     void s.ads.show({ userId: 'm6', customData: '{"kind":"water"}', ...s.cb });
     await flush();
+    vi.advanceTimersByTime(600); await flush();
     expect(s.made[0].unit).toBe('IOS_R');
     expect(s.made[0].reqOpts.serverSideVerificationOptions).toEqual({ userId: 'm6', customData: '{"kind":"water"}' });
   });

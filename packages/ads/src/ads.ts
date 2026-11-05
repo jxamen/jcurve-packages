@@ -8,6 +8,8 @@
  * 코드로 바꿔 모듈이 늘 없는 것처럼 돈다(`@jcurve/notify` 1.1.0 사고).
  */
 import { ssvRequestOptions } from './mode';
+import { createFullscreen } from './fullscreen';
+import { prepareRequest, safeCall, waitForTrackingForm, type RequestPolicy } from './runtime';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -16,7 +18,7 @@ declare const __DEV__: boolean | undefined;
 /** 플랫폼마다 따로인 광고 단위 ID */
 export type AdUnits = { android?: string; ios?: string };
 
-export type AdsOptions = {
+export type AdsOptions = RequestPolicy & {
   units: {
     /** 보상형 — 「광고 보고 받기」 */
     rewarded: AdUnits;
@@ -93,7 +95,7 @@ export type PlayResult = {
   opened: boolean;
   /** 이미 다른 광고가 도는 중이라 시작하지 못했다(횟수도 깎지 않는다) */
   busy: boolean;
-  /** 열리지도 않았다(재고 없음 · 로드 실패 · 시간 초과 · 그만두기) — 「다시 시도」 안내 */
+  /** 표시 요청 전 실패/취소 또는 네이티브 실패로 안 열렸음을 확인했다. 표시 중 미확정 상태는 false. */
   noAd: boolean;
   /** 못 봤을 때 보여 줄 문구 */
   message?: string;
@@ -151,7 +153,7 @@ export type AdsEnv = {
   dev: () => boolean;
 };
 
-const defaultEnv = (): AdsEnv => ({
+export const defaultAdsEnv = (): AdsEnv => ({
   // 네이티브 모듈이 없으면(Expo Go) 여기서 예외가 나고 목업으로 넘어간다
   sdk: () => { try { return require('react-native-google-mobile-ads'); } catch { return null; } },
   tracking: () => { try { return require('expo-tracking-transparency'); } catch { return null; } },
@@ -164,7 +166,10 @@ const defaultEnv = (): AdsEnv => ({
 export type TrackingResult = { status: string; timedOut: boolean };
 
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
-  return Promise.race([p.catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), ms))]);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), ms);
+    p.then((value) => { clearTimeout(timer); resolve(value); }, () => { clearTimeout(timer); resolve(null); });
+  });
 }
 
 /*
@@ -175,37 +180,16 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
 const MUTE_AFTER = 3;
 const MUTE_MS = 30 * 60 * 1000;
 
-export function createRewarded(opts: AdsOptions, env: AdsEnv = defaultEnv()): Rewarded {
+export function createRewarded(opts: AdsOptions, env: AdsEnv = defaultAdsEnv()): Rewarded {
   let tiktok = opts.tiktok ?? null;
   const mod = env.sdk();
   const os = env.os();
   const test = env.dev() || opts.test;
   const unitOf = (u?: AdUnits): string => (os === 'ios' ? u?.ios : os === 'android' ? u?.android : '') ?? '';
 
-  const nativeReady = !!(mod && mod.RewardedAd && mod.default);
+  const nativeReady = !!((os === 'ios' || os === 'android') && mod?.RewardedAd && mod?.default);
   const unitReady = test || !!unitOf(opts.units.rewarded);
   const interstitialAvailable = nativeReady && !!mod?.RewardedInterstitialAd && (test || !!unitOf(opts.units.rewardedInterstitial));
-
-  /*
-   | **앱 시작에 초기화하지 않는다** — 광고를 한 번도 안 봐도 SDK 가 계속 돌아 기기가 더워졌다(꼬꼬농장 2026-08-26).
-   | 첫 광고 직전에 부르므로 기능상 차이는 첫 광고의 로딩이 조금 길어지는 것뿐이다.
-   */
-  let initDone: Promise<unknown> | null = null;
-  const ensureInit = (): Promise<unknown> => {
-    if (!nativeReady) return Promise.resolve(null);
-    if (!initDone) {
-      initDone = (async () => {
-        // 등록된 테스트 기기 — 초기화 **전에** 알려야 첫 광고부터 테스트 광고가 나온다
-        if (opts.testDevices && opts.testDevices.length > 0) {
-          await Promise.resolve(mod.default().setRequestConfiguration({ testDeviceIdentifiers: opts.testDevices })).catch(() => null);
-        }
-
-        return mod.default().initialize();
-      })().catch(() => null);
-    }
-
-    return withTimeout(initDone, 5000);
-  };
 
   /*
    | **앱이 앞에 올라온 뒤에** 묻는다(1.3, 당근캐시 96ae2c7 에서 옮김). 그 전에 부르면 iOS 가 창을 띄우지 않고 조용히
@@ -240,16 +224,28 @@ export function createRewarded(opts: AdsOptions, env: AdsEnv = defaultEnv()): Re
         await whenActive();
         await new Promise((r) => setTimeout(r, SETTLE_MS));
         const cur = (await withTimeout(att.getTrackingPermissionsAsync(), 3000)) as { status?: string } | null;
-        if (cur?.status !== 'undetermined') return { status: String(cur?.status ?? 'unknown'), timedOut: false };   // 이미 답했다 — 다시 묻지 않는다
+        if (cur?.status !== 'undetermined') { if (!cur?.status) forget(); return { status: String(cur?.status ?? 'unknown'), timedOut: false }; }   // 이미 답했다 — 다시 묻지 않는다
+        const form = await waitForTrackingForm(env, mod);
+        if (!form) { forget(); return { status: 'undetermined', timedOut: true }; }
+        if (env.appState()?.currentState !== 'active') { form.release(); forget(); return { status: 'undetermined', timedOut: false }; }
+        const latest = (await withTimeout(Promise.resolve().then(() => att.getTrackingPermissionsAsync()), 3000)) as { status?: string } | null;
+        if (latest?.status !== 'undetermined') { form.release(); if (!latest?.status) forget(); return { status: String(latest?.status ?? 'unknown'), timedOut: false }; }
         /*
          | 20초 시간 초과와 창이 닫힌 것을 가른다(민트런 시험 2026-10-01) — 시간 초과면 창이 아직 떠 있을 수 있어
          | 앱은 다음 권한 창(알림)을 부르기 전에 앱이 앞으로 돌아오는 것(AppState active)을 더 기다려야 한다.
          */
         let timedOut = false;
+        let timeout: ReturnType<typeof setTimeout> | null = null;
+        const native = Promise.resolve().then(() => {
+          if (env.appState()?.currentState !== 'active') throw new Error('앱이 앞에 있을 때 추적 동의를 확인할 수 있어요');
+          return att.requestTrackingPermissionsAsync();
+        });
+        void native.then(() => form.release(), () => form.release()); // Real native completion owns the lease.
         const after = (await Promise.race([
-          att.requestTrackingPermissionsAsync().catch(() => null),
-          new Promise<null>((r) => setTimeout(() => { timedOut = true; r(null); }, 20000)),
+          native.catch(() => null),
+          new Promise<null>((r) => { timeout = setTimeout(() => { timedOut = true; r(null); }, 20000); }),
         ])) as { status?: string } | null;
+        if (timeout !== null) clearTimeout(timeout);
         if (!after || after.status === 'undetermined') forget();   // 창 없이 넘어갔거나 시간 초과 — 다음 호출에 다시 묻는다
         return { status: String(after?.status ?? 'undetermined'), timedOut };
       } catch {
@@ -282,12 +278,9 @@ export function createRewarded(opts: AdsOptions, env: AdsEnv = defaultEnv()): Re
     }
   };
 
-  let showing = false;
-  let showingAt = 0;
-  let stage = '';
+  const fullscreen = createFullscreen(env, mod);
   let failStreak = 0;
   let mutedUntil = 0;
-  let abortCurrent: (() => void) | null = null;
   const noteAdFail = (): void => {
     failStreak += 1;
     if (failStreak >= MUTE_AFTER) { mutedUntil = Date.now() + MUTE_MS; failStreak = 0; }
@@ -335,17 +328,17 @@ export function createRewarded(opts: AdsOptions, env: AdsEnv = defaultEnv()): Re
     }
   };
 
-  const makeAd = (userId?: string, customData?: string, interstitial = false): any => {
+  const makeAd = (request: { requestNonPersonalizedAdsOnly: boolean }, userId?: string, customData?: string, interstitial = false): any => {
     const { RewardedAd, RewardedInterstitialAd, TestIds } = mod;
     // 보상형 전면도 이벤트·SSV 가 보상형과 같다 — 만드는 클래스와 광고 단위만 다르다
     if (interstitial) {
       const unit = test ? TestIds.REWARDED_INTERSTITIAL : unitOf(opts.units.rewardedInterstitial);
 
-      return RewardedInterstitialAd.createForAdRequest(unit, { requestNonPersonalizedAdsOnly: false, ...ssvRequestOptions(test, userId, withDevice(customData)) });
+      return RewardedInterstitialAd.createForAdRequest(unit, { ...request, ...ssvRequestOptions(test, userId, withDevice(customData)) });
     }
     const unit = test ? TestIds.REWARDED : unitOf(opts.units.rewarded);
 
-    return RewardedAd.createForAdRequest(unit, { requestNonPersonalizedAdsOnly: false, ...ssvRequestOptions(test, userId, withDevice(customData)) });
+    return RewardedAd.createForAdRequest(unit, { ...request, ...ssvRequestOptions(test, userId, withDevice(customData)) });
   };
 
   /*
@@ -357,128 +350,31 @@ export function createRewarded(opts: AdsOptions, env: AdsEnv = defaultEnv()): Re
   const warm = (_userId?: string, _customData?: string, _interstitial = false): void => { /* 1.2: 미리 받지 않는다 */ };
   const warmReady = (_userId?: string, _customData?: string, _interstitial = false): boolean => false;
 
-  async function show({ userId, customData, interstitial = false, onEarned, onFail, onClosed, onOpened, onAbort }: ShowOptions): Promise<boolean> {
-    if (!nativeReady) { onFail('이 빌드에서는 광고를 재생할 수 없어요', true); return false; }
-    const appState = env.appState();
-    const elapsed = Date.now() - showingAt;
-    if (showing) {
-      // 걸린 채 남은 표시를 푼다 — 받기·열기가 12초 넘게 멈췄거나, 광고가 닫혔는데 닫힘을 못 받았을 때
-      const stuckLoad = (stage === 'load' || stage === 'init' || stage === 'show') && elapsed >= 12_000;
-      const missedClose = stage === 'open' && elapsed >= 1500 && (appState?.currentState ?? 'active') === 'active';
-      if (!stuckLoad && !missedClose) return false;
-      abortCurrent?.();
-    }
-    showing = true;
-    showingAt = Date.now();
-    void requestTracking();
-    stage = 'init';
-    try { await ensureInit(); } catch { /* 아래에서 요청을 시도하고 안 되면 ERROR 로 안내된다 */ }
-    const { RewardedAdEventType, AdEventType } = mod;
-    const ad = makeAd(userId, customData, interstitial);
-
-    let earned = false;
-    let opened = false;
-    let finished = false;
-    let sawBg = false;
-    const offs: Array<() => void> = [];
-    const timers: Array<ReturnType<typeof setTimeout>> = [];
-    let appSub: { remove: () => void } | null = null;
-    const cleanup = (): void => {
-      abortCurrent = null;
-      showing = false;
-      stage = '';
-      try { appSub?.remove(); } catch { /* noop */ }
-      appSub = null;
-      offs.forEach((f) => { try { f(); } catch { /* noop */ } });
-      offs.length = 0;
-      timers.forEach((t) => clearTimeout(t));
-      timers.length = 0;
-    };
-    const safe = (f?: (...a: any[]) => void, ...args: any[]): void => { try { f?.(...args); } catch { /* noop */ } };
-    abortCurrent = () => { const was = finished; finished = true; cleanup(); if (!was) safe(onAbort); };
-    /*
-     | 광고를 끝까지 봤는데 「끝까지 보지 않았어요」가 뜨고 보상도 안 들어왔다(꼬꼬농장 2026-09-08).
-     | EARNED_REWARD 가 CLOSED **뒤에** 오는 기기가 있다 — 마지막 순간에 X 를 누르면 특히 그렇다.
-     | 닫힘 직후 잠깐(1.2초) 리스너를 살려 두고, 그사이 보상이 오면 정상 지급한다.
-     */
-    const finishClose = (): void => {
-      if (finished) return;
-      finished = true;
-      safe(onClosed);
-      if (earned) { cleanup(); return; }
-      timers.push(setTimeout(() => {
-        const got = earned;
-        cleanup();
-        if (!got) safe(onFail, '광고를 끝까지 보지 않았어요', false);   // 열렸다가 중간에 닫았다
-      }, 1200));
-    };
-    const fail = (msg: string): void => {
-      if (finished) return;
-      finished = true;
-      // 보상형 전면(재고가 자주 빈다)의 실패는 자리 접기 횟수에 넣지 않는다 — 전면이 몇 번 비었다고 멀쩡한
-      // 「광고 보고 받기」까지 30분 접혔다(꼬꼬농장 2026-09-14). 전면이 실패하면 부르는 쪽이 보상형으로 잇는다
-      if (!interstitial) noteAdFail();
-      cleanup();
-      safe(onFail, msg, !opened);   // 열리기 전에 실패했으면 noAd
-    };
-
-    const present = (): void => {
-      stage = 'show';
-      let p: Promise<void> | void;
-      try {
-        p = ad.show();
-      } catch (e: any) {
-        fail('광고를 열지 못했어요 (' + String(e?.message ?? e ?? '원인 불명') + ')');
-        return;
-      }
-      if (p && typeof (p as Promise<void>).then === 'function') {
-        (p as Promise<void>).catch((e: any) => {
-          if (!opened) fail('광고를 열지 못했어요 (' + String(e?.message ?? e ?? '원인 불명') + ')');
-        });
-      }
-    };
-    stage = 'load';
-    offs.push(ad.addAdEventListener(RewardedAdEventType.LOADED, present));
-    offs.push(ad.addAdEventListener(AdEventType.OPENED, () => {
-      opened = true;
-      stage = 'open';
-      noteAdOpen();
-      // 틱톡 광고 열람 — 계측이 광고를 막지 않는다(1.7)
-      try { tiktok?.adImpression(); } catch { /* noop */ }
-      safe(onOpened);
-    }));
-    offs.push(ad.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => { earned = true; safe(onEarned); }));
-    offs.push(ad.addAdEventListener(AdEventType.CLOSED, () => finishClose()));
-    offs.push(ad.addAdEventListener(AdEventType.ERROR, (err: any) => {
-      const code = String(err?.code ?? err?.message ?? '');
-      fail(/no.?fill/i.test(code)
-        ? '지금은 볼 수 있는 광고가 없어요. 잠시 후 다시 시도해 주세요'
-        : '광고를 불러오지 못했어요 (' + (code || '원인 불명') + ')');
-    }));
-    // 닫힘 이벤트를 못 받는 기기 — 앱이 뒤로 갔다 돌아오면 닫힌 것으로 본다
-    try {
-      appSub = appState?.addEventListener('change', (s: string) => {
-        if (s !== 'active') { sawBg = true; return; }
-        if (sawBg && opened && !finished) finishClose();
-      }) ?? null;
-    } catch { appSub = null; }
-
-    try {
-      ad.load();
-    } catch (e: any) {
-      fail('광고를 열지 못했어요 (' + String(e?.message ?? e ?? '원인 불명') + ')');
-
+  async function show(o: ShowOptions): Promise<boolean> {
+    const interstitial = o.interstitial ?? false;
+    if (!nativeReady || !(interstitial ? interstitialAvailable : unitReady)) {
+      safeCall(o.onFail, '이 빌드에서는 광고를 재생할 수 없어요', true);
       return false;
     }
-    /*
-     | 광고가 없으면 ERROR 가 몇 초 안에 오므로, 여기까지 오는 것은 SDK 가 응답을 안 주는 경우다 — 더 기다려도
-     | 소용없다. 25초는 화면이 덮인 채 멈춘 줄 알았다는 제보가 와서(2026-09-10) 15초.
-     */
-    timers.push(setTimeout(() => {
-      if (!opened && !finished) fail('광고를 불러오지 못했어요. 잠시 후 다시 시도해 주세요 (' + stage + ')');
-    }, 15000));
-
-    return true;
+    return fullscreen.show({
+      callbacks: o,
+      rewarded: true,
+      prepare: (stillNeeded) => prepareRequest(env, mod, opts, stillNeeded, async () => {
+        // Preserve automatic ATT, sequentially after UMP (never overlapping two forms).
+        if (os === 'ios') {
+          const att = env.tracking();
+          const current = att ? await withTimeout(Promise.resolve(att.getTrackingPermissionsAsync()), 3000) as { status?: string } | null : null;
+          if (!stillNeeded()) throw new Error('광고를 그만뒀어요');
+          if (current?.status === 'undetermined') {
+            const tracking = await requestTracking();
+            if (tracking.timedOut) throw new Error('추적 권한 확인이 아직 끝나지 않았어요');
+          }
+        }
+      }),
+      makeAd: (request) => makeAd(request, o.userId, o.customData, interstitial),
+      onOpen: () => { noteAdOpen(); try { tiktok?.adImpression(); } catch { /* noop */ } },
+      onFailure: () => { if (!interstitial) noteAdFail(); },
+    });
   }
 
   /*
@@ -498,7 +394,7 @@ export function createRewarded(opts: AdsOptions, env: AdsEnv = defaultEnv()): Re
       onClosed: () => { closed = true; if (earned) finish({ earned: true, opened: true, busy: false, noAd: false }); },
       onFail: (message: string, noAd: boolean) => finish({ earned: false, opened, busy: false, noAd: !!noAd, message }),
       // 그만두기 · 걸림 풀기 — 이미 보상이 왔으면 본 것으로(서버 SSV 는 그대로 온다)
-      onAbort: () => finish(earned ? { earned: true, opened, busy: false, noAd: false } : { earned: false, opened, busy: false, noAd: !opened, message: '광고를 그만뒀어요' }),
+      onAbort: (noAd?: boolean) => finish(earned ? { earned: true, opened, busy: false, noAd: false } : { earned: false, opened, busy: false, noAd: noAd ?? !opened, message: '광고를 그만뒀어요' }),
     }).then((started) => {
       if (!started && !done) finish({ earned: false, opened: false, busy: true, noAd: false });
     }, () => finish({ earned: false, opened, busy: false, noAd: !opened, message: '광고를 열지 못했어요' }));
@@ -511,7 +407,7 @@ export function createRewarded(opts: AdsOptions, env: AdsEnv = defaultEnv()): Re
     show,
     warm,
     warmReady,
-    cancel: () => { abortCurrent?.(); },
+    cancel: fullscreen.cancel,
     mutedMs: () => Math.max(0, mutedUntil - Date.now()),
     requestTracking,
     advertisingId,
