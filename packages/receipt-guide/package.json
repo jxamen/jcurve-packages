@@ -1,0 +1,13 @@
+{
+  "name": "@jcurve/receipt-guide",
+  "version": "1.0.0",
+  "description": "전자 영수증 화면 공용 — 「전자 영수증」 칩 카드(연동 배지 · 더보기) · 「○○ 연동됨」 시트 · 「○○ 영수증 올리는 법」 단계 안내 재생기 · 사진첩 고르기 · 여러 장 이어 붙이기. 색 · 글꼴 · 문구는 theme/props, 앱은 설치 + 호출 몇 줄",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist", "src", "README.md"],
+  "peerDependencies": { "react": "*", "react-native": "*", "expo-image-picker": "*", "expo-image-manipulator": "*" },
+  "peerDependenciesMeta": { "expo-image-picker": { "optional": true }, "expo-image-manipulator": { "optional": true } },
+  "scripts": { "build": "tsc -p tsconfig.json", "test": "vitest run" },
+  "repository": { "type": "git", "url": "https://github.com/jxamen/jcurve-packages", "directory": "packages/receipt-guide" },
+  "license": "UNLICENSED"
+}
