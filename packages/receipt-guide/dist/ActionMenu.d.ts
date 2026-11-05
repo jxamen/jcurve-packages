@@ -25,8 +25,10 @@ export type ActionMenuTheme = {
     /** 제목 · 항목 글자 크기 */
     titleSize: number;
     itemSize: number;
-    /** 안쪽 여백 */
+    /** 안쪽 여백(옆 · 위) · 항목 사이 틈 · 맨 아래 여백(안전 영역 위에 더한다) */
     pad: number;
+    gap: number;
+    bottomPad: number;
 };
 export declare const DEFAULT_MENU_THEME: ActionMenuTheme;
 export type ActionMenuProps = {

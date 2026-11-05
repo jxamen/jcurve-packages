@@ -24,13 +24,15 @@ export type ActionMenuTheme = {
   /** 제목 · 항목 글자 크기 */
   titleSize: number;
   itemSize: number;
-  /** 안쪽 여백 */
+  /** 안쪽 여백(옆 · 위) · 항목 사이 틈 · 맨 아래 여백(안전 영역 위에 더한다) */
   pad: number;
+  gap: number;
+  bottomPad: number;
 };
 
 export const DEFAULT_MENU_THEME: ActionMenuTheme = {
   bg: '#F4F8FF', card: '#FFFFFF', text: '#162343', sub: '#7D8598', danger: '#E5484D',
-  radius: 24, itemRadius: 16, titleSize: 13, itemSize: 16, pad: 20,
+  radius: 20, itemRadius: 16, titleSize: 15, itemSize: 16.5, pad: 16, gap: 8, bottomPad: 12,
 };
 
 export type ActionMenuProps = {
@@ -45,11 +47,11 @@ export type ActionMenuProps = {
 
 export function ActionMenu({ title, items, cancelLabel = '닫기', onClose, theme, insetBottom = 0 }: ActionMenuProps) {
   const t = { ...DEFAULT_MENU_THEME, ...theme };
-  const gap = Math.round(t.pad / 2.5);
+  const gap = t.gap;
   return (
     <View style={[StyleSheet.absoluteFill, s.root]}>
       <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel="닫기" onPress={onClose} />
-      <View style={{ backgroundColor: t.bg, borderTopLeftRadius: t.radius, borderTopRightRadius: t.radius, paddingHorizontal: t.pad, paddingTop: t.pad, paddingBottom: insetBottom + Math.round(t.pad * 0.6), gap }}>
+      <View style={{ backgroundColor: t.bg, borderTopLeftRadius: t.radius, borderTopRightRadius: t.radius, paddingHorizontal: t.pad, paddingTop: t.pad, paddingBottom: insetBottom + t.bottomPad, gap }}>
         {title ? <Text style={{ fontSize: t.titleSize, fontWeight: '700', color: t.sub, textAlign: 'center', paddingVertical: gap }}>{title}</Text> : null}
         {items.map((it, i) => (
           <Pressable key={i} accessibilityRole="button" accessibilityLabel={it.label} style={({ pressed }) => [s.item, { backgroundColor: t.card, borderRadius: t.itemRadius }, pressed && s.pressed]} onPress={() => { onClose(); it.onPress(); }}>

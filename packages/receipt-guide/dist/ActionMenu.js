@@ -16,14 +16,14 @@ const react_1 = __importDefault(require("react"));
 const react_native_1 = require("react-native");
 exports.DEFAULT_MENU_THEME = {
     bg: '#F4F8FF', card: '#FFFFFF', text: '#162343', sub: '#7D8598', danger: '#E5484D',
-    radius: 24, itemRadius: 16, titleSize: 13, itemSize: 16, pad: 20,
+    radius: 20, itemRadius: 16, titleSize: 15, itemSize: 16.5, pad: 16, gap: 8, bottomPad: 12,
 };
 function ActionMenu({ title, items, cancelLabel = '닫기', onClose, theme, insetBottom = 0 }) {
     const t = { ...exports.DEFAULT_MENU_THEME, ...theme };
-    const gap = Math.round(t.pad / 2.5);
+    const gap = t.gap;
     return (react_1.default.createElement(react_native_1.View, { style: [react_native_1.StyleSheet.absoluteFill, s.root] },
         react_1.default.createElement(react_native_1.Pressable, { style: react_native_1.StyleSheet.absoluteFill, accessibilityRole: "button", accessibilityLabel: "\uB2EB\uAE30", onPress: onClose }),
-        react_1.default.createElement(react_native_1.View, { style: { backgroundColor: t.bg, borderTopLeftRadius: t.radius, borderTopRightRadius: t.radius, paddingHorizontal: t.pad, paddingTop: t.pad, paddingBottom: insetBottom + Math.round(t.pad * 0.6), gap } },
+        react_1.default.createElement(react_native_1.View, { style: { backgroundColor: t.bg, borderTopLeftRadius: t.radius, borderTopRightRadius: t.radius, paddingHorizontal: t.pad, paddingTop: t.pad, paddingBottom: insetBottom + t.bottomPad, gap } },
             title ? react_1.default.createElement(react_native_1.Text, { style: { fontSize: t.titleSize, fontWeight: '700', color: t.sub, textAlign: 'center', paddingVertical: gap } }, title) : null,
             items.map((it, i) => (react_1.default.createElement(react_native_1.Pressable, { key: i, accessibilityRole: "button", accessibilityLabel: it.label, style: ({ pressed }) => [s.item, { backgroundColor: t.card, borderRadius: t.itemRadius }, pressed && s.pressed], onPress: () => { onClose(); it.onPress(); } },
                 react_1.default.createElement(react_native_1.Text, { style: { fontSize: t.itemSize, fontWeight: '600', color: it.destructive ? t.danger : t.text } }, it.label)))),
