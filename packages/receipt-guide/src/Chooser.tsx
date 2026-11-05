@@ -11,7 +11,7 @@
  */
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { GUIDES, guideOf, needsTwo } from './data';
+import { GUIDES, accentOf, guideOf, needsTwo } from './data';
 import type { GuideApp, ReceiptPlatform } from './types';
 import { T, TwoBadge, row, useGuideTheme } from './ui';
 
@@ -97,7 +97,7 @@ export function Chooser({ remembered, onPick, onQuick, quickDisabled, paper, hid
                   onPress={() => onLinkPick?.(chip.key, chip.connected)}
                   style={({ pressed }) => [s.tile, { borderColor: chip.connected ? theme.brand : theme.line, backgroundColor: chip.connected ? theme.brandSoft : theme.card, opacity: pressed ? 0.8 : 1 }]}
                 >
-                  <View style={[s.dot, { backgroundColor: guideOf(chip.app).accent }]} />
+                  <View style={[s.dot, { backgroundColor: accentOf(chip.app) }]} />
                   <T size={15} w={800} lines={linked ? 2 : 1} center={linked} style={{ flexShrink: 1 }}>{chip.name}</T>
                   <View style={s.badge}>
                     <View style={[s.linkBadge, { backgroundColor: chip.connected ? theme.brand : theme.line }]}>

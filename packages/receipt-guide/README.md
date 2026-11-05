@@ -4,7 +4,7 @@
 영테크 `src/receiptGuide` 를 그대로 옮겼다(2026-11-05 대표님 「영테크 전자 영수증 화면도 패키지로 만들어 다른 앱이 바로 가져다 쓰게 — 디자인만 앱마다 다르게」). 색 · 글꼴 크기 · 둥글기 · 캐릭터 · 기록은 props 로 받는다 — 앱의 다른 파일을 부르지 않는다.
 
 ```json
-"@jcurve/receipt-guide": "https://github.com/jxamen/jcurve-packages/releases/download/receipt-guide-v1.0.2/jcurve-receipt-guide-1.0.2.tgz"
+"@jcurve/receipt-guide": "https://github.com/jxamen/jcurve-packages/releases/download/receipt-guide-v1.1.0/jcurve-receipt-guide-1.1.0.tgz"
 ```
 
 ## 필요한 것(peer)
@@ -33,7 +33,7 @@ const linkChips: LinkChip[] = TEST_LINK_PLATFORMS.map((p) => ({ key: p, app: APP
 {guide ? <ReceiptGuide platform={APP[guide]} guide={linkGuide(guide)} appName="영테크" theme={{ brand: '#4278CF' }} track={track}
   onClose={() => setGuide(null)} onUpload={() => act(guide)} cta={{ label: isConnected(state, guide) ? '주문 불러오기' : '동의하고 시작하기', onPress: () => act(guide) }} /> : null}
 ```
-`APP` 은 칩 → 안내 앱 이름(`naver: 'naverpay', coupang: 'coupang', kurly: 'kurly', musinsa: 'musinsa'`). 처음 누른 칩은 ③ 부터 보여 주고(`parseLinkSeen` · `markLinkSeen` 으로 본 곳 저장) 그 뒤로는 바로 ②.
+`APP` 은 칩 → 안내 앱 이름(`naver: 'naverpay', coupang: 'coupang', kurly: 'kurly', musinsa: 'musinsa', daiso: 'daiso', oliveyoung: 'oliveyoung'` — 1.1.0 부터 다이소몰 · 올리브영 칩은 receipt-link 의 `PROBE_LINK_PLATFORMS`, 서버가 허용한 회원에게만 보인다; 사진 올리기 안내(`GUIDES`)에는 없고 칩 점 색은 `accentOf`). 처음 누른 칩은 ③ 부터 보여 주고(`parseLinkSeen` · `markLinkSeen` 으로 본 곳 저장) 그 뒤로는 바로 ②.
 시트 색 · 둥글기 · 글자 크기 · 여백은 `ActionMenuTheme`(bg · card · text · sub · danger · radius · itemRadius · titleSize · itemSize · pad · gap · bottomPad), 카드 · 안내 색은 `GuideTheme` — 빠진 값은 기본값.
 
 ## 쓰는 법

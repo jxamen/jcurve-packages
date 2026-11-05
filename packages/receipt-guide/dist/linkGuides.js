@@ -3,10 +3,19 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.markLinkSeen = void 0;
 exports.linkGuide = linkGuide;
 exports.parseLinkSeen = parseLinkSeen;
-const NAME = { naver: '네이버', coupang: '쿠팡', kurly: '마켓컬리', musinsa: '무신사' };
-const APP = { naver: 'naverpay', coupang: 'coupang', kurly: 'kurly', musinsa: 'musinsa' };
-const ACCENT = { naver: '#03C75A', coupang: '#E52528', kurly: '#5F0080', musinsa: '#2B2B2B' };
+/**
+ * 전자 영수증(주문내역 연동) 처음 쓰는 법 — 칩마다 그 곳 전용(대표님 11-03 07:55 「네이버 버튼 누르면 나오고 쿠팡 … 무신사 버튼 누르면 나오게」).
+ * 배민 안내와 같은 재생기 · 같은 가짜 화면(막대 · 카드 · 글자)으로 그린다. 로그인 화면은 A32 에서 「로그인 창 열기」로 연
+ * 실제 웹페이지(11-03 08:01 캡처)를 보고 본떴다 — 캡처 그림 자체는 넣지 않는다(회원 주문 · 계정이 들어가므로).
+ * 단계: ① 칩 → 동의 → 그 곳 로그인 ② 주문 불러오기 ③ 광고 보고 적립. RN 에 기대지 않는다(노드 시험이 읽는다).
+ */
+const data_1 = require("./data");
+const NAME = { naver: '네이버', coupang: '쿠팡', kurly: '마켓컬리', musinsa: '무신사', daiso: '다이소몰', oliveyoung: '올리브영' };
+const APP = { naver: 'naverpay', coupang: 'coupang', kurly: 'kurly', musinsa: 'musinsa', daiso: 'daiso', oliveyoung: 'oliveyoung' };
+const ACCENT = { naver: '#03C75A', coupang: '#E52528', kurly: '#5F0080', musinsa: '#2B2B2B', daiso: data_1.LINK_ONLY_ACCENT.daiso, oliveyoung: data_1.LINK_ONLY_ACCENT.oliveyoung };
+/** 모든 회원에게 보이는 칩 — 다이소몰 · 올리브영은 서버가 허용한 회원에게만 붙는다(1.1.0, 가짜 화면에는 누른 칩을 덧붙여 그린다) */
 const CHIPS = ['naver', 'coupang', 'kurly', 'musinsa'];
+const SITES = [...CHIPS, 'daiso', 'oliveyoung'];
 /** 그 곳 로그인 화면(실제 페이지를 본뜬 것) — 마지막 장면의 「로그인」이 누를 곳 */
 function loginSteps(site) {
     const title = `${NAME[site]} 로그인`;
@@ -33,6 +42,16 @@ function loginSteps(site) {
                         { type: 'buttons', items: ['로그인'], solid: 0, tap: 0 },
                     ] },
             ];
+        case 'daiso':
+            return [{ no: 1, say: '다이소몰 로그인 화면에서 직접 로그인해요', sub: '카카오 · 네이버로 시작해도 돼요. ' + sub, nodes: [
+                        { type: 'header', title, right: '닫기' }, { type: 'section', title: '다이소몰' },
+                        { type: 'rows', rows: [['아이디', ''], ['비밀번호', '']] }, { type: 'buttons', items: ['로그인'], solid: 0, tap: 0 },
+                    ] }];
+        case 'oliveyoung':
+            return [{ no: 1, say: '올리브영 로그인 화면에서 직접 로그인해요', sub: '카카오 · 네이버 · Apple 로 시작해도 돼요. ' + sub, nodes: [
+                        { type: 'header', title, right: '닫기' }, { type: 'section', title: 'OLIVE YOUNG' },
+                        { type: 'rows', rows: [['아이디', ''], ['비밀번호', '']] }, { type: 'buttons', items: ['로그인'], solid: 0, tap: 0 },
+                    ] }];
         case 'musinsa':
         default:
             return [{ no: 1, say: '무신사 로그인 화면에서 직접 로그인해요', sub: '카카오 · Apple 로 시작해도 돼요. ' + sub, nodes: [
@@ -41,11 +60,14 @@ function loginSteps(site) {
                     ] }];
     }
 }
-const chooser = (site, tap) => [
-    { type: 'header', title: '영수증 올리기' },
-    { type: 'section', title: '전자 영수증' },
-    { type: 'chips', items: CHIPS.map((c) => NAME[c]), ...(tap ? { tap: CHIPS.indexOf(site) } : {}) },
-];
+const chooser = (site, tap) => {
+    const chips = CHIPS.includes(site) ? CHIPS : [...CHIPS, site];
+    return [
+        { type: 'header', title: '영수증 올리기' },
+        { type: 'section', title: '전자 영수증' },
+        { type: 'chips', items: chips.map((c) => NAME[c]), ...(tap ? { tap: chips.indexOf(site) } : {}) },
+    ];
+};
 function linkGuide(site) {
     const name = NAME[site];
     return {
@@ -84,7 +106,7 @@ function linkGuide(site) {
 function parseLinkSeen(raw) {
     try {
         const v = JSON.parse(raw ?? '[]');
-        return Array.isArray(v) ? v.filter((x) => typeof x === 'string' && CHIPS.includes(x)) : [];
+        return Array.isArray(v) ? v.filter((x) => typeof x === 'string' && SITES.includes(x)) : [];
     }
     catch {
         return [];

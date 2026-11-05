@@ -1,7 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.TWO_SAME_ORDER = exports.TWO_SHOT = exports.PLATFORM_ORDER = exports.GUIDES = void 0;
+exports.TWO_SAME_ORDER = exports.TWO_SHOT = exports.LINK_ONLY_ACCENT = exports.PLATFORM_ORDER = exports.GUIDES = void 0;
 exports.guideOf = guideOf;
+exports.accentOf = accentOf;
 exports.isPlatform = isPlatform;
 exports.platformName = platformName;
 exports.pickLimit = pickLimit;
@@ -618,6 +619,12 @@ exports.GUIDES = [baemin, coupang, coupangeats, nplus, naverpay, musinsa, kurly,
 exports.PLATFORM_ORDER = [...exports.GUIDES.map((g) => g.app), 'paper'];
 function guideOf(app) {
     return exports.GUIDES.find((g) => g.app === app);
+}
+/** 연동 칩에만 있는 곳(사진 안내 없음)의 색 — 칩 점 색에 쓴다 */
+exports.LINK_ONLY_ACCENT = { daiso: '#E2231A', oliveyoung: '#9BCE26' };
+/** 안내 색 — 사진 안내가 없는 곳(다이소몰 · 올리브영)도 안전하게 */
+function accentOf(app) {
+    return exports.GUIDES.find((g) => g.app === app)?.accent ?? exports.LINK_ONLY_ACCENT[app] ?? '#888888';
 }
 function isPlatform(v) {
     return typeof v === 'string' && exports.PLATFORM_ORDER.includes(v);

@@ -647,6 +647,14 @@ export function guideOf(app: GuideApp): ReceiptGuide {
   return GUIDES.find((g) => g.app === app)!;
 }
 
+/** 연동 칩에만 있는 곳(사진 안내 없음)의 색 — 칩 점 색에 쓴다 */
+export const LINK_ONLY_ACCENT: Partial<Record<GuideApp, string>> = { daiso: '#E2231A', oliveyoung: '#9BCE26' };
+
+/** 안내 색 — 사진 안내가 없는 곳(다이소몰 · 올리브영)도 안전하게 */
+export function accentOf(app: GuideApp): string {
+  return GUIDES.find((g) => g.app === app)?.accent ?? LINK_ONLY_ACCENT[app] ?? '#888888';
+}
+
 export function isPlatform(v: unknown): v is ReceiptPlatform {
   return typeof v === 'string' && (PLATFORM_ORDER as string[]).includes(v);
 }

@@ -14,6 +14,10 @@ import type { GuideApp, ReceiptGuide, ReceiptPlatform } from './types';
 export declare const GUIDES: ReceiptGuide[];
 export declare const PLATFORM_ORDER: ReceiptPlatform[];
 export declare function guideOf(app: GuideApp): ReceiptGuide;
+/** 연동 칩에만 있는 곳(사진 안내 없음)의 색 — 칩 점 색에 쓴다 */
+export declare const LINK_ONLY_ACCENT: Partial<Record<GuideApp, string>>;
+/** 안내 색 — 사진 안내가 없는 곳(다이소몰 · 올리브영)도 안전하게 */
+export declare function accentOf(app: GuideApp): string;
 export declare function isPlatform(v: unknown): v is ReceiptPlatform;
 /** 고르는 칸 이름 */
 export declare function platformName(p: ReceiptPlatform): string;

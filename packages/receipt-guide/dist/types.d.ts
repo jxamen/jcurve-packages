@@ -10,7 +10,7 @@
  * RN 에 기대지 않는 파일이라 노드 시험(data.test.ts)이 바로 읽는다.
  */
 /** 안내가 있는 앱 */
-export type GuideApp = 'baemin' | 'coupang' | 'coupangeats' | 'nplus' | 'naverpay' | 'musinsa' | 'kurly' | 'kurly_npay' | 'kakaopay';
+export type GuideApp = 'baemin' | 'coupang' | 'coupangeats' | 'nplus' | 'naverpay' | 'musinsa' | 'kurly' | 'kurly_npay' | 'kakaopay' | 'daiso' | 'oliveyoung';
 /** 올릴 때 서버에 함께 보내는 「어디 영수증인가」 — 종이 영수증은 안내 없이 바로 찍는다 */
 export type ReceiptPlatform = GuideApp | 'paper';
 /** 아래 탭 한 칸 — 사람 모양처럼 글자 없이 그림으로만 알아보는 칸은 `icon` */

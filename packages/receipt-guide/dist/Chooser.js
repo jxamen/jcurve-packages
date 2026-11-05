@@ -85,7 +85,7 @@ function Chooser({ remembered, onPick, onQuick, quickDisabled, paper, hidden = [
                 const { chip } = t;
                 return (react_1.default.createElement(react_native_1.View, { key: 'link:' + chip.key, style: s.cell },
                     react_1.default.createElement(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: chip.name + (chip.connected ? ' 계정 연동됨' : ' 계정 미연동'), onPress: () => onLinkPick?.(chip.key, chip.connected), style: ({ pressed }) => [s.tile, { borderColor: chip.connected ? theme.brand : theme.line, backgroundColor: chip.connected ? theme.brandSoft : theme.card, opacity: pressed ? 0.8 : 1 }] },
-                        react_1.default.createElement(react_native_1.View, { style: [s.dot, { backgroundColor: (0, data_1.guideOf)(chip.app).accent }] }),
+                        react_1.default.createElement(react_native_1.View, { style: [s.dot, { backgroundColor: (0, data_1.accentOf)(chip.app) }] }),
                         react_1.default.createElement(ui_1.T, { size: 15, w: 800, lines: linked ? 2 : 1, center: linked, style: { flexShrink: 1 } }, chip.name),
                         react_1.default.createElement(react_native_1.View, { style: s.badge },
                             react_1.default.createElement(react_native_1.View, { style: [s.linkBadge, { backgroundColor: chip.connected ? theme.brand : theme.line }] },

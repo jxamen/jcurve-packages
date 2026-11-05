@@ -11,7 +11,7 @@
  */
 
 /** 안내가 있는 앱 */
-export type GuideApp = 'baemin' | 'coupang' | 'coupangeats' | 'nplus' | 'naverpay' | 'musinsa' | 'kurly' | 'kurly_npay' | 'kakaopay';
+export type GuideApp = 'baemin' | 'coupang' | 'coupangeats' | 'nplus' | 'naverpay' | 'musinsa' | 'kurly' | 'kurly_npay' | 'kakaopay' | 'daiso' | 'oliveyoung';   // daiso · oliveyoung 은 전자 영수증 연동(칩)만 — 사진 올리기 안내(GUIDES)에는 없다(1.1.0)
 /** 올릴 때 서버에 함께 보내는 「어디 영수증인가」 — 종이 영수증은 안내 없이 바로 찍는다 */
 export type ReceiptPlatform = GuideApp | 'paper';
 
