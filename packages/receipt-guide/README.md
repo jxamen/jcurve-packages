@@ -4,7 +4,7 @@
 영테크 `src/receiptGuide` 를 그대로 옮겼다(2026-11-05 대표님 「영테크 전자 영수증 화면도 패키지로 만들어 다른 앱이 바로 가져다 쓰게 — 디자인만 앱마다 다르게」). 색 · 글꼴 크기 · 둥글기 · 캐릭터 · 기록은 props 로 받는다 — 앱의 다른 파일을 부르지 않는다.
 
 ```json
-"@jcurve/receipt-guide": "https://github.com/jxamen/jcurve-packages/releases/download/receipt-guide-v1.1.0/jcurve-receipt-guide-1.1.0.tgz"
+"@jcurve/receipt-guide": "https://github.com/jxamen/jcurve-packages/releases/download/receipt-guide-v1.1.1/jcurve-receipt-guide-1.1.1.tgz"
 ```
 
 ## 필요한 것(peer)
@@ -17,12 +17,13 @@
 
 ```tsx
 import { PlatformChooser, ActionMenu, ReceiptGuide, linkGuide, linkedMenuItems, linkedMenuTitle, type LinkChip, type LinkSite } from '@jcurve/receipt-guide';
-import { LINK_LABEL, TEST_LINK_PLATFORMS, isConnected } from '@jcurve/receipt-link';
+import { LINK_LABEL, TEST_LINK_PLATFORMS, isLinked, linkStage } from '@jcurve/receipt-link';
 
-// ① 「전자 영수증」 카드 — 연동 칩(네이버 · 쿠팡 · 마켓컬리 · 무신사, 「연동/미연동」 배지) + 안내 칸(배민 · 쿠팡이츠 …) 여섯 칸부터, 「더보기 ∨」
-const linkChips: LinkChip[] = TEST_LINK_PLATFORMS.map((p) => ({ key: p, app: APP[p], name: LINK_LABEL[p], connected: isConnected(state, p) }));
+// ① 「전자 영수증」 카드 — 연동 칩(네이버 · 쿠팡 · 마켓컬리 · 무신사, 「미연동 / 로그인 필요 / 연동」 배지) + 안내 칸(배민 · 쿠팡이츠 …) 여섯 칸부터, 「더보기 ∨」
+// stage(1.1.1, receipt-link 1.2.2 linkStage): 동의 전 none → 「미연동」(누르면 동의) · 동의만 하고 첫 불러오기 전 login → 「로그인 필요」(누르면 바로 불러오기, 로그인은 그 안에서) · 첫 불러오기까지 끝남 linked → 「연동」(누르면 메뉴)
+const linkChips: LinkChip[] = TEST_LINK_PLATFORMS.map((p) => ({ key: p, app: APP[p], name: LINK_LABEL[p], connected: isLinked(state, p), stage: linkStage(state, p) }));
 <PlatformChooser remembered={last} onPick={openPopup} onQuick={pick} paper={<MyCameraButtons />} linkChips={linkChips}
-  onLinkPick={(key, connected) => connected ? setMenu(key as LinkSite) : startConsent(key)} theme={{ brand: '#4278CF' }} track={track} />
+  onLinkPick={(key) => { const st = linkStage(state, key as LinkSite); st === 'linked' ? setMenu(key as LinkSite) : st === 'login' ? openImport(key as LinkSite) : startConsent(key); }} theme={{ brand: '#4278CF' }} track={track} />
 
 // ② 칩을 누르면 뜨는 「○○ 연동됨」 시트 — 주문 불러오기 · 불러온 주문 보기 · 사용 방법 보기 · (probe 만) 로그인 창 열기 · 연동 해제 · 닫기
 {menu ? <ActionMenu title={linkedMenuTitle(LINK_LABEL[menu])} insetBottom={insets.bottom} theme={{ bg: C.bg, card: C.card, radius: 24 }}

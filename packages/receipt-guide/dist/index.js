@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.linkedMenuTitle = exports.linkedMenuItems = exports.DEFAULT_MENU_THEME = exports.ActionMenu = exports.DEFAULT_THEME = exports.stitchLayout = exports.stitchReceipts = exports.parseLinkSeen = exports.markLinkSeen = exports.linkGuide = exports.pickReceiptImages = exports.NEED_TWO_TEXT = exports.NEED_TWO_SHOTS = exports.shotChoices = exports.platformName = exports.pickLimit = exports.needsTwo = exports.isPlatform = exports.guideOf = exports.TWO_SHOT = exports.TWO_SAME_ORDER = exports.PLATFORM_ORDER = exports.GUIDES = void 0;
+exports.LINK_STAGE_LABEL = exports.linkedMenuTitle = exports.linkedMenuItems = exports.DEFAULT_MENU_THEME = exports.ActionMenu = exports.DEFAULT_THEME = exports.stitchLayout = exports.stitchReceipts = exports.parseLinkSeen = exports.markLinkSeen = exports.linkGuide = exports.pickReceiptImages = exports.NEED_TWO_TEXT = exports.NEED_TWO_SHOTS = exports.shotChoices = exports.platformName = exports.pickLimit = exports.needsTwo = exports.isPlatform = exports.guideOf = exports.TWO_SHOT = exports.TWO_SAME_ORDER = exports.PLATFORM_ORDER = exports.GUIDES = void 0;
 exports.ReceiptGuide = ReceiptGuide;
 exports.PlatformChooser = PlatformChooser;
 /**
@@ -78,6 +78,8 @@ Object.defineProperty(exports, "DEFAULT_MENU_THEME", { enumerable: true, get: fu
 var linkMenu_1 = require("./linkMenu");
 Object.defineProperty(exports, "linkedMenuItems", { enumerable: true, get: function () { return linkMenu_1.linkedMenuItems; } });
 Object.defineProperty(exports, "linkedMenuTitle", { enumerable: true, get: function () { return linkMenu_1.linkedMenuTitle; } });
+var Chooser_2 = require("./Chooser");
+Object.defineProperty(exports, "LINK_STAGE_LABEL", { enumerable: true, get: function () { return Chooser_2.LINK_STAGE_LABEL; } });
 function useCtx({ theme, renderCharacter }) {
     return (0, react_1.useMemo)(() => ({ theme: { ...ui_1.DEFAULT_THEME, ...theme }, renderCharacter }), [theme, renderCharacter]);
 }

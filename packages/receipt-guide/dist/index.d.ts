@@ -19,7 +19,8 @@ export type { GuideTheme, CharacterRender } from './ui';
 export { DEFAULT_THEME } from './ui';
 export { ActionMenu, DEFAULT_MENU_THEME, type ActionMenuItem, type ActionMenuProps, type ActionMenuTheme } from './ActionMenu';
 export { linkedMenuItems, linkedMenuTitle, type LinkedMenuHandlers } from './linkMenu';
-export type { ChooserProps, LinkChip } from './Chooser';
+export type { ChooserProps, LinkChip, LinkStage } from './Chooser';
+export { LINK_STAGE_LABEL } from './Chooser';
 type Common = {
     /** 색 — 빠진 값은 기본값 */
     theme?: Partial<GuideTheme>;

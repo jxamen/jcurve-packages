@@ -31,10 +31,17 @@ export type ChooserProps = {
     /** 종이 영수증 카드 바로 위에 놓을 안내(연동 칩이 있을 때만) — 찍는 법 안내는 전자 영수증과 상관없다(대표님 11-03 09:31) */
     paperHint?: React.ReactNode;
 };
+/**
+ * 연동 칩. stage 가 있으면 그것이 뱃지를 정한다(1.1.1, 대표님 11-05 18:06 「연동으로 뜨는데 실제로는 연동이 안 돼 있다」):
+ *  none → 「미연동」 · login(동의만 하고 첫 불러오기 전) → 「로그인 필요」 · linked → 「연동」. 없으면 connected 로 「연동 / 미연동」(옛 앱).
+ */
+export type LinkStage = 'none' | 'login' | 'linked';
 export type LinkChip = {
     key: string;
     app: GuideApp;
     name: string;
     connected: boolean;
+    stage?: LinkStage;
 };
+export declare const LINK_STAGE_LABEL: Record<LinkStage, string>;
 export declare function Chooser({ remembered, onPick, onQuick, quickDisabled, paper, hidden, linkChips, onLinkPick, paperHint }: ChooserProps): React.JSX.Element;

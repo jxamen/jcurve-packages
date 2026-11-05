@@ -1,6 +1,6 @@
 {
   "name": "@jcurve/receipt-guide",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "전자 영수증 화면 공용 — 「전자 영수증」 칩 카드(연동 배지 · 더보기) · 「○○ 연동됨」 시트 · 「○○ 영수증 올리는 법」 단계 안내 재생기 · 사진첩 고르기 · 여러 장 이어 붙이기. 색 · 글꼴 · 문구는 theme/props, 앱은 설치 + 호출 몇 줄",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

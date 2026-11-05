@@ -36,7 +36,14 @@ export type ChooserProps = {
   paperHint?: React.ReactNode;
 };
 
-export type LinkChip = { key: string; app: GuideApp; name: string; connected: boolean };
+/**
+ * 연동 칩. stage 가 있으면 그것이 뱃지를 정한다(1.1.1, 대표님 11-05 18:06 「연동으로 뜨는데 실제로는 연동이 안 돼 있다」):
+ *  none → 「미연동」 · login(동의만 하고 첫 불러오기 전) → 「로그인 필요」 · linked → 「연동」. 없으면 connected 로 「연동 / 미연동」(옛 앱).
+ */
+export type LinkStage = 'none' | 'login' | 'linked';
+export type LinkChip = { key: string; app: GuideApp; name: string; connected: boolean; stage?: LinkStage };
+export const LINK_STAGE_LABEL: Record<LinkStage, string> = { none: '미연동', login: '로그인 필요', linked: '연동' };
+const stageOf = (chip: LinkChip): LinkStage => chip.stage ?? (chip.connected ? 'linked' : 'none');
 
 /** 연동 칩이 있을 때 접은 상태에 보이는 칸 수 — 3열 2줄(네이버 · 쿠팡 · 컬리 / 무신사 · 배민 · 쿠팡이츠) */
 const LINKED_COLLAPSED = 6;
@@ -90,18 +97,21 @@ export function Chooser({ remembered, onPick, onQuick, quickDisabled, paper, hid
         {visible.map((t) => {
           if ('chip' in t) {
             const { chip } = t;
+            const stage = stageOf(chip);
+            const on = stage === 'linked';
             return (
               <View key={'link:' + chip.key} style={s.cell}>
                 <Pressable
-                  accessibilityRole="button" accessibilityLabel={chip.name + (chip.connected ? ' 계정 연동됨' : ' 계정 미연동')}
-                  onPress={() => onLinkPick?.(chip.key, chip.connected)}
-                  style={({ pressed }) => [s.tile, { borderColor: chip.connected ? theme.brand : theme.line, backgroundColor: chip.connected ? theme.brandSoft : theme.card, opacity: pressed ? 0.8 : 1 }]}
+                  accessibilityRole="button" accessibilityLabel={chip.name + (on ? ' 계정 연동됨' : stage === 'login' ? ' 계정 로그인 필요' : ' 계정 미연동')}
+                  onPress={() => onLinkPick?.(chip.key, on)}
+                  style={({ pressed }) => [s.tile, { borderColor: on || stage === 'login' ? theme.brand : theme.line, backgroundColor: on ? theme.brandSoft : theme.card, opacity: pressed ? 0.8 : 1 }]}
                 >
                   <View style={[s.dot, { backgroundColor: accentOf(chip.app) }]} />
                   <T size={15} w={800} lines={linked ? 2 : 1} center={linked} style={{ flexShrink: 1 }}>{chip.name}</T>
                   <View style={s.badge}>
-                    <View style={[s.linkBadge, { backgroundColor: chip.connected ? theme.brand : theme.line }]}>
-                      <T size={11} w={900} color={chip.connected ? theme.white : theme.sub}>{chip.connected ? '연동' : '미연동'}</T>
+                    {/* 로그인 필요 = 테두리만 브랜드색 · 글자 브랜드색(아직 「연동」 아님) */}
+                    <View style={[s.linkBadge, { backgroundColor: on ? theme.brand : stage === 'login' ? theme.card : theme.line, borderWidth: stage === 'login' ? 1 : 0, borderColor: theme.brand }]}>
+                      <T size={11} w={900} color={on ? theme.white : stage === 'login' ? theme.brand : theme.sub}>{LINK_STAGE_LABEL[stage]}</T>
                     </View>
                   </View>
                 </Pressable>

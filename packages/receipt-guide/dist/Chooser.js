@@ -33,6 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.LINK_STAGE_LABEL = void 0;
 exports.Chooser = Chooser;
 /**
  * 어떤 영수증인가 고르는 칸 — 영수증 올리기의 **첫 자리**(대표님 10-03 23:25 「선택하게 해야겠네」).
@@ -49,6 +50,8 @@ const react_1 = __importStar(require("react"));
 const react_native_1 = require("react-native");
 const data_1 = require("./data");
 const ui_1 = require("./ui");
+exports.LINK_STAGE_LABEL = { none: '미연동', login: '로그인 필요', linked: '연동' };
+const stageOf = (chip) => chip.stage ?? (chip.connected ? 'linked' : 'none');
 /** 연동 칩이 있을 때 접은 상태에 보이는 칸 수 — 3열 2줄(네이버 · 쿠팡 · 컬리 / 무신사 · 배민 · 쿠팡이츠) */
 const LINKED_COLLAPSED = 6;
 function Chooser({ remembered, onPick, onQuick, quickDisabled, paper, hidden = [], linkChips = [], onLinkPick, paperHint }) {
@@ -83,13 +86,15 @@ function Chooser({ remembered, onPick, onQuick, quickDisabled, paper, hidden = [
         react_1.default.createElement(react_native_1.View, { style: s.grid }, visible.map((t) => {
             if ('chip' in t) {
                 const { chip } = t;
+                const stage = stageOf(chip);
+                const on = stage === 'linked';
                 return (react_1.default.createElement(react_native_1.View, { key: 'link:' + chip.key, style: s.cell },
-                    react_1.default.createElement(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: chip.name + (chip.connected ? ' 계정 연동됨' : ' 계정 미연동'), onPress: () => onLinkPick?.(chip.key, chip.connected), style: ({ pressed }) => [s.tile, { borderColor: chip.connected ? theme.brand : theme.line, backgroundColor: chip.connected ? theme.brandSoft : theme.card, opacity: pressed ? 0.8 : 1 }] },
+                    react_1.default.createElement(react_native_1.Pressable, { accessibilityRole: "button", accessibilityLabel: chip.name + (on ? ' 계정 연동됨' : stage === 'login' ? ' 계정 로그인 필요' : ' 계정 미연동'), onPress: () => onLinkPick?.(chip.key, on), style: ({ pressed }) => [s.tile, { borderColor: on || stage === 'login' ? theme.brand : theme.line, backgroundColor: on ? theme.brandSoft : theme.card, opacity: pressed ? 0.8 : 1 }] },
                         react_1.default.createElement(react_native_1.View, { style: [s.dot, { backgroundColor: (0, data_1.accentOf)(chip.app) }] }),
                         react_1.default.createElement(ui_1.T, { size: 15, w: 800, lines: linked ? 2 : 1, center: linked, style: { flexShrink: 1 } }, chip.name),
                         react_1.default.createElement(react_native_1.View, { style: s.badge },
-                            react_1.default.createElement(react_native_1.View, { style: [s.linkBadge, { backgroundColor: chip.connected ? theme.brand : theme.line }] },
-                                react_1.default.createElement(ui_1.T, { size: 11, w: 900, color: chip.connected ? theme.white : theme.sub }, chip.connected ? '연동' : '미연동'))))));
+                            react_1.default.createElement(react_native_1.View, { style: [s.linkBadge, { backgroundColor: on ? theme.brand : stage === 'login' ? theme.card : theme.line, borderWidth: stage === 'login' ? 1 : 0, borderColor: theme.brand }] },
+                                react_1.default.createElement(ui_1.T, { size: 11, w: 900, color: on ? theme.white : stage === 'login' ? theme.brand : theme.sub }, exports.LINK_STAGE_LABEL[stage]))))));
             }
             const g = t.g;
             const on = remembered === g.app;
