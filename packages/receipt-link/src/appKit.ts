@@ -3,7 +3,7 @@
  * 영테크 앱 src/receiptLink/{card,client,ordersClient,importEnd}.ts 에 있던 것을 옮겼다(대표님 11-03 「앱은 부르기만」).
  * react-native 를 import 하지 않는다. 서버 호출은 앱의 http(get · post · slow)를 받아 쓴다. 주문 내용은 글자에 넣지 않는다.
  */
-import { addTally, chunkOrders, cleanOrder, emptyTally, isConnected, LINK_LABEL, parseLinkState, type ImportTally, type LinkPlatform, type LinkState } from './model';
+import { addTally, chunkOrders, cleanOrder, emptyTally, LINK_LABEL, linkStage, parseLinkState, type ImportTally, type LinkPlatform, type LinkState } from './model';
 import { PKG_VERSION } from './version';
 import { parseClaimResult, parseOrderList, parseOrderReceipt, type ClaimResult, type LinkOrder, type OrderList, type OrderReceipt } from './ordersModel';
 import type { FailItem } from './failLog';
@@ -33,8 +33,10 @@ export const ORDER_URL: Record<LinkPlatform, string> = {
 
 /** 한 줄 상태 — 「연결 안 됨」 또는 「연결됨 · 동의한 날」 */
 export function linkStatus(s: LinkState, p: LinkPlatform): string {
-  if (!isConnected(s, p)) return '연결 안 됨';
-  return '연결됨 · ' + (s.links[p]?.linkedAt ?? '').slice(0, 10).replace(/-/g, '.');
+  const stage = linkStage(s, p);
+  if (stage === 'none') return '연결 안 됨';
+  if (stage === 'login') return '로그인 필요';
+  return '연결됨 · ' + (s.links[p]?.lastImportAt ?? s.links[p]?.linkedAt ?? '').slice(0, 10).replace(/-/g, '.');
 }
 
 /** 동의 화면 문구 — appName 은 앱 이름(예: 영테크 · 사임캐시). 가져오는 칸 · 로그인 정보 · 철회를 그대로 적는다 */
@@ -186,7 +188,7 @@ export function createReceiptLinkApi(http: ReceiptLinkHttp) {
 }
 
 /** 실행 끝 기록 본문 — reason · reasons 의 키는 영문 · 숫자 · : _ - 만(서버가 그 모양만 받는다) */
-export type RunEndBody = { platform: LinkPlatform; total: number; ok: number; reason: string; reasons: Record<string, number> };
+export type RunEndBody = { platform: LinkPlatform; total: number; ok: number; reason: string; reasons: Record<string, number>; /** 이번 실행에서 로그인이 확인됐다(주문 목록을 읽었거나 끝까지 돌았다) — 서버가 첫 lastImportAt 을 찍는 근거(1.2.2, 대표님 11-05 18:06) */ loggedIn?: boolean };
 export type ReceiptLinkApi = ReturnType<typeof createReceiptLinkApi>;
 
 /** 영수증 보기를 못 열었을 때 — 없는 주문(404)과 그 밖 */

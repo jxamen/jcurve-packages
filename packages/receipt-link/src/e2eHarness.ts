@@ -11,7 +11,7 @@ import type { OutcomeEvent } from './runOutcome';
 export type Reply = { status?: number; json?: unknown; text?: string; reject?: boolean };
 export type Router = (url: string, init: { method?: string; body?: string }) => Reply;
 /** nextData — 그 화면의 __NEXT_DATA__(내역 읽기 시험용) */
-export type Page = { text: string | ((url: string) => string); nextData?: unknown };
+export type Page = { text: string | ((url: string) => string); nextData?: unknown; /** 이 화면을 읽은 뒤 사용자가 옮겨 간 것으로 치는 주소(로그인 뒤 돌아옴 흉내) — 흐름의 goto 가 아니라 gotos 에 안 남는다 */ after?: string };
 
 const T0 = Date.UTC(2026, 9, 29, 1, 0, 0);
 const READ_SCRIPT = navScript({ kind: 'read' });
@@ -75,7 +75,7 @@ export async function runFlow(site: FlowSite, pages: Record<string, Page>, route
   for (let step = 0; step < 400 && results.length === 0; step++) {
     const item = queue.shift();
     if (item === undefined) { clock.t += 1000; d.tick(); await new Promise((r) => setTimeout(r, 2)); continue; }
-    if (item.startsWith('goto:')) {
+    if (item.startsWith('goto:') || item.startsWith('user:')) {
       const u = item.slice(5);
       d.onPageChanged(u);
       clock.t += READ_SETTLE_MS + 1;
@@ -86,6 +86,7 @@ export async function runFlow(site: FlowSite, pages: Record<string, Page>, route
       const key = pageKey(current);
       const page = pages[key];
       d.onMessage({ type: 'nav', step: 'read', url: key, text: page ? (typeof page.text === 'function' ? page.text(current) : page.text) : '' });
+      if (page?.after) { current = page.after; queue.push(`user:${page.after}`); }
       continue;
     }
     await runScript(item);

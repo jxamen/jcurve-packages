@@ -66,7 +66,8 @@ export type RunEndBody = {
     total: number;
     ok: number;
     reason: string;
-    reasons: Record<string, number>;
+    reasons: Record<string, number>; /** 이번 실행에서 로그인이 확인됐다(주문 목록을 읽었거나 끝까지 돌았다) — 서버가 첫 lastImportAt 을 찍는 근거(1.2.2, 대표님 11-05 18:06) */
+    loggedIn?: boolean;
 };
 export type ReceiptLinkApi = ReturnType<typeof createReceiptLinkApi>;
 /** 영수증 보기를 못 열었을 때 — 없는 주문(404)과 그 밖 */

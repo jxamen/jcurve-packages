@@ -4,10 +4,14 @@
  */
 import { describe, expect, it } from 'vitest';
 import { runFlow, type Reply, type Router } from './e2eHarness';
-import { DAISO_DETAIL_URL, DAISO_HOME_URL, DAISO_LIST_URL, DAISO_STORE_LIST_URL, DAISO_STORE_RECEIPT_URL } from './daisoApiFlow';
+import { DAISO_DETAIL_URL, DAISO_HOME_URL, DAISO_LIST_URL, DAISO_LOGIN_URL, DAISO_STORE_LIST_URL, DAISO_STORE_RECEIPT_URL } from './daisoApiFlow';
 import { outcomeKey } from './runOutcome';
 
 const pages = { 'www.daisomall.co.kr/': { text: '다이소몰 홈' } };
+/** 로그인 화면 — 읽힌 뒤 사용자가 로그인하고 홈으로 돌아온 것으로 친다 */
+const withLogin = { ...pages, 'www.daisomall.co.kr/mb/mbb/scr_mbb_0097a': { text: '다이소몰 로그인', after: DAISO_HOME_URL } };
+/** 비로그인 응답 — 11-05 18:20 실측 모양(HTTP 200) */
+const NEED_LOGIN = { json: { message: '세션이 만료되어 로그인이 필요합니다.', data: { permission: 'N' }, extraData: {}, extraString: null, returnCode: null, success: false } };
 const body = (b?: string): Record<string, unknown> => JSON.parse(b ?? '{}') as Record<string, unknown>;
 const ON1 = '2026102712345';
 const ON2 = '2026102612346';
@@ -95,12 +99,42 @@ describe('다이소 요청 흐름(통합)', () => {
     expect(b.orders.map((o) => [o.orderNo, o.kind])).toEqual([[SS1, 'card']]);
   });
 
-  it('첫 목록 요청이 로그인 필요(401)면 로그인 화면을 보이고, 같은 출처 페이지로 돌아오면 다시 목록부터', async () => {
+  it('첫 목록 요청이 로그인 필요(401)면 로그인 화면으로 가고, 로그인 뒤 홈으로 돌아오면 다시 목록부터', async () => {
     let first = true;
     const base = server();
     const router: Router = (url, init) => { if (url === DAISO_LIST_URL && first) { first = false; return { status: 401, text: '' }; } return base.router(url, init); };
-    const r = await runFlow('daiso', pages, router);
+    const r = await runFlow('daiso', withLogin, router);
+    expect(r.gotos).toEqual([DAISO_HOME_URL, DAISO_LOGIN_URL]);
     expect(r.results[0]?.reason).toBe('all-rows');
     expect(base.calls.filter((c) => c.url === DAISO_LIST_URL)).toHaveLength(1);
+    expect(r.orders.filter((o) => o.kind !== 'list')).toHaveLength(3);
+  }, 60000);
+
+  it('비로그인이면 목록이 200 + permission N 으로 온다 — 「0건 · 정상」이 아니라 로그인 화면으로 보내고, 로그인 뒤 끝까지 읽는다(대표님 11-05 18:06)', async () => {
+    let loggedIn = false;
+    const base = server();
+    const router: Router = (url, init) => { if (!loggedIn) { loggedIn = true; return NEED_LOGIN; } return base.router(url, init); };
+    const r = await runFlow('daiso', withLogin, router);
+    expect(r.gotos).toEqual([DAISO_HOME_URL, DAISO_LOGIN_URL]);
+    expect(r.results[0]?.reason).toBe('all-rows');
+    expect(r.orders.filter((o) => o.kind !== 'list').map((o) => o.orderNo)).toEqual([ON1, ON3, SS1]);
+    expect(r.results[0]?.stats.reasons).toMatchObject({ 'list-rows': 3 });
+  }, 60000);
+
+  it('로그인 화면으로 보냈는데 사용자가 로그인하지 않으면 끝내지 않고 기다린다(주문 0건 · 정상 끝이 아니다)', async () => {
+    const router: Router = () => NEED_LOGIN;
+    const r = await runFlow('daiso', { ...pages, 'www.daisomall.co.kr/mb/mbb/scr_mbb_0097a': { text: '다이소몰 로그인' } }, router);
+    expect(r.gotos).toEqual([DAISO_HOME_URL, DAISO_LOGIN_URL]);
+    expect(r.results).toHaveLength(0);
+  }, 60000);
+
+  it('상세 요청 중 세션이 풀려 permission N 이 오면 로그인 화면으로 보내고, 돌아오면 하던 상세부터 잇는다', async () => {
+    let dropped = false;
+    const base = server();
+    const router: Router = (url, init) => { if (url === DAISO_DETAIL_URL && !dropped) { dropped = true; return NEED_LOGIN; } return base.router(url, init); };
+    const r = await runFlow('daiso', withLogin, router);
+    expect(r.gotos).toEqual([DAISO_HOME_URL, DAISO_LOGIN_URL]);
+    expect(r.results[0]?.reason).toBe('all-rows');
+    expect(r.orders.filter((o) => o.kind !== 'list').map((o) => o.orderNo).sort()).toEqual([ON1, ON3, SS1].sort());
   }, 60000);
 });

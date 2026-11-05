@@ -10,13 +10,13 @@
 import { createFlowDriver, FLOW_FACTORIES, FLOW_HOSTS, type FlowSite } from '@jcurve/receipt-link';
 ```
 
-## 붙이는 법 (1.2.1 — 한 장)
+## 붙이는 법 (1.2.2 — 한 장)
 
 로그인 · 목록 · 영수증 읽기 · 서버 보내기 · 실패 기록 · 진행 줄이 전부 패키지 안에 있다. 앱이 할 일은 **설정 하나 + 화면 호출 하나**.
 
 **1. 설치** — `package.json`
 ```json
-"@jcurve/receipt-link": "https://github.com/jxamen/jcurve-packages/releases/download/receipt-link-v1.2.1/jcurve-receipt-link-1.2.1.tgz"
+"@jcurve/receipt-link": "https://github.com/jxamen/jcurve-packages/releases/download/receipt-link-v1.2.2/jcurve-receipt-link-1.2.2.tgz"
 ```
 같이 필요한 것: `react-native-webview`(읽기 웹뷰), 앱의 서버 호출기(`get` · `post`, 경로는 `https://api.j-curve.co.kr/v1/{앱}/` 뒤).
 
@@ -92,6 +92,7 @@ import { ReceiptImportScreen } from '@jcurve/receipt-link/screen';
 - 페이지 읽기는 화면 글자(innerText)에 더해 `var data = [...]` 스크립트를 싣는다(컬리 매출전표).
 - 로그인 정보는 받지도 저장하지도 않는다. 주문 내용은 로그에 넣지 않는다(건수만).
 - 실측(앱 코드, 2026-11-02): 네이버 주문 210 · 영수증 164 / 쿠팡 118 · 118 / 무신사 23 · 10.
+- 1.2.2: 연동 칩 단계 `linkStage`(none · login · linked, `LINK_STAGE_LABEL` 미연동 · 로그인 필요 · 연동) — 동의만으로는 「연동」이 아니고, 로그인해서 첫 불러오기가 끝나야(`lastImportAt`) 「연동」(대표님 11-05 18:06). 앱은 `isLinked` 로 칩을 칠하고, `login` 단계 칩은 바로 불러오기 화면을 연다(로그인은 그 안에서). run-end 본문에 `loggedIn`(주문 줄을 읽었거나 끝까지 돌았다) — 서버가 주문 0건 계정의 첫 `lastImportAt` 을 찍는 근거. 다이소몰: 비로그인이면 API 가 200 + `permission:'N'` 을 줘서 「0건 · 정상」으로 끝나던 것을 로그인 화면(`DAISO_LOGIN_URL`)으로 보낸다.
 - 1.2.1: 한 번 누르면 끝까지 — 시간 · 재시도 상한으로 끊긴 전체 실행은 새 줄을 읽었으면 화면이 스스로 이어서 돈다(최대 3번). 네이버 두 출처(쇼핑 주문 + 네이버페이 결제내역) 합치기는 서버 LinkState.npv2 가 켠다(11-05 모든 회원).
 - 1.2.0: 컬리 목록 금액은 결제가(`paymentPrice`) 먼저 · 무신사 가상계좌 주문은 현금영수증 페이지로 구매영수증 · 취소 · 반품은 모든 사이트에서 거른다 · 금액은 결제 금액.
 

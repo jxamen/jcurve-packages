@@ -12,8 +12,9 @@ describe('appKit — 앱이 부르기만 하는 부분', () => {
       expect(LOGIN_URL[p]).toMatch(/^https:\/\//);
       expect(ORDER_URL[p]).toMatch(/^https:\/\//);
     }
-    const s = parseLinkState({ links: { naver: { linkedAt: '2026-10-28 10:00:00', revokedAt: null } } });
+    const s = parseLinkState({ links: { naver: { linkedAt: '2026-10-28 10:00:00', revokedAt: null, lastImportAt: '2026-10-28 10:05:00' }, daiso: { linkedAt: '2026-11-05 18:06:11', revokedAt: null } } });
     expect(linkStatus(s, 'naver')).toBe('연결됨 · 2026.10.28');
+    expect(linkStatus(s, 'daiso')).toBe('로그인 필요');   // 동의만 — 첫 불러오기 전(1.2.2)
     expect(linkStatus(s, 'coupang')).toBe('연결 안 됨');
     const text = consentLines('kurly', '사임캐시').join('\n');
     expect(text).toContain('사임캐시가 회원님의 마켓컬리 주문내역');

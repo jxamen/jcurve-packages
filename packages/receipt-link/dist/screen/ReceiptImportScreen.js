@@ -79,6 +79,8 @@ const COMPLETE_REASONS = ['all-rows', 'max-orders'];
 /** 한 번 누르면 끝까지(대표님 11-05 16:57 「1번 누르면 알아서 다 가져와야지」) — 이 까닭으로 끊겼는데 이번 실행에서 새 줄을 읽었으면 다시 누르지 않아도 이어서 돈다(이미 받은 줄은 known 으로 건너뛴다) */
 const CONTINUE_REASONS = ['timeout', 'timeouts', 'site-cap', 'budget', 'max-steps'];
 const MAX_AUTO_RUNS = 3;
+/** 이런 까닭으로 끝난 실행은 로그인을 확인한 것이 아니다(run-end loggedIn 계산) */
+const NOT_LOGGED_IN_REASONS = ['login-timeout', 'attention-timeout', 'unknown-action', 'cross-origin', 'shop-lost', 'closed'];
 /** 줄마다 가져오기 결과(onOutcome)를 알리는 사이트의 흐름 — 줄 상태 · 까닭을 이 결과로 보인다. 나머지 사이트는 끝난 뒤 목록 행으로 짐작한다 */
 const REPORTS_OUTCOMES = ['naver', 'coupang', 'kurly', 'musinsa', 'daiso', 'oliveyoung'];
 /** 자동 점검 기록 — syslog(값 없음) + 서버(구조 기록)로. 대표님 폰이 PC 에 없을 때 서버에서 본다(슬랙대표님요청 10-29 18:x) */
@@ -268,7 +270,10 @@ function ReceiptImportScreen({ config, platform, onClose, coupangRead = false, s
             if (sum.pending > 0)
                 add('send-pending', sum.pending);
             sendFails(endKind.current === 'stopped' ? 'stopped' : reasonRef.current || 'ended');
-            void api.postRunEnd({ platform, total: outs.length, ok: outs.filter((o) => o.state === 'done').length, reason: (endKind.current === 'stopped' ? 'stopped' : reasonRef.current).toLowerCase().replace(/[^a-z0-9:_-]/g, '').slice(0, 40), reasons });
+            const endReasonCode = (endKind.current === 'stopped' ? 'stopped' : reasonRef.current).toLowerCase().replace(/[^a-z0-9:_-]/g, '').slice(0, 40);
+            // 로그인 확인 — 주문 줄을 하나라도 읽었거나 끝까지 돌았다(all-rows). 로그인 시간 초과 · 멈춤 · 모르는 끝은 아니다. 서버는 이 값으로 첫 lastImportAt 을 찍는다(칩 「로그인 필요」→「연동」, 대표님 11-05 18:06)
+            const loggedIn = endKind.current !== 'stopped' && !NOT_LOGGED_IN_REASONS.includes(endReasonCode) && (outs.length > 0 || endReasonCode === 'all-rows');
+            void api.postRunEnd({ platform, total: outs.length, ok: outs.filter((o) => o.state === 'done').length, reason: endReasonCode, reasons, loggedIn });
         }
         // 올리기 결과의 거절 까닭별 개수(대표님 계정만, 값 없음) — 컬리 6건이 전부 거절된 까닭을 서버 기록에 남긴다
         if (probeOn.current) {

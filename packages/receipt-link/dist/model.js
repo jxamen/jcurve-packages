@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.emptyTally = exports.isConnected = exports.RECEIPT_DETAIL_KEYS = exports.isPendingKind = exports.ORDERS_PER_REQUEST = exports.LINK_LABEL = exports.ALL_LINK_PLATFORMS = exports.PROBE_LINK_PLATFORMS = exports.TEST_LINK_PLATFORMS = exports.LINK_PLATFORMS = void 0;
+exports.emptyTally = exports.LINK_STAGE_LABEL = exports.isLinked = exports.linkStage = exports.isConnected = exports.RECEIPT_DETAIL_KEYS = exports.isPendingKind = exports.ORDERS_PER_REQUEST = exports.LINK_LABEL = exports.ALL_LINK_PLATFORMS = exports.PROBE_LINK_PLATFORMS = exports.TEST_LINK_PLATFORMS = exports.LINK_PLATFORMS = void 0;
 exports.readDetail = readDetail;
 exports.effectiveReadDays = effectiveReadDays;
 exports.parseLinkState = parseLinkState;
@@ -93,6 +93,12 @@ function parseReadDays(v) {
 }
 const isConnected = (s, p) => !!s.links[p]?.linkedAt && !s.links[p]?.revokedAt;
 exports.isConnected = isConnected;
+const linkStage = (s, p) => (!(0, exports.isConnected)(s, p) ? 'none' : s.links[p]?.lastImportAt ? 'linked' : 'login');
+exports.linkStage = linkStage;
+const isLinked = (s, p) => (0, exports.linkStage)(s, p) === 'linked';
+exports.isLinked = isLinked;
+/** 칩 뱃지 글자 — 앱 · receipt-guide Chooser 가 같은 글자를 쓴다 */
+exports.LINK_STAGE_LABEL = { none: '미연동', login: '로그인 필요', linked: '연동' };
 /**
  * 목록 키 「YYYY-MM-DD HH:mm|금액」 — 영수증을 읽기 전 목록 행과 읽은 뒤 완성본을 잇는다(서버가 같은 키의 list 행을 완성본으로 바꾼다).
  * 날짜만 아는 「YYYY-MM-DD|금액」(쿠팡)은 서버 모양에 맞게 「YYYY-MM-DD 00:00|금액」 으로 맞춘다. 모양이 틀리면 undefined.

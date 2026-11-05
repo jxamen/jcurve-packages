@@ -77,6 +77,18 @@ export declare function effectiveReadDays(state: {
 export declare function parseLinkState(v: unknown): LinkState;
 export declare const isConnected: (s: LinkState, p: LinkPlatform) => boolean;
 /**
+ * 연동 칩 단계(대표님 11-05 18:06 「연동으로 뜨는데 실제로는 연동이 안 돼 있다」) — 동의만으로는 「연동」이 아니다.
+ *  none  : 동의 전(또는 철회)                → 칩 「미연동」, 누르면 동의 화면
+ *  login : 동의했지만 첫 불러오기 전          → 칩 「로그인 필요」, 누르면 바로 불러오기(로그인은 그 화면 안에서)
+ *  linked: 로그인해서 첫 불러오기까지 끝남    → 칩 「연동」, 누르면 메뉴
+ * lastImportAt 은 서버가 주문을 받았을 때 · 실행 끝 보고(run-end)에 loggedIn 이 실려 왔을 때 찍는다(주문 0건인 계정도 로그인만 확인되면 연동).
+ */
+export type LinkStage = 'none' | 'login' | 'linked';
+export declare const linkStage: (s: LinkState, p: LinkPlatform) => LinkStage;
+export declare const isLinked: (s: LinkState, p: LinkPlatform) => boolean;
+/** 칩 뱃지 글자 — 앱 · receipt-guide Chooser 가 같은 글자를 쓴다 */
+export declare const LINK_STAGE_LABEL: Record<LinkStage, string>;
+/**
  * 목록 키 「YYYY-MM-DD HH:mm|금액」 — 영수증을 읽기 전 목록 행과 읽은 뒤 완성본을 잇는다(서버가 같은 키의 list 행을 완성본으로 바꾼다).
  * 날짜만 아는 「YYYY-MM-DD|금액」(쿠팡)은 서버 모양에 맞게 「YYYY-MM-DD 00:00|금액」 으로 맞춘다. 모양이 틀리면 undefined.
  */

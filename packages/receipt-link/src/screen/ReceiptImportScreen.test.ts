@@ -254,6 +254,10 @@ describe('ReceiptImportScreen source', () => {
   it('실패 기록 · 실행 끝은 config.api 로 보낸다(묶음 나누기 · 오류 삼키기는 appKit 에)', () => {
     expect(src).toContain('void api.postFails(platform, items);');
     expect(src.match(/api\.postRunEnd\(\{ platform, total: outs\.length/g)).toHaveLength(2);
+    // 로그인 확인(loggedIn) — 주문 줄을 읽었거나 끝까지 돌았고, 로그인 시간 초과 · 멈춤 같은 끝이 아닐 때만. 서버가 주문 0건 계정의 첫 lastImportAt 을 찍는 근거(1.2.2)
+    expect(src).toContain("const NOT_LOGGED_IN_REASONS = ['login-timeout', 'attention-timeout', 'unknown-action', 'cross-origin', 'shop-lost', 'closed'];");
+    expect(src).toContain("const loggedIn = endKind.current !== 'stopped' && !NOT_LOGGED_IN_REASONS.includes(endReasonCode) && (outs.length > 0 || endReasonCode === 'all-rows');");
+    expect(src).toContain('reason: endReasonCode, reasons, loggedIn });');
     expect(src).toContain('effectiveReadDays(await api.loadLinkState(), platform)');
   });
 });

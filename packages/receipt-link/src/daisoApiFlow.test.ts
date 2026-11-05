@@ -2,12 +2,23 @@
  * 다이소 흐름 — 응답 읽기(순수 함수) 시험. 응답 키 이름은 11-05 서버 크롬 실측(presets 21) 그대로, 값은 가짜.
  */
 import { describe, expect, it } from 'vitest';
-import { daisoCancelled, daisoListOrder, daisoListRows, daisoStoreAmount, daisoStoreOrder, daisoStoreRows, daisoTotalCount, readDaisoDetail, readDaisoStoreReceipt } from './daisoApiFlow';
+import { daisoCancelled, daisoListOrder, daisoListRows, daisoNeedsLogin, daisoStoreAmount, daisoStoreOrder, daisoStoreRows, daisoTotalCount, readDaisoDetail, readDaisoStoreReceipt } from './daisoApiFlow';
 
 const listRow = (over: Record<string, unknown> = {}) => ({
   orNo: '2026102712345', orStsCd: '21', orStsCdNm: '결제완료', pyCmptDtm: '2026-10-27 09:59:30', orCnclDtm: null, strNm: '다이소몰', totalCnt: 3,
   orderProd: [{ exhPdNm: '수납함', orQy: 2, orAm: 4000, cnclSeCd: '' }, { exhPdNm: '행주', orQy: 1, orAm: 1000, cnclSeCd: '' }],
   ...over,
+});
+
+describe('다이소 비로그인 응답', () => {
+  it('HTTP 200 이라도 success false + data.permission N(또는 로그인 문구)이면 로그인 필요 — 정상 목록 · 빈 목록은 아니다(11-05 18:20 실측)', () => {
+    expect(daisoNeedsLogin({ message: '세션이 만료되어 로그인이 필요합니다.', data: { permission: 'N' }, extraData: {}, extraString: null, returnCode: null, success: false })).toBe(true);
+    expect(daisoNeedsLogin({ success: false, message: '로그인 후 이용해 주세요', data: null })).toBe(true);
+    expect(daisoNeedsLogin({ data: [listRow()] })).toBe(false);
+    expect(daisoNeedsLogin({ data: [], success: true })).toBe(false);
+    expect(daisoNeedsLogin({ success: false, message: '조회 결과가 없습니다', data: null })).toBe(false);
+    expect(daisoNeedsLogin(null)).toBe(false);
+  });
 });
 
 describe('다이소 온라인 목록', () => {

@@ -26,6 +26,8 @@ export const DAISO_LIST_URL = 'https://fapi.daisomall.co.kr/or/orb/selOr';
 export const DAISO_DETAIL_URL = 'https://fapi.daisomall.co.kr/or/orb/orDts/selOrDtl';
 export const DAISO_STORE_LIST_URL = 'https://fapi.daisomall.co.kr/or/orb/orOff/selOfflineOrList';
 export const DAISO_STORE_RECEIPT_URL = 'https://fapi.daisomall.co.kr/or/orb/orOff/getOfflineOrReceipt';
+/** 로그인 화면 — 비로그인 응답(아래 daisoNeedsLogin)이 오면 홈이 아니라 이 화면을 보여 준다(대표님 11-05 18:06 「연동이 안 돼 있다」: 홈만 보여서 로그인으로 못 이어졌다) */
+export const DAISO_LOGIN_URL = 'https://www.daisomall.co.kr' + DAISO_LOGIN_PATH;
 const SELLER = '다이소몰';
 const STORE_SELLER = '다이소';
 const PAGE_SIZE = 15;
@@ -58,6 +60,16 @@ const splitUrl = (url: string): { host: string; path: string } => { const m = /^
 const CANCEL = /취소|반품|환불/;
 
 /* ---------------- 응답 읽기(순수 함수 — 시험한다) ---------------- */
+
+/**
+ * 비로그인 응답 — 다이소 API 는 로그인이 풀려도 HTTP 200 으로 `{success:false, data:{permission:'N'}, message:'세션이 만료되어 로그인이 필요합니다.'}` 를 준다(11-05 18:20 실측).
+ * 401 이 아니라 웹뷰 스크립트가 ok 로 넘기므로 여기서 가려 로그인으로 보낸다 — 안 가리면 「주문 0건 · 정상 끝」으로 끝나 로그인 화면이 한 번도 안 뜬다.
+ */
+export function daisoNeedsLogin(json: unknown): boolean {
+  const o = obj(json);
+  if (o.success !== false) return false;
+  return str(obj(o.data).permission).toUpperCase() === 'N' || /로그인/.test(str(o.message));
+}
 
 /** 온라인 목록 응답 → 주문 줄 배열(data[] 가 바로 주문 배열, 11-05 실측) */
 export function daisoListRows(json: unknown): Raw[] {
@@ -322,7 +334,7 @@ export function createDaisoApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
       };
       return page === 1 ? structThen('daiso-list', DAISO_LIST_URL, r.data, ['orderNo : orNo', 'date : pyCmptDtm', 'amount : orderProd[].orAm', 'cancel : orCnclDtm orStsCdNm cnclSeCd'], go) : go();
     }
-    if (r.st === 'login' || (okTotal === 0 && r.st === 'blocked' && (r.status ?? 0) === 403)) { phase = 'page'; return { type: 'login' }; }
+    if (r.st === 'login' || (okTotal === 0 && r.st === 'blocked' && (r.status ?? 0) === 403)) { phase = 'page'; return toLogin(); }
     if (r.st === 'blocked') { slow = true; blockedRun++; if (blockedRun >= MAX_BLOCKED_RUN) return finish('blocked'); listTries++; return listTries < MAX_LIST_TRIES ? listReq() : finish('blocked'); }
     note(`list-${r.st}-${r.status ?? 0}`);
     if (r.st === 'http' && (r.status ?? 0) >= 400 && (r.status ?? 0) < 500) return finish('list-failed');
@@ -363,7 +375,7 @@ export function createDaisoApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
     fail(j, FAIL_OF[r.st] ?? 'unreadable');
   };
   const afterBatch = (again: Job[], flags: { login: boolean; blocked: number }, next: () => FlowOut): FlowOut => {
-    if (flags.login) { phase = 'relogin'; tries = 0; resumeAt = next; return { type: 'login' }; }
+    if (flags.login) { phase = 'relogin'; tries = 0; resumeAt = next; return toLogin(); }
     if (flags.blocked > 0) { slow = true; blockedRun++; if (blockedRun >= MAX_BLOCKED_RUN) return finish('blocked'); } else blockedRun = 0;
     return next();
   };
@@ -427,7 +439,7 @@ export function createDaisoApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
       };
       return monthIdx === 0 && storePage === 0 ? structThen('daiso-store-list', DAISO_STORE_LIST_URL, r.data, ['orderNo : ssNum', 'date : saleDay saleTim', 'amount : saleAmt + addTax', 'cancel : salDiv 92', 'page : hasNext nextPageIndex'], go) : go();
     }
-    if (r.st === 'login') { phase = 'relogin'; tries = 0; resumeAt = storeReq; return { type: 'login' }; }
+    if (r.st === 'login') { phase = 'relogin'; tries = 0; resumeAt = storeReq; return toLogin(); }
     if (r.st === 'blocked') { slow = true; blockedRun++; if (blockedRun >= MAX_BLOCKED_RUN) return finish('blocked'); }
     note(`store-list-${r.st}-${r.status ?? 0}`);
     storeTries++;
@@ -502,7 +514,9 @@ export function createDaisoApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
     return retryOr('timeout');
   };
 
-  const isLogin = (url: string): boolean => pathOf(url).startsWith(DAISO_LOGIN_PATH) || /\/login/i.test(pathOf(url));
+  const isLogin = (url: string): boolean => pathOf(url).toLowerCase().startsWith(DAISO_LOGIN_PATH.toLowerCase()) || /\/login/i.test(pathOf(url));
+  /** 로그인이 필요하다 — 로그인 화면으로 이동한다(그 화면이 열리면 onPage 가 login 을 내고 구동기가 기다린다). 로그인 뒤 다른 화면으로 가면 phase 에 따라 목록부터 · 하던 곳부터 */
+  const toLogin = (): FlowOut => ({ type: 'goto', url: DAISO_LOGIN_URL });
   const onPage = (url: string, text: string): FlowOut => {
     lastUrl = url;
     lastText = text;
@@ -534,10 +548,12 @@ export function createDaisoApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
         return onPage(ev.url, ev.text);
       case 'resume': { const f = after; after = null; return f ? f() : READ; }
       case 'fetched': {
-        if (phase === 'list') return onListResult(ev.results.find((r) => r.key.startsWith('list-')) ?? { key: 'list', st: 'net' });
-        if (phase === 'detail') return onDetail(ev.results);
-        if (phase === 'storelist') return onStoreList(ev.results.find((r) => r.key.startsWith('store-')) ?? { key: 'store', st: 'net' });
-        if (phase === 'storercpt') return onStoreReceipt(ev.results);
+        // 200 으로 온 비로그인 응답은 login 으로 바꿔 넣는다(값은 버린다)
+        const results: FetchResult[] = ev.results.map((r) => (r.st === 'ok' && daisoNeedsLogin(r.data) ? { key: r.key, st: 'login', status: r.status } : r));
+        if (phase === 'list') return onListResult(results.find((r) => r.key.startsWith('list-')) ?? { key: 'list', st: 'net' });
+        if (phase === 'detail') return onDetail(results);
+        if (phase === 'storelist') return onStoreList(results.find((r) => r.key.startsWith('store-')) ?? { key: 'store', st: 'net' });
+        if (phase === 'storercpt') return onStoreReceipt(results);
         return finish('unexpected-event');
       }
       case 'timeout':

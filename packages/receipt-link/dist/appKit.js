@@ -40,9 +40,12 @@ exports.ORDER_URL = {
 };
 /** 한 줄 상태 — 「연결 안 됨」 또는 「연결됨 · 동의한 날」 */
 function linkStatus(s, p) {
-    if (!(0, model_1.isConnected)(s, p))
+    const stage = (0, model_1.linkStage)(s, p);
+    if (stage === 'none')
         return '연결 안 됨';
-    return '연결됨 · ' + (s.links[p]?.linkedAt ?? '').slice(0, 10).replace(/-/g, '.');
+    if (stage === 'login')
+        return '로그인 필요';
+    return '연결됨 · ' + (s.links[p]?.lastImportAt ?? s.links[p]?.linkedAt ?? '').slice(0, 10).replace(/-/g, '.');
 }
 /** 동의 화면 문구 — appName 은 앱 이름(예: 영테크 · 사임캐시). 가져오는 칸 · 로그인 정보 · 철회를 그대로 적는다 */
 function consentLines(p, appName) {

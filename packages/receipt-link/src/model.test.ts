@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addTally, chunkOrders, cleanOrder, effectiveReadDays, emptyTally, importMessage, isConnected, normalizeListKey, parseLinkState } from './model';
+import { addTally, chunkOrders, cleanOrder, effectiveReadDays, emptyTally, importMessage, isConnected, isLinked, LINK_STAGE_LABEL, linkStage, normalizeListKey, parseLinkState } from './model';
 
 describe('order link state', () => {
   it('reads the server state defensively', () => {
@@ -14,6 +14,21 @@ describe('order link state', () => {
   it('keeps only positive per-platform read days from the server', () => {
     expect(parseLinkState({ readDays: { naver: 365, kurly: 1095, coupang: 0, musinsa: 'x' } }).readDays).toEqual({ naver: 365, kurly: 1095 });
     expect(parseLinkState(null).readDays).toEqual({});
+  });
+  it('연동 칩 단계: 동의 전 none · 동의만 하면 login(「로그인 필요」) · 첫 불러오기(lastImportAt)까지 끝나야 linked(「연동」) · 철회는 none (대표님 11-05 18:06)', () => {
+    const s = parseLinkState({ links: {
+      naver: { linkedAt: '2026-11-05 18:06:11', revokedAt: null, lastImportAt: '2026-11-05 18:20:00', importedTotal: 0 },
+      daiso: { linkedAt: '2026-11-05 18:06:11', revokedAt: null, lastImportAt: null, importedTotal: 0 },
+      kurly: { linkedAt: '2026-11-01 10:00:00', revokedAt: '2026-11-02 10:00:00', lastImportAt: '2026-11-01 10:05:00', importedTotal: 4 },
+    } });
+    expect(linkStage(s, 'naver')).toBe('linked');
+    expect(linkStage(s, 'daiso')).toBe('login');
+    expect(linkStage(s, 'kurly')).toBe('none');
+    expect(linkStage(s, 'coupang')).toBe('none');
+    expect(isConnected(s, 'daiso')).toBe(true);   // 동의는 했다(다시 동의 화면을 띄우지 않는다)
+    expect(isLinked(s, 'daiso')).toBe(false);     // 하지만 「연동」은 아니다
+    expect(isLinked(s, 'naver')).toBe(true);
+    expect(LINK_STAGE_LABEL).toEqual({ none: '미연동', login: '로그인 필요', linked: '연동' });
   });
   it('treats a revoked link as not connected', () => {
     const s = parseLinkState({ links: { coupang: { linkedAt: 'a', revokedAt: 'b', lastImportAt: null, importedTotal: 0 } } });

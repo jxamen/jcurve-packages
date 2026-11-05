@@ -22,7 +22,14 @@ export declare const DAISO_LIST_URL = "https://fapi.daisomall.co.kr/or/orb/selOr
 export declare const DAISO_DETAIL_URL = "https://fapi.daisomall.co.kr/or/orb/orDts/selOrDtl";
 export declare const DAISO_STORE_LIST_URL = "https://fapi.daisomall.co.kr/or/orb/orOff/selOfflineOrList";
 export declare const DAISO_STORE_RECEIPT_URL = "https://fapi.daisomall.co.kr/or/orb/orOff/getOfflineOrReceipt";
+/** 로그인 화면 — 비로그인 응답(아래 daisoNeedsLogin)이 오면 홈이 아니라 이 화면을 보여 준다(대표님 11-05 18:06 「연동이 안 돼 있다」: 홈만 보여서 로그인으로 못 이어졌다) */
+export declare const DAISO_LOGIN_URL: string;
 type Raw = Record<string, unknown>;
+/**
+ * 비로그인 응답 — 다이소 API 는 로그인이 풀려도 HTTP 200 으로 `{success:false, data:{permission:'N'}, message:'세션이 만료되어 로그인이 필요합니다.'}` 를 준다(11-05 18:20 실측).
+ * 401 이 아니라 웹뷰 스크립트가 ok 로 넘기므로 여기서 가려 로그인으로 보낸다 — 안 가리면 「주문 0건 · 정상 끝」으로 끝나 로그인 화면이 한 번도 안 뜬다.
+ */
+export declare function daisoNeedsLogin(json: unknown): boolean;
 /** 온라인 목록 응답 → 주문 줄 배열(data[] 가 바로 주문 배열, 11-05 실측) */
 export declare function daisoListRows(json: unknown): Raw[];
 /** 첫 줄의 totalCnt — 없으면 null */
