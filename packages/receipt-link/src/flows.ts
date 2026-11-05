@@ -3,13 +3,15 @@
  * 흐름이 같은 FlowEvent/FlowOut 규약(naverReceipt.ts)을 따른다. 사이트별 에이전트는 자기 파일만 고친다.
  */
 import { createCoupangApiFlow } from './coupangApiFlow';
+import { createDaisoApiFlow } from './daisoApiFlow';
 import { createKurlyApiFlow } from './kurlyApiFlow';
 import { createMusinsaApiFlow } from './musinsaApiFlow';
 import type { FlowEvent, FlowOut } from './naverReceipt';
 import { createNaverApiFlow } from './naverApiFlow';
+import { createOliveyoungApiFlow } from './oliveyoungApiFlow';
 import type { OutcomeEvent } from './runOutcome';
 
-export type FlowSite = 'naver' | 'coupang' | 'kurly' | 'musinsa';
+export type FlowSite = 'naver' | 'coupang' | 'kurly' | 'musinsa' | 'daiso' | 'oliveyoung';
 export type ReceiptFlow = { next(ev: FlowEvent): FlowOut; progress(): { phase: string; done: number; total: number; orders: number }; takeOutcomes?(): OutcomeEvent[] };
 export type FlowFactoryOptions = {
   maxOrders?: number; now?: () => number; maxSteps?: number; budgetMs?: number; allowNoSeconds?: boolean;
@@ -30,6 +32,8 @@ export const FLOW_FACTORIES: Record<FlowSite, (opts?: FlowFactoryOptions) => Rec
   coupang: (o) => createCoupangApiFlow({ ...o }),   // 대표님 11-02 23:36 「기존에 못 가져온 것도 다 가져오게」 — 최근 저장일 이후만 읽기를 끈다(옛 목록 행이 cut 으로 다시 시도되지 않음). 받은 주문은 known 으로 건너뛴다
   kurly: (o) => createKurlyApiFlow({ ...o }),   // 대표님 11-02 23:36 「컬리 아직도 제대로 못 가져옴」 — 최근 저장일 이후만 읽기를 끈다(옛 못 가져옴 줄을 다시 시도)
   musinsa: (o) => createMusinsaApiFlow({ sinceLatest: true, ...o }),
+  daiso: (o) => createDaisoApiFlow({ ...o }),   // 대표님 11-05 15:45 — 다이소몰 온라인 + 매장 전자영수증(서버 크롬 실측 presets 21 그대로)
+  oliveyoung: (o) => createOliveyoungApiFlow({ ...o }),   // 대표님 11-05 15:45 — 올리브영 온라인(거래증빙 · KSNET 매출전표) + 매장 구매
 };
 
 /** 흐름이 웹뷰로 열어도 되는 도메인(하위 포함) — 이 밖의 주소는 호스트가 열지 않는다 */
@@ -38,6 +42,8 @@ export const FLOW_HOSTS: Record<FlowSite, readonly string[]> = {
   coupang: ['coupang.com'],
   kurly: ['kurly.com', 'kurlypay.co.kr'],
   musinsa: ['musinsa.com', 'musinsapayments.com'],
+  daiso: ['daisomall.co.kr'],
+  oliveyoung: ['oliveyoung.co.kr', 'ksnet.co.kr'],
 };
 
 /**

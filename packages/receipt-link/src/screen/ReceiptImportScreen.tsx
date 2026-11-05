@@ -37,11 +37,13 @@ const FALLBACK_URL: Record<LinkPlatform, string> = {
   coupang: 'https://mc.coupang.com/ssr/mobile/order/list',
   kurly: 'https://www.kurly.com/mypage/order',
   musinsa: 'https://www.musinsa.com/order/order-list',
+  daiso: 'https://www.daisomall.co.kr/',
+  oliveyoung: 'https://www.oliveyoung.co.kr/store/main/main.do',
 };
 /** 이 사유로 끝났으면 끝까지 다 읽은 것이다(나머지는 일부를 못 읽고 끝난 것) */
 const COMPLETE_REASONS = ['all-rows', 'max-orders'];
 /** 줄마다 가져오기 결과(onOutcome)를 알리는 사이트의 흐름 — 줄 상태 · 까닭을 이 결과로 보인다. 나머지 사이트는 끝난 뒤 목록 행으로 짐작한다 */
-const REPORTS_OUTCOMES: readonly LinkPlatform[] = ['naver', 'coupang', 'kurly', 'musinsa'];
+const REPORTS_OUTCOMES: readonly LinkPlatform[] = ['naver', 'coupang', 'kurly', 'musinsa', 'daiso', 'oliveyoung'];
 
 export type ReceiptImportProps = {
   /** 앱이 한 번 만들어 둔 설정(defineReceiptLinkScreen) */

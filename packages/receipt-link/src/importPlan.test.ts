@@ -9,7 +9,7 @@ const msg = (site: string, orders: unknown[], done = true, extra: Record<string,
 
 describe('reader sites', () => {
   it('maps platforms to reader sites (coupang only once the server switch is on)', () => {
-    expect(SITES_FOR_PLATFORM).toEqual({ naver: ['naver_shop', 'naver_pay'], musinsa: ['musinsa'], kurly: ['kurly'], coupang: ['coupang'] });
+    expect(SITES_FOR_PLATFORM).toEqual({ naver: ['naver_shop', 'naver_pay'], musinsa: ['musinsa'], kurly: ['kurly'], coupang: ['coupang'], daiso: [], oliveyoung: [] });
   });
 
   it('naver_shop reads the Naver Shopping order list page, and every script ends with true;', () => {

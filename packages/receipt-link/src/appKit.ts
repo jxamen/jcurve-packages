@@ -16,6 +16,8 @@ export const LOGIN_URL: Record<LinkPlatform, string> = {
   coupang: 'https://login.coupang.com/login/login.pang',
   musinsa: 'https://www.musinsa.com/auth/login',
   kurly: 'https://www.kurly.com/member/login',
+  daiso: 'https://www.daisomall.co.kr/mb/mbb/SCR_MBB_0097A',
+  oliveyoung: 'https://www.oliveyoung.co.kr/store/login/loginForm.do',
 };
 
 /** 로그인 창을 여는 곳 — 주문내역 페이지. 로그인이 안 돼 있으면 사이트가 로그인 뒤 여기로 돌려보낸다 */
@@ -24,6 +26,9 @@ export const ORDER_URL: Record<LinkPlatform, string> = {
   coupang: 'https://mc.coupang.com/ssr/mobile/order/list',
   musinsa: 'https://www.musinsa.com/order/order-list',
   kurly: 'https://www.kurly.com/mypage/order',
+  // 다이소몰은 주문내역 화면 주소를 실측하지 못했다(로그인 없이 열면 로그인 화면으로 302 — 11-05 기록) — 로그인 화면을 바로 연다
+  daiso: 'https://www.daisomall.co.kr/mb/mbb/SCR_MBB_0097A',
+  oliveyoung: 'https://www.oliveyoung.co.kr/store/mypage/getOrderList.do',
 };
 
 /** 한 줄 상태 — 「연결 안 됨」 또는 「연결됨 · 동의한 날」 */

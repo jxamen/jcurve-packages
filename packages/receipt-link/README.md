@@ -1,6 +1,6 @@
 # @jcurve/receipt-link
 
-쇼핑몰 주문 · 영수증 수집 — **네이버 쇼핑 + 네이버페이 · 쿠팡 · 무신사 · 마켓컬리**, 최근 1년.
+쇼핑몰 주문 · 영수증 수집 — **네이버 쇼핑 + 네이버페이 · 쿠팡 · 무신사 · 마켓컬리**, 최근 1년. 1.2.0 부터 **다이소몰 · 올리브영**(서버가 허용한 회원에게만 칩이 보인다 — `PROBE_LINK_PLATFORMS`).
 앱의 숨은 웹뷰(사용자가 직접 로그인한 세션)에서 돈다. 화면 · 서버 호출은 앱마다(이 패키지에 없음).
 
 ```json
@@ -10,13 +10,13 @@
 import { createFlowDriver, FLOW_FACTORIES, FLOW_HOSTS, type FlowSite } from '@jcurve/receipt-link';
 ```
 
-## 붙이는 법 (1.1.3 — 한 장)
+## 붙이는 법 (1.2.0 — 한 장)
 
 로그인 · 목록 · 영수증 읽기 · 서버 보내기 · 실패 기록 · 진행 줄이 전부 패키지 안에 있다. 앱이 할 일은 **설정 하나 + 화면 호출 하나**.
 
 **1. 설치** — `package.json`
 ```json
-"@jcurve/receipt-link": "https://github.com/jxamen/jcurve-packages/releases/download/receipt-link-v1.1.3/jcurve-receipt-link-1.1.3.tgz"
+"@jcurve/receipt-link": "https://github.com/jxamen/jcurve-packages/releases/download/receipt-link-v1.2.0/jcurve-receipt-link-1.2.0.tgz"
 ```
 같이 필요한 것: `react-native-webview`(읽기 웹뷰), 앱의 서버 호출기(`get` · `post`, 경로는 `https://api.j-curve.co.kr/v1/{앱}/` 뒤).
 
@@ -50,7 +50,7 @@ export const receiptScreen = defineReceiptLinkScreen({
 import { ReceiptImportScreen } from '@jcurve/receipt-link/screen';
 <ReceiptImportScreen config={receiptScreen} platform="naver" onClose={close} coupangRead={state?.coupangRead === true} />
 ```
-`platform`: `naver` · `coupang` · `kurly` · `musinsa`. 연동 상태(`link.fetchLinkState()`) · 동의(`consentLink`) · 철회(`revokeLink`) · 목록(`listOrders`)도 `link` 에 있다.
+`platform`: `naver` · `coupang` · `kurly` · `musinsa` · `daiso` · `oliveyoung`. 연동 상태(`link.fetchLinkState()`) · 동의(`consentLink`) · 철회(`revokeLink`) · 목록(`listOrders`)도 `link` 에 있다.
 
 **3-b. 영수증 올리기 화면의 전자 영수증 세 조각** — `@jcurve/receipt-guide`(2026-11-05, 대표님 「화면도 패키지로 · 디자인만 앱마다」)
 ```json
@@ -86,10 +86,13 @@ import { ReceiptImportScreen } from '@jcurve/receipt-link/screen';
 | 쿠팡 | `search-by-month` 페이지 한 번 열기 → `ssr/api/myorders/model/find-over`(size 10) | `payment.coupang.com/v2/card-receipt/view`(HTTP, HTML) |
 | 무신사 | `api2/claim/store/mypage/integration/order` + meta offset | `order-service/my/order/get_order_view`(payment_key · tno) → `pay.musinsapayments.com/mps/receipt`(영수증 도메인 안에서, HTML) |
 | 컬리 | 기본 배송지 API → `order-external/v4/mypage/orders`(배송지 필수) → v3 상세 | `receipt.creditCardUrl` 페이지 열기 → 스크립트 `var data = [...]` |
+| 다이소몰 (1.2.0) | `fapi/or/orb/selOr`(POST JSON, 1년 15줄씩) → `selOrDtl` 상세 · 매장 구매 `selOrOffineList`(달마다) | 온라인 카드는 상세(카드사 · 승인 시각) · 매장은 전자영수증 `selOrOfflineorDtl`(승인번호 · 사업자번호) |
+| 올리브영 (1.2.0) | `getOrderListJSON.do`(XHR, 온라인 · 매장) + `getDealList.do`(거래증빙 HTML: 카드 · 현금영수증 단추) | 카드: KSNET 매출전표 화면 열기 → `JsonChannelService.do`(폼 POST) · 현금영수증 · 매장은 상세 「총 결제금액」으로 구매영수증 |
 
 - 페이지 읽기는 화면 글자(innerText)에 더해 `var data = [...]` 스크립트를 싣는다(컬리 매출전표).
 - 로그인 정보는 받지도 저장하지도 않는다. 주문 내용은 로그에 넣지 않는다(건수만).
 - 실측(앱 코드, 2026-11-02): 네이버 주문 210 · 영수증 164 / 쿠팡 118 · 118 / 무신사 23 · 10.
+- 1.2.0: 컬리 목록 금액은 결제가(`paymentPrice`) 먼저 · 무신사 가상계좌 주문은 현금영수증 페이지로 구매영수증 · 취소 · 반품은 모든 사이트에서 거른다 · 금액은 결제 금액.
 
 ## 시험 · 빌드
 ```

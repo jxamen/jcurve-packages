@@ -178,7 +178,7 @@ describe('ReceiptImportScreen source', () => {
   });
 
   it('줄마다 가져오기 결과는 흐름이 알린 것(onOutcome)을 결과를 알리는 사이트에서만 쓰고, 전체 실행은 비우고 한 줄 실행은 그 줄만 지운다', () => {
-    expect(src).toContain("const REPORTS_OUTCOMES: readonly LinkPlatform[] = ['naver', 'coupang', 'kurly', 'musinsa'];");
+    expect(src).toContain("const REPORTS_OUTCOMES: readonly LinkPlatform[] = ['naver', 'coupang', 'kurly', 'musinsa', 'daiso', 'oliveyoung'];");
     expect(src).toContain('onOutcome: (e) => { if (runId.current === id && alive.current) { outcomeRef.current = { ...outcomeRef.current, [e.key]: e.outcome }; setOutcomes((p) => ({ ...p, [e.key]: e.outcome })); } },');
     expect(src).toContain('if (!onlyKeys) { setOutcomes({}); outcomeRef.current = {}; queueRef.current = []; }');
     expect(src).toContain('setOutcomes((p) => { const next = { ...p }; delete next[key]; return next; });');

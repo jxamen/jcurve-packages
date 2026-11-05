@@ -562,6 +562,13 @@ describe('이름으로 찾기 (순수 함수)', () => {
     expect(kurlyRowToOrder(mkRow([], { deliveryGroups: [] }))).toBeNull();
   });
 
+  it('목록 줄 금액은 결제가(paymentPrice) 먼저 — 할인가로 읽으면 상세 구매영수증(5,950)과 달라 같은 주문이 두 줄이 됐다(11-05 16:1x 실측)', () => {
+    const row = { groupOrderNo: 2026110500048, paymentCompletedAt: '2026-11-05 10:00:00', deliveryGroups: [{ orderStatus: '배송완료', dealProducts: [{ dealProductName: '실측상품', quantity: 1, displayPrice: 32900, displayDiscountPrice: 21000, paymentPrice: 5950 }] }] };
+    expect(kurlyRowToOrder(row)).toMatchObject({ cancelled: false, order: { amount: 5950, kind: 'list' } });
+    // 결제가가 없을 때만 할인가 → 정가
+    expect(kurlyRowToOrder({ ...row, deliveryGroups: [{ orderStatus: '배송완료', dealProducts: [{ dealProductName: 'x', quantity: 1, displayPrice: 32900, displayDiscountPrice: 21000 }] }] })).toMatchObject({ order: { amount: 21000 } });
+  });
+
   it('hasFilledArray: 값이 든 객체 배열이 있는 응답과 빈 응답을 가른다', () => {
     expect(hasFilledArray({ a: { b: [{ x: 1 }] } })).toBe(true);
     expect(hasFilledArray({ a: { b: [] }, c: 1 })).toBe(false);

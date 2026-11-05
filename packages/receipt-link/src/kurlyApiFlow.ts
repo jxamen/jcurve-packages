@@ -146,7 +146,8 @@ export function kurlyRowParse(row: Record<string, unknown>): { p: { order: Recei
   const products = groups.flatMap((g) => (Array.isArray(g.dealProducts) ? g.dealProducts.filter(isObj) : []));
   if (amount < 1 && products.length > 0) {
     const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0);
-    amount = products.reduce((sum, d) => sum + (num(d.displayDiscountPrice) || num(d.displayPrice)) * (num(d.quantity) || 1), 0);
+    // 결제가(paymentPrice) 먼저 — 할인가(displayDiscountPrice)로 읽으면 상세 구매영수증 금액과 달라 같은 주문이 두 줄(list none + purchase done)이 된다(11-05 16:1x 실측 displayPrice 32900 · displayDiscountPrice 21000 · paymentPrice 5950)
+    amount = products.reduce((sum, d) => sum + (num(d.paymentPrice) || num(d.displayDiscountPrice) || num(d.displayPrice)) * (num(d.quantity) || 1), 0);
   }
   if (!orderedAt) return { p: null, why: 'no-date' };
   if (amount < 1) return { p: null, why: 'no-amount' };

@@ -61,7 +61,7 @@ function toList(flow: ReturnType<typeof mk>, known?: { orderNos?: string[]; list
 const listResults = (f: Fetch, rowsAt: Record<number, unknown[]>): FetchResult[] =>
   f.reqs.map((q, i) => ({ key: q.key, st: 'ok' as const, data: listBody(rowsAt[i] ?? []) }));
 /** 목록 → 주문 상세 → 영수증 도메인 출처 → 첫 매출전표 묶음까지 */
-function toReceipts(flow: ReturnType<typeof mk>, rows: unknown[], known?: { orderNos?: string[]; listKeys?: string[]; tails?: string[] }, seen: Struct[] = []): Fetch {
+function toReceipts(flow: ReturnType<typeof mk>, rows: unknown[], known?: { orderNos?: string[]; listKeys?: string[]; tails?: string[] }, seen: Struct[] = [], info: Record<string, unknown> = {}): Fetch {
   const f = toList(flow, known);
   let out = pass(flow, flow.next({ type: 'fetched', results: listResults(f, { 0: rows }) }), seen);
   for (let i = 0; i < 30; i++) {
@@ -74,7 +74,7 @@ function toReceipts(flow: ReturnType<typeof mk>, rows: unknown[], known?: { orde
     out = pass(flow, flow.next({ type: 'fetched', results: batch.reqs.map((q) => {
       const n = Number(q.url.slice(-4));
       const source = rows.find((r) => (r as { orderNo?: unknown }).orderNo === q.url.split('/').pop()) as { payment?: unknown } | undefined;
-      return { key: q.key, st: 'ok' as const, data: { orderInfo: source?.payment ? { payment_key: PK(n), tno: TID(n) } : {} } };
+      return { key: q.key, st: 'ok' as const, data: { orderInfo: source?.payment ? { payment_key: PK(n), tno: TID(n), ...info } : {} } };
     }) }), seen);
   }
   throw new Error('매출전표 단계에 도달하지 못했습니다');
@@ -213,6 +213,32 @@ describe('매출전표 결과 · 줄별 결과', () => {
     expect(done[0]).toMatchObject({ kind: 'card', approval: '12345678', businessNumber: '123-45-67890', cardIssuer: '삼성카드', orderedAt: '2026-10-20 10:04:43', amount: 45900, seller: '가짜브랜드2', listKey: '2026-10-25 12:00|20000' });
     expect(done[1]).toMatchObject({ kind: 'card', approval: '12345678', orderedAt: '2026-10-20 10:04:43' });
     expect(flow.takeOutcomes?.().map((e) => e.outcome.state)).toEqual(['done', 'done', 'none']);
+  });
+
+  it('가상계좌(VTRANSFER) 주문은 상세의 영수증 화면을 열어 현금영수증으로 읽는다 — 합계 · 공급가액 · 부가세 · 승인 일시(가짜 값)', () => {
+    const flow = mk();
+    const url = `https://pay.musinsapayments.com/mps/receipt/secure/STORE/${ordNo(1)}?token=FAKE`;
+    const b = toReceipts(flow, [row(1, '2026-10-20 10:04:43')], undefined, [], { pay_kind: 'VTRANSFER', pay_kind_name: '가상계좌', receiptPageUrl: url });
+    expect(b.reqs[0].url).toBe(url);
+    flow.takeOutcomes?.();
+    const CASH = '현금영수증 승인 2026-10-20 10:04:43 공급가액 21,000 부가세 2,100 합계 23,100원 승인번호 12345678';
+    const out = finishOut(flow, flow.next({ type: 'fetched', results: [OKT(b.reqs[0].key, CASH)] }));
+    expect(out).toMatchObject({ type: 'done', reason: 'all-rows' });
+    const done = (out as Extract<FlowOut, { type: 'done' }>).orders;
+    const cash = done.filter((o) => o.kind === 'purchase');
+    expect(cash).toHaveLength(1);
+    expect(cash[0]).toMatchObject({ kind: 'purchase', payment: '현금영수증', amount: 23100, orderedAt: '2026-10-20 10:04:43', approval: '12345678' });
+    expect(cash[0].detail).toMatchObject({ totalAmount: 23100, supplyAmount: 21000, taxAmount: 2100, approvalAt: '2026-10-20 10:04:43' });
+  });
+
+  it('가상계좌 주문의 영수증 글자를 못 읽으면 주문 상세 금액으로 purchase 를 만든다(unreadable 로 떨어뜨리지 않음)', () => {
+    const flow = mk();
+    const b = toReceipts(flow, [row(1, '2026-10-20 10:04:43', { payMethod: '가상계좌' })], undefined, [], { pay_kind: 'VTRANSFER' });
+    flow.takeOutcomes?.();
+    const out = finishOut(flow, flow.next({ type: 'fetched', results: [OKT(b.reqs[0].key, '아무 글자')] }));
+    const done = (out as Extract<FlowOut, { type: 'done' }>).orders;
+    expect(done.filter((o) => o.kind === 'purchase')[0]).toMatchObject({ kind: 'purchase', payment: '현금영수증', amount: 10000, orderedAt: '2026-10-20 10:04:43' });
+    expect(flow.takeOutcomes?.().map((e) => e.outcome)).toEqual([{ state: 'done' }]);
   });
 
   it('요청 없이 정해지는 줄 — 취소 · 반품은 영수증 없음, 카드 아닌 결제(무신사머니)는 영수증 없음, 결제 값도 수단도 모르면 영수증 주소를 못 찾음', () => {

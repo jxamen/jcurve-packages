@@ -7,11 +7,11 @@
 
 /**
  * 요청 한 건. url 은 https 절대 주소(흐름이 열어도 되는 호스트 안) 또는 현재 페이지 기준 경로다.
- *  as: json 응답 JSON(data) · nextData 응답 HTML 의 <script id="__NEXT_DATA__"> 안 JSON(data) ·
+ *  as: json 응답 JSON(data) · nextData 응답 HTML 의 <script id="__NEXT_DATA__"> 안 JSON(data) · html 응답 원문 그대로(text, 앞 120,000자 — 올리브영처럼 data-* 속성에 값이 있는 HTML) ·
  *      text 응답 글자(text) — 본문이 JSON 이면 줄인 JSON 도 data 로 함께 주고, HTML 이면 script · style · 태그를 걷은 글자를 text 로(HTML 안에 <script id="__NEXT_DATA__"> 가 있으면 그 JSON 도 data 로) 준다
- *  body 는 POST 의 JSON 글자(content-type: application/json 으로 보낸다)
+ *  body 는 POST 의 JSON 글자(content-type: application/json 으로 보낸다). form 이 true 면 body 를 그대로 application/x-www-form-urlencoded 로 보낸다(KSNET 영수증 JSON)
  */
-export type FetchReq = { key: string; method: 'GET' | 'POST'; url: string; body?: string; as: 'json' | 'nextData' | 'text'; accept?: string };
+export type FetchReq = { key: string; method: 'GET' | 'POST'; url: string; body?: string; as: 'json' | 'nextData' | 'text' | 'html'; accept?: string; form?: boolean; /** true 면 x-requested-with: XMLHttpRequest 를 붙인다(올리브영 JSON 주소가 화면과 같은 머리말을 기대할 때) */ xhr?: boolean };
 
 /**
  * st: ok 응답을 읽음 · login 로그인이 풀림(401 · 로그인 주소로 되돌려짐) · blocked 사이트가 막음(403 · 429) · net 요청 실패 · 시간 초과(교차 출처 거절도 여기) ·
@@ -44,7 +44,9 @@ export const checkFetchRun = (r: FetchRun): void => {
     if (q.method !== 'GET' && q.method !== 'POST') throw new Error('bad method');
     if (typeof q.url !== 'string' || q.url.length < 1 || q.url.length > 2000 || !/^(https:\/\/[^\s/?#:@]+(:\d+)?)?\/[^\s]*$|^https:\/\/[^\s/?#:@]+(:\d+)?$/.test(q.url)) throw new Error('bad url');
     if (q.body !== undefined && (typeof q.body !== 'string' || q.body.length > 8000 || q.method !== 'POST')) throw new Error('bad body');
-    if (q.as !== 'json' && q.as !== 'nextData' && q.as !== 'text') throw new Error('bad as');
+    if (q.as !== 'json' && q.as !== 'nextData' && q.as !== 'text' && q.as !== 'html') throw new Error('bad as');
+    if (q.form !== undefined && (typeof q.form !== 'boolean' || q.method !== 'POST')) throw new Error('bad form');
+    if (q.xhr !== undefined && typeof q.xhr !== 'boolean') throw new Error('bad xhr');
   }
   if (![r.conc, r.staggerMs, r.gapMs, r.timeoutMs, r.deadlineMs].every((v) => Number.isInteger(v) && v >= 0 && v <= 60_000) || r.conc < 1 || r.conc > 6) throw new Error('bad run');
 };

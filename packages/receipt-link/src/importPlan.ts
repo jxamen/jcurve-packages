@@ -13,6 +13,9 @@ export const SITES_FOR_PLATFORM: Record<LinkPlatform, ReaderSite[]> = {
   musinsa: ['musinsa'],
   kurly: ['kurly'],
   coupang: ['coupang'],
+  // 다이소 · 올리브영은 옛 목록 스크립트가 없다 — 요청 흐름(flows.ts)만
+  daiso: [],
+  oliveyoung: [],
 };
 export const SITE_LABEL: Record<ReaderSite, string> = { naver_shop: '네이버 쇼핑', naver_pay: '네이버페이', musinsa: '무신사', kurly: '마켓컬리', coupang: '쿠팡' };
 

@@ -8,7 +8,7 @@ const order = (i: number) => ({ orderNo: 'N-' + String(100000 + i), orderedAt: '
 
 describe('appKit — 앱이 부르기만 하는 부분', () => {
   it('사이트 주소 · 연결 상태 · 동의 문구(앱 이름을 넣는다)', () => {
-    for (const p of ['naver', 'coupang', 'musinsa', 'kurly'] as const) {
+    for (const p of ['naver', 'coupang', 'musinsa', 'kurly', 'daiso', 'oliveyoung'] as const) {
       expect(LOGIN_URL[p]).toMatch(/^https:\/\//);
       expect(ORDER_URL[p]).toMatch(/^https:\/\//);
     }
