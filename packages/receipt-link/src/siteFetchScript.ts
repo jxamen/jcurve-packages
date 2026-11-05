@@ -45,6 +45,8 @@ export function fetchScript(r: FetchRun): string {
       .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, ' ').trim();
   }
   function isLoginUrl(u) { return /(^|[.\/])nid\.naver\.com|\/(login|signin|member\/login)(\/|\?|$)|\/\/accounts\./i.test(String(u || '')); }
+  /** 로그인 화면 HTML 인가 — 비밀번호 입력란이 있으면(앞 20만 자만 본다) */
+  function isLoginHtml(t) { return /<input[^>]{0,400}type\s*=\s*["']?password/i.test(String(t || '').slice(0, 200000)); }
   function one(q, key) {
     var ctl = typeof AbortController === 'function' ? new AbortController() : null;
     if (ctl) ctls.push(ctl);
@@ -65,7 +67,12 @@ export function fetchScript(r: FetchRun): string {
         return o;
       }, function () { return { key: key, st: 'http', status: res.status }; });
       if (q.as === 'json') {
-        return res.json().then(function (j) { var d = slim(j); return d === undefined ? { key: key, st: 'shape', status: res.status } : { key: key, st: 'ok', status: res.status, data: d }; }, function () { return { key: key, st: 'shape', status: res.status }; });
+        // JSON 이 아니면: 본문이 로그인 화면(비밀번호 입력란)이면 login, 아니면 shape — 글자는 여기서만 보고 넘기지 않는다(1.2.3)
+        var copy = typeof res.clone === 'function' ? res.clone() : null;
+        return res.json().then(function (j) { var d = slim(j); return d === undefined ? { key: key, st: 'shape', status: res.status } : { key: key, st: 'ok', status: res.status, data: d }; }, function () {
+          if (!copy) return { key: key, st: 'shape', status: res.status };
+          return copy.text().then(function (t) { return { key: key, st: isLoginHtml(t) ? 'login' : 'shape', status: res.status }; }, function () { return { key: key, st: 'shape', status: res.status }; });
+        });
       }
       return res.text().then(function (raw) {
         if (q.as === 'html') return { key: key, st: 'ok', status: res.status, text: raw.slice(0, 120000) };

@@ -31,11 +31,13 @@ async function exec(r: FetchRun, replies: (url: string) => Reply, opts: { afterS
           inflight--;
           if (rep.reject) { reject(new Error('net')); return; }
           const body = rep.text !== undefined ? rep.text : JSON.stringify(rep.json);
-          resolve({
+          const r: Record<string, unknown> = {
             ok: (rep.status ?? 200) >= 200 && (rep.status ?? 200) < 300, status: rep.status ?? 200, redirected: rep.redirected === true, url: rep.url ?? url,
             json: () => (rep.text !== undefined ? Promise.reject(new Error('json')) : Promise.resolve(rep.json)),
             text: () => Promise.resolve(body),
-          });
+          };
+          r.clone = () => r;
+          resolve(r);
         };
         const t = setTimeout(finish, rep.delayMs ?? 0);
         init.signal?.addEventListener?.('abort', () => { clearTimeout(t); inflight--; reject(new Error('abort')); });
@@ -140,6 +142,9 @@ describe('결과 갈래', () => {
     expect(await st({ status: 400, text: '<html>bad</html>' })).toEqual({ key: 'a', st: 'http', status: 400 });
     expect((await st({ reject: true })).st).toBe('net');
     expect((await st({ text: '<html>' })).st).toBe('shape');
+    // JSON 자리에 로그인 화면(비밀번호 입력란)이 200 으로 오면 login — 쿠키 없는 세션에 로그인 페이지를 그대로 주는 사이트(1.2.3)
+    expect((await st({ text: '<html><body><form action="/store/login/loginProc.do"><input type="text" name="loginId"><input type="password" name="password"></form></body></html>' })).st).toBe('login');
+    expect((await st({ text: '<html><body><input type="text" name="q"></body></html>' })).st).toBe('shape');
   });
 
   it('요청이 안 돌아와도 마감(deadlineMs)에 맞춰 답한다 — 못 받은 건 net', async () => {

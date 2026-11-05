@@ -4,13 +4,17 @@
  */
 import { describe, expect, it } from 'vitest';
 import { runFlow, type Reply, type Router } from './e2eHarness';
-import { KSNET_JSON_URL, KSNET_VIEW_URL, OY_HOME_URL } from './oliveyoungApiFlow';
+import { KSNET_JSON_URL, KSNET_VIEW_URL, OY_HOME_URL, OY_LOGIN_URL } from './oliveyoungApiFlow';
 import { outcomeKey } from './runOutcome';
 
 const pages = {
   'www.oliveyoung.co.kr/store/main/main.do': { text: '올리브영 홈' },
   'ksta.ksnet.co.kr/mint/tsk/pgi01/mad/pgimad19m1.jsp': { text: '일반영수증 카드매출전표' },
 };
+/** 로그인 화면 — 읽힌 뒤 사용자가 로그인하고 홈으로 돌아온 것으로 친다 */
+const withLogin = { ...pages, 'www.oliveyoung.co.kr/store/login/loginform.do': { text: '올리브영 로그인', after: OY_HOME_URL } };
+/** 비로그인 — JSON 자리에 로그인 화면 HTML 이 200 으로 온다(비밀번호 입력란) */
+const LOGIN_HTML: Reply = { text: '<html><body><form action="/store/login/loginProc.do"><input type="text" name="loginId"><input type="password" name="password"></form></body></html>' };
 const ON1 = 'O100000001';   // 카드(KSNET)
 const ON2 = 'O100000002';   // 취소
 const ON3 = 'O100000003';   // 현금영수증
@@ -116,4 +120,23 @@ describe('올리브영 요청 흐름(통합)', () => {
     const b = await runFlow('oliveyoung', pages, server().router, { onlyKeys: [outcomeKey(ON1, '2026-10-27 10:00:00', 12000)] });
     expect(b.orders.map((o) => [o.orderNo, o.kind])).toEqual([[ON1, 'card']]);
   });
+
+  it('비로그인이면 목록 JSON 자리에 로그인 화면이 오거나 로그인 주소로 되돌려진다 — 로그인 화면으로 보내고, 로그인 뒤 끝까지 읽는다(1.2.3, 대표님 11-05 18:06)', async () => {
+    for (const first of [LOGIN_HTML, { redirected: true, url: OY_LOGIN_URL, text: '' } as Reply]) {
+      let seen = false;
+      const base = server();
+      const router: Router = (url, init) => { if (!seen && url.includes('/getOrderListJSON.do')) { seen = true; return first; } return base.router(url, init); };
+      const r = await runFlow('oliveyoung', withLogin, router);
+      expect(r.gotos.slice(0, 2)).toEqual([OY_HOME_URL, OY_LOGIN_URL]);
+      expect(r.results[0]?.reason).toBe('all-rows');
+      expect(r.orders.filter((o) => o.kind !== 'list').map((o) => o.orderNo).sort()).toEqual([ON1, ON3, ST1].sort());
+    }
+  }, 120000);
+
+  it('로그인 화면으로 보냈는데 사용자가 로그인하지 않으면 끝내지 않고 기다린다', async () => {
+    const router: Router = () => LOGIN_HTML;
+    const r = await runFlow('oliveyoung', { ...pages, 'www.oliveyoung.co.kr/store/login/loginform.do': { text: '올리브영 로그인' } }, router);
+    expect(r.gotos).toEqual([OY_HOME_URL, OY_LOGIN_URL]);
+    expect(r.results).toHaveLength(0);
+  }, 60000);
 });

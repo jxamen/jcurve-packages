@@ -18,6 +18,8 @@ import { type NaverFlow } from './naverReceipt';
 import { type ApiFlowOptions } from './naverApiFlow';
 export declare const OY_HOME_URL = "https://www.oliveyoung.co.kr/store/main/main.do";
 export declare const OY_LOGIN_PATH = "/store/login/";
+/** 로그인 화면 — 로그인이 필요하면 홈이 아니라 이 화면을 보여 준다(1.2.3, 다이소와 같은 규칙 · 대표님 11-05 18:06) */
+export declare const OY_LOGIN_URL = "https://www.oliveyoung.co.kr/store/login/loginForm.do";
 export declare const OY_ONLINE_URL: (p: number, from: string, to: string) => string;
 export declare const OY_DEAL_URL: (p: number, from: string, to: string) => string;
 export declare const OY_DETAIL_URL: (ordNo: string) => string;

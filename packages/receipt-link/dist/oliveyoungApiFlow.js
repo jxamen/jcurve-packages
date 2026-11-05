@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ksnetDealNumb = exports.ksnetBody = exports.KSNET_JSON_URL = exports.KSNET_VIEW_URL = exports.OY_STORE_DETAIL_URL = exports.OY_STORE_JSON_URL = exports.OY_STORE_HTML_URL = exports.OY_DETAIL_URL = exports.OY_DEAL_URL = exports.OY_ONLINE_URL = exports.OY_LOGIN_PATH = exports.OY_HOME_URL = void 0;
+exports.ksnetDealNumb = exports.ksnetBody = exports.KSNET_JSON_URL = exports.KSNET_VIEW_URL = exports.OY_STORE_DETAIL_URL = exports.OY_STORE_JSON_URL = exports.OY_STORE_HTML_URL = exports.OY_DETAIL_URL = exports.OY_DEAL_URL = exports.OY_ONLINE_URL = exports.OY_LOGIN_URL = exports.OY_LOGIN_PATH = exports.OY_HOME_URL = void 0;
 exports.htmlText = htmlText;
 exports.oyDealRows = oyDealRows;
 exports.oyStoreRows = oyStoreRows;
@@ -31,6 +31,8 @@ const runOutcome_1 = require("./runOutcome");
 const shapeLines_1 = require("./shapeLines");
 exports.OY_HOME_URL = 'https://www.oliveyoung.co.kr/store/main/main.do';
 exports.OY_LOGIN_PATH = '/store/login/';
+/** 로그인 화면 — 로그인이 필요하면 홈이 아니라 이 화면을 보여 준다(1.2.3, 다이소와 같은 규칙 · 대표님 11-05 18:06) */
+exports.OY_LOGIN_URL = 'https://www.oliveyoung.co.kr/store/login/loginForm.do';
 const OY = 'https://www.oliveyoung.co.kr/store/mypage';
 const OY_ONLINE_URL = (p, from, to) => `${OY}/getOrderListJSON.do?searchMonth=-12&startDate=${from}&endDate=${to}&pageIdx=${p}`;
 exports.OY_ONLINE_URL = OY_ONLINE_URL;
@@ -369,7 +371,7 @@ function createOliveyoungApiFlow(opts = {}) {
         }
         if (r.st === 'login') {
             phase = 'page';
-            return { type: 'login' };
+            return toLogin();
         }
         if (r.st === 'blocked') {
             slow = true;
@@ -407,7 +409,7 @@ function createOliveyoungApiFlow(opts = {}) {
             phase = 'relogin';
             tries = 0;
             resumeAt = dealReq;
-            return { type: 'login' };
+            return toLogin();
         }
         if (r.st === 'blocked') {
             slow = true;
@@ -469,7 +471,7 @@ function createOliveyoungApiFlow(opts = {}) {
             phase = 'relogin';
             tries = 0;
             resumeAt = storeHtmlReq;
-            return { type: 'login' };
+            return toLogin();
         }
         if (r.st === 'blocked') {
             slow = true;
@@ -506,7 +508,7 @@ function createOliveyoungApiFlow(opts = {}) {
             phase = 'relogin';
             tries = 0;
             resumeAt = storeJsonReq;
-            return { type: 'login' };
+            return toLogin();
         }
         if (r.st === 'blocked') {
             slow = true;
@@ -618,7 +620,7 @@ function createOliveyoungApiFlow(opts = {}) {
             phase = 'relogin';
             tries = 0;
             resumeAt = next;
-            return { type: 'login' };
+            return toLogin();
         }
         if (flags.blocked > 0) {
             slow = true;
@@ -792,7 +794,9 @@ function createOliveyoungApiFlow(opts = {}) {
             return ksFallback('timeout');
         return retryOr('timeout');
     };
-    const isLogin = (url) => pathOf(url).startsWith(exports.OY_LOGIN_PATH) || /\/login(\/|$)/i.test(pathOf(url));
+    const isLogin = (url) => pathOf(url).toLowerCase().startsWith(exports.OY_LOGIN_PATH) || /\/login(\/|$)/i.test(pathOf(url));
+    /** 로그인이 필요하다 — 로그인 화면으로 이동한다(열리면 onPage 가 login 을 내고 구동기가 기다린다). 로그인 뒤 다른 화면으로 가면 phase 에 따라 목록부터 · 하던 곳부터 */
+    const toLogin = () => ({ type: 'goto', url: exports.OY_LOGIN_URL });
     const onPage = (url, text) => {
         lastUrl = url;
         lastText = text;

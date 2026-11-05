@@ -8,7 +8,7 @@ import { FLOW_FACTORIES, FLOW_HOSTS, type FlowFactoryOptions, type FlowSite } fr
 import { navScript, type ReceiptOrder } from './naverReceipt';
 import type { OutcomeEvent } from './runOutcome';
 
-export type Reply = { status?: number; json?: unknown; text?: string; reject?: boolean };
+export type Reply = { status?: number; json?: unknown; text?: string; reject?: boolean; /** 로그인 주소로 되돌려짐 흉내 */ redirected?: boolean; url?: string };
 export type Router = (url: string, init: { method?: string; body?: string }) => Reply;
 /** nextData — 그 화면의 __NEXT_DATA__(내역 읽기 시험용) */
 export type Page = { text: string | ((url: string) => string); nextData?: unknown; /** 이 화면을 읽은 뒤 사용자가 옮겨 간 것으로 치는 주소(로그인 뒤 돌아옴 흉내) — 흐름의 goto 가 아니라 gotos 에 안 남는다 */ after?: string };
@@ -56,11 +56,13 @@ export async function runFlow(site: FlowSite, pages: Record<string, Page>, route
         return new Promise((resolve, reject) => {
           if (rep.reject) { reject(new Error('net')); return; }
           const body = rep.text !== undefined ? rep.text : JSON.stringify(rep.json);
-          resolve({
-            ok: (rep.status ?? 200) >= 200 && (rep.status ?? 200) < 300, status: rep.status ?? 200, redirected: false, url: abs,
+          const r: Record<string, unknown> = {
+            ok: (rep.status ?? 200) >= 200 && (rep.status ?? 200) < 300, status: rep.status ?? 200, redirected: rep.redirected === true, url: rep.url ?? abs,
             json: () => (rep.text !== undefined ? Promise.reject(new Error('json')) : Promise.resolve(rep.json)),
             text: () => Promise.resolve(body),
-          });
+          };
+          r.clone = () => r;
+          resolve(r);
         });
       },
     };

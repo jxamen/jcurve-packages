@@ -23,6 +23,8 @@ import type { ReceiptDetail } from './model';
 
 export const OY_HOME_URL = 'https://www.oliveyoung.co.kr/store/main/main.do';
 export const OY_LOGIN_PATH = '/store/login/';
+/** 로그인 화면 — 로그인이 필요하면 홈이 아니라 이 화면을 보여 준다(1.2.3, 다이소와 같은 규칙 · 대표님 11-05 18:06) */
+export const OY_LOGIN_URL = 'https://www.oliveyoung.co.kr/store/login/loginForm.do';
 const OY = 'https://www.oliveyoung.co.kr/store/mypage';
 export const OY_ONLINE_URL = (p: number, from: string, to: string): string => `${OY}/getOrderListJSON.do?searchMonth=-12&startDate=${from}&endDate=${to}&pageIdx=${p}`;
 export const OY_DEAL_URL = (p: number, from: string, to: string): string => `${OY}/getDealList.do?pageIdx=${p}&searchMonth=-12&startDate=${from}&endDate=${to}`;
@@ -314,7 +316,7 @@ export function createOliveyoungApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
       };
       return page === 1 && rows.length > 0 ? structThen('oy-online-list', OY_ONLINE_URL(1, '#', '#'), rows.slice(0, 2), ['orderNo : ordNo', 'date : ordDtime(ms)', 'title : goodsNm', 'cancel : ordPrgsStatCdViewNm realQty cnclQty rtgsQty'], go) : go();
     }
-    if (r.st === 'login') { phase = 'page'; return { type: 'login' }; }
+    if (r.st === 'login') { phase = 'page'; return toLogin(); }
     if (r.st === 'blocked') { slow = true; blockedRun++; if (blockedRun >= MAX_BLOCKED_RUN) return finish('blocked'); }
     note(`online-${r.st}-${r.status ?? 0}`);
     listTries++;
@@ -338,7 +340,7 @@ export function createOliveyoungApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
       };
       return page === 1 && rows.length > 0 ? structThen('oy-deal-list', OY_DEAL_URL(1, '#', '#'), rows.slice(0, 2).map((x) => ({ ...x, shopSysNo: x.shopSysNo ? '#' : '', crConfNo: x.crConfNo ? '#' : '' })), ['total : td.colorOrange strong', 'card : #cardReceipt data-van-cd data-shop-sys-no', 'cash : #cashReceipt data-cr-conf-no'], go) : go();
     }
-    if (r.st === 'login') { phase = 'relogin'; tries = 0; resumeAt = dealReq; return { type: 'login' }; }
+    if (r.st === 'login') { phase = 'relogin'; tries = 0; resumeAt = dealReq; return toLogin(); }
     if (r.st === 'blocked') { slow = true; blockedRun++; if (blockedRun >= MAX_BLOCKED_RUN) return finish('blocked'); }
     note(`deal-${r.st}-${r.status ?? 0}`);
     listTries++;
@@ -378,7 +380,7 @@ export function createOliveyoungApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
       const go = (): FlowOut => { page = 1; listTries = 0; return storeJsonReq(); };
       return rows.length > 0 ? structThen('oy-store-list', OY_STORE_HTML_URL('#', '#'), rows.slice(0, 2).map((x) => ({ ...x, ordNo: '#', receiptNo: x.receiptNo ? '#' : '', frstReceiptNo: x.frstReceiptNo ? '#' : '' })), ['orderNo : goOrderDetail(ordNo, Y)', 'date : data-oper-dt', 'detail : data-deal-sp data-origin-bizpl-cd data-pos-no data-receipt-no data-frst-receipt-no', 'status : strong'], go) : go();
     }
-    if (r.st === 'login') { phase = 'relogin'; tries = 0; resumeAt = storeHtmlReq; return { type: 'login' }; }
+    if (r.st === 'login') { phase = 'relogin'; tries = 0; resumeAt = storeHtmlReq; return toLogin(); }
     if (r.st === 'blocked') { slow = true; blockedRun++; if (blockedRun >= MAX_BLOCKED_RUN) return finish('blocked'); }
     note(`store-html-${r.st}-${r.status ?? 0}`);
     listTries++;
@@ -400,7 +402,7 @@ export function createOliveyoungApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
       };
       return page === 1 && rows.length > 0 ? structThen('oy-store-json', OY_STORE_JSON_URL(1, '#', '#'), rows.slice(0, 2), ['orderNo : ordNo', 'date : ordDtime(ms)', 'store : strNm', 'amount : totSalePrc', 'cancel : ordPrgsStatCdViewNm cnclQty rtgsQty'], go) : go();
     }
-    if (r.st === 'login') { phase = 'relogin'; tries = 0; resumeAt = storeJsonReq; return { type: 'login' }; }
+    if (r.st === 'login') { phase = 'relogin'; tries = 0; resumeAt = storeJsonReq; return toLogin(); }
     if (r.st === 'blocked') { slow = true; blockedRun++; if (blockedRun >= MAX_BLOCKED_RUN) return finish('blocked'); }
     note(`store-json-${r.st}-${r.status ?? 0}`);
     listTries++;
@@ -468,7 +470,7 @@ export function createOliveyoungApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
     fail(j, FAIL_OF[r.st] ?? 'unreadable');
   };
   const afterBatch = (flags: { login: boolean; blocked: number }, next: () => FlowOut): FlowOut => {
-    if (flags.login) { phase = 'relogin'; tries = 0; resumeAt = next; return { type: 'login' }; }
+    if (flags.login) { phase = 'relogin'; tries = 0; resumeAt = next; return toLogin(); }
     if (flags.blocked > 0) { slow = true; blockedRun++; if (blockedRun >= MAX_BLOCKED_RUN) return finish('blocked'); } else blockedRun = 0;
     return next();
   };
@@ -585,7 +587,9 @@ export function createOliveyoungApiFlow(opts: ApiFlowOptions = {}): NaverFlow {
     return retryOr('timeout');
   };
 
-  const isLogin = (url: string): boolean => pathOf(url).startsWith(OY_LOGIN_PATH) || /\/login(\/|$)/i.test(pathOf(url));
+  const isLogin = (url: string): boolean => pathOf(url).toLowerCase().startsWith(OY_LOGIN_PATH) || /\/login(\/|$)/i.test(pathOf(url));
+  /** 로그인이 필요하다 — 로그인 화면으로 이동한다(열리면 onPage 가 login 을 내고 구동기가 기다린다). 로그인 뒤 다른 화면으로 가면 phase 에 따라 목록부터 · 하던 곳부터 */
+  const toLogin = (): FlowOut => ({ type: 'goto', url: OY_LOGIN_URL });
   const onPage = (url: string, text: string): FlowOut => {
     lastUrl = url;
     lastText = text;
