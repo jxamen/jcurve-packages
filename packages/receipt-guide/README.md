@@ -4,14 +4,14 @@
 영테크 `src/receiptGuide` 를 그대로 옮겼다(2026-11-05 대표님 「영테크 전자 영수증 화면도 패키지로 만들어 다른 앱이 바로 가져다 쓰게 — 디자인만 앱마다 다르게」). 색 · 글꼴 크기 · 둥글기 · 캐릭터 · 기록은 props 로 받는다 — 앱의 다른 파일을 부르지 않는다.
 
 ```json
-"@jcurve/receipt-guide": "https://github.com/jxamen/jcurve-packages/releases/download/receipt-guide-v1.0.0/jcurve-receipt-guide-1.0.0.tgz"
+"@jcurve/receipt-guide": "https://github.com/jxamen/jcurve-packages/releases/download/receipt-guide-v1.0.1/jcurve-receipt-guide-1.0.1.tgz"
 ```
 
 ## 필요한 것(peer)
 
 `react-native` · `expo-image-picker` · `expo-image-manipulator` · `expo-file-system` · `@shopify/react-native-skia`(사진첩 · 이어 붙이기를 쓸 때만)
 
-모두 JS 만 쓰고 새 네이티브 모듈은 없다. 위 다섯이 이미 들어간 빌드라면 OTA 로 나간다. 주문 읽기 · 서버 호출은 `@jcurve/receipt-link`(연동 상태 · 불러오기 화면) 에 있다 — 이 패키지는 화면 조각만.
+모두 JS 만 쓰고 새 네이티브 모듈은 없다. 위 다섯이 이미 들어간 빌드라면 OTA 로 나간다. 화면 없이 자료만(앱 목록 `GUIDES` · 종류 · `linkGuide`) 쓰는 곳(노드 시험 · 규칙 파일)은 `@jcurve/receipt-guide/data` 로 — react-native 를 부르지 않는다. 주문 읽기 · 서버 호출은 `@jcurve/receipt-link`(연동 상태 · 불러오기 화면) 에 있다 — 이 패키지는 화면 조각만.
 
 ## 전자 영수증 세 화면 — 한 번에 (대표님이 표시한 세 곳)
 
