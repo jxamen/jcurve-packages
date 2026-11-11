@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.parseQuery = exports.identityMessage = exports.createIdentity = void 0;
+exports.parseQuery = exports.openAuth = exports.identityMessage = exports.createIdentity = void 0;
 /**
  * `@jcurve/identity` — 리워드 앱 공용 **간편인증(KICA/KIAP) 본인확인**.
  *
@@ -51,4 +51,5 @@ exports.parseQuery = exports.identityMessage = exports.createIdentity = void 0;
 var identity_1 = require("./identity");
 Object.defineProperty(exports, "createIdentity", { enumerable: true, get: function () { return identity_1.createIdentity; } });
 Object.defineProperty(exports, "identityMessage", { enumerable: true, get: function () { return identity_1.identityMessage; } });
+Object.defineProperty(exports, "openAuth", { enumerable: true, get: function () { return identity_1.openAuth; } });
 Object.defineProperty(exports, "parseQuery", { enumerable: true, get: function () { return identity_1.parseQuery; } });

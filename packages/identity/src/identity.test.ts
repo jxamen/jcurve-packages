@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createIdentity, identityMessage, parseQuery } from './identity';
+import { createIdentity, identityMessage, openAuth, parseQuery } from './identity';
 
 describe('복귀 URL 읽기 — URLSearchParams 를 믿지 않는다', () => {
   it('값을 꺼낸다', () => {
@@ -66,5 +66,37 @@ describe('인증 실행', () => {
     const r = await createIdentity(deps).verify();
     expect(r.ok).toBe(false);
     if (!r.ok) expect(['NETWORK', 'NEED_UPDATE']).toContain(r.reason);
+  });
+});
+
+describe('2026-09-30 공용화 — 스터디숲에서 고친 것', () => {
+  const back = 'app://kiap?ok=1&sid=' + 'a'.repeat(32) + '&t=' + 'b'.repeat(32);
+
+  it('iOS 로그인 확인 창 없이(ephemeral) 연다(#303)', async () => {
+    const open = vi.fn(async () => ({ type: 'success', url: back }));
+    await openAuth({ openAuthSessionAsync: open }, 'https://x/page', 'app://kiap');
+    expect(open).toHaveBeenCalledWith('https://x/page', 'app://kiap', { preferEphemeralSession: true });
+  });
+
+  it('결과에 생년월일(#308) · 가입 전 흐름의 signupToken 을 넘긴다', async () => {
+    (globalThis as any).fetch = vi.fn(async () => ({ json: async () => ({ ok: true, name: '홍길동', phone: '01012345678', provider: 'KAKAO', birth: '1990-01-02', signupToken: 'st' }) }));
+    const r = await createIdentity(deps).finish({ type: 'success', url: back });
+    expect(r).toMatchObject({ ok: true, name: '홍길동', birth: '1990-01-02', signupToken: 'st' });
+  });
+
+  it('실패 복귀는 사유 그대로', async () => {
+    expect(await createIdentity(deps).finish({ type: 'success', url: 'app://kiap?ok=0&reason=CI_MISSING' })).toEqual({ ok: false, reason: 'CI_MISSING' });
+  });
+
+  it('켠 기관 목록을 status 에서 읽는다', async () => {
+    (globalThis as any).fetch = vi.fn(async () => ({ json: async () => ({ enabled: true, providers: ['KAKAO', 'TOSS'] }) }));
+    expect(await createIdentity(deps).providers()).toEqual(['KAKAO', 'TOSS']);
+  });
+
+  it('오류 문구 끝에 코드 — 취소는 빼고 · KICA 오류는 KIAP_ 코드 그대로(#304 · #305)', () => {
+    expect(identityMessage('CI_MISSING')).toMatch(/\(CI_MISSING\)$/);
+    expect(identityMessage('KIAP_E4108')).toContain('허용 도메인');
+    expect(identityMessage('KIAP_E9999')).toMatch(/\(KIAP_E9999\)$/);
+    expect(identityMessage('CANCELED')).not.toContain('(');
   });
 });
