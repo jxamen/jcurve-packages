@@ -203,6 +203,10 @@ const FALL = Symbol('fallback');
 function createAuth(deps, env = defaultEnv()) {
     const { keys, server, web } = deps;
     const track = deps.track ?? (() => undefined);
+    const nativeOnly = new Set(deps.nativeOnly ?? []);
+    /** (2.10) SDK 가 안 될 때 이 제공자를 웹으로 넘겨도 되는가 — `nativeOnly` 에 있으면 아니다 */
+    const webFor = (p) => !!web && !nativeOnly.has(p);
+    const nativeFail = (p, code) => new AuthError('failed', p + '_native:' + code);
     let triedAuth = false;
     /*
      | 도는 중인 로그인 — **한 번에 하나만.** 버튼을 연달아 누르면 창이 두 개 뜨고, 둘이 복귀 주소
@@ -386,8 +390,10 @@ function createAuth(deps, env = defaultEnv()) {
              | 남기지 않으면 **버튼을 눌렀는데 아무 일도 안 일어나는** 것으로만 보인다.
              */
             track('login_native_fallback', { provider: 'kakao', code: 'no_sdk' });
-            if (web)
+            if (webFor('kakao'))
                 return FALL;
+            if (nativeOnly.has('kakao'))
+                throw nativeFail('kakao', 'no_sdk');
             throw new Error('kakao_unavailable');
         }
         const grab = (r) => String(r?.accessToken ?? '');
@@ -417,8 +423,9 @@ function createAuth(deps, env = defaultEnv()) {
                 throw new AuthError('cancelled', 'kakao');
             // (2.9.4) 네이티브가 준 글을 그대로 짧게 남긴다 — 코드만으로는 「창을 못 띄움」인지 「설정 빠짐」인지 못 갈랐다
             track('login_native_fallback', { provider: 'kakao', code: 'sdk_' + shortCode(e), detail: errText(e).trim().slice(0, 120) });
-            if (web)
+            if (webFor('kakao'))
                 return FALL;
+            // 웹이 없거나 nativeOnly 면 1.0 처럼 — 카카오톡이었으면 계정 로그인을 한 번 더, 아니면 여기서 실패
             if (!talk)
                 throw kakaoAccountError(e);
         }
@@ -444,8 +451,10 @@ function createAuth(deps, env = defaultEnv()) {
         const g = env.google();
         if (!g?.GoogleSignin || isPlaceholder(keys.googleWeb)) {
             track('login_native_fallback', { provider: 'google', code: 'no_sdk' });
-            if (web)
+            if (webFor('google'))
                 return FALL;
+            if (nativeOnly.has('google'))
+                throw nativeFail('google', 'no_sdk');
             throw new Error('google_unavailable');
         }
         try {
@@ -476,8 +485,10 @@ function createAuth(deps, env = defaultEnv()) {
             if ((0, exports.isCancel)(errText(e)))
                 throw new AuthError('cancelled', 'google');
             track('login_native_fallback', { provider: 'google', code: 'sdk_' + shortCode(e) });
-            if (web)
+            if (webFor('google'))
                 return FALL;
+            if (nativeOnly.has('google'))
+                throw nativeFail('google', 'sdk_' + shortCode(e));
             throw e;
         }
     }
@@ -546,8 +557,10 @@ function createAuth(deps, env = defaultEnv()) {
         }
         catch (e) {
             track('login_native_fallback', { provider, code: 'server_reject', detail: shortCode(e) });
-            if (web)
+            if (webFor(provider))
                 return FALL; // 서버 웹 로그인으로 한 번 더 기회를 준다
+            if (nativeOnly.has(provider))
+                throw nativeFail(provider, 'server_reject:' + shortCode(e));
             throw e;
         }
     }
@@ -590,8 +603,10 @@ function createAuth(deps, env = defaultEnv()) {
     async function naverToken() {
         const fall = (code) => {
             track('login_native_fallback', { provider: 'naver', code });
-            if (web)
+            if (webFor('naver'))
                 return FALL;
+            if (nativeOnly.has('naver'))
+                throw nativeFail('naver', code);
             throw new AuthError('failed', 'naver_' + code);
         };
         const raw = mod(() => deps.naverSdk?.());
@@ -890,6 +905,8 @@ function createAuth(deps, env = defaultEnv()) {
                 // 서버가 네이버 앱 로그인을 안 준다(키 없음)고 **받아 본 결과**일 때만 건너뛴다 — 비어 있으면 모르는 것
                 if (list.length > 0 && !list.includes('naver_native')) {
                     track('login_native_fallback', { provider: 'naver', code: 'server_off' });
+                    if (nativeOnly.has('naver'))
+                        throw nativeFail('naver', 'server_off');
                 }
                 else {
                     const t = await naverToken();
@@ -900,6 +917,8 @@ function createAuth(deps, env = defaultEnv()) {
                     }
                 }
             }
+            if (nativeOnly.has('naver'))
+                throw nativeFail('naver', 'no_sdk'); // 네이버 앱 로그인을 안 붙인 빌드
             if (!web)
                 throw new AuthError('failed', 'naver_needs_web');
             return webLogin('naver', alive);
@@ -908,6 +927,8 @@ function createAuth(deps, env = defaultEnv()) {
             // 서버 목록을 **받아 본 결과** 카카오 SDK 가 꺼져 있을 때만 SDK 를 건너뛴다(비어 있으면 모르는 것)
             if (web && list.length > 0 && !list.includes('kakao_native')) {
                 track('login_native_fallback', { provider: 'kakao', code: 'server_off' });
+                if (nativeOnly.has('kakao'))
+                    throw nativeFail('kakao', 'server_off');
             }
             else {
                 const t = await kakaoToken();
@@ -926,6 +947,8 @@ function createAuth(deps, env = defaultEnv()) {
                     return s;
             }
         }
+        if (nativeOnly.has(provider))
+            throw nativeFail(provider, 'fallback'); // 위에서 다 던지므로 닿지 않는다 — 웹으로 새지 않게 막아 둔다
         return webLogin(provider, alive);
     }
     function signIn(provider) {

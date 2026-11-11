@@ -211,6 +211,13 @@ const headers = { ...base, ...(DEVICE_PATHS.includes(path) ? await funnel.device
 - `deviceHeaders()` 는 저장된 ID 를 **읽을 때까지 기다린다**(켜자마자 부르는 `auth/me` 에서도 실린다). 못 읽으면 `{}`, 던지지 않는다.
 - 서버(jcurve-api)는 `X-Device-Id` 가 없거나 모양이 틀리면 건너뛰고 **로그인은 그대로** 한다 — 옛 판도 같다.
 
+## 2.10 — 앱 로그인만(`nativeOnly`)
+
+`createAuth({ ..., nativeOnly: ['kakao', 'naver', 'google'] })` — 넣은 제공자는 SDK(앱 로그인)가 안 될 때 **서버 웹 로그인으로 넘기지 않고 실패**로 끝낸다. 기본값(없음)은 지금처럼 웹으로 넘긴다.
+- 실패는 `AuthError('failed', '<제공자>_native:<사유>')` — 사유: `no_sdk` · `sdk_<코드>` · `server_off`(서버 목록에 `*_native` 없음) · `server_reject:<코드>` · 네이버 `no_keys` · `no_scheme`. 화면이 `e.tag` 를 `login_fail` 에 실으면 원인이 남는다. `login_native_fallback{code}` 기록도 예전처럼 남는다.
+- 카카오는 웹이 없을 때와 같다 — 카카오톡이 실패하면 카카오 계정 로그인을 한 번 더 하고, 그것도 안 되면 `kakao_account:<코드>`(안내 `hint`).
+- 취소는 그대로 `cancelled`. 애플(안드로이드 `apple_web`) · 게스트 잇기 · 늦게 온 웹 복귀 주소는 이 값과 상관없다.
+
 ## 2.9.1 — 이메일 꼭 받기(`keys.requireEmail`)
 
 대표님 10-03 「네이버, 카카오 모두 이메일 받자 · 나중에 이메일 보내지」. `createAuth({ keys: { ..., requireEmail: true } })`:
