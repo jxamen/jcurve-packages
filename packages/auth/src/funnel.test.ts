@@ -332,6 +332,11 @@ describe('Codex 2차 — 개인정보가 새는 길(#6)', () => {
     expect(referrerKeys('gclid=Cj0K_a-B&gbraid=a%40b&wbraid=x%20y')).toBe('gclid=Cj0K_a-B');
   });
 
+  it('틱톡 클릭 번호(ttclid)도 남긴다 — 서버가 TikTok 유입으로 저장한다(2.5.1)', () => {
+    expect(referrerKeys('utm_source=tiktok&ttclid=abc_123-XYZ&x=1')).toBe('utm_source=tiktok&ttclid=abc_123-XYZ');
+    expect(referrerKeys('ttclid=abc%40def.com')).toBe('');
+  });
+
   it('꼬리표의 제공자도 아는 이름만(Codex 3차)', () => {
     expect(propOf({ provider: 'a@b.com', code: 'no_sdk' })).toBe('no_sdk');
     expect(propOf({ provider: 'hong', code: 'x' })).toBe('x');

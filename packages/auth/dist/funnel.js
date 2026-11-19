@@ -92,13 +92,13 @@ function defaultEnv() {
  * 설치 리퍼러에서 **광고 추적에 쓰는 키만** 남긴다(Codex 2차 #6).
  *
  * 원문을 그대로 보내면 무엇이 들어 있든 서버에 남는다. 광고 전환과 맞대어 보는 데 필요한 것은
- * 캠페인 표시(utm_*)와 광고 클릭 번호(gclid·gbraid·wbraid·anid)뿐이다. 모양은 그대로 `키=값&…` 이다.
+ * 캠페인 표시(utm_*)와 광고 클릭 번호(gclid·gbraid·wbraid·anid·ttclid — 틱톡 2.5.1)뿐이다. 모양은 그대로 `키=값&…` 이다.
  *
  * **값도 본다**(Codex 3차) — 키만 맞으면 `utm_term=홍길동@…` 처럼 무엇이든 실린다. 캠페인 값에
  * 번호·이메일이 보이면 그 쌍을 버리고, 클릭 번호는 영숫자·`_`·`-` 모양이 아니면 버린다.
  */
 const CAMPAIGN_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
-const CLICK_KEYS = ['gclid', 'gbraid', 'wbraid', 'anid'];
+const CLICK_KEYS = ['gclid', 'gbraid', 'wbraid', 'anid', 'ttclid'];
 function referrerKeys(raw) {
     return String(raw ?? '').split('&').filter((kv) => {
         const i = kv.indexOf('=');
